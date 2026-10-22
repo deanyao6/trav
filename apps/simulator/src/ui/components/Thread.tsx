@@ -89,8 +89,9 @@ function MessageRow(props: {
   last: boolean;
   delivered: boolean;
   handlers: ThreadHandlers;
+  readOnly: boolean;
 }) {
-  const { msg, group, me, first, last, delivered, handlers } = props;
+  const { msg, group, me, first, last, delivered, handlers, readOnly } = props;
   const [picker, setPicker] = useState(false);
   const outgoing = !msg.isTrav && msg.from === me.handle;
   const side = outgoing ? 'out' : 'in';
@@ -99,6 +100,7 @@ function MessageRow(props: {
       msg={msg}
       group={group}
       me={me}
+      readOnly={readOnly}
       onAction={(a, v) => handlers.onAction(msg, a, v)}
       {...(handlers.onShowDms ? { onShowDms: handlers.onShowDms } : {})}
     />
@@ -125,14 +127,16 @@ function MessageRow(props: {
         ) : null}
         <div
           className="bubble-wrap"
+          data-tapbacks={readOnly ? 'off' : 'on'}
           onClick={(e) => {
+            if (readOnly) return;
             if ((e.target as HTMLElement).closest('button')) return;
             setPicker((p) => !p);
           }}
         >
           {content}
           <Reactions msg={msg} />
-          {picker ? (
+          {picker && !readOnly ? (
             <div className="tapback-picker" role="menu">
               {TAPBACKS.map((t) => (
                 <button
@@ -179,6 +183,8 @@ export function Thread(props: {
   me: SimMember;
   typing: boolean;
   handlers: ThreadHandlers;
+  /** Show cards and tapbacks without buttons or the tapback picker (someone else's DM). */
+  readOnly?: boolean;
   testId?: string;
   empty?: string;
 }) {
@@ -209,6 +215,7 @@ export function Thread(props: {
                 last={info.last}
                 delivered={i === lastOutgoing && i === entries.length - 1}
                 handlers={handlers}
+                readOnly={props.readOnly ?? false}
               />
             )}
           </div>

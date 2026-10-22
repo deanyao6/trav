@@ -5,7 +5,7 @@
  *   node --import tsx src/server/main.ts         API + SSE + the built UI from dist/ui
  *
  * Env: TRAV_SIM_PORT (default 5179), TRAV_SIM_BACKEND (scripted | agent | auto,
- * default auto), TRAV_OFFLINE (1 = no live model calls).
+ * default auto), TRAV_OFFLINE (1 = no live model calls; read by the agent runtime).
  */
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -21,10 +21,10 @@ const DIST_UI = join(APP_ROOT, 'dist', 'ui');
 async function main(): Promise<void> {
   const dev = process.argv.includes('--dev');
   const port = parsePort(process.env['TRAV_SIM_PORT']);
-  const offline = process.env['TRAV_OFFLINE'] === '1';
+  // No offline flag here: the agent runtime's model client decides (TRAV_OFFLINE,
+  // missing key), and the backend reports that real mode in its state.
   const backend = await selectBackend({
     choice: backendChoice(process.env['TRAV_SIM_BACKEND']),
-    offline,
     responseDelayMs: 700,
     log: (line) => console.log(`[sim] ${line}`),
   });
@@ -58,7 +58,7 @@ async function main(): Promise<void> {
   const bound = await listenLocal(server, port);
   console.log(
     `[sim] trav simulator on http://${SIM_HOST}:${bound} · backend ${backend.kind}` +
-      `${offline || backend.kind === 'scripted' ? ' · offline' : ''}`,
+      `${backend.state().offline ? ' · offline' : ' · live model calls'}`,
   );
   const stop = (): void => {
     server.close();

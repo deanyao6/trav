@@ -135,6 +135,67 @@ describe('AppView renders demo states 1–3', () => {
     expect(henryView).toContain('nothing here yet');
   });
 
+  it('a silent tap shows the muted status line (approval handler not wired)', async () => {
+    const { s2 } = await states();
+    expect(render(s2, 'h_dean')).not.toContain('data-testid="sim-status"');
+    const html = render(
+      { ...s2, status: 'approval handler not wired yet (T-030), use TRAV_SIM_BACKEND=scripted' },
+      'h_dean',
+    );
+    expect(html).toContain('data-testid="sim-status"');
+    expect(html).toContain('TRAV_SIM_BACKEND=scripted');
+    // It is chrome, never a Trav bubble.
+    expect(count(html, 'data-testid="bubble-trav"')).toBe(
+      count(render(s2, 'h_dean'), 'data-testid="bubble-trav"'),
+    );
+  });
+
+  it("another member's DM tab is view-only: no card buttons, no tapback picker", async () => {
+    const { s3 } = await states();
+    const sam = BARCELONA.members.find((m) => m.handle === 'h_sam')!;
+    const privateExpense: ExpenseConfirmCard = {
+      ...expense,
+      cardId: 'card_private',
+      visibility: 'private',
+      status: 'pending',
+      paidBy: sam.memberId,
+    };
+    const shareIt = {
+      id: 'confirm',
+      label: 'Share it',
+      style: 'primary',
+      textAliases: ['share'],
+      allowedMemberIds: [sam.memberId],
+    } as const;
+    const dmCard: ThreadMessage = {
+      ...cardMessage(privateExpense, [shareIt]),
+      lane: 'dm',
+      messageId: 'm_sam_private',
+    };
+    const state: SimState = {
+      ...s3,
+      groups: s3.groups.map((g, i) =>
+        i === 0 ? { ...g, dms: { ...g.dms, [sam.memberId]: [dmCard] } } : g,
+      ),
+    };
+    const dmPart = (html: string) => html.slice(html.indexOf('class="right-rail"'));
+
+    // Sending as Dean, looking at Sam's DM: look, don't tap.
+    const asDean = dmPart(render(state, 'h_dean', { dmMemberId: sam.memberId }));
+    expect(asDean).toContain('only Sam sees this');
+    expect(asDean).toContain('data-testid="dm-readonly"');
+    expect(asDean).toContain('€84');
+    expect(asDean).not.toContain('>Share it<');
+    expect(asDean).toContain('data-tapbacks="off"');
+    expect(asDean).not.toContain('data-tapbacks="on"');
+
+    // Sending as Sam, Sam's own DM: the buttons and tapbacks are live.
+    const asSam = dmPart(render(state, 'h_sam', { dmMemberId: sam.memberId }));
+    expect(asSam).not.toContain('data-testid="dm-readonly"');
+    expect(asSam).toContain('>Share it<');
+    expect(asSam).toContain('data-tapbacks="on"');
+  });
+
   it('the group thread markup never contains a ticket, whoever is selected', async () => {
     const { s3 } = await states();
     for (const m of BARCELONA.members) {
@@ -342,6 +403,46 @@ describe('Card renders every RichCard type', () => {
     expect(html).toContain('data-testid="pick-2"');
     expect(html).toContain('>Drop it<');
     expect(html).toContain('non-refundable');
+  });
+
+  it('an unknown card type renders its text fallback inside the panel, not an empty box', () => {
+    const unknown = {
+      cardId: 'card_future',
+      type: 'poll',
+      title: 'quick poll',
+      fallbackText: 'tapas or paella tonight?\nreply 1 or 2',
+    } as unknown as RichCard;
+    const msg = { ...cardMessage(unknown), cardState: undefined } as unknown as ThreadMessage;
+    const html = renderToStaticMarkup(<Card msg={msg} group={BARCELONA} me={me} onAction={noop} />);
+    expect(html).toContain('data-testid="card-poll"');
+    expect(html).toContain('data-testid="card-fallback"');
+    expect(html).toContain('tapas or paella tonight?');
+    expect(html).toContain('reply 1 or 2');
+    // Empty msg.text: the card's own fallbackText is used.
+    const bare = renderToStaticMarkup(
+      <Card msg={{ ...msg, text: '' }} group={BARCELONA} me={me} onAction={noop} />,
+    );
+    expect(bare).toContain('tapas or paella tonight?');
+  });
+
+  it('readOnly: no buttons anywhere on the card (button row, digest items, options, settle Paid)', () => {
+    const ro = (card: RichCard, actions: ThreadMessage['actions']) =>
+      renderToStaticMarkup(
+        <Card
+          msg={cardMessage(card, actions)}
+          group={BARCELONA}
+          me={me}
+          onAction={noop}
+          readOnly
+        />,
+      );
+    const undo = { id: 'undo', label: 'Undo', style: 'secondary', textAliases: [] } as const;
+    expect(ro(expense, [undo])).not.toContain('<button');
+    expect(ro(options, [])).not.toContain('<button');
+    const paid = { id: 'paid', label: 'Paid', style: 'secondary', textAliases: [] } as const;
+    expect(ro(settle, [paid])).not.toContain('<button');
+    const digest: ExpenseConfirmCard = { ...expense, digestItems: [expense] };
+    expect(ro(digest, [undo])).not.toContain('<button');
   });
 
   it('a resolved card shows its status chip instead of buttons', () => {

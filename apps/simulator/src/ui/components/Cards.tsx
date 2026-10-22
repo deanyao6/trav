@@ -32,6 +32,8 @@ export interface CardProps {
   readonly onAction: (action: Action, value?: string) => void;
   /** Receipt "N tickets sent" link: highlight these members' DM tabs. */
   readonly onShowDms?: (memberIds: readonly string[]) => void;
+  /** Look, don't tap: no action buttons anywhere on the card (someone else's DM). */
+  readonly readOnly?: boolean;
 }
 
 function nameOf(group: SimGroup, memberId: string): string {
@@ -85,7 +87,14 @@ function Row({ label, value, strong }: { label: ReactNode; value: ReactNode; str
   );
 }
 
-function Buttons({ msg, group, me, onAction, hide }: CardProps & { hide?: ReadonlySet<string> }) {
+function Buttons({
+  msg,
+  group,
+  me,
+  onAction,
+  hide,
+  readOnly,
+}: CardProps & { hide?: ReadonlySet<string> }) {
   const plan0 = planButtons(msg, me, group);
   const plan = hide ? { ...plan0, buttons: plan0.buttons.filter((a) => !hide.has(a.id)) } : plan0;
   if (msg.cardState && msg.cardState.liveActionIds.length === 0 && msg.cardState.label) {
@@ -99,6 +108,7 @@ function Buttons({ msg, group, me, onAction, hide }: CardProps & { hide?: Readon
       </div>
     );
   }
+  if (readOnly) return null;
   if (plan.buttons.length === 0) {
     return plan.waitingOn ? (
       <div className="waiting" data-testid="card-waiting">
@@ -329,11 +339,11 @@ function ExpenseItem({ card, group }: { card: ExpenseConfirmCard; group: SimGrou
 }
 
 function ExpenseBody(props: CardProps & { card: ExpenseConfirmCard }) {
-  const { card, group, msg, me, onAction } = props;
+  const { card, group, msg, me, onAction, readOnly } = props;
   const items = card.digestItems ?? [];
   if (items.length === 0) return <ExpenseItem card={card} group={group} />;
   const live = new Set(msg.cardState?.liveActionIds ?? msg.actions.map((a) => a.id));
-  const actions = msg.actions.filter((a) => live.has(a.id) && mayAct(a, card, me));
+  const actions = readOnly ? [] : msg.actions.filter((a) => live.has(a.id) && mayAct(a, card, me));
   return (
     <div className="digest">
       {items.map((item) => (
@@ -514,7 +524,10 @@ function OptionsBody(props: CardProps & { card: OptionsCard }) {
   const { card, msg, me, onAction } = props;
   const live = new Set(msg.cardState?.liveActionIds ?? []);
   const canPick =
-    card.status === 'pending' && live.has('pick') && mayAct(card.pickAction, card, me);
+    !props.readOnly &&
+    card.status === 'pending' &&
+    live.has('pick') &&
+    mayAct(card.pickAction, card, me);
   return (
     <>
       <div className="muted">{card.context}</div>
@@ -568,7 +581,7 @@ function body(card: RichCard, props: CardProps): ReactNode {
     case 'expense_confirm':
       return <ExpenseBody {...props} card={card} />;
     case 'settle_up': {
-      const paid = props.msg.actions.find((a) => a.id === 'paid');
+      const paid = props.readOnly ? undefined : props.msg.actions.find((a) => a.id === 'paid');
       return (
         <SettleBody
           card={card}
@@ -584,7 +597,24 @@ function body(card: RichCard, props: CardProps): ReactNode {
       return <WrappedBody card={card} group={props.group} />;
     case 'options':
       return <OptionsBody {...props} card={card} />;
+    default:
+      // A card type this UI doesn't know yet: show the text fallback inside the
+      // panel rather than an empty box (MessageRow hides `msg.text` for cards).
+      return <FallbackBody msg={props.msg} />;
   }
+}
+
+function FallbackBody({ msg }: { msg: ThreadMessage }) {
+  const card = msg.card as { readonly fallbackText?: unknown } | undefined;
+  const text =
+    msg.text !== '' ? msg.text : typeof card?.fallbackText === 'string' ? card.fallbackText : '';
+  return (
+    <div className="card-fallback" data-testid="card-fallback">
+      {text.split('\n').map((line, i) => (
+        <div key={i}>{line}</div>
+      ))}
+    </div>
+  );
 }
 
 /** Actions rendered inside the body (per option / per transfer / per digest item), not in the button row. */

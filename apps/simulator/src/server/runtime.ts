@@ -5,6 +5,11 @@
  *   TRAV_SIM_BACKEND=agent     the real Trav runtime; fails loudly if it can't load
  *   (unset)                    the agent runtime if it loads, else the script
  *
+ * `auto` prefers the real runtime because it is the product. Until T-030 wires
+ * the approval handler, a proposal's Approve/👍 stops at the agent's gate
+ * (`approval:handler_not_wired`): the startup log and the UI status line both
+ * point at `TRAV_SIM_BACKEND=scripted` for the full demo.
+ *
  * The agent runtime comes from `createTravRuntime` in `@trav/agent`
  * (packages/agent/src/compose.ts, T-009/T-021). It is looked up at runtime
  * through a dynamic import so this file typechecks and runs before that
@@ -37,13 +42,26 @@ export function backendChoice(value: string | undefined): BackendChoice {
 export interface SimRuntimeInput {
   readonly channel: SimulatorChannel;
   readonly clock: Clock;
+  /** True forces offline; false lets the model client read `TRAV_OFFLINE` and the key itself. */
   readonly offline: boolean;
 }
 
 /** The minimum the simulator needs back from `createTravRuntime`. */
 export interface SimRuntimeOutput {
   readonly agent: TravAgent;
+  /**
+   * The runtime's model client. Its `mode` is the truth for the offline badge:
+   * `TRAV_OFFLINE=true`, `TRAV_OFFLINE=1` or a missing key all mean offline.
+   */
+  readonly model?: { readonly mode: 'live' | 'offline' };
 }
+
+/** Printed at startup whenever the simulator runs the real agent runtime. */
+export const AGENT_BACKEND_HINT =
+  'backend agent: the real Trav runtime. until T-030 wires the approval handler, ' +
+  'Approve and 👍 on a proposal do nothing here (the UI says so). ' +
+  'for the full Barcelona demo (chat → proposal → receipt + tickets) run ' +
+  'TRAV_SIM_BACKEND=scripted pnpm sim';
 
 type CreateTravRuntime = (input: SimRuntimeInput) => SimRuntimeOutput | Promise<SimRuntimeOutput>;
 
@@ -62,7 +80,8 @@ async function importCreateTravRuntime(): Promise<CreateTravRuntime> {
 }
 
 export interface LoadAgentOptions {
-  readonly offline: boolean;
+  /** Force offline mode. Default false: the runtime decides (env + key). */
+  readonly offline?: boolean;
   readonly groups?: readonly SimGroup[];
   /** Simulated trip time to start at. Default: Barcelona, sat mar 14, 9:39pm. */
   readonly startAt?: string;
@@ -77,17 +96,22 @@ export async function loadAgentBackend(options: LoadAgentOptions): Promise<Simul
   const create = options.createTravRuntime ?? (await importCreateTravRuntime());
   // T-009/T-021 wires this: the one call into the real runtime. Adjust the
   // input/output mapping here (and only here) when compose.ts lands.
-  const runtime = await create({ channel, clock, offline: options.offline });
+  const forceOffline = options.offline === true;
+  const runtime = await create({ channel, clock, offline: forceOffline });
   const agent = runtime?.agent;
   if (!agent || typeof agent.handleInbound !== 'function') {
     throw notConfigured('createTravRuntime did not return { agent: TravAgent }');
   }
-  return createAgentBackend({ agent, channel, clock, groups, offline: options.offline });
+  // The badge follows the model client's real mode, not an env-var guess.
+  const mode = runtime.model?.mode;
+  const offline = mode !== undefined ? mode === 'offline' : forceOffline;
+  return createAgentBackend({ agent, channel, clock, groups, offline });
 }
 
 export interface SelectBackendOptions {
   readonly choice: BackendChoice;
-  readonly offline: boolean;
+  /** Force offline mode for the agent runtime. Default: the runtime decides. */
+  readonly offline?: boolean;
   readonly responseDelayMs?: number;
   readonly log?: (line: string) => void;
   readonly createTravRuntime?: CreateTravRuntime;
@@ -100,12 +124,17 @@ export async function selectBackend(options: SelectBackendOptions): Promise<Simu
     );
   if (options.choice === 'scripted') return scripted();
   const agentOptions: LoadAgentOptions = {
-    offline: options.offline,
+    ...(options.offline !== undefined ? { offline: options.offline } : {}),
     ...(options.createTravRuntime ? { createTravRuntime: options.createTravRuntime } : {}),
   };
-  if (options.choice === 'agent') return loadAgentBackend(agentOptions);
+  const agent = async (): Promise<SimulatorBackend> => {
+    const backend = await loadAgentBackend(agentOptions);
+    options.log?.(AGENT_BACKEND_HINT);
+    return backend;
+  };
+  if (options.choice === 'agent') return agent();
   try {
-    return await loadAgentBackend(agentOptions);
+    return await agent();
   } catch (e) {
     if (
       e instanceof TravError &&

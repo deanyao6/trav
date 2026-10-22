@@ -132,6 +132,9 @@ function DmRail(props: AppViewProps & { view: GroupView; me: SimMember }) {
   const { view, me } = props;
   const selected = view.group.members.find((m) => m.memberId === props.dmMemberId) ?? me;
   const entries = view.dms[selected.memberId] ?? [];
+  // Taps and tapbacks always act as the "send as" member, so another member's
+  // DM is look-only: pressing "Share it" there would be a tap by someone else.
+  const readOnly = selected.memberId !== me.memberId;
   return (
     <aside className="right-rail">
       <div className="rail-title">Trav's DMs</div>
@@ -160,12 +163,18 @@ function DmRail(props: AppViewProps & { view: GroupView; me: SimMember }) {
         })}
       </div>
       <div className="dm-header">🔒 only {selected.name} sees this</div>
+      {readOnly ? (
+        <div className="dm-readonly muted small" data-testid="dm-readonly">
+          view only · send as {selected.name} to tap
+        </div>
+      ) : null}
       <Thread
         entries={entries}
         group={view.group}
         me={selected}
         typing={false}
         handlers={props.handlers}
+        readOnly={readOnly}
         testId="dm-thread"
         empty="nothing here yet"
       />
@@ -220,6 +229,11 @@ export function AppView(props: AppViewProps) {
             {props.error || props.state.lastError ? (
               <div className="error-banner" data-testid="error">
                 {props.error ?? props.state.lastError}
+              </div>
+            ) : null}
+            {props.state.status ? (
+              <div className="status-banner" data-testid="sim-status" role="status">
+                {props.state.status}
               </div>
             ) : null}
             {hint ? (
@@ -314,31 +328,24 @@ export function App() {
     if (!state) return undefined;
     const view = pickGroup(state, groupId);
     const me = pickMe(view, meByGroup[view.group.groupId] ?? '');
+    // Every tap and tapback is the "send as" member's. Another member's DM is
+    // rendered read-only (DmRail), so a DM card can only be tapped by its owner.
     return {
       onAction: (msg: ThreadMessage, action: Action, value?: string) => {
-        // A DM card's buttons act as that DM's owner (only they can see it).
-        const actor =
-          msg.lane === 'dm'
-            ? (view.group.members.find((m) => m.memberId === dmMemberId) ?? me)
-            : me;
         run({
           type: 'button_tap',
-          from: actor.handle,
+          from: me.handle,
           cardMessageId: msg.messageId,
           actionId: action.id,
           ...(value !== undefined ? { value } : {}),
         });
       },
       onReact: (msg: ThreadMessage, reaction: string) => {
-        const actor =
-          msg.lane === 'dm'
-            ? (view.group.members.find((m) => m.memberId === dmMemberId) ?? me)
-            : me;
-        run({ type: 'reaction', from: actor.handle, targetMessageId: msg.messageId, reaction });
+        run({ type: 'reaction', from: me.handle, targetMessageId: msg.messageId, reaction });
       },
       onShowDms: (ids) => setHighlightDms(ids),
     };
-  }, [state, groupId, meByGroup, dmMemberId]);
+  }, [state, groupId, meByGroup]);
 
   if (!state || !handlers) {
     return <div className="loading">{error ?? 'connecting to the simulator…'}</div>;

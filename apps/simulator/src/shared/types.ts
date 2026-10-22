@@ -118,6 +118,12 @@ export interface SimState {
   readonly groups: readonly GroupView[];
   /** Last failed inject, shown as a small banner (never a Trav message). */
   readonly lastError?: string;
+  /**
+   * Muted operator line (never a Trav message): the last tap or tapback got no
+   * visible answer, and why (e.g. the approval handler isn't wired yet).
+   * Cleared by the next turn.
+   */
+  readonly status?: string;
 }
 
 /**

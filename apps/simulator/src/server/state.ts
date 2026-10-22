@@ -337,6 +337,7 @@ export interface BuildStateInput {
   readonly channel: ChannelView;
   readonly typing: ReadonlySet<string>;
   readonly lastError?: string;
+  readonly status?: string;
 }
 
 export function buildGroupView(
@@ -377,5 +378,6 @@ export function buildState(input: BuildStateInput): SimState {
       buildGroupView(g, input.channel, input.now, input.typing.has(g.groupId)),
     ),
     ...(input.lastError !== undefined ? { lastError: input.lastError } : {}),
+    ...(input.status !== undefined ? { status: input.status } : {}),
   };
 }

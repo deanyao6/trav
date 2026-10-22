@@ -562,22 +562,16 @@ function createSession(clock: SimulatedClock, delayMs: number): Session {
     else if (event.reaction === '👎' || event.reaction === 'dislike') await decline(p, sender);
   };
 
-  // One event at a time: two quick asks (or a tap during the typing pause)
-  // can never interleave into two proposals or two bookings.
-  let queue: Promise<void> = Promise.resolve();
-  const respond = (event: InboundEvent): Promise<void> => {
-    const run = queue.then(() => handle(event));
-    queue = run.catch(() => undefined);
-    return run;
-  };
-
+  // `createChannelBackend` runs one event at a time: two quick asks (or a tap
+  // during the typing pause) can never interleave into two proposals or two
+  // bookings.
   const backend = createChannelBackend({
     kind: 'scripted',
     groups,
     channel,
     clock,
     offline: true,
-    respond,
+    respond: handle,
     beforeInject: () => clock.advanceMs(STEP_MS),
   });
   const session: Session = { backend, channel, bookings: 0 };
