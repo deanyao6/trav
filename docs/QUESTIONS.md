@@ -8,5 +8,7 @@ Things the overnight run could not decide or was blocked on. Ranked by importanc
 
 ## Noted, not blocking
 
+- **Adapter interface gaps found in review (T-008-a):** (a) `PurchaseTicketsRequest`/`ChargeRequest` carry no `groupId`, so provider mocks can't compare `ApprovalProof.groupId`; the executor (T-009) does that check instead (recorded in the T-009 acceptance). (b) `BookingPaymentsAdapter.refund` takes no `ApprovalProof` or caller identity, unlike `TicketsAdapter.refund`; a refund only returns money, but audit should record who asked. Proposed as T-059 (P1).
+
 - pnpm 12 needs `XDG_RUNTIME_DIR` pointed inside the repo to work in the sandbox (see `docs/DECISIONS.md` D-002). `scripts/overnight.sh` now sets it; the currently running overnight loop already started, so this session's agents set it per shell. If you run pnpm yourself outside the sandbox, nothing changes.
 - The guard hook's "dumping environment variables" rule also matches any command that mentions `.env` followed by a pipe (e.g. `cat .env | wc -c`). Harmless, but the orchestrator avoids touching `.env` entirely.
