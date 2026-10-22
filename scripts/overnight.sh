@@ -57,13 +57,30 @@ caffeinate -dimsu -w $$ &
 
 echo "Preflight OK. Running until $(date -r "$END" 2>/dev/null || date -d "@$END")." | tee -a logs/overnight.log
 
+# Prints the epoch (+2 min buffer) of the last "resets 1pm" / "resets 8:30am"
+# usage-limit message in $1, or nothing. Local time; rolls to tomorrow if past.
+reset_epoch() {
+  local t h m ap now ts
+  t=$(printf '%s' "$1" | grep -oiE 'resets [0-9]{1,2}(:[0-9]{2})?(am|pm)' | tail -1 | cut -d' ' -f2)
+  [ -z "$t" ] && return 0
+  ap=$(printf '%s' "$t" | grep -oiE '(am|pm)$' | tr 'a-z' 'A-Z')
+  t=${t%??}; h=${t%%:*}; m=00
+  case "$t" in *:*) m=${t#*:};; esac
+  now=$(date +%s)
+  ts=$(date -j -f "%Y-%m-%d %I:%M:%S %p" "$(date +%Y-%m-%d) $h:$m:00 $ap" +%s 2>/dev/null) || return 0
+  [ "$ts" -le "$now" ] && ts=$(( ts + 86400 ))
+  echo $(( ts + 120 ))
+}
+
 # --- Loop ------------------------------------------------------------------
-RUN=0
+RUN=$(ls logs/session-*.log 2>/dev/null | sed -E 's/.*session-([0-9]+)\.log/\1/' | sort -n | tail -1)
+RUN=${RUN:-0}
 while [ "$(date +%s)" -lt "$END" ]; do
   RUN=$((RUN + 1))
-  P0=$(grep -cE '^- \[ \] T-[0-9]+ \| P0' tasks/BACKLOG.md 2>/dev/null || echo "?")
+  P0=$(grep -cE '^- \[ \] T-[0-9a-z-]+ \| P0' tasks/BACKLOG.md 2>/dev/null || echo "?")
   echo "=== Session $RUN — $(date) — open P0 tasks: $P0 ===" | tee -a logs/overnight.log
   START=$(date +%s)
+  LOGF="logs/session-$RUN.log"
 
   claude -p "$(cat KICKOFF.md)" \
     --model fable \
@@ -71,14 +88,23 @@ while [ "$(date +%s)" -lt "$END" ]; do
     --settings .claude/settings.json \
     --max-turns 400 \
     --output-format text \
-    >> "logs/session-$RUN.log" 2>&1
+    >> "$LOGF" 2>&1
   CODE=$?
   ELAPSED=$(( $(date +%s) - START ))
   echo "Session $RUN exited with code $CODE after ${ELAPSED}s" | tee -a logs/overnight.log
 
-  # A session that dies quickly usually means a usage limit; wait it out.
-  if [ "$ELAPSED" -lt 300 ]; then
-    echo "Short session; backing off 15 minutes (likely a usage limit)." | tee -a logs/overnight.log
+  # Usage limit: Claude prints "resets 1pm (America/Los_Angeles)". Sleep until then.
+  RESET_AT=$(reset_epoch "$(cat "$LOGF" 2>/dev/null)")
+  if [ -n "$RESET_AT" ]; then
+    if [ "$RESET_AT" -ge "$END" ]; then
+      echo "Usage limit resets at $(date -r "$RESET_AT"), after the deadline. Stopping." | tee -a logs/overnight.log
+      break
+    fi
+    echo "Usage limit hit. Sleeping until $(date -r "$RESET_AT")." | tee -a logs/overnight.log
+    sleep $(( RESET_AT - $(date +%s) ))
+  elif [ "$ELAPSED" -lt 300 ]; then
+    # Died fast for some other reason; back off rather than spin.
+    echo "Short session with no reset time in the log; backing off 15 minutes." | tee -a logs/overnight.log
     sleep 900
   else
     sleep 20
