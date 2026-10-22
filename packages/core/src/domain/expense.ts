@@ -41,7 +41,8 @@ export interface LineItem {
 
 /**
  * Split modes (T-003). Every mode produces shares summing to the expense total
- * to the minor unit; remainders go to the payer (VOICE §4.4), then by `allocate()` order.
+ * to the minor unit; odd minor units go to the largest fractional remainder, ties to the
+ * payer (VOICE §4.4), then member order (see `ledger/splits.ts`).
  */
 export type SplitSpec =
   | { readonly method: 'equal'; readonly participants: readonly MemberId[] }
