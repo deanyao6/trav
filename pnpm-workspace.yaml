@@ -1,0 +1,21 @@
+packages:
+  - packages/*
+  - apps/*
+
+# pnpm v10+ doesn't run dependencies' install scripts unless allowed here. Keep minimal.
+# esbuild's postinstall only validates the prebuilt binary (which ships as an optional
+# platform package), so it works even when the script is skipped.
+allowBuilds:
+  esbuild: true
+
+# Keep the store and caches inside the repo (the overnight sandbox only allows writes here).
+# The store *lock* lives under $XDG_RUNTIME_DIR, which scripts/overnight.sh points into
+# .cache/runtime; set it yourself when running pnpm outside that script in the sandbox.
+storeDir: .cache/pnpm-store
+cacheDir: .cache/pnpm
+
+# Don't silently run an install before every script (it hides errors in the sandbox).
+verifyDepsBeforeRun: false
+
+minimumReleaseAgeExclude:
+  - '@anthropic-ai/sdk@1.1.0'

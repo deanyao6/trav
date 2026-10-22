@@ -1,0 +1,92 @@
+{
+  "model": "fable",
+  "permissions": {
+    "defaultMode": "dontAsk",
+    "disableBypassPermissionsMode": "disable",
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "Bash",
+      "WebSearch",
+      "WebFetch",
+      "Agent",
+      "Task",
+      "TodoWrite"
+    ],
+    "deny": [
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.gnupg/**)",
+      "Read(~/.config/**)",
+      "Read(~/.netrc)",
+      "Read(~/.npmrc)",
+      "Read(~/.docker/**)",
+      "Read(~/Library/**)",
+      "Read(~/Documents/**)",
+      "Read(~/Desktop/**)",
+      "Read(~/Downloads/**)",
+      "Bash(sudo *)",
+      "Bash(gh *)",
+      "Bash(ssh *)",
+      "Bash(scp *)",
+      "Bash(git config --global *)",
+      "Bash(git remote add *)",
+      "Bash(git remote set-url *)",
+      "Bash(git clone *)"
+    ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
+    "filesystem": {
+      "denyRead": [
+        "~/.ssh",
+        "~/.aws",
+        "~/.gnupg",
+        "~/.config",
+        "~/.netrc",
+        "~/.docker",
+        "~/.kube",
+        "~/Library/Keychains",
+        "~/Library/Application Support",
+        "~/Library/Messages",
+        "~/Library/Mail",
+        "~/Library/Cookies",
+        "~/Documents",
+        "~/Desktop",
+        "~/Downloads",
+        "~/Pictures"
+      ]
+    },
+    "network": {
+      "allowedDomains": [
+        "registry.npmjs.org",
+        "github.com",
+        "api.github.com",
+        "codeload.github.com",
+        "objects.githubusercontent.com",
+        "api.anthropic.com",
+        "cdn.playwright.dev",
+        "playwright.download.prss.microsoft.com",
+        "playwright.azureedge.net"
+      ]
+    }
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/guard.mjs\""
+          }
+        ]
+      }
+    ]
+  }
+}

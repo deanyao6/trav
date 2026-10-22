@@ -1,0 +1,36 @@
+{
+  "name": "trav",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Trav: an AI group-chat agent that stays with a group before, during, and after a trip.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13",
+    "pnpm": ">=10"
+  },
+  "packageManager": "pnpm@12.14.0",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "pnpm -r --parallel --workspace-concurrency=4 typecheck",
+    "lint": "eslint . --max-warnings=0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "pnpm typecheck && pnpm lint && pnpm test",
+    "demo:barcelona": "pnpm --filter @trav/simulator demo:barcelona",
+    "sim": "pnpm --filter @trav/simulator sim",
+    "eval": "pnpm --filter @trav/evals eval"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "25.9.9",
+    "eslint": "10.13.0",
+    "eslint-config-prettier": "10.1.8",
+    "globals": "17.13.0",
+    "prettier": "3.9.10",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.0",
+    "vitest": "5.0.5"
+  }
+}

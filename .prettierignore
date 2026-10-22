@@ -1,0 +1,12 @@
+node_modules
+dist
+.cache
+.trav
+logs
+qa/screenshots
+pnpm-lock.yaml
+*.md
+*.sqlite
+.claude
+research
+evals/reports

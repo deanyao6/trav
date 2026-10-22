@@ -1,0 +1,12 @@
+node_modules/
+.cache/
+dist/
+logs/
+.env
+.trav/
+*.sqlite
+.DS_Store
+qa/screenshots/
+.enc
+old-root-copies/
+.claude/hooks/blocked.log
