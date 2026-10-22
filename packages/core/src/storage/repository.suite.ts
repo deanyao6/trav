@@ -27,7 +27,7 @@ import type {
   TicketArtifact,
 } from '../privacy.js';
 import { markPrivate, promote } from '../privacy.js';
-import { computeAuditHash, verifyAuditChain } from '../audit/index.js';
+import { computeAuditHash, computePayloadHash, verifyAuditChain } from '../audit/index.js';
 import { TravError } from '../errors.js';
 import type { StoreDeps } from './shared/stores.js';
 import { AUDIT_REDACTED_COUNT_KEY } from './shared/stores.js';
@@ -492,6 +492,13 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         expect(stores.group.trips.get(TRIP)?.status).toBe('ended');
         expectTravError(() => stores.group.trips.update(makeTrip('trip_missing')), 'not_found');
         expect(stores.group.trips.listByGroup(G).map((t) => t.tripId)).toEqual([TRIP]);
+        // A trip cannot be re-parented into another group.
+        expectTravError(
+          () => stores.group.trips.update(makeTrip(TRIP, { groupId: G2 })),
+          'invalid_argument',
+        );
+        expect(stores.group.trips.get(TRIP)?.groupId).toBe(G);
+        expect(stores.group.trips.listByGroup(G2)).toEqual([]);
       });
 
       it('current(): active covering today, else planning; ended trips never', () => {
@@ -802,9 +809,16 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         expect(hash).toBe(computeAuditHash(rest));
         clock.advanceMs(60_000);
         const second = stores.group.audit.append(
-          auditInput({ type: 'policy.evaluated', proposalId: 'prop_1' }),
+          auditInput({
+            type: 'policy.evaluated',
+            proposalId: 'prop_1',
+            payload: { outcome: 'needs_confirmation', reasons: ['default_confirm'] },
+          }),
         );
         expect(second.ts).toBe('2026-03-14T21:41:00+01:00');
+        // The lifecycle header is derived from the payload and hashed (D-016).
+        expect(second.lifecycle).toEqual({ outcome: 'needs_confirmation' });
+        expect(computeAuditHash(second)).toBe(second.hash);
         expect(second.prevHash).toBe(first.hash);
         expect(stores.group.audit.lastHash(G)).toBe(second.hash);
         expect(stores.group.audit.lastHash(G2)).toBe(AUDIT_GENESIS_HASH);
@@ -871,7 +885,11 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         );
         clock.advanceHours(1);
         const b = stores.group.audit.append(
-          auditInput({ type: 'policy.evaluated', proposalId: 'prop_1' }),
+          auditInput({
+            type: 'policy.evaluated',
+            proposalId: 'prop_1',
+            lifecycle: { outcome: 'auto_approve' },
+          }),
         );
         clock.advanceHours(1);
         const c = stores.group.audit.append(
@@ -1065,6 +1083,20 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
           () => stores.private.putConsent(MAYA, defaultConsent(DEAN, G, T0)),
           'not_owner',
         );
+
+        // The consent key is `<memberId>|<groupId>`, so ids containing `|` can alias: the read
+        // must check the row's own memberId/groupId, and the aliased write must refuse to hijack.
+        stores.private.putConsent('mem_a|grp', {
+          ...defaultConsent('mem_a|grp', 'b', T0),
+          photos: true,
+        });
+        expect(stores.private.getConsent('mem_a|grp', 'b')?.photos).toBe(true);
+        expect(stores.private.getConsent('mem_a', 'grp|b')).toBeUndefined();
+        expectTravError(
+          () => stores.private.putConsent('mem_a', defaultConsent('mem_a', 'grp|b', T0)),
+          'not_owner',
+        );
+        expect(stores.private.getConsent('mem_a|grp', 'b')?.memberId).toBe('mem_a|grp');
 
         stores.private.putPendingItem(DEAN, makePending('priv_p1', DEAN));
         // Maya re-using Dean's row id with herself as owner must not hijack it.
@@ -1325,11 +1357,21 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         expect(auditAfter.map((e) => [e.id, e.hash, e.prevHash])).toEqual(
           auditBefore.map((e) => [e.id, e.hash, e.prevHash]),
         );
+        const beforeById = new Map(auditBefore.map((e) => [e.id, e]));
         for (const e of auditAfter) {
-          if (e.tripId === TRIP) expect(e.payload).toEqual({ redacted: true });
-          else expect(e.payload).not.toEqual({ redacted: true });
+          if (e.tripId === TRIP) {
+            // Digest tombstone (D-016): the original payload's hash survives, nothing else.
+            expect(e.payload).toEqual({
+              redacted: true,
+              payloadHash: computePayloadHash(beforeById.get(e.id)?.payload),
+            });
+          } else {
+            expect(e.payload.redacted).toBeUndefined();
+          }
         }
         expect(chainLinks(auditAfter)).toBe(true);
+        // Full verification still passes: the hash committed to the payload through its digest.
+        expect(verifyAuditChain(auditAfter).ok).toBe(true);
         expect(stores.group.audit.lastHash(G)).toBe(auditBefore[auditBefore.length - 1]?.hash);
         // New events still chain onto the stored head.
         const next = stores.group.audit.append(
@@ -1384,7 +1426,44 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         expect(stores.group.audit.listByGroup(G).every((e) => e.payload.redacted === true)).toBe(
           true,
         );
+        expect(verifyAuditChain(stores.group.audit.listByGroup(G)).ok).toBe(true);
         expectTravError(() => stores.deleteTrip(''), 'invalid_argument');
+      });
+
+      it('a tombstoned incomplete grant cannot launder a purchase (lifecycle header survives redaction)', () => {
+        const flow = (complete: boolean): void => {
+          stores.group.audit.append(
+            auditInput({
+              type: 'policy.evaluated',
+              proposalId: 'prop_1',
+              payload: { outcome: 'needs_confirmation' },
+            }),
+          );
+          stores.group.audit.append(
+            auditInput({
+              type: 'approval.granted',
+              proposalId: 'prop_1',
+              payload: { memberId: DEAN, via: 'button', messageId: 'msg_1', complete },
+            }),
+          );
+          stores.group.audit.append(
+            auditInput({ type: 'booking.completed', proposalId: 'prop_1', bookingId: 'bk_1' }),
+          );
+        };
+        flow(false);
+        expect(
+          verifyAuditChain(stores.group.audit.listByGroup(G)).problems.map((p) => p.problem),
+        ).toEqual(['completed_without_grant']);
+        expect(stores.redactAuditPayloads(TRIP)).toBe(3);
+        const redacted = stores.group.audit.listByGroup(G);
+        expect(redacted.map((e) => e.lifecycle)).toEqual([
+          { outcome: 'needs_confirmation' },
+          { complete: false },
+          undefined,
+        ]);
+        expect(verifyAuditChain(redacted).problems.map((p) => p.problem)).toEqual([
+          'completed_without_grant',
+        ]);
       });
     });
 

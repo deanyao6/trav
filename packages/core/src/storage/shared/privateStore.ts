@@ -207,7 +207,13 @@ export function createPrivateStore(backend: Backend): PrivateStore {
     },
 
     // ---------- consent, prefs, memory ----------
-    getConsent: (ownerMemberId, groupId) => consent.get(`${owner(ownerMemberId)}|${groupId}`),
+    getConsent(ownerMemberId, groupId) {
+      // The composite key is ambiguous when an id contains `|`, so the row's own
+      // memberId/groupId are the authority, not the key.
+      const o = owner(ownerMemberId);
+      const row = scopedGet(consent, o, `${o}|${groupId}`, (r) => r.memberId);
+      return row !== undefined && row.groupId === groupId ? row : undefined;
+    },
     putConsent(ownerMemberId, flags) {
       const o = owner(ownerMemberId);
       requireId(flags.groupId, 'groupId');

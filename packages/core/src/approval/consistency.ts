@@ -26,12 +26,24 @@ export interface ConsistencyResult {
   readonly problems: readonly ConsistencyProblem[];
 }
 
+/**
+ * First comma-separated segment ("Barcelona, Spain" → "Barcelona"), accents
+ * stripped, case-folded, and reduced to letters and digits in any script, so
+ * "São Paulo" ≈ "Sao Paulo" and "東京" ≠ "大阪".
+ */
 function normalizeCity(city: string): string {
-  return city
+  const head = city.split(',')[0] ?? city;
+  return head
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/\p{M}/gu, '')
     .toLowerCase()
-    .replace(/[^a-z0-9]/g, '');
+    .replace(/[^\p{L}\p{N}]/gu, '');
+}
+
+/** Same city once normalized; a proposal city with no letters or digits can never be verified and does not match. */
+function sameCity(proposalCity: string, tripCity: string): boolean {
+  const a = normalizeCity(proposalCity);
+  return a !== '' && a === normalizeCity(tripCity);
 }
 
 function hasRestrictedTag(tags: readonly ContentTag[]): boolean {
@@ -72,9 +84,7 @@ export function checkProposalConsistency(
     flag('empty_roster');
   }
 
-  if (proposal.city !== undefined && normalizeCity(proposal.city) !== normalizeCity(trip.city)) {
-    flag('city_not_in_trip');
-  }
+  if (proposal.city !== undefined && !sameCity(proposal.city, trip.city)) flag('city_not_in_trip');
 
   const today = localDate(now, trip.timeZone);
   if (proposal.eventDate !== '') {

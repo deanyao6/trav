@@ -7,17 +7,23 @@
  *   pnpm audit:verify path/to/log.sqlite   # another SQLite store (opened read-only)
  *   pnpm audit:verify export.json          # JSON array of AuditEvent (or { "events": [...] })
  *   pnpm audit:verify export.jsonl         # one AuditEvent per line
+ *   pnpm audit:verify --expect-head grp_barcelona=<sha256> [path]
  *
- * Prints one line per problem (group id, event id, index, problem code), then a
- * summary. Exit codes: 0 = every chain verifies, 1 = at least one problem,
- * 2 = usage or I/O error. Payload contents are never printed: only ids, types
- * and problem codes.
+ * Prints one line per problem (group id, event id, index, problem code), one
+ * `HEAD` line per group with its chain head hash, then a summary. Exit codes:
+ * 0 = every chain verifies, 1 = at least one problem, 2 = usage or I/O error.
+ * Payload contents are never printed: only ids, types, hashes and problem codes.
+ *
+ * The chain has no secret (D-016): a rewrite of every row from some point on,
+ * with hashes recomputed, is internally consistent. Record each group's `HEAD`
+ * hash somewhere outside the store (the morning report, a commit message) and
+ * pass it back with `--expect-head`; a rewrite then surfaces as `head_mismatch`.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { pathToFileURL } from 'node:url';
-import { verifyAuditChain } from '../packages/core/src/audit/index.js';
+import { isSha256Hex, verifyAuditChain } from '../packages/core/src/audit/index.js';
 import type { AuditChainProblem } from '../packages/core/src/audit/index.js';
 import type { AuditEvent } from '../packages/core/src/domain/audit.js';
 import { defaultSqlitePath } from '../packages/core/src/storage/sqlite/index.js';
@@ -37,8 +43,13 @@ export interface VerifyProblem {
 export interface GroupResult {
   readonly groupId: string;
   readonly count: number;
+  /** Hash of the group's last event (the genesis hash when the group has none). */
+  readonly headHash: string;
   readonly ok: boolean;
 }
+
+/** External anchors: group id → the head hash recorded earlier (`--expect-head`). */
+export type ExpectedHeads = ReadonlyMap<string, string>;
 
 export interface VerifyReport {
   readonly source: string;
@@ -174,20 +185,37 @@ export function loadFromJsonText(text: string, format: 'json' | 'jsonl'): Loaded
 
 // ---------- verification ----------
 
-export function verifyLoadedLog(log: LoadedLog, source: string): VerifyReport {
+/**
+ * Verifies every group in the log, plus every group named in `expectedHeads`
+ * (a group that vanished entirely still fails its anchor with `head_mismatch`).
+ */
+export function verifyLoadedLog(
+  log: LoadedLog,
+  source: string,
+  expectedHeads: ExpectedHeads = new Map(),
+): VerifyReport {
   const problems: VerifyProblem[] = [...log.malformed];
   const groups: GroupResult[] = [];
   let eventCount = 0;
-  const groupIds = [...log.groups.keys()].sort();
+  const groupIds = [...new Set([...log.groups.keys(), ...expectedHeads.keys()])].sort();
   for (const groupId of groupIds) {
     const events = log.groups.get(groupId) ?? [];
-    const result = verifyAuditChain(events);
+    const expectedHeadHash = expectedHeads.get(groupId);
+    const result = verifyAuditChain(
+      events,
+      expectedHeadHash === undefined ? {} : { expectedHeadHash },
+    );
     eventCount += result.count;
     for (const p of result.problems) {
       problems.push({ groupId, eventId: p.eventId, index: p.index, problem: p.problem });
     }
     const malformedHere = log.malformed.some((m) => m.groupId === groupId);
-    groups.push({ groupId, count: result.count, ok: result.ok && !malformedHere });
+    groups.push({
+      groupId,
+      count: result.count,
+      headHash: result.headHash,
+      ok: result.ok && !malformedHere,
+    });
   }
   return { source, groups, problems, eventCount, ok: problems.length === 0 };
 }
@@ -202,12 +230,22 @@ function printableId(id: string | null): string {
   return SAFE_ID.test(id) ? id : '<invalid-id>';
 }
 
+/** Hashes come from the log too; print only well-formed ones. */
+function printableHash(hash: string): string {
+  return isSha256Hex(hash) ? hash : '<invalid-hash>';
+}
+
 export function formatReport(report: VerifyReport): string[] {
   const lines = report.problems.map(
     (p) =>
       `PROBLEM group=${printableId(p.groupId)} event=${printableId(p.eventId)} ` +
       `index=${String(p.index)} problem=${p.problem}`,
   );
+  for (const g of report.groups) {
+    lines.push(
+      `HEAD group=${printableId(g.groupId)} events=${String(g.count)} hash=${printableHash(g.headHash)}`,
+    );
+  }
   const failed = report.groups.filter((g) => !g.ok).length;
   const verdict = report.ok ? 'OK' : 'FAIL';
   lines.push(
@@ -227,42 +265,86 @@ export interface CliIo {
 }
 
 const USAGE =
-  'usage: pnpm audit:verify [path.sqlite | export.json | export.jsonl]\n' +
-  '  default: <repo>/.trav/trav.sqlite';
+  'usage: pnpm audit:verify [--expect-head <groupId>=<sha256>]... [path.sqlite | export.json | export.jsonl]\n' +
+  '  default: <repo>/.trav/trav.sqlite\n' +
+  '  --expect-head: fail with head_mismatch unless the group chain ends at this hash (repeatable)';
 
 type Source = { kind: 'sqlite' | 'json' | 'jsonl'; path: string; isDefault: boolean };
 
-function parseArgs(argv: readonly string[], defaultPath: () => string): Source | 'help' {
+interface ParsedArgs {
+  readonly source: Source;
+  readonly expectedHeads: ExpectedHeads;
+}
+
+const EXPECT_HEAD = /^([A-Za-z0-9_.:-]{1,128})=([0-9a-f]{64})$/;
+
+/** Parses `--expect-head <groupId>=<hash>` (also `--expect-head=<groupId>=<hash>`), repeatable, one group per flag. */
+export function parseExpectedHead(value: string | undefined, into: Map<string, string>): void {
+  const match = value === undefined ? null : EXPECT_HEAD.exec(value);
+  if (match === null || match[1] === undefined || match[2] === undefined) {
+    throw new AuditVerifyUsageError('--expect-head needs <groupId>=<64 hex chars>');
+  }
+  if (into.has(match[1])) {
+    throw new AuditVerifyUsageError(`--expect-head given twice for ${match[1]}`);
+  }
+  into.set(match[1], match[2]);
+}
+
+function parseArgs(argv: readonly string[], defaultPath: () => string): ParsedArgs | 'help' {
   const args = argv.filter((a) => a !== '--');
   if (args.includes('-h') || args.includes('--help')) return 'help';
-  if (args.length > 1) throw new AuditVerifyUsageError('expected at most one path argument');
-  const arg = args[0];
-  if (arg === undefined) return { kind: 'sqlite', path: defaultPath(), isDefault: true };
-  if (arg.startsWith('-')) throw new AuditVerifyUsageError(`unknown option ${arg}`);
+  const expectedHeads = new Map<string, string>();
+  const positional: string[] = [];
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i] ?? '';
+    if (arg === '--expect-head') {
+      i += 1;
+      parseExpectedHead(args[i], expectedHeads);
+    } else if (arg.startsWith('--expect-head=')) {
+      parseExpectedHead(arg.slice('--expect-head='.length), expectedHeads);
+    } else if (arg.startsWith('-')) {
+      throw new AuditVerifyUsageError(`unknown option ${arg}`);
+    } else {
+      positional.push(arg);
+    }
+  }
+  if (positional.length > 1) throw new AuditVerifyUsageError('expected at most one path argument');
+  const arg = positional[0];
+  if (arg === undefined) {
+    return { source: { kind: 'sqlite', path: defaultPath(), isDefault: true }, expectedHeads };
+  }
   const path = resolve(arg);
   const lower = path.toLowerCase();
-  if (lower.endsWith('.sqlite')) return { kind: 'sqlite', path, isDefault: false };
-  if (lower.endsWith('.jsonl')) return { kind: 'jsonl', path, isDefault: false };
-  if (lower.endsWith('.json')) return { kind: 'json', path, isDefault: false };
-  throw new AuditVerifyUsageError('path must end in .sqlite, .json or .jsonl');
+  const kind = lower.endsWith('.sqlite')
+    ? 'sqlite'
+    : lower.endsWith('.jsonl')
+      ? 'jsonl'
+      : lower.endsWith('.json')
+        ? 'json'
+        : undefined;
+  if (kind === undefined) {
+    throw new AuditVerifyUsageError('path must end in .sqlite, .json or .jsonl');
+  }
+  return { source: { kind, path, isDefault: false }, expectedHeads };
 }
 
 /** Runs the verifier; returns the process exit code (0 ok, 1 problems, 2 usage/I-O error). */
 export function runAuditVerify(argv: readonly string[], io: CliIo): number {
-  let source: Source | 'help';
+  let parsed: ParsedArgs | 'help';
   try {
-    source = parseArgs(argv, io.defaultPath ?? defaultSqlitePath);
+    parsed = parseArgs(argv, io.defaultPath ?? defaultSqlitePath);
   } catch (error) {
     io.err(`audit:verify: ${error instanceof Error ? error.message : 'bad arguments'}`);
     io.err(USAGE);
     return 2;
   }
-  if (source === 'help') {
+  if (parsed === 'help') {
     io.out(USAGE);
     return 0;
   }
+  const { source, expectedHeads } = parsed;
   if (!existsSync(source.path)) {
-    if (source.isDefault) {
+    if (source.isDefault && expectedHeads.size === 0) {
       // Fresh checkout: no store has been written yet, so there is no chain to break.
       io.out(`OK: no audit log at ${source.path} yet; nothing to verify`);
       return 0;
@@ -285,7 +367,7 @@ export function runAuditVerify(argv: readonly string[], io: CliIo): number {
     io.err(`audit:verify: ${message}`);
     return 2;
   }
-  const report = verifyLoadedLog(log, source.path);
+  const report = verifyLoadedLog(log, source.path, expectedHeads);
   for (const line of formatReport(report)) {
     if (report.ok) io.out(line);
     else io.err(line);

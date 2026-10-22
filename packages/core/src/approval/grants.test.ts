@@ -15,6 +15,7 @@ import {
   invalidateGrant,
   invalidatedAuditInput,
   rejectGrant,
+  samePolicy,
 } from './grants.js';
 import {
   FIVE,
@@ -92,11 +93,35 @@ describe('applyApproval: identity is the channel senderId', () => {
     expect(r.grant.grantedBy.map((g) => g.memberId)).toEqual(['mem_dean']);
   });
 
-  it("a signature claiming Dean from Henry's senderId is not_member (E3)", () => {
+  it("a signature claiming Dean from Henry's senderId is claimed_for_other (E3)", () => {
     const forged = signature('mem_dean', { senderId: 'sim:henry' });
     const r = applyApproval(grant(), decision, forged, members, NOW, ageBandDeps);
-    expect(r).toMatchObject({ kind: 'ignored', cause: 'not_member' });
+    expect(r).toMatchObject({ kind: 'ignored', cause: 'claimed_for_other' });
     expect(r.grant.grantedBy).toEqual([]);
+  });
+
+  it("claimed_for_other wins over guest/minor: the stranger's phone claiming Dean", () => {
+    const r = applyApproval(
+      grant(),
+      decision,
+      signature('mem_dean', { senderId: 'sim:stranger' }),
+      members,
+      NOW,
+      ageBandDeps,
+    );
+    expect(r).toMatchObject({ kind: 'ignored', cause: 'claimed_for_other' });
+  });
+
+  it("a left member's senderId claiming someone else is still not_member", () => {
+    const r = applyApproval(
+      grant(),
+      decision,
+      signature('mem_dean', { senderId: 'sim:gone' }),
+      members,
+      NOW,
+      ageBandDeps,
+    );
+    expect(r).toMatchObject({ kind: 'ignored', cause: 'not_member' });
   });
 
   it('display name and text contribute nothing: unknown senderId is not_member', () => {
@@ -492,6 +517,51 @@ describe('invalidation on price / payer / policy / member change', () => {
         ...base(),
         currentPolicy: policy({ perPersonAutoCapMinor: 1000 }),
       }),
+    ).toBe('policy_changed');
+  });
+
+  it('reordering set-valued policy fields is not a policy change; changing their members is', () => {
+    const named = evaluate(
+      razzmatazz(),
+      policy({ approvers: ['mem_sam', 'mem_dean'], alwaysEachPayerKinds: ['lodging', 'flight'] }),
+      context(),
+    );
+    const withPolicy = (p: Parameters<typeof policy>[0]) => ({
+      ...base(),
+      decision: named,
+      currentPolicy: policy(p),
+    });
+    expect(
+      detectGrantInvalidation(
+        withPolicy({
+          approvers: ['mem_dean', 'mem_sam'],
+          alwaysEachPayerKinds: ['flight', 'lodging'],
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      samePolicy(
+        policy({ approvers: ['mem_sam', 'mem_dean'] }),
+        policy({ approvers: ['mem_dean', 'mem_sam'] }),
+      ),
+    ).toBe(true);
+    expect(
+      detectGrantInvalidation(
+        withPolicy({
+          approvers: ['mem_dean', 'mem_sam', 'mem_ava'],
+          alwaysEachPayerKinds: ['lodging', 'flight'],
+        }),
+      ),
+    ).toBe('policy_changed');
+    expect(
+      detectGrantInvalidation(
+        withPolicy({ approvers: ['mem_sam', 'mem_dean'], alwaysEachPayerKinds: ['flight'] }),
+      ),
+    ).toBe('policy_changed');
+    expect(
+      detectGrantInvalidation(
+        withPolicy({ approvers: 'any_adult_member', alwaysEachPayerKinds: ['lodging', 'flight'] }),
+      ),
     ).toBe('policy_changed');
   });
 

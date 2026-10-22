@@ -127,7 +127,13 @@ function createTripRepository(backend: Backend): TripRepository {
     },
     get: (tripId) => trips.get(tripId),
     update(trip) {
-      if (trips.get(trip.tripId) === undefined) throw notFound('trip', trip.tripId);
+      const existing = trips.get(trip.tripId);
+      if (existing === undefined) throw notFound('trip', trip.tripId);
+      if (existing.groupId !== trip.groupId) {
+        throw new TravError('invalid_argument', 'a trip cannot move to another group', {
+          tripId: trip.tripId,
+        });
+      }
       trips.upsert(trip);
     },
     listByGroup: (groupId) => trips.find({ group_id: groupId }),

@@ -153,7 +153,7 @@ Deny rules run first; if any fires, `outcome = 'deny'` and the rest still run so
 | D2 | requester `role === 'guest'` | `requester_is_guest` |
 | D3 | any payer not an active member | `payer_not_member` / `payer_inactive` |
 | D4 | `payers.length === 0` | `empty_payers` |
-| D5 | `sum(shares) !== totalMinor` or any share `< 0` or `totalMinor <= 0` | `shares_do_not_sum` / `negative_or_zero_amount` |
+| D5 | `sum(shares) !== totalMinor`, any share `< 0`, a member listed twice in `payers`, or `totalMinor <= 0` | `shares_do_not_sum` / `negative_or_zero_amount` |
 | D6 | `currency !== policy.currency` | `currency_mismatch` |
 | D7 | `totalMinor > hardMaxPerBookingMinor` | `over_hard_max` |
 | D8 | `existingBookingForKey !== null` | `duplicate` (+ `existingBookingId`) |
@@ -241,11 +241,14 @@ interface AuditEvent {
   proposalId?: ProposalId;
   bookingId?: string;
   idempotencyKey?: string;
+  lifecycle?: { outcome?: Outcome; complete?: boolean };  // D-016: `policy.evaluated.outcome` / `approval.granted.complete`, hashed with the header so redaction cannot erase them
   payload: Record<string, unknown>;  // type-specific, see table; never raw email bodies, images, or card numbers
   prevHash: string;
-  hash: string;                      // sha256(prevHash + canonical JSON of everything above)
+  hash: string;                      // sha256(prevHash + canonicalJson({ ...every field above except payload, payloadHash: sha256(canonicalJson(payload)) }))
 }
 ```
+
+The hash commits to the payload only through its digest (D-016), so a §2.9 tombstone `{ redacted: true, payloadHash }` keeps every header field verifiable. A bare `{ redacted: true }` is not a tombstone and fails as `hash_mismatch`. The repository derives `lifecycle` from the payload when the caller omits it and refuses a `policy.evaluated` without a valid outcome, an `approval.granted` without a boolean `complete`, or a header that disagrees with the payload.
 
 | Type | Required payload fields |
 |---|---|
@@ -256,7 +259,7 @@ interface AuditEvent {
 | `approval.rejected` | `memberId, messageId` |
 | `approval.expired` | `expiresAt` |
 | `approval.invalidated` | `cause: 'price_changed' \| 'payers_changed' \| 'policy_changed' \| 'member_inactive'` |
-| `approval.invalid_attempt` | `senderId, cause: 'not_member' \| 'guest' \| 'minor' \| 'not_required_approver' \| 'claimed_for_other' \| 'ambiguous' \| 'expired', messageId` |
+| `approval.invalid_attempt` | `senderId, cause: 'not_member' \| 'guest' \| 'minor' \| 'not_required_approver' \| 'claimed_for_other' \| 'ambiguous' \| 'expired' \| 'already_granted' \| 'not_pending', messageId` (`claimed_for_other`: a known sender whose signature names another member; `already_granted`: the same member twice; `not_pending`: the grant is already complete or terminal) |
 | `booking.attempted` | `idempotencyKey, quoteRef, grantId` |
 | `booking.completed` | `providerRef, totalMinor, currency, payers, attendees, refundable` |
 | `booking.failed` | `errorCode, retriable` |
@@ -271,13 +274,15 @@ interface AuditEvent {
 | `consent.changed` | `memberId, flag, from, to, via` |
 | `policy.changed` | `memberId, before, after` |
 | `roast.generated` | `targets, topics` |
-| `roast.suppressed` | `cause: 'mode_off' \| 'minor_in_group' \| 'member_opted_out' \| 'topic_blocked' \| 'classifier_blocked', topicCategory?` |
-| `content.suppressed` | `cause: 'minor_nightlife' \| 'minor_alcohol' \| 'age_restricted', messageDraftId` |
+| `roast.suppressed` | `cause: 'mode_off' \| 'minor_in_group' \| 'age_unconfirmed' \| 'trip_over' \| 'member_opted_out' \| 'target_not_member' \| 'target_inactive' \| 'topic_blocked' \| 'classifier_blocked' \| 'wrong_place' \| 'line_limit' \| 'unlocatable', messageDraftId, topicCategory?, detail?` (typed as `RoastSuppressedAuditCause` in `core/safety`; `unlocatable` = a failing line or award could not be stripped from the text, so the whole message was dropped) |
+| `content.suppressed` | `cause: 'minor_nightlife' \| 'minor_alcohol' \| 'age_restricted' \| 'adult_audience_not_named' \| 'dm_only_card_in_group' \| 'private_card_in_group', messageDraftId, detail?` (typed as `ContentSuppressedAuditCause`) |
 | `injection.detected` | `source, itemId, matchedPattern, excerpt (max 200 chars)` |
 | `member.joined` / `member.left` / `member.role_changed` | `memberId, role, by` |
 | `data.deletion_requested` / `data.deleted` | `scope: 'trip' \| 'member', confirmedBy, tables: Record<string, number>` |
 
-Rule: every state transition in the booking lifecycle writes an event **before** the next step runs. If `booking.completed` exists without a preceding `policy.evaluated` and (unless `auto_approve`) `approval.granted` for the same `proposalId`, the audit verifier fails and so does the eval.
+Rule: every state transition in the booking lifecycle writes an event **before** the next step runs. The audit verifier (`pnpm audit:verify`) fails, and so does the eval, if a `booking.completed` exists without a preceding `policy.evaluated` for the same `proposalId` (`completed_without_evaluation`), if that proposal's latest evaluation was `deny` (`completed_after_deny`, whatever grants exist), if the latest evaluation was not `auto_approve` and no complete `approval.granted` is standing (`completed_without_grant`: a grant is dropped by a later `policy.evaluated`, `approval.invalidated`, `approval.rejected`, `approval.expired` or `proposal.superseded` for the proposal), or if the same proposal completes twice (`duplicate_completion`). These checks read the hashed `lifecycle` header, never the payload, so they survive redaction.
+
+The chain has no secret: an attacker with file access who rewrites every row from some point on and recomputes the hashes produces an internally consistent chain. `pnpm audit:verify` therefore prints each group's head hash (`HEAD group=<id> events=<n> hash=<sha256>`); record it outside the store (morning report, commit message) and pass it back with `--expect-head <groupId>=<hash>` to detect a rewrite or truncation (`head_mismatch`).
 
 ### 2.3 Private vs group context
 
@@ -436,7 +441,7 @@ Defaults (`GroupSettings.retentionDays = 90`):
 | `group_memory` | Per group, until "forget this group" | |
 | `member_memory` | Trip end unless `memoryAcrossTrips` | Deleted |
 
-**"@trav forget this trip."** Any active adult member may request. Requires confirmation from the requester plus one other adult member within 24 hours (if the group has two members, both). Then, in one transaction, delete every row with that `tripId` from: `expenses, splits, balances_cache, bookings, proposals, grants, qr_artifacts, pending_private_items (all owners), receipt_scans, email_receipts, card_transactions (those linked to the trip), recaps, wrapped, album_cache, group_memory (where sourceTripId), member_memory (where sourceTripId), model_transcripts, offline_recordings`. Audit events for the trip get `payload = { redacted: true }` and the hash chain is re-verified using the stored hashes (hashes are computed at write time and are not recomputed, so redaction does not break verification). Write `data.deleted` with a per-table row count. **Test:** after deletion, a query for `tripId` across every table returns 0 rows except `audit_events`, and those have redacted payloads.
+**"@trav forget this trip."** Any active adult member may request. Requires confirmation from the requester plus one other adult member within 24 hours (if the group has two members, both). Then, in one transaction, delete every row with that `tripId` from: `expenses, splits, balances_cache, bookings, proposals, grants, qr_artifacts, pending_private_items (all owners), receipt_scans, email_receipts, card_transactions (those linked to the trip), recaps, wrapped, album_cache, group_memory (where sourceTripId), member_memory (where sourceTripId), model_transcripts, offline_recordings`. Audit events for the trip get `payload = { redacted: true, payloadHash: sha256(canonicalJson(originalPayload)) }` and the hash chain is re-verified in full against the stored hashes (hashes are computed at write time over the payload's digest and are not recomputed, so redaction does not break verification; the `lifecycle` header is untouched, so B1 still holds for redacted trips). Write `data.deleted` with a per-table row count. **Test:** after deletion, a query for `tripId` across every table returns 0 rows except `audit_events`, and those have redacted payloads.
 
 **"@trav forget me."** The member themselves only. Deletes their entire `PrivateStore` partition, consent, memory, album photos, and QR artifacts. Their ledger lines remain for the group's balances, with `memberId` replaced by a stable pseudonym (`former-member-1`) and display name "Former member". Audit tombstones as above.
 

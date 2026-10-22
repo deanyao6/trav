@@ -115,10 +115,67 @@ describe('computeAuditHash / sealAuditEvent', () => {
       { proposalId: 'prop_other' },
       { prevHash: 'f'.repeat(64) },
       { payload: { outcome: 'deny' } },
+      { lifecycle: { outcome: 'deny' } },
+      { lifecycle: undefined } as unknown as Partial<AuditEvent>,
     ];
     const hashes = new Set(variants.map((v) => computeAuditHash({ ...e, ...v })));
     expect(hashes.size).toBe(variants.length);
     expect(hashes.has(e.hash)).toBe(false);
+  });
+
+  it('derives the lifecycle header from the payload, accepts an explicit one, and refuses disagreement', () => {
+    const [fromPayload] = chain([evaluated('deny')]);
+    expect(fromPayload?.lifecycle).toEqual({ outcome: 'deny' });
+    const [explicit] = chain([
+      input('policy.evaluated', {
+        lifecycle: { outcome: 'auto_approve' },
+        payload: { reasons: [] },
+      }),
+    ]);
+    expect(explicit?.lifecycle).toEqual({ outcome: 'auto_approve' });
+    const [grant] = chain([granted(false)]);
+    expect(grant?.lifecycle).toEqual({ complete: false });
+    const [explicitGrant] = chain([
+      input('approval.granted', {
+        lifecycle: { complete: true },
+        payload: { memberId: 'mem_dean' },
+      }),
+    ]);
+    expect(explicitGrant?.lifecycle).toEqual({ complete: true });
+    const [plain] = chain([input('proposal.created')]);
+    expect(plain !== undefined && 'lifecycle' in plain).toBe(false);
+
+    const seal = (i: AuditEventInput) => () => sealAuditEvent(i, 'aud_1', T0, AUDIT_GENESIS_HASH);
+    expect(seal(input('policy.evaluated', { payload: { reasons: [] } }))).toThrow(/outcome/);
+    expect(seal(evaluated('require_approval'))).toThrow(/outcome/);
+    expect(
+      seal(
+        input('policy.evaluated', {
+          lifecycle: { outcome: 'deny' },
+          payload: { outcome: 'auto_approve' },
+        }),
+      ),
+    ).toThrow(/disagrees/);
+    expect(
+      seal(input('policy.evaluated', { lifecycle: { outcome: 'deny', complete: true } })),
+    ).toThrow(/complete/);
+    expect(seal(input('approval.granted', { payload: { memberId: 'mem_dean' } }))).toThrow(
+      /complete/,
+    );
+    expect(seal(input('approval.granted', { payload: { complete: 'true' } }))).toThrow(/complete/);
+    expect(
+      seal(
+        input('approval.granted', { lifecycle: { complete: true }, payload: { complete: false } }),
+      ),
+    ).toThrow(/disagrees/);
+    expect(
+      seal(input('approval.granted', { lifecycle: { complete: true, outcome: 'deny' } })),
+    ).toThrow(/outcome/);
+    expect(seal(input('proposal.created', { lifecycle: { outcome: 'deny' } }))).toThrow(
+      /lifecycle/,
+    );
+    // An empty header object on another type is harmless.
+    expect(seal(input('proposal.created', { lifecycle: {} }))).not.toThrow();
   });
 
   it('a redacted payload changes the recomputed hash (so stored hashes are never recomputed)', () => {
@@ -220,12 +277,20 @@ describe('verifyAuditChain', () => {
       input('ledger.written'),
     ]);
 
-  it('accepts an empty chain and the happy Razzmatazz chain', () => {
-    expect(verifyAuditChain([])).toEqual({ ok: true, count: 0, problems: [] });
-    expect(verifyAuditChain(happy())).toEqual({ ok: true, count: 7, problems: [] });
+  it('accepts an empty chain and the happy Razzmatazz chain, reporting the head hash', () => {
+    expect(verifyAuditChain([])).toEqual({
+      ok: true,
+      count: 0,
+      headHash: AUDIT_GENESIS_HASH,
+      problems: [],
+    });
     const h = happy();
+    expect(verifyAuditChain(h)).toEqual({ ok: true, count: 7, headHash: h[6]?.hash, problems: [] });
     expect(verifyAuditChain(h, { expectedHeadHash: h[6]?.hash ?? '' }).ok).toBe(true);
     expect(verifyAuditChain([], { expectedHeadHash: AUDIT_GENESIS_HASH }).ok).toBe(true);
+    expect(verifyAuditChain([], { expectedHeadHash: 'a'.repeat(64) }).problems).toEqual([
+      { index: -1, eventId: null, problem: 'head_mismatch' },
+    ]);
   });
 
   it('detects a tampered payload (hash mismatch) and the broken link that follows nothing else', () => {
@@ -315,14 +380,24 @@ describe('verifyAuditChain', () => {
     ]);
   });
 
-  it('auto_approve needs no approval.granted; a denied evaluation still needs one', () => {
+  it('auto_approve needs no approval.granted; a denied evaluation is never completable', () => {
     expect(verifyAuditChain(chain([evaluated('auto_approve'), completed()])).ok).toBe(true);
     expect(
       verifyAuditChain(chain([evaluated('deny'), completed()])).problems.map((p) => p.problem),
-    ).toEqual(['completed_without_grant']);
+    ).toEqual(['completed_after_deny']);
+    // A complete grant does not override a deny (the executor must refuse: decision_denied).
+    expect(verifyAuditChain(chain([evaluated('deny'), granted(), completed()])).problems).toEqual([
+      { index: 2, eventId: 'aud_003', problem: 'completed_after_deny' },
+    ]);
+    // deny after a grant: the re-evaluation is the latest word.
+    expect(
+      verifyAuditChain(
+        chain([evaluated('needs_confirmation'), granted(), evaluated('deny'), completed()]),
+      ).problems.map((p) => p.problem),
+    ).toEqual(['completed_after_deny']);
   });
 
-  it('a later re-evaluation supersedes the earlier outcome', () => {
+  it('a later re-evaluation supersedes the earlier outcome and drops the earlier grant', () => {
     const reEvaluated = chain([
       evaluated('auto_approve'),
       evaluated('needs_confirmation'),
@@ -331,6 +406,123 @@ describe('verifyAuditChain', () => {
     expect(verifyAuditChain(reEvaluated).problems.map((p) => p.problem)).toEqual([
       'completed_without_grant',
     ]);
+    // A grant for the old decision does not carry over to a new one (new price, new approvers).
+    const staleGrant = chain([
+      evaluated('needs_confirmation'),
+      granted(),
+      evaluated('needs_confirmation'),
+      completed(),
+    ]);
+    expect(verifyAuditChain(staleGrant).problems).toEqual([
+      { index: 3, eventId: 'aud_004', problem: 'completed_without_grant' },
+    ]);
+    // Re-approved after the re-evaluation: fine.
+    expect(
+      verifyAuditChain(
+        chain([
+          evaluated('needs_confirmation'),
+          granted(),
+          evaluated('needs_confirmation'),
+          granted(),
+          completed(),
+        ]),
+      ).ok,
+    ).toBe(true);
+  });
+
+  it('approval.invalidated / rejected / expired revoke the grant (A8)', () => {
+    const revocations: readonly [AuditEventType, Record<string, unknown>][] = [
+      ['approval.invalidated', { cause: 'price_changed', grantId: 'grant_1' }],
+      ['approval.rejected', { memberId: 'mem_sam', messageId: 'msg_2' }],
+      ['approval.expired', { expiresAt: T0 }],
+      ['proposal.superseded', { supersededBy: 'prop_2', cause: 'roster_changed' }],
+    ];
+    for (const [type, payload] of revocations) {
+      const revoked = chain([
+        evaluated('needs_confirmation'),
+        granted(),
+        input(type, { payload }),
+        completed(),
+      ]);
+      expect(verifyAuditChain(revoked).problems, type).toEqual([
+        { index: 3, eventId: 'aud_004', problem: 'completed_without_grant' },
+      ]);
+      // A revocation for another proposal leaves this grant standing.
+      const other = chain([
+        evaluated('needs_confirmation'),
+        granted(),
+        input(type, { proposalId: 'prop_other', payload }),
+        completed(),
+      ]);
+      expect(verifyAuditChain(other).ok, type).toBe(true);
+      // Re-granted after the revocation (new tap on a still-valid proposal): fine.
+      const regranted = chain([
+        evaluated('needs_confirmation'),
+        granted(),
+        input(type, { payload }),
+        granted(),
+        completed(),
+      ]);
+      expect(verifyAuditChain(regranted).ok, type).toBe(true);
+    }
+  });
+
+  it('a second booking.completed for the same proposal is duplicate_completion (A5)', () => {
+    const twice = chain([evaluated('needs_confirmation'), granted(), completed(), completed()]);
+    expect(verifyAuditChain(twice).problems).toEqual([
+      { index: 3, eventId: 'aud_004', problem: 'duplicate_completion' },
+    ]);
+    // Even with a fresh evaluation and grant in between: one proposal, one purchase.
+    const reRun = chain([
+      evaluated('needs_confirmation'),
+      granted(),
+      completed(),
+      evaluated('needs_confirmation'),
+      granted(),
+      completed(),
+    ]);
+    expect(verifyAuditChain(reRun).problems.map((p) => p.problem)).toEqual([
+      'duplicate_completion',
+    ]);
+    // Two different proposals each completing once is fine.
+    const two = chain([
+      evaluated('needs_confirmation'),
+      granted(),
+      completed(),
+      evaluated('needs_confirmation', 'prop_other'),
+      granted(true, 'prop_other'),
+      completed('prop_other'),
+    ]);
+    expect(verifyAuditChain(two).ok).toBe(true);
+  });
+
+  it('rejects an unknown outcome or a non-boolean completion instead of guessing', () => {
+    // Forge the header directly: sealAuditEvent refuses to build these.
+    const [e1, e2] = chain([evaluated('needs_confirmation'), completed()]);
+    if (!e1 || !e2) throw new Error('unreachable');
+    const forged = { ...e1, lifecycle: { outcome: 'require_approval' } } as unknown as AuditEvent;
+    const rehashed = { ...forged, hash: computeAuditHash(forged) };
+    const next = { ...e2, prevHash: rehashed.hash };
+    const r = verifyAuditChain([rehashed, { ...next, hash: computeAuditHash(next) }]);
+    expect(r.problems.map((p) => p.problem)).toEqual([
+      'unknown_outcome',
+      'completed_without_grant',
+    ]);
+    const stripped = { ...e1, lifecycle: undefined } as unknown as AuditEvent;
+    expect(
+      verifyAuditChain([{ ...stripped, hash: computeAuditHash(stripped) }]).problems.map(
+        (p) => p.problem,
+      ),
+    ).toEqual(['unknown_outcome']);
+
+    const [g] = chain([granted()]);
+    if (!g) throw new Error('unreachable');
+    const badGrant = { ...g, lifecycle: { complete: 'yes' } } as unknown as AuditEvent;
+    expect(
+      verifyAuditChain([{ ...badGrant, hash: computeAuditHash(badGrant) }]).problems.map(
+        (p) => p.problem,
+      ),
+    ).toEqual(['unknown_grant_completion']);
   });
 
   it('owner events must carry ownerId; private keys in any payload fail; mixed groups fail', () => {

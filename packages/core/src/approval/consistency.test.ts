@@ -74,6 +74,26 @@ describe('checkProposalConsistency: problems', () => {
     ).toEqual([]);
   });
 
+  it('city comparison uses the first comma-separated segment ("Barcelona, Spain")', () => {
+    expect(run(razzmatazz({ city: 'Barcelona, Spain' })).ok).toBe(true);
+    expect(
+      run(razzmatazz({ city: 'Barcelona' }), barcelonaTrip({ city: 'Barcelona, ES' })).ok,
+    ).toBe(true);
+    expect(run(razzmatazz({ city: 'Naples, Italy' })).problems).toEqual(['city_not_in_trip']);
+  });
+
+  it('city comparison keeps non-Latin letters instead of erasing them', () => {
+    expect(run(razzmatazz({ city: '東京' }), barcelonaTrip({ city: '東京' })).ok).toBe(true);
+    expect(run(razzmatazz({ city: '東京' }), barcelonaTrip({ city: '大阪' })).problems).toEqual([
+      'city_not_in_trip',
+    ]);
+    expect(run(razzmatazz({ city: 'Київ' }), barcelonaTrip({ city: 'Київ' })).ok).toBe(true);
+    // A city with no letters or digits at all can never be verified.
+    expect(run(razzmatazz({ city: '???' }), barcelonaTrip({ city: '!!!' })).problems).toEqual([
+      'city_not_in_trip',
+    ]);
+  });
+
   it('event date outside the trip', () => {
     expect(run(razzmatazz({ eventDate: '2026-03-17' })).problems).toEqual(['date_outside_trip']);
     expect(run(razzmatazz({ eventDate: '2026-03-11' })).problems).toEqual(['date_outside_trip']);

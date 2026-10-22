@@ -28,6 +28,7 @@ export {
   invalidateGrant,
   invalidatedAuditInput,
   rejectGrant,
+  samePolicy,
   type ApplyApprovalResult,
   type GrantCheck,
   type GrantInvalidationInput,

@@ -122,7 +122,7 @@ export interface BookingRepository {
  * Append-only. No update, no delete (SAFETY B2; grep test). The repository
  * assigns id/ts/prevHash/hash and rejects payloads with private keys.
  * Redaction (§2.9) is a separate `redactPayloads(tripId)` on the store facade,
- * which rewrites `payload` to `{ redacted: true }` and leaves hashes untouched.
+ * which rewrites `payload` to the tombstone `{ redacted: true, payloadHash }` (D-016) and leaves hashes untouched.
  */
 export interface AuditRepository {
   append(input: AuditEventInput): AuditEvent;
@@ -215,7 +215,7 @@ export interface Stores {
   readonly private: PrivateStore;
   /** "forget this trip": one transaction across both stores; returns per-table counts. */
   deleteTrip(tripId: TripId): Readonly<Record<string, number>>;
-  /** Rewrites audit payloads for a trip to `{ redacted: true }` without touching hashes. */
+  /** Rewrites audit payloads for a trip to the tombstone `{ redacted: true, payloadHash }` (D-016) without touching hashes. */
   redactAuditPayloads(tripId: TripId): number;
   close(): void;
 }

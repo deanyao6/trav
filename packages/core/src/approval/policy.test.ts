@@ -283,6 +283,17 @@ describe('evaluate: deny rules (table)', () => {
       proposal: { payers: equalShares(FIVE, 1799) },
     },
     {
+      name: 'D5 duplicate payer rows that still sum to the total',
+      reason: 'shares_do_not_sum',
+      ruleId: 'D5',
+      proposal: {
+        payers: [
+          ...equalShares(FIVE.slice(0, 4), 1800),
+          { memberId: 'mem_dean', shareMinor: 1800 },
+        ],
+      },
+    },
+    {
       name: 'D5 negative share',
       reason: 'shares_do_not_sum',
       ruleId: 'D5',
@@ -360,6 +371,16 @@ describe('evaluate: deny rules (table)', () => {
       reason: 'minor_age_restricted',
       ruleId: 'D9',
       proposal: { ageRestriction: null, contentTags: ['18+'], attendees: [...FIVE, 'mem_kid'] },
+    },
+    {
+      name: 'D9 minor attendee on a nightlife-tagged item with no explicit age tag',
+      reason: 'minor_age_restricted',
+      ruleId: 'D9',
+      proposal: {
+        ageRestriction: null,
+        contentTags: ['nightlife'],
+        attendees: [...FIVE, 'mem_kid'],
+      },
     },
     {
       name: 'D10 quote older than 15 minutes',

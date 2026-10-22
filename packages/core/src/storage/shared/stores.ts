@@ -4,8 +4,8 @@
  */
 import type { Clock } from '../../clock.js';
 import type { IdGenerator } from '../../ids.js';
-import type { AuditEvent } from '../../domain/audit.js';
 import type { Stores } from '../../repositories.js';
+import { isTombstone, tombstonePayload } from '../../audit/index.js';
 import type { TripId } from '../../primitives.js';
 import type { Backend } from './backend.js';
 import {
@@ -38,9 +38,6 @@ export interface StoreDeps {
   readonly ids: IdGenerator;
 }
 
-/** The tombstone every redacted audit payload becomes (SAFETY §2.9). */
-export const REDACTED_PAYLOAD = Object.freeze({ redacted: true as const });
-
 /** Key in `deleteTrip` counts for the number of audit payloads redacted (rows are kept). */
 export const AUDIT_REDACTED_COUNT_KEY = 'audit_events_redacted';
 
@@ -67,14 +64,15 @@ export function createStoresOnBackend(backend: Backend, deps: StoreDeps): Stores
   const tickets = backend.table(ticketArtifactsSpec);
 
   /**
-   * Rewrites payloads to the tombstone. The stored `hash` is NOT recomputed, so
-   * the chain still verifies against the hashes computed at write time.
+   * Rewrites payloads to `{ redacted: true, payloadHash }` (SAFETY §2.9, D-016).
+   * The stored `hash` is NOT recomputed: it committed to the payload through
+   * that same digest, so the chain still verifies in full, header included.
    */
   const redact = (tripId: TripId): number => {
     let changed = 0;
     for (const event of audit.find({ trip_id: tripId })) {
-      if (isRedacted(event)) continue;
-      audit.upsert({ ...event, payload: REDACTED_PAYLOAD });
+      if (isTombstone(event.payload)) continue;
+      audit.upsert({ ...event, payload: tombstonePayload(event.payload) });
       changed += 1;
     }
     return changed;
@@ -149,9 +147,4 @@ export function createStoresOnBackend(backend: Backend, deps: StoreDeps): Stores
       backend.close();
     },
   };
-}
-
-function isRedacted(event: AuditEvent): boolean {
-  const keys = Object.keys(event.payload);
-  return keys.length === 1 && event.payload.redacted === true;
 }

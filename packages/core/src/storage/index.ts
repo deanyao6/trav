@@ -11,4 +11,4 @@ export {
 } from './sqlite/index.js';
 export type { SqliteStoreOptions } from './sqlite/index.js';
 export type { StoreDeps } from './shared/stores.js';
-export { AUDIT_REDACTED_COUNT_KEY, REDACTED_PAYLOAD } from './shared/stores.js';
+export { AUDIT_REDACTED_COUNT_KEY } from './shared/stores.js';

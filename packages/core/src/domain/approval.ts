@@ -85,6 +85,12 @@ export interface PolicyContext {
 
 export type Outcome = 'auto_approve' | 'needs_confirmation' | 'deny';
 
+export const OUTCOMES: readonly Outcome[] = ['auto_approve', 'needs_confirmation', 'deny'];
+
+export function isOutcome(value: unknown): value is Outcome {
+  return typeof value === 'string' && (OUTCOMES as readonly string[]).includes(value);
+}
+
 export type ReasonCode =
   // deny
   | 'requester_not_member'

@@ -1,14 +1,18 @@
 /**
- * Audit hash chain (T-004; docs/SAFETY.md §2.2). Hashes are computed at write
- * time and never recomputed, so payload redaction (§2.9) keeps the chain valid.
+ * Audit hash chain (T-004; docs/SAFETY.md §2.2, D-016). Hashes are computed at
+ * write time and never recomputed, so payload redaction (§2.9) keeps the chain
+ * valid: the hash commits to the payload through its digest, and a tombstone
+ * carries that digest.
  *
  * Pure: the repository (T-005) supplies `id`, `ts` (from the Clock) and the
  * previous hash and calls `sealAuditEvent`; `verifyAuditChain` backs
  * `pnpm audit:verify`.
  */
 import { createHash } from 'node:crypto';
-import type { AuditEvent, AuditEventInput, AuditPayload } from '../domain/audit.js';
+import type { AuditEvent, AuditEventInput, AuditLifecycle, AuditPayload } from '../domain/audit.js';
 import { AUDIT_GENESIS_HASH } from '../domain/audit.js';
+import type { Outcome } from '../domain/approval.js';
+import { isOutcome } from '../domain/approval.js';
 import type { AuditEventId, IsoDateTime } from '../primitives.js';
 import { TravError } from '../errors.js';
 
@@ -63,49 +67,56 @@ export function sha256Hex(text: string): string {
 
 const HEX_64 = /^[0-9a-f]{64}$/;
 
+export function isSha256Hex(value: unknown): value is string {
+  return typeof value === 'string' && HEX_64.test(value);
+}
+
 /** sha256 hex of the canonical JSON of a payload: what the event hash commits to. */
 export function computePayloadHash(payload: unknown): string {
   return sha256Hex(canonicalJson(payload));
 }
 
 /**
- * Tombstone left by retention/deletion (SAFETY §2.9): the payload is replaced by
- * `{ redacted: true }` while id/ts/prevHash/hash stay as stored. The storage
- * layer may keep the original payload's digest as `payloadHash`; then every
- * other field of the tombstone remains verifiable. Anything else in the
- * payload is not a tombstone.
+ * The tombstone retention/deletion leaves behind (SAFETY §2.9): the payload is
+ * replaced by `{ redacted: true, payloadHash }` where `payloadHash` is the
+ * digest of the original payload, while id/ts/prevHash/hash stay as stored.
+ * Because the hash committed to the payload only through that digest, every
+ * header field of a tombstone stays verifiable.
  */
-export function redactedPayloadHash(payload: AuditPayload): string | null | undefined {
-  const keys = Object.keys(payload).sort();
-  if (payload['redacted'] !== true) return undefined;
-  if (keys.length === 1) return null;
-  const digest = payload['payloadHash'];
-  if (
-    keys.length === 2 &&
-    keys[0] === 'payloadHash' &&
-    typeof digest === 'string' &&
-    HEX_64.test(digest)
-  ) {
-    return digest;
-  }
-  return undefined;
+export function tombstonePayload(original: AuditPayload): AuditPayload {
+  return { redacted: true, payloadHash: computePayloadHash(original) };
 }
 
 /**
- * sha256 hex of `prevHash + canonicalJson({ id, ts, ...input, prevHash, payloadHash })`
- * where `payloadHash` stands in for `payload` (`hash` itself excluded). Committing
- * to the payload through its digest is what keeps a redacted event verifiable.
+ * The digest a tombstone carries, or `undefined` when `payload` is not a
+ * tombstone. Exactly `{ redacted: true, payloadHash: <sha256 hex> }` counts;
+ * anything else (including a bare `{ redacted: true }`) is an ordinary payload
+ * and must hash as one, so a single-row edit to a tombstone shape is a
+ * `hash_mismatch`.
  */
-export function computeAuditHash(event: Omit<AuditEvent, 'hash'>): string {
-  const body: Record<string, unknown> = { ...event };
-  delete body['hash'];
-  delete body['payload'];
-  body['payloadHash'] = computePayloadHash(event.payload);
-  return sha256Hex(event.prevHash + canonicalJson(body));
+export function redactedPayloadHash(payload: AuditPayload): string | undefined {
+  const keys = Object.keys(payload).sort();
+  if (keys.length !== 2 || keys[0] !== 'payloadHash' || keys[1] !== 'redacted') return undefined;
+  if (payload['redacted'] !== true) return undefined;
+  const digest = payload['payloadHash'];
+  return isSha256Hex(digest) ? digest : undefined;
 }
 
-/** The hash a tombstone that kept `payloadHash` must carry; null when the digest was dropped (link-only). */
-function tombstoneHash(event: AuditEvent, payloadHash: string): string {
+export function isTombstone(payload: AuditPayload): boolean {
+  return redactedPayloadHash(payload) !== undefined;
+}
+
+/**
+ * `hash = sha256(prevHash + canonicalJson({ ...header, payloadHash }))` where
+ * `header` is every field of the event except `payload` and `hash`, and
+ * `payloadHash` stands in for the payload. Committing to the payload through
+ * its digest is what keeps a redacted event verifiable (D-016).
+ */
+export function computeAuditHash(event: Omit<AuditEvent, 'hash'>): string {
+  return hashWithPayloadDigest(event, computePayloadHash(event.payload));
+}
+
+function hashWithPayloadDigest(event: Omit<AuditEvent, 'hash'>, payloadHash: string): string {
   const body: Record<string, unknown> = { ...event };
   delete body['hash'];
   delete body['payload'];
@@ -113,10 +124,54 @@ function tombstoneHash(event: AuditEvent, payloadHash: string): string {
   return sha256Hex(event.prevHash + canonicalJson(body));
 }
 
+// ---------- lifecycle header ----------
+
+function invariant(input: AuditEventInput, message: string): TravError {
+  return new TravError('invariant_violation', `audit ${input.type}: ${message}`, {
+    type: input.type,
+  });
+}
+
+/**
+ * The hashed lifecycle header for an input (D-016): `policy.evaluated` must
+ * commit to a valid `outcome`, `approval.granted` to a boolean `complete`.
+ * Either comes from `input.lifecycle` or, for existing callers, from the
+ * payload field of the same name; both present and different is an invariant
+ * violation, as is a lifecycle header on any other event type.
+ */
+export function resolveLifecycle(input: AuditEventInput): AuditLifecycle | undefined {
+  const header = input.lifecycle ?? {};
+  if (input.type === 'policy.evaluated') {
+    if (header.complete !== undefined) throw invariant(input, 'lifecycle.complete is not allowed');
+    const outcome = header.outcome ?? input.payload['outcome'];
+    if (!isOutcome(outcome)) throw invariant(input, 'needs a valid lifecycle outcome');
+    const inPayload = input.payload['outcome'];
+    if (inPayload !== undefined && inPayload !== outcome) {
+      throw invariant(input, 'lifecycle.outcome disagrees with payload.outcome');
+    }
+    return { outcome };
+  }
+  if (input.type === 'approval.granted') {
+    if (header.outcome !== undefined) throw invariant(input, 'lifecycle.outcome is not allowed');
+    const complete = header.complete ?? input.payload['complete'];
+    if (typeof complete !== 'boolean') throw invariant(input, 'needs a boolean lifecycle.complete');
+    const inPayload = input.payload['complete'];
+    if (inPayload !== undefined && inPayload !== complete) {
+      throw invariant(input, 'lifecycle.complete disagrees with payload.complete');
+    }
+    return { complete };
+  }
+  if (header.outcome !== undefined || header.complete !== undefined) {
+    throw invariant(input, 'lifecycle header is only for policy.evaluated and approval.granted');
+  }
+  return undefined;
+}
+
 /**
  * Builds a sealed event from what the caller supplied. Throws `invariant_violation`
- * if the payload has a private key or an owner event lacks `ownerId`. The
- * repository is the only production caller; tests build chains with it too.
+ * if the payload has a private key, is shaped like a tombstone, an owner event
+ * lacks `ownerId`, or the lifecycle header cannot be resolved. The repository
+ * is the only production caller; tests build chains with it too.
  */
 export function sealAuditEvent(
   input: AuditEventInput,
@@ -125,15 +180,21 @@ export function sealAuditEvent(
   prevHash: string,
 ): AuditEvent {
   assertAuditPayloadSafe(input);
-  if (input.visibility === 'owner' && !input.ownerId) {
-    throw new TravError('invariant_violation', `audit ${input.type}: owner event without ownerId`, {
-      type: input.type,
-    });
-  }
-  if (!HEX_64.test(prevHash)) {
+  if (input.visibility === 'owner' && !input.ownerId)
+    throw invariant(input, 'owner event without ownerId');
+  if (isTombstone(input.payload)) throw invariant(input, 'payload must not be a tombstone');
+  const lifecycle = resolveLifecycle(input);
+  if (!isSha256Hex(prevHash)) {
     throw new TravError('invalid_argument', 'prevHash must be a sha256 hex string');
   }
-  const unsealed: Omit<AuditEvent, 'hash'> = { ...input, id, ts, prevHash };
+  const { lifecycle: _dropped, ...rest } = input;
+  const unsealed: Omit<AuditEvent, 'hash'> = {
+    ...rest,
+    ...(lifecycle === undefined ? {} : { lifecycle }),
+    id,
+    ts,
+    prevHash,
+  };
   return { ...unsealed, hash: computeAuditHash(unsealed) };
 }
 
@@ -194,59 +255,76 @@ export function assertAuditPayloadSafe(input: AuditEventInput): void {
 
 // ---------- chain verification ----------
 
+export type AuditChainProblemCode =
+  | 'hash_mismatch'
+  | 'prev_hash_mismatch'
+  | 'genesis_mismatch'
+  | 'head_mismatch'
+  | 'group_mismatch'
+  | 'unknown_outcome'
+  | 'unknown_grant_completion'
+  | 'completed_without_evaluation'
+  | 'completed_after_deny'
+  | 'completed_without_grant'
+  | 'duplicate_completion'
+  | 'owner_event_missing_owner'
+  | 'payload_contains_private_field';
+
 export interface AuditChainProblem {
   readonly index: number;
   readonly eventId: string | null;
-  readonly problem:
-    | 'hash_mismatch'
-    | 'prev_hash_mismatch'
-    | 'genesis_mismatch'
-    | 'head_mismatch'
-    | 'group_mismatch'
-    | 'completed_without_evaluation'
-    | 'completed_without_grant'
-    | 'owner_event_missing_owner'
-    | 'payload_contains_private_field';
+  readonly problem: AuditChainProblemCode;
 }
 
 export interface AuditVerifyResult {
   readonly ok: boolean;
   readonly count: number;
+  /** Hash of the last event (the genesis hash for an empty chain): anchor it externally (D-016). */
+  readonly headHash: string;
   readonly problems: readonly AuditChainProblem[];
 }
 
 export interface AuditVerifyOptions {
-  /** The hash the store believes is the chain head; a missing tail event is only detectable with this. */
+  /** The hash the store (or an external anchor) believes is the chain head; a missing tail event or a full rewrite is only detectable with this. */
   readonly expectedHeadHash?: string;
 }
 
 /**
- * Verifies one group's chain in order: hashes link from the genesis hash, every
- * `booking.completed` has a preceding `policy.evaluated` and (unless that
- * evaluation was `auto_approve`) a preceding `approval.granted{complete: true}`
- * for the same proposalId, owner-visibility events carry ownerId, and no payload
- * key is in `PRIVATE_PAYLOAD_KEYS`. Backs `pnpm audit:verify`.
+ * Verifies one group's chain in order. Hashes link from the genesis hash;
+ * owner-visibility events carry `ownerId`; no payload key is in
+ * `PRIVATE_PAYLOAD_KEYS`. Booking lifecycle (SAFETY §2.2 rule, B1), tracked per
+ * `proposalId` from the hashed `lifecycle` header so redaction cannot hide it:
  *
- * Redacted events (SAFETY §2.9): a payload of exactly `{ redacted: true }` makes
- * the stored `hash` authoritative (only its links are checked, and a malformed
- * hash is a `hash_mismatch`); `{ redacted: true, payloadHash }` is re-verified in
- * full, so any altered header field is still caught. A tombstoned
- * `policy.evaluated` has an unknown outcome and therefore still requires an
- * `approval.granted` before `booking.completed`; a tombstoned `approval.granted`
- * (type and proposalId survive redaction) counts as that grant.
+ * - `policy.evaluated` must carry a valid `lifecycle.outcome` (`unknown_outcome`);
+ *   it becomes the proposal's latest outcome and drops any earlier grant.
+ * - `approval.granted` must carry a boolean `lifecycle.complete`
+ *   (`unknown_grant_completion`); `true` records a grant for the proposal.
+ * - `approval.invalidated` / `approval.rejected` / `approval.expired` drop the grant.
+ * - `booking.completed`: a second one for the same proposal is
+ *   `duplicate_completion`; otherwise it needs an evaluation
+ *   (`completed_without_evaluation`) whose latest outcome is not `deny`
+ *   (`completed_after_deny`) and, unless that outcome is `auto_approve`, a
+ *   standing grant (`completed_without_grant`). An unknown outcome is treated
+ *   like `needs_confirmation`.
+ *
+ * Tombstones (§2.9) are re-verified in full against their stored digest, so an
+ * altered header field is still caught. Backs `pnpm audit:verify`.
  */
 export function verifyAuditChain(
   events: readonly AuditEvent[],
   options: AuditVerifyOptions = {},
 ): AuditVerifyResult {
   const problems: AuditChainProblem[] = [];
-  const report = (index: number, problem: AuditChainProblem['problem']): void => {
+  const report = (index: number, problem: AuditChainProblemCode): void => {
     problems.push({ index, eventId: events[index]?.id ?? null, problem });
   };
 
-  /** proposalId → outcome of its latest policy.evaluated seen so far. */
-  const evaluated = new Map<string, string | null>();
+  /** proposalId → outcome of its latest policy.evaluated (null = unknown). */
+  const evaluated = new Map<string, Outcome | null>();
+  /** proposalIds with a standing complete grant. */
   const granted = new Set<string>();
+  /** proposalIds already purchased. */
+  const completed = new Set<string>();
   const groupId = events[0]?.groupId;
 
   events.forEach((event, index) => {
@@ -254,14 +332,10 @@ export function verifyAuditChain(
     if (event.prevHash !== expectedPrev) {
       report(index, index === 0 ? 'genesis_mismatch' : 'prev_hash_mismatch');
     }
-    const redacted = redactedPayloadHash(event.payload);
-    if (redacted === undefined) {
-      if (computeAuditHash(event) !== event.hash) report(index, 'hash_mismatch');
-    } else if (redacted === null) {
-      if (!HEX_64.test(event.hash)) report(index, 'hash_mismatch');
-    } else if (tombstoneHash(event, redacted) !== event.hash) {
-      report(index, 'hash_mismatch');
-    }
+    const digest = redactedPayloadHash(event.payload);
+    const expectedHash =
+      digest === undefined ? computeAuditHash(event) : hashWithPayloadDigest(event, digest);
+    if (expectedHash !== event.hash) report(index, 'hash_mismatch');
     if (event.groupId !== groupId) report(index, 'group_mismatch');
     if (event.visibility === 'owner' && !event.ownerId) report(index, 'owner_event_missing_owner');
     if (findPrivatePayloadKeys(event.payload).length > 0) {
@@ -269,25 +343,55 @@ export function verifyAuditChain(
     }
 
     const proposalId = event.proposalId;
-    if (event.type === 'policy.evaluated' && proposalId) {
-      const outcome = event.payload['outcome'];
-      evaluated.set(proposalId, typeof outcome === 'string' ? outcome : null);
-    } else if (event.type === 'approval.granted' && proposalId) {
-      // A tombstoned grant keeps its type and proposalId; its completeness is unknowable.
-      if (event.payload['complete'] === true || redacted !== undefined) granted.add(proposalId);
-    } else if (event.type === 'booking.completed') {
-      if (!proposalId || !evaluated.has(proposalId)) {
-        report(index, 'completed_without_evaluation');
-      } else if (evaluated.get(proposalId) !== 'auto_approve' && !granted.has(proposalId)) {
-        report(index, 'completed_without_grant');
+    switch (event.type) {
+      case 'policy.evaluated': {
+        const outcome = event.lifecycle?.outcome;
+        if (!isOutcome(outcome)) report(index, 'unknown_outcome');
+        if (proposalId) {
+          evaluated.set(proposalId, isOutcome(outcome) ? outcome : null);
+          granted.delete(proposalId);
+        }
+        break;
       }
+      case 'approval.granted': {
+        const complete = event.lifecycle?.complete;
+        if (typeof complete !== 'boolean') report(index, 'unknown_grant_completion');
+        if (proposalId && complete === true) granted.add(proposalId);
+        break;
+      }
+      case 'approval.invalidated':
+      case 'approval.rejected':
+      case 'approval.expired':
+      case 'proposal.superseded':
+        if (proposalId) granted.delete(proposalId);
+        break;
+      case 'booking.completed': {
+        if (proposalId && completed.has(proposalId)) {
+          report(index, 'duplicate_completion');
+          break;
+        }
+        if (!proposalId || !evaluated.has(proposalId)) {
+          report(index, 'completed_without_evaluation');
+        } else {
+          const outcome = evaluated.get(proposalId) ?? null;
+          if (outcome === 'deny') report(index, 'completed_after_deny');
+          else if (outcome !== 'auto_approve' && !granted.has(proposalId)) {
+            report(index, 'completed_without_grant');
+          }
+        }
+        if (proposalId) completed.add(proposalId);
+        break;
+      }
+      default:
+        break;
     }
   });
 
-  if (options.expectedHeadHash !== undefined) {
-    const head = events.length === 0 ? AUDIT_GENESIS_HASH : (events[events.length - 1]?.hash ?? '');
-    if (head !== options.expectedHeadHash) report(events.length - 1, 'head_mismatch');
+  const headHash =
+    events.length === 0 ? AUDIT_GENESIS_HASH : (events[events.length - 1]?.hash ?? '');
+  if (options.expectedHeadHash !== undefined && headHash !== options.expectedHeadHash) {
+    report(events.length - 1, 'head_mismatch');
   }
 
-  return { ok: problems.length === 0, count: events.length, problems };
+  return { ok: problems.length === 0, count: events.length, headHash, problems };
 }

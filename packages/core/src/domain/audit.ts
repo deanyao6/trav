@@ -13,6 +13,7 @@ import type {
   ProposalId,
   TripId,
 } from '../primitives.js';
+import type { Outcome } from './approval.js';
 
 export type AuditEventType =
   | 'proposal.created'
@@ -62,6 +63,21 @@ export interface AuditActor {
 /** Payload values must be JSON-serializable and never raw email bodies, OCR text, images, card numbers, or prompts. */
 export type AuditPayload = Readonly<Record<string, unknown>>;
 
+/**
+ * Booking-lifecycle facts the verifier needs (D-016). They live in the hashed
+ * header, outside `payload`, so §2.9 redaction never erases them: a tombstoned
+ * `policy.evaluated` still proves its outcome and a tombstoned
+ * `approval.granted` still proves whether it completed the grant. Callers may
+ * omit it: `sealAuditEvent` derives it from `payload.outcome` /
+ * `payload.complete` and refuses a disagreement.
+ */
+export interface AuditLifecycle {
+  /** `policy.evaluated` only. */
+  readonly outcome?: Outcome;
+  /** `approval.granted` only. */
+  readonly complete?: boolean;
+}
+
 /** What callers supply; the repository fills id, ts, prevHash, hash. */
 export interface AuditEventInput {
   readonly groupId: GroupId;
@@ -74,6 +90,8 @@ export interface AuditEventInput {
   readonly proposalId?: ProposalId;
   readonly bookingId?: BookingId;
   readonly idempotencyKey?: IdempotencyKey;
+  /** Required (derived if omitted) on `policy.evaluated` and `approval.granted`; absent elsewhere. */
+  readonly lifecycle?: AuditLifecycle;
   readonly payload: AuditPayload;
 }
 
@@ -82,7 +100,10 @@ export interface AuditEvent extends AuditEventInput {
   /** From the injected Clock. */
   readonly ts: IsoDateTime;
   readonly prevHash: string;
-  /** sha256(prevHash + canonical JSON of every field above except hash). */
+  /**
+   * sha256(prevHash + canonicalJson({ ...every field above except payload and hash, payloadHash }))
+   * with payloadHash = sha256(canonicalJson(payload)) (D-016).
+   */
   readonly hash: string;
 }
 

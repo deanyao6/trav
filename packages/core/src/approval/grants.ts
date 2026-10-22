@@ -57,9 +57,10 @@ export type ApplyApprovalResult =
   | {
       readonly kind: 'ignored';
       readonly grant: ApprovalGrant;
-      /** Written to approval.invalid_attempt.cause. */
+      /** Written to approval.invalid_attempt.cause (SAFETY §2.2 payload table). */
       readonly cause:
         | 'not_member'
+        | 'claimed_for_other'
         | 'guest'
         | 'minor'
         | 'not_required_approver'
@@ -88,8 +89,10 @@ function satisfied(decision: PolicyDecision, grantedIds: ReadonlySet<MemberId>):
 /**
  * Apply one channel-authenticated signature. Identity is `sig.senderId`
  * matched against `members[].senderId`; the display name, message text and
- * even `sig.memberId` contribute nothing (a mismatching `sig.memberId` is
- * `not_member`). Minors and guests are ignored. Idempotent per member.
+ * even `sig.memberId` contribute nothing. An unknown or inactive sender is
+ * `not_member`; a known sender whose signature claims someone else's
+ * `memberId` ("Dean approves" from Henry's phone) is `claimed_for_other`
+ * (SAFETY E3). Minors and guests are ignored. Idempotent per member.
  */
 export function applyApproval(
   grant: ApprovalGrant,
@@ -109,7 +112,8 @@ export function applyApproval(
     ({ kind: 'ignored', grant, cause }) as const;
 
   const member = members.find((m) => m.senderId === sig.senderId && isActiveMember(m));
-  if (member === undefined || member.memberId !== sig.memberId) return ignored('not_member');
+  if (member === undefined) return ignored('not_member');
+  if (member.memberId !== sig.memberId) return ignored('claimed_for_other');
   if (member.role === 'guest') return ignored('guest');
   if (deps.isMinor(member, now)) return ignored('minor');
 
@@ -245,6 +249,22 @@ function sameSet(a: readonly string[], b: readonly string[]): boolean {
   return sa.length === sb.length && sa.every((v, i) => v === sb[i]);
 }
 
+/** Policy with its set-valued fields (`approvers`, `alwaysEachPayerKinds`) sorted and deduped, so order alone is not a change. */
+function normalizePolicy(policy: GroupSpendingPolicy): GroupSpendingPolicy {
+  return {
+    ...policy,
+    approvers:
+      policy.approvers === 'any_adult_member'
+        ? policy.approvers
+        : [...new Set(policy.approvers)].sort(),
+    alwaysEachPayerKinds: [...new Set(policy.alwaysEachPayerKinds)].sort(),
+  };
+}
+
+export function samePolicy(a: GroupSpendingPolicy, b: GroupSpendingPolicy): boolean {
+  return canonicalJson(normalizePolicy(a)) === canonicalJson(normalizePolicy(b));
+}
+
 /** First applicable cause, or null if the grant still stands (SAFETY §2.1 invalidation rule). */
 export function detectGrantInvalidation(
   input: GrantInvalidationInput,
@@ -265,9 +285,7 @@ export function detectGrantInvalidation(
   }
   const byId = new Map(input.members.map((m) => [m.memberId, m]));
   if (payerIds.some((id) => byId.get(id)?.active !== true)) return 'member_inactive';
-  if (canonicalJson(input.decision.policySnapshot) !== canonicalJson(input.currentPolicy)) {
-    return 'policy_changed';
-  }
+  if (!samePolicy(input.decision.policySnapshot, input.currentPolicy)) return 'policy_changed';
   return null;
 }
 

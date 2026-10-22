@@ -14,6 +14,7 @@ import type {
   ReasonCode,
 } from '../domain/approval.js';
 import { addMinutes, parseIso } from '../clock.js';
+import { RESTRICTED_TAGS } from '../safety/index.js';
 
 /** D10: a quote older than this is stale (SAFETY §2.1). */
 export const QUOTE_MAX_AGE_MS = 15 * 60 * 1000;
@@ -77,6 +78,8 @@ function earliest(a: IsoDateTime, b: IsoDateTime | undefined): IsoDateTime {
  * - D10 also fires once the provider hold (`holdExpiresAt`) has passed.
  * - Guests and non-integer amounts are denied (`payer_not_member`,
  *   `negative_or_zero_amount` / `shares_do_not_sum`).
+ * - D5 also fires `shares_do_not_sum` when the same member appears twice in
+ *   `payers`: duplicate rows are not a split, whatever they add up to.
  */
 export function evaluate(
   p: BookingProposal,
@@ -117,14 +120,18 @@ export function evaluate(
   if (!Number.isInteger(p.totalMinor) || p.totalMinor <= 0) fire('D5', 'negative_or_zero_amount');
   const sharesValid = p.payers.every((s) => Number.isInteger(s.shareMinor) && s.shareMinor >= 0);
   const shareSum = p.payers.reduce((acc, s) => acc + s.shareMinor, 0);
-  if (!sharesValid || shareSum !== p.totalMinor) fire('D5', 'shares_do_not_sum');
+  // A payer listed twice is not a valid split either, even when the rows sum to the total.
+  const payersUnique = new Set(payerIds).size === payerIds.length;
+  if (!sharesValid || !payersUnique || shareSum !== p.totalMinor) fire('D5', 'shares_do_not_sum');
 
   if (p.currency !== policy.currency) fire('D6', 'currency_mismatch');
   if (p.totalMinor > policy.hardMaxPerBookingMinor) fire('D7', 'over_hard_max');
   if (ctx.existingBookingForKey !== null) fire('D8', 'duplicate');
 
+  // D9 mirrors the consistency check's RESTRICTED_TAGS so the policy is safe on its own
+  // (defence in depth: nightlife/club/bar/alcohol count even without an explicit age tag).
   const ageRestricted =
-    p.ageRestriction !== null || p.contentTags.some((t) => t === '18+' || t === '21+');
+    p.ageRestriction !== null || p.contentTags.some((t) => RESTRICTED_TAGS.includes(t));
   if (ageRestricted && participantIds.some(isMinorId)) fire('D9', 'minor_age_restricted');
 
   const nowMs = parseIso(ctx.now);
