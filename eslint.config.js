@@ -35,5 +35,23 @@ export default tseslint.config(
       eqeqeq: ['error', 'always', { null: 'ignore' }],
     },
   },
+  {
+    // D-008: domain code reads time from the injected Clock, never the wall clock.
+    files: ['packages/*/src/**/*.ts', 'apps/*/src/**/*.ts'],
+    ignores: ['**/clock.ts', '**/*.test.ts', 'packages/core/src/storage/**'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "CallExpression[callee.object.name='Date'][callee.property.name='now']",
+          message: 'Use the injected Clock (clock.now()/nowMs()), not Date.now() (D-008).',
+        },
+        {
+          selector: "NewExpression[callee.name='Date'][arguments.length=0]",
+          message: 'Use the injected Clock, not new Date() (D-008).',
+        },
+      ],
+    },
+  },
   prettier,
 );

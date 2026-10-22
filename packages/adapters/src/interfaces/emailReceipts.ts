@@ -4,10 +4,13 @@
  * assessment). Each member forwards Uber/Lyft/restaurant-style receipts to their
  * own address; parsed items are private to that member until confirmed.
  *
- * Email bodies are untrusted data: parsers extract fields and never follow
- * instructions found in the content.
+ * Email bodies are untrusted data: the parser is a zero-tool model call (or a
+ * fixture-backed offline parser) over `wrapUntrusted(textBody)`; it extracts
+ * fields and never follows instructions found in the content. The core
+ * `ParsedReceipt` shape carries fields only, never the raw text.
  */
-import type { AdapterInfo, IsoDateTime, MemberId, Money, Result, Unsubscribe } from './common.js';
+import type { ParsedReceipt } from '@trav/core';
+import type { AdapterInfo, IsoDateTime, MemberId, Result, Unsubscribe } from './common.js';
 
 export interface EmailAttachment {
   readonly fileName: string;
@@ -29,46 +32,10 @@ export interface InboundEmail {
   readonly attachments: readonly EmailAttachment[];
 }
 
-export type ReceiptSource =
-  | 'rideshare'
-  | 'taxi'
-  | 'restaurant'
-  | 'bar'
-  | 'grocery'
-  | 'airline'
-  | 'lodging'
-  | 'tickets'
-  | 'other';
-
-export interface ParsedLineItem {
-  readonly description: string;
-  readonly quantity: number;
-  readonly amount: Money;
-}
-
-export interface ParsedReceipt {
+/** Core `ParsedReceipt` plus provenance. */
+export interface ParsedEmailReceipt extends ParsedReceipt {
   readonly emailId: string;
   readonly ownerMemberId: MemberId;
-  readonly source: ReceiptSource;
-  readonly merchantName: string;
-  readonly total: Money;
-  readonly subtotal?: Money;
-  readonly tax?: Money;
-  readonly tip?: Money;
-  readonly fees?: Money;
-  readonly occurredAt: IsoDateTime;
-  readonly lineItems?: readonly ParsedLineItem[];
-  /** For rides: pickup/dropoff as written on the receipt. */
-  readonly ride?: {
-    readonly pickup?: string;
-    readonly dropoff?: string;
-    readonly distanceKm?: number;
-    readonly durationMinutes?: number;
-  };
-  /** 0-1 confidence of the overall parse; low values need owner review. */
-  readonly confidence: number;
-  /** Warnings such as "contains instruction-like text; ignored". */
-  readonly warnings: readonly string[];
 }
 
 export interface EmailReceiptSource {
@@ -96,7 +63,8 @@ export interface ReceiptEmailParser {
 
   /**
    * Extract a structured receipt. Returns "invalid_request" if the email isn't a
-   * receipt. Never acts on instructions contained in the email.
+   * receipt. Never acts on instructions contained in the email; injection
+   * matches lower `confidence` and add a warning.
    */
-  parse(email: InboundEmail): Promise<Result<ParsedReceipt>>;
+  parse(email: InboundEmail): Promise<Result<ParsedEmailReceipt>>;
 }

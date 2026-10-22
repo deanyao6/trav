@@ -5,9 +5,12 @@
  * albums is not possible via public APIs (Google restricted the Library API to
  * app-created media on 2025-03-31; iCloud has no API).
  *
- * Consent is enforced inside the adapter, not by callers: photos from a member
- * without active consent are never stored or returned.
+ * Consent lives in core's `PrivateStore.consent` (SAFETY §2.6) and is passed
+ * in as a `ConsentLookup` at query time, so the adapter filters with the
+ * current flags: photos from a member whose `photos !== true` are never stored
+ * or returned, and opting out hides photos from re-rendered old recaps.
  */
+import type { ConsentLookup } from '@trav/core';
 import type {
   AdapterInfo,
   GeoPoint,
@@ -17,15 +20,6 @@ import type {
   Result,
   TripId,
 } from './common.js';
-
-export interface AlbumConsent {
-  readonly memberId: MemberId;
-  readonly groupId: GroupId;
-  readonly granted: boolean;
-  readonly updatedAt: IsoDateTime;
-  /** Allow Trav to feature this member's photos in recaps/Wrapped (separate from storing). */
-  readonly allowInRecaps: boolean;
-}
 
 export interface Photo {
   readonly photoId: string;
@@ -40,8 +34,13 @@ export interface Photo {
   readonly takenAt?: IsoDateTime;
   /** Kept only if the owner allowed location; otherwise stripped on ingest. */
   readonly location?: GeoPoint;
+  /** Untrusted text. */
   readonly caption?: string;
+  /** Fixture hint for the highlight scorer: 'good' | 'ok' | 'bad' | 'screenshot' | 'receipt' | 'blurry'. */
+  readonly qualityTag?: string;
   readonly addedAt: IsoDateTime;
+  /** Hidden group-wide via "@trav drop that one" (any member). */
+  readonly hidden: boolean;
 }
 
 export interface AddPhotoInput {
@@ -62,38 +61,29 @@ export interface ListPhotosQuery {
   readonly to?: IsoDateTime;
   /** Restrict to these owners (still filtered by consent). */
   readonly ownerMemberIds?: readonly MemberId[];
-  /** Only photos whose owners allowed use in recaps. */
-  readonly forRecap?: boolean;
+  readonly includeHidden?: boolean;
   readonly limit?: number;
 }
 
 export interface AlbumAdapter {
   readonly info: AdapterInfo;
 
-  /** Current consent for a member in a group (default: not granted). */
-  getConsent(groupId: GroupId, memberId: MemberId): Promise<Result<AlbumConsent>>;
-
-  /**
-   * Grant or revoke consent. Only the member themself may call this (enforced
-   * by the caller's auth). Revoking hides that member's photos immediately.
-   */
-  setConsent(
+  /** A personal upload link for a member, sent privately. "consent_required" if `consent(member).photos !== true`. */
+  uploadLinkFor(
     groupId: GroupId,
+    tripId: TripId,
     memberId: MemberId,
-    consent: { readonly granted: boolean; readonly allowInRecaps: boolean },
-  ): Promise<Result<AlbumConsent>>;
+    consent: ConsentLookup,
+  ): Promise<Result<string>>;
 
-  /**
-   * A personal upload link for a member, sent privately. Returns
-   * "consent_required" if they haven't opted in.
-   */
-  uploadLinkFor(groupId: GroupId, tripId: TripId, memberId: MemberId): Promise<Result<string>>;
+  /** Add a photo. "consent_required" if the owner hasn't opted in. */
+  addPhoto(input: AddPhotoInput, consent: ConsentLookup): Promise<Result<Photo>>;
 
-  /** Add a photo. Returns "consent_required" if the owner hasn't opted in. */
-  addPhoto(input: AddPhotoInput): Promise<Result<Photo>>;
+  /** List photos from owners whose `consent(owner).photos === true` right now; hidden photos excluded unless asked. */
+  listPhotos(query: ListPhotosQuery, consent: ConsentLookup): Promise<Result<readonly Photo[]>>;
 
-  /** List photos, returning only photos from currently consenting owners. */
-  listPhotos(query: ListPhotosQuery): Promise<Result<readonly Photo[]>>;
+  /** "@trav drop that one": any member may hide a photo group-wide. Audited by the caller. */
+  hidePhoto(photoId: string, byMemberId: MemberId): Promise<Result<void>>;
 
   /** Permanently delete all of a member's photos in a group (right to erasure). */
   deleteMemberPhotos(

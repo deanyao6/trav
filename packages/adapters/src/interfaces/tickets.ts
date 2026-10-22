@@ -8,6 +8,7 @@
  * Covers nightlife (Razzmatazz), sports (Barca), attractions (Sagrada Familia,
  * Park Guell) and tours (Viator/GetYourGuide-style).
  */
+import type { ContentTag } from '@trav/core';
 import type {
   AdapterInfo,
   ApprovalProof,
@@ -24,8 +25,8 @@ import type {
 export type EventCategory =
   'nightlife' | 'concert' | 'sports' | 'attraction' | 'tour' | 'theatre' | 'food_drink' | 'other';
 
-/** Content flags used by the minors/safety rules to filter events. */
-export type ContentFlag = 'nightlife' | 'alcohol' | 'adult_content' | 'late_night';
+/** Content flags used by the minors/safety rules; core's `ContentTag`, so `safety.isRestrictedContent()` reads them directly. */
+export type ContentFlag = ContentTag;
 
 export interface EventSearchRequest {
   readonly city: string;

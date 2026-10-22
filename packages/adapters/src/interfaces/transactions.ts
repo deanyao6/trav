@@ -53,7 +53,8 @@ export interface Counterparty {
   readonly website?: string;
 }
 
-export interface CardTransaction {
+/** Raw provider row. Ingestion converts it to core's `Private<CardTransaction>` and stores it under the owner. */
+export interface ProviderTransaction {
   readonly transactionId: string;
   readonly accountId: string;
   readonly ownerMemberId: MemberId;
@@ -82,8 +83,8 @@ export interface CardTransaction {
 }
 
 export interface TransactionsSyncResult {
-  readonly added: readonly CardTransaction[];
-  readonly modified: readonly CardTransaction[];
+  readonly added: readonly ProviderTransaction[];
+  readonly modified: readonly ProviderTransaction[];
   readonly removed: readonly { readonly transactionId: string; readonly accountId: string }[];
   /** Persist and pass back on the next call. Empty string if data isn't ready yet. */
   readonly nextCursor: string;
