@@ -21,7 +21,7 @@ import type {
   MessageId,
   Roster,
 } from '@trav/core';
-import { formatClockTime, localDate, parseIso } from '@trav/core';
+import { formatTime, parseIso } from '@trav/core';
 import { nightOf } from '../booking/proposals.js';
 import { sanitizeInline } from '../context/groupContext.js';
 import { stripInvisible } from '../untrusted.js';
@@ -185,7 +185,8 @@ export function setAttendance(
 /**
  * The activity a roll call or "I'm out" refers to: by name/venue when a hint
  * is given, else tonight's activity (earliest start), else the next upcoming
- * one. Activities whose start is in the past are never picked.
+ * one. An activity that is over (past `endsAt`, or an hour past its start
+ * when no end is known) is never picked.
  */
 export function resolveActivity(
   activities: readonly Activity[],
@@ -193,10 +194,20 @@ export function resolveActivity(
   now: IsoDateTime,
   hint?: string,
 ): Activity | undefined {
+  const nowMs = parseIso(now);
+  const stillOn = (a: Activity): boolean =>
+    a.startsAt !== undefined &&
+    (a.endsAt !== undefined
+      ? parseIso(a.endsAt) > nowMs
+      : parseIso(a.startsAt) > nowMs - 60 * 60_000);
   const upcoming = activities
-    .filter((a) => a.startsAt !== undefined && parseIso(a.startsAt) > parseIso(now) - 60 * 60_000)
+    .filter(stillOn)
     .sort((a, b) => parseIso(a.startsAt!) - parseIso(b.startsAt!));
-  const h = hint?.trim().toLowerCase().replace(/\btickets?\b/g, '').trim();
+  const h = hint
+    ?.trim()
+    .toLowerCase()
+    .replace(/\btickets?\b/g, '')
+    .trim();
   if (h !== undefined && h.length > 0) {
     const words = h.split(/\s+/).filter((w) => w.length > 2);
     const match = (a: Activity): boolean => {
@@ -246,12 +257,12 @@ export interface RosterUpdate {
   readonly hint?: string;
 }
 
-const OUT_WORDS =
-  String.raw`(?:sick|ill|out|not coming|not going|staying in|staying home|skipping|can't make it|cant make it|not feeling it|gonna pass|passing|done for tonight|out tonight)`;
+const OUT_WORDS = String.raw`(?:sick|ill|out|not coming|not going|staying in|staying home|skipping|can't make it|cant make it|not feeling it|gonna pass|passing|done for tonight|out tonight)`;
 const IN_WORDS = String.raw`(?:in|coming|going|down|up for it|keen)`;
 const MAYBE_WORDS = String.raw`(?:a maybe|maybe|not sure|undecided|50\/50|on the fence)`;
 const FOR = String.raw`(?:\s+(?:for|to|on)\s+(?<hint>[\w' ]{2,40}?))?(?:\s+(?:tonight|tn|tonite|today|tomorrow|tmrw|this evening))?`;
-const NAME = String.raw`(?<name>[\p{L}][\p{L}'-]{0,30})`;
+// A name ends with a letter, so "Henry's" splits into the name and the "'s" that follows.
+const NAME = String.raw`(?<name>[\p{L}](?:[\p{L}'-]{0,29}[\p{L}])?)`;
 
 const ME_OUT = new RegExp(String.raw`^(?:i'?m|i am|im)\s+${OUT_WORDS}${FOR}$`, 'iu');
 const ME_IN = new RegExp(
@@ -279,7 +290,11 @@ const SELF_WORDS = new Set(['i', "i'm", 'im', 'me', 'myself']);
 export function parseRosterUpdate(text: string): RosterUpdate | undefined {
   const t = stripTravPrefix(text);
   if (t.length === 0 || t.length > 80) return undefined;
-  const pick = (re: RegExp, status: AttendanceStatus, who: 'me' | 'name'): RosterUpdate | undefined => {
+  const pick = (
+    re: RegExp,
+    status: AttendanceStatus,
+    who: 'me' | 'name',
+  ): RosterUpdate | undefined => {
     const m = re.exec(t);
     if (m === null) return undefined;
     const hint = m.groups?.['hint']?.trim();
@@ -304,10 +319,7 @@ export function parseRosterUpdate(text: string): RosterUpdate | undefined {
 }
 
 /** "Henry" (case-insensitive, one match) or a member id. */
-export function resolveMemberName(
-  members: readonly Member[],
-  ref: string,
-): MemberId | undefined {
+export function resolveMemberName(members: readonly Member[], ref: string): MemberId | undefined {
   const exact = members.find((m) => m.memberId === ref);
   if (exact !== undefined) return exact.memberId;
   const lower = ref.trim().toLowerCase();
@@ -317,10 +329,11 @@ export function resolveMemberName(
 
 // ---------- roll call ("@trav who's in tonight?") ----------
 
+/** " tonight" for the current night, else VOICE §3.9 relative/absolute time ("tomorrow 10am", "mon mar 16 12:30am"). */
 function whenPhrase(activity: Activity, tz: string, now: IsoDateTime): string {
   if (activity.startsAt === undefined) return '';
   if (nightOf(activity.startsAt, tz) === nightOf(now, tz)) return ' tonight';
-  return ` ${localDate(activity.startsAt, tz)} ${formatClockTime(activity.startsAt, tz)}`;
+  return ` ${formatTime(activity.startsAt, tz, now)}`;
 }
 
 function names(ids: readonly MemberId[], members: readonly Member[]): string {

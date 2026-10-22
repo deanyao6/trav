@@ -270,15 +270,17 @@ describe('identity gate (SAFETY §2.5)', () => {
     );
   });
 
-  it('a guest tap or 👍 on the card is ignored; a valid 👍 stops at the gate until T-030 wires the handler, never at a purchase', async () => {
+  it('a guest tap or 👍 on the card is ignored; a valid 👍 reaches the approval handler, which never purchases while the executor is the T-009 stub', async () => {
     const h = harness();
     const { cardMessageId } = await propose(h);
     expect((await h.tap('h_ava', cardMessageId, 'approve')).note).toBe('approval:guest');
     expect((await h.react('h_dean2', cardMessageId, '👍')).note).toBe('approval:guest');
     expect((await h.react('h_maya', cardMessageId, '❤️')).note).toBe('reaction:not_approval');
-    expect((await h.tap('h_dean', cardMessageId, 'approve')).note).toBe(
-      'approval:handler_not_wired',
-    );
+    const turn = await h.tap('h_dean', cardMessageId, 'approve');
+    expect(turn.note).toBe('approval:handled');
+    // The grant completed and the stub executor threw: VOICE §4.10 two-liner, money never moved.
+    expect(firstMessage(turn).text).toMatch(/no charge went through/);
+    expect(h.auditTypes()).toContain('approval.granted');
     expect(h.tickets.purchaseCount()).toBe(0);
     expect(h.runtime.stores.group.bookings.listByTrip(T)).toEqual([]);
   });
@@ -326,8 +328,8 @@ describe('identity gate (SAFETY §2.5)', () => {
     expect((await h.say('h_dean', 'yes')).silent).toBe(true);
     expect(h.model.completions).toEqual([]);
     await propose(h);
-    expect((await h.say('h_dean', 'yes')).note).toBe('approval:handler_not_wired');
-    expect((await h.say('h_henry', 'not me')).note).toBe('approval:handler_not_wired');
+    expect((await h.say('h_henry', 'not me')).note).toBe('approval:handled');
+    expect((await h.say('h_dean', 'yes')).note).toBe('approval:handled');
     // Only the ask reached the model; approval-shaped text never does.
     expect(h.model.completions).toHaveLength(1);
   });
@@ -463,7 +465,8 @@ describe('the tool loop', () => {
 
   it('is capped at maxToolRounds and still answers once', async () => {
     const h = harness({ model: loopingModel('get_roster'), maxToolRounds: 3 });
-    const turn = await h.say('h_dean', '@trav who is in tonight');
+    // (a roll call itself is answered without the model, T-030; this asks something else)
+    const turn = await h.say('h_dean', '@trav what are we doing tonight');
     expect(turn.toolCalls).toEqual(['get_roster', 'get_roster', 'get_roster']);
     expect(turn.modelSources).toHaveLength(3);
     expect(messages(turn)).toHaveLength(1);
@@ -739,7 +742,7 @@ describe('"ok" is chat (flaw 4)', () => {
       'pending',
     );
     expect(h.tickets.purchaseCount()).toBe(0);
-    expect((await h.say('h_dean', 'yes')).note).toBe('approval:handler_not_wired');
+    expect((await h.say('h_dean', 'yes')).note).toBe('approval:handled');
   });
 });
 
@@ -794,7 +797,8 @@ describe('reply window (flaw 5, VOICE §2)', () => {
     const h = harness({ model });
     const ask = await h.say('h_maya', '@trav get the 4 of us Razzmatazz tickets');
     expect(ask.note).toBe('tool:propose_booking:clarify');
-    const turn = await h.say('h_priya', 'henry is out');
+    // ("henry is out" inside the window is a roster override and never reaches the model, T-030)
+    const turn = await h.say('h_priya', 'henry bailed');
     expect(turn.note).toBe('model:text');
     expect(firstMessage(turn).text).toBe('got it, henry is out');
   });

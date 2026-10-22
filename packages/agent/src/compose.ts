@@ -46,6 +46,7 @@ import {
 } from '@trav/adapters';
 import type { ApprovalHandler } from './approval/events.js';
 import { normalizeApprovalEvent } from './approval/events.js';
+import { createApprovalHandler } from './approval/handler.js';
 import {
   createBookingExecutor,
   type BookingExecutor,
@@ -92,7 +93,13 @@ export interface TravRuntimeOptions {
   /** `strict` throws on a voice violation (default under Vitest); `log` reports and sends. */
   readonly voice?: SendDeps['voice'];
   readonly onLintViolation?: SendDeps['onLintViolation'];
-  /** T-030's approval handler; approvals stop at the identity gate until it is wired. */
+  /**
+   * The booking executor (THE purchase call site). Default: T-009's
+   * `createBookingExecutor` over `providers`, built lazily. Tests inject a
+   * recording fake; the approval handler is its only caller.
+   */
+  readonly executor?: BookingExecutor;
+  /** Default: `createApprovalHandler` over the stores, executor, proposals and scheduler (T-030). */
   readonly approvalHandler?: ApprovalHandler;
   readonly maxToolRounds?: number;
   /** Called after every turn the channel subscription or `drain()` triggers. */
@@ -110,6 +117,7 @@ export interface TravRuntime {
   readonly channel: ChannelAdapter;
   readonly providers: ProviderRegistry;
   readonly executor: BookingExecutor;
+  readonly approvalHandler: ApprovalHandler;
   readonly scheduler: Scheduler;
   readonly tools: ToolRegistry;
   readonly groupMemory: GroupMemory;
@@ -158,7 +166,10 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
     groupMemory,
     memberMemory,
   });
-  const executor = createLazyExecutor({ stores, providers, clock, ids });
+  const executor = options.executor ?? createLazyExecutor({ stores, providers, clock, ids });
+  const approvalHandler =
+    options.approvalHandler ??
+    createApprovalHandler({ stores, executor, proposals, scheduler, clock, ids });
   const sendTurn =
     options.sendTurn ??
     createSendPathSender(options.channel, stores, clock, {
@@ -183,9 +194,7 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
     memberMemory,
     proposals,
     sendTurn,
-    ...(options.approvalHandler !== undefined
-      ? { approval: { normalize: normalizeApprovalEvent, handler: options.approvalHandler } }
-      : {}),
+    approval: { normalize: normalizeApprovalEvent, handler: approvalHandler },
     ...(options.maxToolRounds !== undefined ? { maxToolRounds: options.maxToolRounds } : {}),
   };
   const agent = createTravAgent(deps);
@@ -209,6 +218,7 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
     channel: options.channel,
     providers,
     executor,
+    approvalHandler,
     scheduler,
     tools,
     groupMemory,

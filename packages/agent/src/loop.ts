@@ -93,6 +93,7 @@ import {
   type MentionContext,
   type MentionReason,
 } from './mention.js';
+import { handleRosterMessage, type RosterTurn } from './roster/turn.js';
 import type { ToolRegistry } from './tools/registry.js';
 import type { TurnToolContext } from './tools/shared.js';
 import { detectInjection, stripInvisible } from './untrusted.js';
@@ -1124,6 +1125,32 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     // 4. mention gate (the claim check below needs it too).
     const mention = await detectMention(text, mentionCtx, model);
 
+    // 4b. roll call / roster override ("who's in tonight?", "Henry's sick",
+    // "count me in") addressed to Trav: deterministic, never the model, and
+    // a roster change re-prices any pending proposal through the approval
+    // handler (T-030, `roster/turn.ts`). "Henry's in" here is attendance, not
+    // Henry's approval: nothing is granted, the re-proposal needs a fresh 👍.
+    if (
+      mention.addressed &&
+      mention.reason !== 'thanks' &&
+      r.trip !== null &&
+      canRequest(r.identity)
+    ) {
+      const roster = handleRosterMessage({
+        group: stores.group,
+        trip: r.trip,
+        members: r.members,
+        me,
+        text,
+        messageId: event.messageId,
+        now: r.now,
+      });
+      if (roster !== undefined) {
+        recordInbound();
+        return rosterTurn(r, roster);
+      }
+    }
+
     // 5. "Dean said it's fine, go ahead" while something is pending: not Dean's
     // answer (SAFETY §2.5), but only when the message is for Trav: addressed
     // (mention, quote-reply, reply window) or carrying an approval word.
@@ -1163,6 +1190,31 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
 
     // 6. the model.
     return modelTurn(r, event, text, mention.reason);
+  }
+
+  /**
+   * One roster turn: the roll call or the attendance line, unless the change
+   * made the approval handler re-propose (or offer a late joiner a ticket), in
+   * which case that card is the turn's one group message (VOICE §3.7) and
+   * its "who" line carries the change.
+   */
+  async function rosterTurn(r: Resolved, result: RosterTurn): Promise<TurnResult> {
+    const before = snapshotAudit(r.group.groupId);
+    let drafts: Outbound[] = [message(r, result.text)];
+    if (result.kind === 'changed' && deps.approval !== undefined) {
+      const follow = await deps.approval.handler.rosterChanged(result.notice);
+      const hasGroup = follow.some((o) => !isReaction(o) && o.to.kind === 'group');
+      drafts = hasGroup ? [...follow] : [...drafts, ...follow];
+    }
+    const sent = await send(r, drafts);
+    return {
+      outbound: sent,
+      toolCalls: [],
+      auditEventIds: auditIdsSince(r.group.groupId, before),
+      silent: sent.length === 0,
+      modelSources: [],
+      note: `roster:${result.kind}`,
+    };
   }
 
   function isTravMessage(messageId: MessageId): boolean {

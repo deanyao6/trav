@@ -18,6 +18,7 @@ import type {
   SimulatorChannel,
 } from '@trav/adapters';
 import { createMockTickets, createSimulatorChannel, loadTicketInventory } from '@trav/adapters';
+import type { BookingExecutor } from './booking/executor.js';
 import {
   BARCELONA,
   BARCELONA_NOW,
@@ -110,8 +111,10 @@ export interface Harness {
 export interface HarnessOptions {
   readonly model?: ModelClient;
   readonly maxToolRounds?: number;
+  /** The booking executor; default: the T-009 stub (throws `not_implemented` on first use). */
+  readonly executor?: BookingExecutor;
   readonly runtime?: Partial<
-    Omit<TravRuntimeOptions, 'channel' | 'clock' | 'ids' | 'model' | 'maxToolRounds'>
+    Omit<TravRuntimeOptions, 'channel' | 'clock' | 'ids' | 'model' | 'maxToolRounds' | 'executor'>
   >;
 }
 
@@ -146,6 +149,7 @@ export function harness(opts: HarnessOptions = {}): Harness {
     providers: { tickets },
     voice: 'strict',
     ...(opts.maxToolRounds !== undefined ? { maxToolRounds: opts.maxToolRounds } : {}),
+    ...(opts.executor !== undefined ? { executor: opts.executor } : {}),
     ...opts.runtime,
   });
   const last: { message?: InboundMessage; reaction?: InboundReaction; tap?: InboundButtonTap } = {};
