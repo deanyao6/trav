@@ -194,19 +194,74 @@ function nameOf(m: MemberTravel): string {
   return m.name ?? m.memberId;
 }
 
+/**
+ * A percentage in tenths, as text: 100 → "10%", 125 → "12.5%". Integer input
+ * so there is no float formatting drift.
+ */
+function pctText(tenths: bigint): string {
+  const whole = tenths / 10n;
+  const frac = tenths % 10n;
+  return frac === 0n ? `${whole}%` : `${whole}.${frac}%`;
+}
+
+/**
+ * The fairness limit shown to people, rounded *down* to a tenth of a percent,
+ * and an overshoot rounded *up*. Together they guarantee that anyone named as
+ * over the limit reads as strictly above it ("10.1% above (limit 10%)"), never
+ * equal to it.
+ */
+function fairnessLimitTenths(ppm: bigint): bigint {
+  return ppm / 1000n;
+}
+
+function overshootTenths(priceMinor: number, medianX2: number): bigint {
+  const num = (BigInt(2 * priceMinor) - BigInt(medianX2)) * 1000n;
+  const den = BigInt(medianX2);
+  return (num + den - 1n) / den; // ceil for num > 0, den > 0
+}
+
+/**
+ * The tightest arrival spread among combos that satisfy every constraint in
+ * `active` (fairness included, which `minArrivalSpreadMinutes` cannot see).
+ * Re-runs the same search with an arrival-spread-only objective.
+ */
+function closestSpreadUnder(
+  strategy: Strategy,
+  p: Prepared,
+  lists: readonly (readonly Cand[])[],
+  active: OptimizerConstraints,
+): number | null {
+  const spreadOnly: Prepared = {
+    ...p,
+    input: {
+      ...p.input,
+      weights: {
+        arrivalSpread: 1,
+        departureSpread: 0,
+        returnSpread: 0,
+        totalCost: 0,
+        worstLayover: 0,
+      },
+    },
+  };
+  const top = runStrategy(strategy, spreadOnly, lists, active, 1)[0];
+  return top === undefined ? null : top.terms.arrivalSpreadMinutes;
+}
+
 function reasonFor(
   key: ConstraintKey,
   p: Prepared,
   active: OptimizerConstraints,
-  lists: readonly (readonly Cand[])[],
+  lists: Lists,
   leaves: readonly Leaf[],
+  strategy: Strategy,
 ): string {
   const c = p.input.constraints;
   const fmt = (minor: number): string => formatMoney(money(minor, p.currency));
   switch (key) {
     case 'perPersonCap': {
       const cap = c.perPersonCap?.amountMinor ?? 0;
-      const over = lists
+      const over = lists.base
         .map((list, i) => ({
           member: p.members[i] as MemberTravel,
           cheapest: (list[0] as Cand).price,
@@ -219,7 +274,7 @@ function reasonFor(
       return `over the ${fmt(cap)}/person cap: ${joinNames(who)}`;
     }
     case 'refundableOnly': {
-      const none = lists
+      const none = lists.base
         .map((list, i) => ({ member: p.members[i] as MemberTravel, list }))
         .filter((x) => !x.list.some((cand) => cand.choice.refundable))
         .map((x) => nameOf(x.member));
@@ -227,25 +282,39 @@ function reasonFor(
       return `no refundable fare for ${joinNames(none)}`;
     }
     case 'fairnessMaxAboveMedian': {
-      const x = c.fairnessMaxAboveMedian ?? 0;
-      const pct = Math.round(x * 100);
+      const ppm = fairnessPpm(c.fairnessMaxAboveMedian ?? 0);
+      const pct = pctText(fairnessLimitTenths(ppm));
       const top = leaves[0];
-      if (top === undefined) return `no combo keeps everyone within ${pct}% of the median`;
+      if (top === undefined) return `no combo keeps everyone within ${pct} of the median`;
       const prices = top.picks.map((cand) => cand.price);
-      const offenders = fairnessOffenders(prices, p.members, fairnessPpm(x));
-      if (offenders.length === 0) return `no combo keeps everyone within ${pct}% of the median`;
+      const offenders = fairnessOffenders(prices, p.members, ppm);
+      if (offenders.length === 0) return `no combo keeps everyone within ${pct} of the median`;
       const m2 = medianTimes2(prices);
       const who = offenders.map((i) => {
         const price = prices[i] ?? 0;
-        const above = Math.round(((2 * price - m2) / m2) * 100);
-        return `${nameOf(p.members[i] as MemberTravel)} pays ${fmt(price)}, ${above}% above the median`;
+        const name = nameOf(p.members[i] as MemberTravel);
+        // A €0 median (free fares) has no meaningful percentage.
+        if (m2 === 0) return `${name} pays ${fmt(price)} while the median is ${fmt(0)}`;
+        return `${name} pays ${fmt(price)}, ${pctText(overshootTenths(price, m2))} above the median`;
       });
-      return `${joinNames(who)} (limit ${pct}%)`;
+      return `${joinNames(who)} (limit ${pct})`;
     }
     case 'maxArrivalSpreadMinutes': {
       const max = c.maxArrivalSpreadMinutes ?? 0;
-      const best = minArrivalSpreadMinutes(lists);
-      return `no combo lands everyone within ${formatMinutes(max)}; closest is ${formatMinutes(best)}`;
+      const window = formatMinutes(max);
+      // Ignores fairness (a group-level limit), honours the member-level ones.
+      const raw = minArrivalSpreadMinutes(lists.base);
+      if (active.fairnessMaxAboveMedian === undefined) {
+        return `no combo lands everyone within ${window}; closest is ${formatMinutes(raw)}`;
+      }
+      const fair = closestSpreadUnder(strategy, p, lists.pruned, active) ?? raw;
+      if (raw <= max) {
+        return `the only combos landing everyone within ${window} break the fairness limit; closest fair one is ${formatMinutes(fair)}`;
+      }
+      if (fair > raw) {
+        return `no combo lands everyone within ${window}; closest is ${formatMinutes(raw)}, closest fair one is ${formatMinutes(fair)}`;
+      }
+      return `no combo lands everyone within ${window}; closest is ${formatMinutes(raw)}`;
     }
     default:
       throw new TravError('invariant_violation', `unknown constraint ${String(key)}`);
@@ -273,7 +342,7 @@ function solve(p: Prepared, strategy: Strategy): Solved {
       leaves,
       relaxed: subset.map((constraint) => ({
         constraint,
-        reason: reasonFor(constraint, p, active, lists.base, leaves),
+        reason: reasonFor(constraint, p, active, lists, leaves, strategy),
       })),
     };
   }

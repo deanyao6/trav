@@ -3,8 +3,10 @@
  * never imported by production code.
  *
  * Barcelona (flagship, MOTIVATION.md): six friends fly in from six US cities
- * and home to six different ones. Defined inline until the synthetic-data
- * agent lands `fixtures/flights/barcelona.json`; swap the data, keep the tests.
+ * and home to six different ones. This inline set is a small hand-built
+ * scenario for focused unit tests; the synthetic-data fixture
+ * (`fixtures/flights/barcelona.json`) has landed and is exercised separately
+ * by `fixture.test.ts`.
  */
 import { addMinutes } from '../clock.js';
 import { money } from '../money.js';

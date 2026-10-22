@@ -6,7 +6,6 @@
 import { parseIso } from '../clock.js';
 import { TravError } from '../errors.js';
 import { currencyExponent, money, zero } from '../money.js';
-import type { Money } from '../money.js';
 import type { CurrencyCode, MemberId } from '../primitives.js';
 import type {
   FlightChoice,
@@ -215,6 +214,15 @@ export function prepare(input: OptimizerInput): Prepared {
       `perPersonCap is ${c.perPersonCap.currency}, choices are ${currency}`,
     );
   }
+  if (c.perPersonCap !== undefined) {
+    // Safe-integer minor units, same check as `money()`; then no negative caps.
+    money(c.perPersonCap.amountMinor, c.perPersonCap.currency);
+    if (c.perPersonCap.amountMinor < 0) {
+      throw new TravError('invalid_argument', 'constraints.perPersonCap must be >= 0', {
+        amountMinor: c.perPersonCap.amountMinor,
+      });
+    }
+  }
 
   const indexByMember = new Map<MemberId, number>();
   input.members.forEach((m, i) => {
@@ -379,8 +387,4 @@ export function memberLevelOk(
     return false;
   }
   return true;
-}
-
-export function moneyOf(minor: number, p: Prepared): Money {
-  return money(minor, p.currency);
 }

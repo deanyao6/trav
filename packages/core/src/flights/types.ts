@@ -80,6 +80,12 @@ export interface OptimizerInput {
   readonly choices: readonly FlightChoice[];
   readonly weights: OptimizerWeights;
   readonly constraints: OptimizerConstraints;
+  /**
+   * How many ranked itineraries to return (integer >= 1). The optimizer does
+   * not cap it: clamping is the caller's job. The recommended default is 3
+   * (what the tests and fixtures use, and what fits in one chat message). Larger values cost search
+   * time, since the exact search keeps the top `maxResults` leaves.
+   */
   readonly maxResults: number;
   readonly search?: SearchMode;
 }

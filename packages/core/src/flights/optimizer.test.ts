@@ -249,6 +249,29 @@ describe('input validation', () => {
     );
   });
 
+  it('perPersonCap: negative and fractional amounts are rejected; zero is allowed', () => {
+    expectTravError(
+      () =>
+        optimizeGroupFlights(
+          inputOf({ members, choices: [ok], constraints: { perPersonCap: money(-500, 'EUR') } }),
+        ),
+      'invalid_argument',
+    );
+    // Built by hand: money() itself would refuse the fractional amount.
+    const fractional = { amountMinor: 450.5, currency: 'EUR' } as Money;
+    expectTravError(
+      () =>
+        optimizeGroupFlights(
+          inputOf({ members, choices: [ok], constraints: { perPersonCap: fractional } }),
+        ),
+      'invalid_argument',
+    );
+    const zeroCap = optimizeGroupFlights(
+      inputOf({ members, choices: [ok], constraints: { perPersonCap: money(0, 'EUR') } }),
+    );
+    expect(zeroCap.itineraries[0]?.relaxed.map((r) => r.constraint)).toEqual(['perPersonCap']);
+  });
+
   it('never calls the wall clock (times come from the choices only)', () => {
     // Behavioural check: identical inputs give identical outputs regardless of when they run.
     const first = optimizeGroupFlights(inputOf({ members, choices: [ok] }));
@@ -495,7 +518,20 @@ describe('fairness', () => {
     expect(r.itineraries[0]?.relaxed).toEqual([
       {
         constraint: 'fairnessMaxAboveMedian',
-        reason: 'c pays €550.01, 10% above the median (limit 10%)',
+        // 10.002% over, shown rounded up so it never reads as equal to the limit.
+        reason: 'c pays €550.01, 10.1% above the median (limit 10%)',
+      },
+    ]);
+  });
+
+  it('whole-percent overshoots stay whole; fractional limits show one decimal', () => {
+    const r = optimizeGroupFlights(
+      inputOf({ members, choices: base(500, 700), constraints: { fairnessMaxAboveMedian: 0.125 } }),
+    );
+    expect(r.itineraries[0]?.relaxed).toEqual([
+      {
+        constraint: 'fairnessMaxAboveMedian',
+        reason: 'c pays €700, 40% above the median (limit 12.5%)',
       },
     ]);
   });
@@ -601,6 +637,77 @@ describe('arrival window and refundable-only', () => {
         reason: 'no combo lands everyone within 30 min; closest is 60 min',
       },
     ]);
+  });
+
+  describe('window reason when fairness is also active', () => {
+    const two = [member('mem_a'), member('mem_b')];
+    const z = (hhmm: string): string => `2026-03-13T${hhmm}:00Z`;
+    const mixed = [
+      choice({
+        memberId: 'mem_a',
+        offerId: 'a-cheap',
+        price: 300,
+        origin: 'BOS',
+        arriveAt: z('10:00'),
+      }),
+      choice({
+        memberId: 'mem_a',
+        offerId: 'a-pricey',
+        price: 900,
+        origin: 'BOS',
+        arriveAt: z('12:00'),
+      }),
+      choice({ memberId: 'mem_b', offerId: 'b1', price: 300, origin: 'SFO', arriveAt: z('14:00') }),
+      choice({ memberId: 'mem_b', offerId: 'b2', price: 300, origin: 'SFO', arriveAt: z('12:30') }),
+    ];
+
+    it('says the only in-window combos break fairness, and names the closest fair spread', () => {
+      const r = optimizeGroupFlights(
+        inputOf({
+          members: two,
+          choices: mixed,
+          constraints: { maxArrivalSpreadMinutes: 60, fairnessMaxAboveMedian: 0.1 },
+        }),
+      );
+      const top = r.itineraries[0] as GroupItinerary;
+      expect(top.relaxed).toEqual([
+        {
+          constraint: 'maxArrivalSpreadMinutes',
+          reason:
+            'the only combos landing everyone within 60 min break the fairness limit; closest fair one is 2h 30m',
+        },
+      ]);
+      // The quoted spread is the pick's own: the reason never claims a spread it can't deliver.
+      expect(top.picks.map((p) => p.offerId)).toEqual(['a-cheap', 'b2']);
+      expect(top.breakdown.arrivalSpreadMinutes).toBe(150);
+      expect(fairnessHolds(top, two, 0.1)).toBe(true);
+      // The brute-force oracle agrees on the wording.
+      const oracle = bruteForceOptimize(
+        inputOf({
+          members: two,
+          choices: mixed,
+          constraints: { maxArrivalSpreadMinutes: 60, fairnessMaxAboveMedian: 0.1 },
+        }),
+      );
+      expect(oracle.itineraries[0]?.relaxed).toEqual(top.relaxed);
+    });
+
+    it('when the window is out of reach anyway, quotes both the raw and the fair closest', () => {
+      const r = optimizeGroupFlights(
+        inputOf({
+          members: two,
+          choices: mixed,
+          constraints: { maxArrivalSpreadMinutes: 20, fairnessMaxAboveMedian: 0.1 },
+        }),
+      );
+      expect(r.itineraries[0]?.relaxed).toEqual([
+        {
+          constraint: 'maxArrivalSpreadMinutes',
+          reason:
+            'no combo lands everyone within 20 min; closest is 30 min, closest fair one is 2h 30m',
+        },
+      ]);
+    });
   });
 
   it('refundable-only: relaxed with the member who has no refundable fare', () => {
