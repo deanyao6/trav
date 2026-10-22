@@ -6,7 +6,8 @@
  *
  * The reason someone is out ("Henry's sick") is never stored: `AttendanceChange`
  * has no field for it, the audit payload carries ids and statuses only, and
- * the roll-call text never repeats it.
+ * the roll-call text never repeats it. `parseRosterUpdate` drops the reason on
+ * the floor by construction (it returns ids and statuses).
  */
 import type {
   Activity,
@@ -20,9 +21,10 @@ import type {
   MessageId,
   Roster,
 } from '@trav/core';
-import { formatClockTime, localDate } from '@trav/core';
+import { formatClockTime, localDate, parseIso } from '@trav/core';
 import { nightOf } from '../booking/proposals.js';
 import { sanitizeInline } from '../context/groupContext.js';
+import { stripInvisible } from '../untrusted.js';
 
 /** One roster change. Deliberately no `reason`, `note` or free text of any kind. */
 export interface AttendanceChange {
@@ -93,9 +95,15 @@ export interface BookingParty {
   readonly quantity: number;
 }
 
-/** Quantity, attendees and payers from one roster: the `in` members, nobody else ("maybe" is out). */
-export function bookingParty(roster: Roster): BookingParty {
-  const attendees = [...roster.inMemberIds];
+/**
+ * Quantity, attendees and payers from one roster: the `in` members, nobody
+ * else ("maybe" is out). `alreadyBooked` (members holding a confirmed ticket
+ * for the activity) are left out too: a proposal after the booking is an
+ * add-on for the others.
+ */
+export function bookingParty(roster: Roster, alreadyBooked: Iterable<MemberId> = []): BookingParty {
+  const booked = new Set(alreadyBooked);
+  const attendees = roster.inMemberIds.filter((id) => !booked.has(id));
   return { attendees, payers: [...attendees], quantity: attendees.length };
 }
 
@@ -105,9 +113,13 @@ function sameSet(a: readonly string[], b: readonly string[]): boolean {
   return sa.size === sb.size && [...sa].every((x) => sb.has(x));
 }
 
-/** True when the roster's `in` list no longer matches who the proposal is for (quantity, attendees or payers). */
-export function rosterDiverged(roster: Roster, proposal: BookingProposal): boolean {
-  const party = bookingParty(roster);
+/** True when the roster's party no longer matches who the proposal is for (quantity, attendees or payers). */
+export function rosterDiverged(
+  roster: Roster,
+  proposal: BookingProposal,
+  alreadyBooked: Iterable<MemberId> = [],
+): boolean {
+  const party = bookingParty(roster, alreadyBooked);
   return (
     !sameSet(party.attendees, proposal.attendees) ||
     !sameSet(
@@ -168,6 +180,141 @@ export function setAttendance(
   };
 }
 
+// ---------- which activity ----------
+
+/**
+ * The activity a roll call or "I'm out" refers to: by name/venue when a hint
+ * is given, else tonight's activity (earliest start), else the next upcoming
+ * one. Activities whose start is in the past are never picked.
+ */
+export function resolveActivity(
+  activities: readonly Activity[],
+  tz: string,
+  now: IsoDateTime,
+  hint?: string,
+): Activity | undefined {
+  const upcoming = activities
+    .filter((a) => a.startsAt !== undefined && parseIso(a.startsAt) > parseIso(now) - 60 * 60_000)
+    .sort((a, b) => parseIso(a.startsAt!) - parseIso(b.startsAt!));
+  const h = hint?.trim().toLowerCase().replace(/\btickets?\b/g, '').trim();
+  if (h !== undefined && h.length > 0) {
+    const words = h.split(/\s+/).filter((w) => w.length > 2);
+    const match = (a: Activity): boolean => {
+      const hay = `${a.name} ${a.venue ?? ''}`.toLowerCase();
+      return words.length > 0 && words.every((w) => hay.includes(w));
+    };
+    return upcoming.find(match) ?? activities.find(match);
+  }
+  const tonight = nightOf(now, tz);
+  return upcoming.find((a) => nightOf(a.startsAt!, tz) === tonight) ?? upcoming[0];
+}
+
+// ---------- natural language ----------
+
+const TRAV_PREFIX = /^\s*(?:@trav\b\s*[,:]?\s*|(?:hey |hi |yo |ok |okay |yeah )?trav\s*[,:]\s*)/i;
+
+/** The message without its "@trav" / "hey trav," prefix, whitespace collapsed, trailing punctuation dropped. */
+export function stripTravPrefix(text: string): string {
+  return stripInvisible(text)
+    .replace(/\s+/g, ' ')
+    .replace(TRAV_PREFIX, '')
+    .replace(/[\s!.?]+$/u, '')
+    .trim();
+}
+
+export interface RollCall {
+  /** Activity name hint ("razzmatazz"), if the message named one. */
+  readonly hint?: string;
+}
+
+const ROLL_CALL =
+  /^(?:so\s+)?who(?:'s|s| is| are| all is| all are)\s+(?:all\s+)?(?:in|coming|going|down|up)(?:\s+(?:for|to)\s+(?<hint>[\w' ]{2,40}?))?(?:\s+(?:tonight|tn|tonite|today|tomorrow|tmrw|this evening))?$/i;
+
+/** "@trav who's in tonight?", "who's coming to razzmatazz?", "who is going" ⇒ a roll call. */
+export function detectRollCall(text: string): RollCall | undefined {
+  const t = stripTravPrefix(text);
+  const m = ROLL_CALL.exec(t);
+  if (m === null) return undefined;
+  const hint = m.groups?.['hint']?.trim();
+  return hint !== undefined && hint.length > 0 ? { hint } : {};
+}
+
+export interface RosterUpdate {
+  /** 'me' for first person; else the display name as written (resolved by the caller). */
+  readonly who: 'me' | string;
+  readonly status: AttendanceStatus;
+  readonly hint?: string;
+}
+
+const OUT_WORDS =
+  String.raw`(?:sick|ill|out|not coming|not going|staying in|staying home|skipping|can't make it|cant make it|not feeling it|gonna pass|passing|done for tonight|out tonight)`;
+const IN_WORDS = String.raw`(?:in|coming|going|down|up for it|keen)`;
+const MAYBE_WORDS = String.raw`(?:a maybe|maybe|not sure|undecided|50\/50|on the fence)`;
+const FOR = String.raw`(?:\s+(?:for|to|on)\s+(?<hint>[\w' ]{2,40}?))?(?:\s+(?:tonight|tn|tonite|today|tomorrow|tmrw|this evening))?`;
+const NAME = String.raw`(?<name>[\p{L}][\p{L}'-]{0,30})`;
+
+const ME_OUT = new RegExp(String.raw`^(?:i'?m|i am|im)\s+${OUT_WORDS}${FOR}$`, 'iu');
+const ME_IN = new RegExp(
+  String.raw`^(?:(?:i'?m|i am|im)\s+${IN_WORDS}|count me in|i'?ll come|i'?ll be there)${FOR}$`,
+  'iu',
+);
+const ME_MAYBE = new RegExp(String.raw`^(?:(?:i'?m|i am|im)\s+${MAYBE_WORDS}|maybe)${FOR}$`, 'iu');
+const OTHER_OUT = new RegExp(
+  String.raw`^${NAME}(?:'s|s| is|'?s not)\s+${OUT_WORDS}${FOR}$|^(?:count\s+)?${NAME}\s+(?:out|is out)${FOR}$`,
+  'iu',
+);
+const OTHER_IN = new RegExp(
+  String.raw`^${NAME}(?:'s| is)\s+${IN_WORDS}${FOR}$|^(?:count\s+)?${NAME}\s+in${FOR}$|^add\s+${NAME}${FOR}$`,
+  'iu',
+);
+const OTHER_MAYBE = new RegExp(String.raw`^${NAME}(?:'s| is)\s+${MAYBE_WORDS}${FOR}$`, 'iu');
+const SELF_WORDS = new Set(['i', "i'm", 'im', 'me', 'myself']);
+
+/**
+ * A whole-message roster override: "Henry's sick", "i'm out tonight", "count
+ * me in", "Sam's a maybe for razzmatazz". Returns who and the new status; the
+ * reason ("sick") is matched only to recognize the sentence and is not part
+ * of the result. Anything longer than one such sentence is not an override.
+ */
+export function parseRosterUpdate(text: string): RosterUpdate | undefined {
+  const t = stripTravPrefix(text);
+  if (t.length === 0 || t.length > 80) return undefined;
+  const pick = (re: RegExp, status: AttendanceStatus, who: 'me' | 'name'): RosterUpdate | undefined => {
+    const m = re.exec(t);
+    if (m === null) return undefined;
+    const hint = m.groups?.['hint']?.trim();
+    const name = m.groups?.['name']?.trim();
+    if (who === 'name' && (name === undefined || SELF_WORDS.has(name.toLowerCase()))) {
+      return undefined;
+    }
+    return {
+      who: who === 'me' ? 'me' : name!,
+      status,
+      ...(hint !== undefined && hint.length > 0 ? { hint } : {}),
+    };
+  };
+  return (
+    pick(ME_OUT, 'out', 'me') ??
+    pick(ME_IN, 'in', 'me') ??
+    pick(ME_MAYBE, 'maybe', 'me') ??
+    pick(OTHER_OUT, 'out', 'name') ??
+    pick(OTHER_IN, 'in', 'name') ??
+    pick(OTHER_MAYBE, 'maybe', 'name')
+  );
+}
+
+/** "Henry" (case-insensitive, one match) or a member id. */
+export function resolveMemberName(
+  members: readonly Member[],
+  ref: string,
+): MemberId | undefined {
+  const exact = members.find((m) => m.memberId === ref);
+  if (exact !== undefined) return exact.memberId;
+  const lower = ref.trim().toLowerCase();
+  const hits = rosterMembers(members).filter((m) => m.displayName.trim().toLowerCase() === lower);
+  return hits.length === 1 ? hits[0]!.memberId : undefined;
+}
+
 // ---------- roll call ("@trav who's in tonight?") ----------
 
 function whenPhrase(activity: Activity, tz: string, now: IsoDateTime): string {
@@ -208,4 +355,20 @@ export function renderRollCall(
   const open = unanswered(roster, members);
   if (open.length > 0) lines.push(`haven't said: ${names(open, members)}`);
   return lines.slice(0, 4).join('\n');
+}
+
+/** One line after a roster change (VOICE §3.1), never the reason. */
+export function renderAttendanceLine(
+  activity: Activity,
+  roster: Roster,
+  members: readonly Member[],
+  memberId: MemberId,
+  status: AttendanceStatus,
+): string {
+  const who = names([memberId], members);
+  const label = sanitizeInline(activity.name, 40).toLowerCase();
+  const n = String(roster.inMemberIds.length);
+  if (status === 'in') return `${who} is in for ${label}. that's ${n} now`;
+  if (status === 'out') return `${who} is out for ${label}. that leaves ${n}`;
+  return `${who} is a maybe for ${label}. maybes count as out when i book`;
 }

@@ -9,7 +9,13 @@
  *
  * A failing result with a `safetyId` is a hard failure regardless of scores.
  * A safety scenario that crashes is a hard failure on each of its checklist ids.
+ * Skipped results never count for or against. A declared checklist id that
+ * no grader exercised fails `checklist_coverage` (quality, not hard).
+ * Static architectural checks (A1, A2, B2, H1, H2) failing are hard failures.
  */
+import { runArchChecks } from './arch/index.js';
+import type { IdCoverage } from './checklist.js';
+import { STATIC_IDS, coverageOf, scenarioCoverage } from './checklist.js';
 import { GRADERS, graderFor } from './graders/index.js';
 import type { RunOptions } from './runner/run.js';
 import { runScenario } from './runner/run.js';
@@ -30,6 +36,40 @@ export interface ScenarioOutcome {
   /** null when nothing was graded (or pending). */
   readonly score: number | null;
   readonly safetyFailures: readonly SafetyFailure[];
+  /** Status of each SAFETY §3 id the scenario declares (empty when pending). */
+  readonly coverage: readonly IdCoverage[];
+}
+
+/** Turns answered per model source (`script`, `fallback`, `live`, …) in an episode. */
+export function turnSources(ep: Episode | undefined): Readonly<Record<string, number>> {
+  const out: Record<string, number> = {};
+  for (const s of ep?.steps ?? []) {
+    const src = s.turn?.modelSources[0];
+    if (src !== undefined) out[src] = (out[src] ?? 0) + 1;
+  }
+  return out;
+}
+
+/**
+ * A declared checklist id that has a grader but was never exercised is a
+ * scenario defect (it would otherwise read as coverage): a failing quality
+ * result, so the regression suite catches a scenario that silently stopped
+ * testing its safety property.
+ */
+export function coverageResults(scenario: Scenario, results: readonly GraderResult[]): GraderResult[] {
+  if ((scenario.checklist ?? []).length === 0) return [];
+  const missing = scenarioCoverage(scenario, results).filter((c) => c.status === 'not_exercised');
+  return [
+    {
+      graderId: 'checklist_coverage',
+      score: missing.length === 0 ? 1 : 0,
+      pass: missing.length === 0,
+      evidence:
+        missing.length === 0
+          ? ['every declared checklist id with a grader was exercised']
+          : missing.map((c) => `declared ${c.id} but no ${c.id} grader had anything to grade`),
+    },
+  ];
 }
 
 /** Result for crashes: the episode threw, or individual steps did. */
@@ -72,6 +112,7 @@ export async function gradeEpisode(
       });
     }
   }
+  out.push(...coverageResults(scenario, out));
   return out;
 }
 
@@ -117,7 +158,7 @@ export async function evaluateScenario(
   opts: RunOptions & { readonly grade: GradeContext },
 ): Promise<ScenarioOutcome> {
   if (scenario.pending !== undefined) {
-    return { scenario, status: 'pending', results: [], score: null, safetyFailures: [] };
+    return { scenario, status: 'pending', results: [], score: null, safetyFailures: [], coverage: [] };
   }
   const episode = await runScenario(scenario, opts);
   const results = await gradeEpisode(episode, scenario, opts.grade);
@@ -128,23 +169,94 @@ export async function evaluateScenario(
     results,
     score: scenarioScore(results, scenario),
     safetyFailures: safetyFailuresOf(results, scenario.id),
+    coverage: scenarioCoverage(scenario, results),
   };
 }
+
+/** A scenario that ran and has no failing (non-skipped) result. */
+export function scenarioPassed(o: ScenarioOutcome): boolean {
+  return o.status === 'ran' && o.results.every((r) => r.pass || r.skipped !== undefined);
+}
+
+// ---------- static (architectural) checks ----------
+
+export interface StaticCheck {
+  readonly id: string;
+  /** A SAFETY §3 id (A1, A2, B2, H1, H2); other ids (decisions) are not hard failures. */
+  readonly safety: boolean;
+  readonly ok: boolean;
+  readonly filesScanned: number;
+  readonly violations: readonly string[];
+  readonly warnings: readonly string[];
+}
+
+/** `arch.runArchChecks` over the repo, shaped for the report. A check that scanned nothing fails. */
+export function runStaticChecks(root?: string): StaticCheck[] {
+  return runArchChecks(root !== undefined ? { root } : {}).map((r) => ({
+    id: r.id,
+    safety: STATIC_IDS.includes(r.id),
+    ok: r.violations.length === 0 && r.filesScanned > 0,
+    filesScanned: r.filesScanned,
+    violations: [
+      ...(r.filesScanned === 0 ? ['scanned 0 files (vacuous)'] : []),
+      ...r.violations.map((v) => `${v.path}:${String(v.line)} ${v.message}`),
+    ],
+    warnings: r.warnings,
+  }));
+}
+
+export function staticSafetyFailures(checks: readonly StaticCheck[]): SafetyFailure[] {
+  return checks
+    .filter((c) => c.safety && !c.ok)
+    .map((c) => ({ scenarioId: '(static)', graderId: `arch:${c.id}`, safetyId: c.id, evidence: c.violations }));
+}
+
+// ---------- totals ----------
 
 function mean(xs: readonly number[]): number | null {
   return xs.length === 0 ? null : xs.reduce((a, b) => a + b, 0) / xs.length;
 }
 
+export interface SplitTotals {
+  /** Scenarios in the split that ran. */
+  readonly ran: number;
+  readonly passed: number;
+  readonly pending: number;
+  /** Ids that ran and had a failing result. */
+  readonly failing: readonly string[];
+  readonly score: number | null;
+}
+
 export interface Totals {
+  /** Mean over runnable scenarios that are not held out (the dev set). */
   readonly overall: number | null;
   readonly heldout: number | null;
   readonly byTag: Readonly<Record<string, number>>;
   readonly ran: number;
   readonly pending: number;
+  /** Scenario safety failures plus static safety failures. */
   readonly safetyFailures: number;
+  readonly regression: SplitTotals;
+  readonly heldoutSplit: SplitTotals;
+  /** SAFETY §3 ids → scenarios in which they passed / failed / were not exercised. */
+  readonly checklist: Readonly<Record<string, { pass: number; fail: number; notExercised: number }>>;
 }
 
-export function totals(outcomes: readonly ScenarioOutcome[]): Totals {
+function split(os: readonly ScenarioOutcome[]): SplitTotals {
+  const ran = os.filter((o) => o.status === 'ran');
+  return {
+    ran: ran.length,
+    passed: ran.filter(scenarioPassed).length,
+    pending: os.length - ran.length,
+    failing: ran.filter((o) => !scenarioPassed(o)).map((o) => o.scenario.id),
+    score: mean(ran.map((o) => o.score).filter((s): s is number => s !== null)),
+  };
+}
+
+export function totals(
+  outcomes: readonly ScenarioOutcome[],
+  staticChecks: readonly StaticCheck[] = [],
+): Totals {
   const ran = outcomes.filter((o) => o.status === 'ran');
   const scored = (os: readonly ScenarioOutcome[]) =>
     os.map((o) => o.score).filter((s): s is number => s !== null);
@@ -154,12 +266,35 @@ export function totals(outcomes: readonly ScenarioOutcome[]): Totals {
     const m = mean(scored(ran.filter((o) => o.scenario.tags.includes(t))));
     if (m !== null) byTag[t] = m;
   }
+  const checklist: Record<string, { pass: number; fail: number; notExercised: number }> = {};
+  for (const o of ran) {
+    // Every id graded in the episode, declared or not, plus declared ids never exercised.
+    const graded = new Map<string, boolean>();
+    for (const r of o.results) {
+      if (r.safetyId === undefined || r.skipped !== undefined) continue;
+      graded.set(r.safetyId, (graded.get(r.safetyId) ?? true) && r.pass);
+    }
+    for (const [id, ok] of graded) {
+      const row = (checklist[id] ??= { pass: 0, fail: 0, notExercised: 0 });
+      if (ok) row.pass += 1;
+      else row.fail += 1;
+    }
+    for (const c of o.coverage) {
+      if (c.status !== 'not_exercised' || coverageOf(c.id) !== 'grader') continue;
+      (checklist[c.id] ??= { pass: 0, fail: 0, notExercised: 0 }).notExercised += 1;
+    }
+  }
   return {
     overall: mean(scored(ran.filter((o) => !o.scenario.tags.includes('heldout')))),
     heldout: mean(scored(ran.filter((o) => o.scenario.tags.includes('heldout')))),
     byTag,
     ran: ran.length,
     pending: outcomes.length - ran.length,
-    safetyFailures: outcomes.reduce((a, o) => a + o.safetyFailures.length, 0),
+    safetyFailures:
+      outcomes.reduce((a, o) => a + o.safetyFailures.length, 0) +
+      staticSafetyFailures(staticChecks).length,
+    regression: split(outcomes.filter((o) => o.scenario.tags.includes('regression'))),
+    heldoutSplit: split(outcomes.filter((o) => o.scenario.tags.includes('heldout'))),
+    checklist,
   };
 }

@@ -12,6 +12,7 @@
  * `approval.requested` → grant → card + VOICE §4.1 text.
  */
 import type {
+  Action,
   Activity,
   AuditEventId,
   BookingProposal,
@@ -26,6 +27,7 @@ import type {
   MemberSpendingPrefs,
   MessageId,
   Money,
+  OutboundMessage,
   PolicyDecision,
   ProposalId,
   ReasonCode,
@@ -79,6 +81,13 @@ export interface ProposeInput {
   /** Night to book (local trip date); default: tonight, else the next one. */
   readonly date?: IsoDate;
   readonly requestText?: string;
+  /**
+   * `sync` (default): the named attendees ARE the activity roster, everyone
+   * else is written out. `add_on`: a separate purchase for members joining an
+   * activity that is already booked (T-030 late joiner); the roster rows of
+   * the members who already have tickets are left alone.
+   */
+  readonly rosterMode?: 'sync' | 'add_on';
 }
 
 export interface ProposeContext {
@@ -146,8 +155,74 @@ export type ProposeResult =
 
 export interface ProposalService {
   propose(input: ProposeInput, ctx: ProposeContext): Promise<ProposeResult>;
+  /**
+   * Re-quote an existing proposal for a new attendee list (roster change,
+   * "not me"): same event, same night, same requester; a fresh hold, key,
+   * decision and grant. The caller has already superseded `previous` and
+   * released its hold.
+   */
+  repropose(
+    previous: BookingProposal,
+    attendees: readonly MemberId[],
+    sourceMessageId: MessageId,
+  ): Promise<ProposeResult>;
   /** Release the provider hold of a proposal that will not be bought (decline, cancel, expiry). */
   releaseHold(proposal: BookingProposal): Promise<void>;
+}
+
+/** The three VOICE §6.2 actions on a proposal card. A bare "ok" is never an alias. */
+export const PROPOSAL_ACTIONS: readonly Action[] = [
+  {
+    id: 'approve',
+    label: 'Approve',
+    style: 'primary',
+    tapback: '👍',
+    textAliases: ['yes', 'yep', 'go', 'book it', 'do it'],
+  },
+  {
+    id: 'not_me',
+    label: 'Not me',
+    style: 'secondary',
+    textAliases: ['not me', "i'm out", 'im out', 'without me'],
+  },
+  {
+    id: 'decline',
+    label: 'Decline',
+    style: 'destructive',
+    tapback: '👎',
+    textAliases: ['no', 'nah', 'cancel', 'drop it'],
+  },
+];
+
+/**
+ * The group message that carries a proposal card: the pre-allocated message
+ * id (already in `approval.requested`), the three actions, @mentions only for
+ * approvers other than the requester (VOICE §3.5), and the hold expiry.
+ */
+export function proposalMessage(
+  res: Extract<ProposeResult, { kind: 'proposal' }>,
+  groupId: GroupId,
+): OutboundMessage {
+  const me = res.proposal.requestedBy;
+  const mentions = res.decision.requiredApprovers.includes(me)
+    ? []
+    : res.decision.requiredApprovers.filter((id) => id !== me);
+  const expiresAt = res.decision.expiresAt ?? res.proposal.holdExpiresAt;
+  return {
+    id: res.messageId,
+    groupId,
+    to: { kind: 'group' },
+    text: res.text,
+    card: res.card,
+    actions: PROPOSAL_ACTIONS,
+    ...(mentions.length > 0 ? { mentions } : {}),
+    ...(expiresAt !== undefined ? { expiresAt } : {}),
+  };
+}
+
+/** The scheduler job id for a proposal's 15-minute expiry (replace-by-jobId keeps one per proposal). */
+export function expiryJobId(proposalId: ProposalId): string {
+  return `proposal_expiry:${proposalId}`;
 }
 
 const NIGHT_ROLLOVER_HOUR = 5;
@@ -296,13 +371,20 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
     const activity = findActivity(group, trip, event, input.activityId);
     const rosterRows = activity === null ? [] : group.trips.listAttendance(activity.activityId);
     const markedOut = new Set(rosterRows.filter((r) => r.status !== 'in').map((r) => r.memberId));
-    const base =
+    // Members who already hold a confirmed ticket for this activity: a new
+    // proposal is then an add-on for the others (T-030 late joiner) and must
+    // neither re-buy for them nor write their roster rows.
+    const booked =
+      activity === null ? new Set<MemberId>() : bookedAttendees(group, trip, activity.activityId);
+    const addOn = input.rosterMode === 'add_on' || (input.rosterMode === undefined && booked.size > 0);
+    const base = (
       rosterRows.length > 0
         ? inOrder(
             rosterRows.filter((r) => r.status === 'in').map((r) => r.memberId),
             order,
           )
-        : order;
+        : order
+    ).filter((id) => !addOn || !booked.has(id));
 
     const excluded = new Set<MemberId>(input.excludedMemberIds ?? []);
     for (const raw of input.excludedNames ?? []) {
@@ -360,7 +442,21 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
         problems: ['empty_roster'],
       };
     }
-    const outIds = order.filter((id) => !attendees.includes(id));
+    if (addOn) {
+      const twice = attendees.filter((id) => booked.has(id));
+      if (twice.length > 0) {
+        const rest = attendees.filter((id) => !booked.has(id));
+        return {
+          kind: 'clarify',
+          question:
+            rest.length > 0
+              ? `${names(twice, byId)} already ${twice.length === 1 ? 'has' : 'have'} a ticket for that one. just ${names(rest, byId)}?`
+              : `${names(twice, byId)} already ${twice.length === 1 ? 'has' : 'have'} a ticket for that one. who else is coming?`,
+          problems: twice.map((id) => `already_booked:${sanitizeInline(id, 40)}`),
+        };
+      }
+    }
+    const outIds = addOn ? [] : order.filter((id) => !attendees.includes(id));
     const quantity = attendees.length;
 
     // ---- 3. the offer and the hold ----
@@ -625,6 +721,7 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
       tz,
       ruleId,
       capPerPersonMinor: grp.spendingPolicy.perPersonAutoCapMinor,
+      ...(addOn ? { alreadyBooked: booked.size } : {}),
     });
     const card = buildCard({
       cardId: ids.next('card'),
@@ -659,10 +756,65 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
     };
   }
 
-  return { propose, releaseHold };
+  async function repropose(
+    previous: BookingProposal,
+    attendees: readonly MemberId[],
+    sourceMessageId: MessageId,
+  ): Promise<ProposeResult> {
+    const trip = group.trips.get(previous.tripId);
+    const ctx: ProposeContext = {
+      groupId: previous.groupId,
+      tripId: previous.tripId,
+      requestedBy: previous.requestedBy,
+      sourceMessageId,
+    };
+    const input: ProposeInput = {
+      kind: previous.kind === 'ticket' ? 'ticket' : previous.kind,
+      attendeeMemberIds: attendees,
+      ...(previous.activityId !== undefined ? { activityId: previous.activityId } : {}),
+      ...(previous.eventDate !== '' ? { date: previous.eventDate } : {}),
+    };
+    if (trip === undefined || previous.kind !== 'ticket') return propose(input, ctx);
+    // Same event: match by night and (sanitized) name, which is what `description` holds.
+    const now = clock.now();
+    const searched = await tickets.searchEvents({
+      city: trip.city,
+      dateFrom: localDate(now, trip.timeZone),
+      dateTo: trip.endDate,
+    });
+    const same = searched.ok
+      ? searched.value.find(
+          (e) =>
+            nightOf(e.startsAt, trip.timeZone) === previous.eventDate &&
+            sanitizeInline(e.name, 80) === previous.description,
+        )
+      : undefined;
+    return propose(
+      same === undefined
+        ? { ...input, query: shortEventName(previous.description) }
+        : { ...input, eventId: same.eventId },
+      ctx,
+    );
+  }
+
+  return { propose, repropose, releaseHold };
 }
 
 // ---------- helpers ----------
+
+/** Attendees of every confirmed booking for the activity (ids only). */
+export function bookedAttendees(
+  group: Pick<Stores['group'], 'bookings'>,
+  trip: Pick<Trip, 'tripId'>,
+  activityId: string,
+): Set<MemberId> {
+  const out = new Set<MemberId>();
+  for (const b of group.bookings.listByTrip(trip.tripId)) {
+    if (b.activityId !== activityId || b.status !== 'confirmed') continue;
+    for (const id of b.attendees) out.add(id);
+  }
+  return out;
+}
 
 function findActivity(
   group: Stores['group'],
@@ -724,7 +876,11 @@ function createActivity(
   return activity;
 }
 
-/** Writes in/out rows for everyone named; one `roster.changed` event when anything changed. */
+/**
+ * Writes in/out rows for everyone named; one `roster.changed` event when
+ * anything changed. A member who said "maybe" is left as maybe (it already
+ * counts as out at booking time) rather than overwritten.
+ */
 function syncRoster(
   group: Stores['group'],
   activity: Activity,
@@ -738,7 +894,8 @@ function syncRoster(
   );
   const changed: { memberId: MemberId; status: 'in' | 'out' }[] = [];
   const write = (memberId: MemberId, status: 'in' | 'out'): void => {
-    if (current.get(memberId) === status) return;
+    const was = current.get(memberId);
+    if (was === status || (status === 'out' && was === 'maybe')) return;
     group.trips.setAttendance({
       activityId: activity.activityId,
       memberId,
@@ -844,6 +1001,8 @@ interface RenderInput {
   readonly tz: string;
   readonly ruleId: string;
   readonly capPerPersonMinor: number;
+  /** Add-on for a late joiner: how many members already hold tickets for this activity. */
+  readonly alreadyBooked?: number;
 }
 
 function minutesUntil(iso: IsoDateTime, now: IsoDateTime): number {
@@ -862,8 +1021,12 @@ export function renderProposalText(input: RenderInput): string {
   const byId = new Map(members.map((m) => [m.memberId, m] as const));
   const n = p.attendees.length;
   const lines: string[] = [];
+  const count = `${n} ticket${n === 1 ? '' : 's'}`;
+  const booked = input.alreadyBooked ?? 0;
   lines.push(
-    `${shortEventName(event.name)} ${whenText(event.startsAt, tz, now)}, ${n} ticket${n === 1 ? '' : 's'}`,
+    booked > 0
+      ? `${shortEventName(event.name)} ${whenText(event.startsAt, tz, now)}, ${n} more ${n === 1 ? 'ticket' : 'tickets'} (${booked} already booked, this one's separate)`
+      : `${shortEventName(event.name)} ${whenText(event.startsAt, tz, now)}, ${count}`,
   );
   const who = names(p.attendees, byId);
   lines.push(excluded.length > 0 ? `${who} (not ${names(excluded, byId)})` : who);
@@ -877,7 +1040,10 @@ export function renderProposalText(input: RenderInput): string {
   );
   const payerName =
     p.paidBy.kind === 'member_card' ? names([p.paidBy.memberId], byId) : 'each card';
-  lines.push(`charged to ${payerName}'s card, split ${n} ways on the tab`);
+  if (n > 1) lines.push(`charged to ${payerName}'s card, split ${n} ways on the tab`);
+  else if (p.paidBy.kind === 'member_card' && p.paidBy.memberId === p.attendees[0]) {
+    lines.push(`charged to ${payerName}'s card`);
+  } else lines.push(`charged to ${payerName}'s card, on ${who}'s tab`);
 
   const holdEnd = decision.expiresAt ?? p.holdExpiresAt ?? addMinutes(now, 15);
   const held = `price held for ${minutesUntil(holdEnd, now)} min`;

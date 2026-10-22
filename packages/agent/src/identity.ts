@@ -18,8 +18,12 @@ import type {
   SenderId,
 } from '@trav/core';
 import { safety } from '@trav/core';
-import { TEXT_ALIASES } from './approval/events.js';
+import type { ApprovalIntent } from './approval/events.js';
 import { stripInvisible } from './untrusted.js';
+
+// The alias and tapback classifiers live with the normalizer (approval/events.ts)
+// so there is one definition of "what counts as approval" (VOICE §6.2).
+export { classifyApprovalText, reactionIntent, type ApprovalIntent } from './approval/events.js';
 
 export type Identity =
   | { readonly kind: 'member'; readonly member: Member }
@@ -63,49 +67,7 @@ export function isLead(identity: Identity): boolean {
   );
 }
 
-// ---------- approval-shaped text ----------
-
-export type ApprovalIntent = 'approve' | 'decline' | 'not_me';
-
-const TRAILING_NOISE = /[\s!.,;:)]+$/u;
-const LEADING_NOISE = /^[\s(]+/u;
-
-function normalizeAlias(text: string): string {
-  return stripInvisible(text)
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .replace(LEADING_NOISE, '')
-    .replace(TRAILING_NOISE, '')
-    .replace(/^@trav\s*[,:]?\s*/, '')
-    .replace(/^(?:hey |ok |okay |yeah )?trav\s*[,:]?\s*/, '')
-    .trim();
-}
-
-/**
- * The whole message is one of the VOICE §6.2 text aliases ("yes", "book it",
- * "nah", "not me"), optionally prefixed by "@trav"/"trav," and followed by
- * punctuation. Anything longer is a sentence, not an approval.
- */
-export function classifyApprovalText(text: string): ApprovalIntent | undefined {
-  const t = normalizeAlias(text);
-  if (t.length === 0) return undefined;
-  for (const intent of ['approve', 'decline', 'not_me'] as const) {
-    if (TEXT_ALIASES[intent].some((alias) => alias === t)) return intent;
-  }
-  return undefined;
-}
-
-/** Tapbacks and reaction names that mean 👍 / 👎 (iMessage names, emoji). */
-export function reactionIntent(reaction: string): ApprovalIntent | undefined {
-  const r = reaction.trim().toLowerCase();
-  if (r === '👍' || r === 'like' || r === 'thumbs_up' || r === 'thumbsup' || r === '+1') {
-    return 'approve';
-  }
-  if (r === '👎' || r === 'dislike' || r === 'thumbs_down' || r === 'thumbsdown' || r === '-1') {
-    return 'decline';
-  }
-  return undefined;
-}
+// ---------- claims on someone else's behalf ----------
 
 export interface ClaimedApproval {
   /** The member the text speaks for. */

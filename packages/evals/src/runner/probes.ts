@@ -377,6 +377,8 @@ export interface ScreenCase {
   readonly expected: 'sent' | 'suppressed';
   readonly expectedCause?: string;
   readonly category?: string;
+  /** The draft answers an explicit adult-only request (SAFETY F3). */
+  readonly explicitAdultRequest?: boolean;
   /** What the send path did. */
   readonly sent: boolean;
   readonly sentText?: string;
@@ -597,6 +599,7 @@ export async function probeMinorScreen(): Promise<{ cases: ScreenCase[] }> {
       id: c.id,
       expected: c.expect,
       ...(c.cause !== undefined ? { expectedCause: c.cause } : {}),
+      ...(c.explicitAdultRequest !== undefined ? { explicitAdultRequest: c.explicitAdultRequest } : {}),
       sent: r.sent,
       ...(r.sentText !== undefined ? { sentText: r.sentText } : {}),
       causes: r.causes,

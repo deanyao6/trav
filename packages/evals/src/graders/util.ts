@@ -31,14 +31,21 @@ export function where(step: StepRecord): string {
 /**
  * One result from a list of check outcomes: score = passed / total, pass
  * only when every check passed. `total === 0` ⇒ skipped (nothing to grade).
+ *
+ * `substantive: false` says the episode never exercised what the grader is
+ * about (no proposal, no ticket, no audit event): if every check passed the
+ * result is reported as skipped rather than as a pass, so an invariant like
+ * "0 purchases ≤ 0 approvals" never counts as coverage. A failing check is
+ * always reported, substantive or not.
  */
 export function fromChecks(
   graderId: string,
   checks: readonly { readonly ok: boolean; readonly what: string }[],
-  opts: { readonly safetyId?: string; readonly nothing?: string } = {},
+  opts: { readonly safetyId?: string; readonly nothing?: string; readonly substantive?: boolean } = {},
 ): GraderResult {
   const safety = opts.safetyId !== undefined ? { safetyId: opts.safetyId } : {};
-  if (checks.length === 0) {
+  const vacuous = opts.substantive === false && checks.every((c) => c.ok);
+  if (checks.length === 0 || vacuous) {
     return {
       graderId,
       ...safety,

@@ -3,11 +3,18 @@
  * (held-out included), writes `evals/reports/<timestamp>.md` + `.json`, and
  * exits 1 on any safety failure.
  *
- *   pnpm eval                      all scenarios
+ *   pnpm eval                      all scenarios (dev + held-out, reported apart)
+ *   pnpm eval --split dev          everything except held-out (what the build loop tunes on)
+ *   pnpm eval --split heldout      only the held-out set
+ *   pnpm eval --split regression   only the regression suite
  *   pnpm eval --filter razz        scenario ids containing "razz"
  *   pnpm eval --tag safety         only scenarios with that tag (repeatable)
+ *   pnpm eval --scenarios <dir>    load scenario files from another directory
  *   pnpm eval --out <dir>          write the report elsewhere (default evals/reports)
  *   pnpm eval --no-report          print only
+ *   pnpm eval --no-static          skip the architectural checks (A1, A2, B2, H1, H2)
+ *
+ * Exit code: 1 on any safety failure (scenario or static), 2 on a crash, else 0.
  *
  * Mode: live only when `TRAV_OFFLINE` is unset, `TRAV_ANTHROPIC_API_KEY` is
  * present and the spend guard still allows spending; otherwise offline. Live
@@ -29,21 +36,31 @@ import {
 } from '@trav/agent';
 import { reportsDir, stampOf, writeReport, type RunMeta } from './reports.js';
 import { liveModelFactory, offlineModelFactory } from './runner/run.js';
-import { loadScenarios } from './scenarios.js';
-import { evaluateScenario, totals, type ScenarioOutcome } from './scoring.js';
-import type { EvalMode, RubricJudge } from './types.js';
+import { loadScenarios, scenariosDir } from './scenarios.js';
+import { evaluateScenario, runStaticChecks, totals, type ScenarioOutcome, type Totals } from './scoring.js';
+import type { EvalMode, RubricJudge, Scenario } from './types.js';
+
+export type Split = 'all' | 'dev' | 'heldout' | 'regression';
+const SPLITS: readonly Split[] = ['all', 'dev', 'heldout', 'regression'];
 
 export interface CliArgs {
   readonly filter?: string;
   readonly tags: readonly string[];
   readonly out?: string;
   readonly report: boolean;
+  readonly split: Split;
+  readonly scenariosDir?: string;
+  /** Run the architectural checks (default true). */
+  readonly static: boolean;
 }
 
 export function parseArgs(argv: readonly string[]): CliArgs {
   let filter: string | undefined;
   let out: string | undefined;
+  let scenariosDir: string | undefined;
   let report = true;
+  let runStatic = true;
+  let split: Split = 'all';
   const tags: string[] = [];
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
@@ -56,16 +73,55 @@ export function parseArgs(argv: readonly string[]): CliArgs {
     if (a === '--filter') filter = next();
     else if (a === '--tag') tags.push(next());
     else if (a === '--out') out = next();
+    else if (a === '--scenarios') scenariosDir = next();
     else if (a === '--no-report') report = false;
-    else if (a === '--') continue;
+    else if (a === '--no-static') runStatic = false;
+    else if (a === '--split') {
+      const v = next();
+      if (!SPLITS.includes(v as Split)) throw new Error(`--split must be one of ${SPLITS.join(', ')}`);
+      split = v as Split;
+    } else if (a === '--') continue;
     else throw new Error(`unknown argument ${String(a)}`);
   }
   return {
     ...(filter !== undefined ? { filter } : {}),
     tags,
     ...(out !== undefined ? { out } : {}),
+    ...(scenariosDir !== undefined ? { scenariosDir } : {}),
     report,
+    split,
+    static: runStatic,
   };
+}
+
+function inSplit(s: Scenario, split: Split): boolean {
+  switch (split) {
+    case 'all':
+      return true;
+    case 'dev':
+      return !s.tags.includes('heldout');
+    case 'heldout':
+      return s.tags.includes('heldout');
+    case 'regression':
+      return s.tags.includes('regression');
+  }
+}
+
+/** The scenarios a run covers, plus a one-line description for the report. */
+export function selectScenarios(
+  all: readonly Scenario[],
+  args: Pick<CliArgs, 'filter' | 'tags' | 'split'>,
+): { scenarios: Scenario[]; selection: string } {
+  const scenarios = all.filter(
+    (s) =>
+      inSplit(s, args.split) &&
+      (args.filter === undefined || s.id.includes(args.filter)) &&
+      args.tags.every((t) => s.tags.includes(t as never)),
+  );
+  const parts = [`split ${args.split}`];
+  if (args.filter !== undefined) parts.push(`ids containing "${args.filter}"`);
+  if (args.tags.length > 0) parts.push(`tags ${args.tags.join(' + ')}`);
+  return { scenarios, selection: `${parts.join(', ')}: ${String(scenarios.length)} of ${String(all.length)} scenarios` };
 }
 
 export interface ModeDecision {
@@ -127,6 +183,7 @@ export function createRubricJudge(model: ModelClient): RubricJudge {
 
 export interface RunAllResult {
   readonly outcomes: readonly ScenarioOutcome[];
+  readonly totals: Totals;
   readonly exitCode: number;
   readonly reportPath?: string;
 }
@@ -154,12 +211,11 @@ export async function runAll(
       ? createRubricJudge(createModelClient({ env: modelEnv, clock: systemClock }))
       : undefined;
 
-  const scenarios = loadScenarios().filter(
-    (s) =>
-      (args.filter === undefined || s.id.includes(args.filter)) &&
-      args.tags.every((t) => s.tags.includes(t as never)),
+  const { scenarios, selection } = selectScenarios(
+    loadScenarios(args.scenariosDir ?? scenariosDir()),
+    args,
   );
-  log(`trav eval: ${String(scenarios.length)} scenario(s), mode ${decision.mode} (${decision.note})`);
+  log(`trav eval: ${selection}, mode ${decision.mode} (${decision.note})`);
   const outcomes: ScenarioOutcome[] = [];
   for (const s of scenarios) {
     const o = await evaluateScenario(s, {
@@ -173,11 +229,17 @@ export async function runAll(
     log(`  ${o.safetyFailures.length > 0 ? 'SAFETY FAIL' : o.status === 'pending' ? 'pending    ' : 'ok         '} ${s.id}: ${tag}`);
     for (const f of o.safetyFailures) log(`      [${f.safetyId}] ${f.graderId}: ${f.evidence.slice(0, 2).join('; ')}`);
   }
-  const t = totals(outcomes);
+  const staticChecks = args.static ? runStaticChecks() : undefined;
+  for (const c of staticChecks ?? []) {
+    if (!c.ok) log(`  ${c.safety ? 'SAFETY FAIL' : 'FAIL       '} static ${c.id}: ${c.violations.slice(0, 2).join('; ')}`);
+  }
+  const t = totals(outcomes, staticChecks);
   const meta: RunMeta = {
     stamp: stampOf(systemClock.now()),
     mode: decision.mode,
     modeNote: decision.note,
+    selection,
+    ...(staticChecks !== undefined ? { staticChecks } : {}),
     ...(decision.mode === 'live'
       ? { models: { ...modelEnv.models }, spendUsd: guard().current().estimatedUsd }
       : {}),
@@ -189,9 +251,12 @@ export async function runAll(
     log(`report: ${written.markdownPath}`);
   }
   const pctOf = (x: number | null) => (x === null ? 'n/a' : `${(x * 100).toFixed(1)}%`);
-  log(`overall ${pctOf(t.overall)} · held-out ${pctOf(t.heldout)} · ran ${String(t.ran)} · pending ${String(t.pending)} · safety failures ${String(t.safetyFailures)}`);
+  log(
+    `overall ${pctOf(t.overall)} · held-out ${pctOf(t.heldout)} · regression ${String(t.regression.passed)}/${String(t.regression.ran)} · ran ${String(t.ran)} · pending ${String(t.pending)} · safety failures ${String(t.safetyFailures)}`,
+  );
   return {
     outcomes,
+    totals: t,
     exitCode: t.safetyFailures > 0 ? 1 : 0,
     ...(reportPath !== undefined ? { reportPath } : {}),
   };
