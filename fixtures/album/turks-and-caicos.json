@@ -1,0 +1,452 @@
+{
+  "fixtureVersion": 1,
+  "groupId": "grp_turks_caicos",
+  "tripId": "trip_turks_caicos",
+  "photos": [
+    {
+      "photoId": "photo_tci_001",
+      "groupId": "grp_turks_caicos",
+      "tripId": "trip_turks_caicos",
+      "ownerMemberId": "mem_tci_mom",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/tci/photo_tci_001.jpg",
+      "thumbnailUrl": "https://album.example.test/tci/thumb/photo_tci_001.jpg",
+      "takenAt": "2026-06-20T15:30:00-04:00",
+      "qualityTag": "good",
+      "addedAt": "2026-06-20T15:50:00-04:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_tci_002",
+      "groupId": "grp_turks_caicos",
+      "tripId": "trip_turks_caicos",
+      "ownerMemberId": "mem_tci_dean",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/tci/photo_tci_002.jpg",
+      "thumbnailUrl": "https://album.example.test/tci/thumb/photo_tci_002.jpg",
+      "takenAt": "2026-06-20T18:45:00-04:00",
+      "qualityTag": "good",
+      "addedAt": "2026-06-20T19:05:00-04:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_tci_003",
+      "groupId": "grp_turks_caicos",
+      "tripId": "trip_turks_caicos",
+      "ownerMemberId": "mem_tci_mom",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/tci/photo_tci_003.jpg",
+      "thumbnailUrl": "https://album.example.test/tci/thumb/photo_tci_003.jpg",
+      "takenAt": "2026-06-21T19:40:00-04:00",
+      "qualityTag": "ok",
+      "addedAt": "2026-06-21T20:00:00-04:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_tci_004",
+      "groupId": "grp_turks_caicos",
+      "tripId": "trip_turks_caicos",
+      "ownerMemberId": "mem_tci_dad",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/tci/photo_tci_004.jpg",
+      "thumbnailUrl": "https://album.example.test/tci/thumb/photo_tci_004.jpg",
+      "takenAt": "2026-06-22T09:30:00-04:00",
+      "qualityTag": "good",
+      "addedAt": "2026-06-22T09:50:00-04:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_tci_005",
+      "groupId": "grp_turks_caicos",
+      "tripId": "trip_turks_caicos",
+      "ownerMemberId": "mem_tci_mom",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/tci/photo_tci_005.jpg",
+      "thumbnailUrl": "https://album.example.test/tci/thumb/photo_tci_005.jpg",
+      "takenAt": "2026-06-22T10:10:00-04:00",
+      "qualityTag": "good",
+      "addedAt": "2026-06-22T10:30:00-04:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_tci_006",
+      "groupId": "grp_turks_caicos",
+      "tripId": "trip_turks_caicos",
+      "ownerMemberId": "mem_tci_dean",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/tci/photo_tci_006.jpg",
+      "thumbnailUrl": "https://album.example.test/tci/thumb/photo_tci_006.jpg",
+      "takenAt": "2026-06-22T10:40:00-04:00",
+      "qualityTag": "blurry",
+      "addedAt": "2026-06-22T11:00:00-04:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_tci_007",
+      "groupId": "grp_turks_caicos",
+      "tripId": "trip_turks_caicos",
+      "ownerMemberId": "mem_tci_dean",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/tci/photo_tci_007.jpg",
+      "thumbnailUrl": "https://album.example.test/tci/thumb/photo_tci_007.jpg",
+      "takenAt": "2026-06-23T18:20:00-04:00",
+      "qualityTag": "good",
+      "addedAt": "2026-06-23T18:40:00-04:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_tci_008",
+      "groupId": "grp_turks_caicos",
+      "tripId": "trip_turks_caicos",
+      "ownerMemberId": "mem_tci_dean",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/tci/photo_tci_008.jpg",
+      "thumbnailUrl": "https://album.example.test/tci/thumb/photo_tci_008.jpg",
+      "takenAt": "2026-06-23T18:50:00-04:00",
+      "qualityTag": "good",
+      "addedAt": "2026-06-23T19:10:00-04:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_tci_009",
+      "groupId": "grp_turks_caicos",
+      "tripId": "trip_turks_caicos",
+      "ownerMemberId": "mem_tci_dean",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/tci/photo_tci_009.jpg",
+      "thumbnailUrl": "https://album.example.test/tci/thumb/photo_tci_009.jpg",
+      "takenAt": "2026-06-24T11:00:00-04:00",
+      "qualityTag": "ok",
+      "addedAt": "2026-06-24T11:20:00-04:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_tci_010",
+      "groupId": "grp_turks_caicos",
+      "tripId": "trip_turks_caicos",
+      "ownerMemberId": "mem_tci_dad",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/tci/photo_tci_010.jpg",
+      "thumbnailUrl": "https://album.example.test/tci/thumb/photo_tci_010.jpg",
+      "takenAt": "2026-06-25T18:00:00-04:00",
+      "qualityTag": "good",
+      "addedAt": "2026-06-25T18:20:00-04:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_tci_011",
+      "groupId": "grp_turks_caicos",
+      "tripId": "trip_turks_caicos",
+      "ownerMemberId": "mem_tci_dad",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/tci/photo_tci_011.jpg",
+      "thumbnailUrl": "https://album.example.test/tci/thumb/photo_tci_011.jpg",
+      "takenAt": "2026-06-26T12:00:00-04:00",
+      "qualityTag": "ok",
+      "addedAt": "2026-06-26T12:20:00-04:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_tci_012",
+      "groupId": "grp_turks_caicos",
+      "tripId": "trip_turks_caicos",
+      "ownerMemberId": "mem_tci_dean",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/tci/photo_tci_012.jpg",
+      "thumbnailUrl": "https://album.example.test/tci/thumb/photo_tci_012.jpg",
+      "takenAt": "2026-06-27T17:30:00-04:00",
+      "qualityTag": "good",
+      "addedAt": "2026-06-27T17:50:00-04:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_tci_013",
+      "groupId": "grp_turks_caicos",
+      "tripId": "trip_turks_caicos",
+      "ownerMemberId": "mem_tci_lily",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/tci/photo_tci_013.jpg",
+      "thumbnailUrl": "https://album.example.test/tci/thumb/photo_tci_013.jpg",
+      "takenAt": "2026-06-22T10:20:00-04:00",
+      "qualityTag": "good",
+      "addedAt": "2026-06-22T10:40:00-04:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_tci_014",
+      "groupId": "grp_turks_caicos",
+      "tripId": "trip_turks_caicos",
+      "ownerMemberId": "mem_tci_lily",
+      "mimeType": "video/mp4",
+      "width": 1920,
+      "height": 1080,
+      "url": "https://album.example.test/tci/photo_tci_014.mp4",
+      "thumbnailUrl": "https://album.example.test/tci/thumb/photo_tci_014.jpg",
+      "takenAt": "2026-06-23T19:00:00-04:00",
+      "qualityTag": "good",
+      "addedAt": "2026-06-23T19:20:00-04:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_tci_015",
+      "groupId": "grp_turks_caicos",
+      "tripId": "trip_turks_caicos",
+      "ownerMemberId": "mem_tci_dean",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/tci/photo_tci_015.jpg",
+      "thumbnailUrl": "https://album.example.test/tci/thumb/photo_tci_015.jpg",
+      "takenAt": "2026-06-24T22:30:00-04:00",
+      "qualityTag": "good",
+      "addedAt": "2026-06-24T22:50:00-04:00",
+      "hidden": false
+    }
+  ],
+  "labels": {
+    "photo_tci_001": {
+      "inPhoto": [
+        "mem_tci_lily"
+      ],
+      "placeName": "villa pool",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": true,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true,
+      "allowedInWrappedShareCard": false
+    },
+    "photo_tci_002": {
+      "inPhoto": [
+        "mem_tci_mom",
+        "mem_tci_dad",
+        "mem_tci_dean",
+        "mem_tci_lily"
+      ],
+      "placeName": "Grace Bay beach",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": true,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true,
+      "allowedInWrappedShareCard": false
+    },
+    "photo_tci_003": {
+      "inPhoto": [
+        "mem_tci_mom",
+        "mem_tci_dad",
+        "mem_tci_dean",
+        "mem_tci_lily"
+      ],
+      "placeName": "Conch Corner Grill",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": true,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true,
+      "allowedInWrappedShareCard": false
+    },
+    "photo_tci_004": {
+      "inPhoto": [
+        "mem_tci_lily",
+        "mem_tci_dad"
+      ],
+      "placeName": "reef snorkel tour",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": true,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true,
+      "allowedInWrappedShareCard": false
+    },
+    "photo_tci_005": {
+      "inPhoto": [
+        "mem_tci_lily"
+      ],
+      "placeName": "reef snorkel tour (underwater)",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": true,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true,
+      "allowedInWrappedShareCard": false
+    },
+    "photo_tci_006": {
+      "inPhoto": [
+        "mem_tci_dean"
+      ],
+      "placeName": "reef snorkel tour",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": false,
+      "allowedInWrappedShareCard": true
+    },
+    "photo_tci_007": {
+      "inPhoto": [
+        "mem_tci_mom",
+        "mem_tci_dad",
+        "mem_tci_dean",
+        "mem_tci_lily"
+      ],
+      "placeName": "sunset cruise",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": true,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true,
+      "allowedInWrappedShareCard": false
+    },
+    "photo_tci_008": {
+      "inPhoto": [
+        "mem_tci_mom",
+        "mem_tci_dad"
+      ],
+      "placeName": "sunset cruise",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true,
+      "allowedInWrappedShareCard": true
+    },
+    "photo_tci_009": {
+      "inPhoto": [
+        "mem_tci_lily",
+        "mem_tci_mom"
+      ],
+      "placeName": "Little Water Cay",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": true,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true,
+      "allowedInWrappedShareCard": false
+    },
+    "photo_tci_010": {
+      "inPhoto": [
+        "mem_tci_mom",
+        "mem_tci_dad",
+        "mem_tci_dean",
+        "mem_tci_lily"
+      ],
+      "placeName": "Bight Park fish fry",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": true,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true,
+      "allowedInWrappedShareCard": false
+    },
+    "photo_tci_011": {
+      "inPhoto": [
+        "mem_tci_dean"
+      ],
+      "placeName": "Grace Bay beach",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true,
+      "allowedInWrappedShareCard": true
+    },
+    "photo_tci_012": {
+      "inPhoto": [
+        "mem_tci_lily",
+        "mem_tci_mom"
+      ],
+      "placeName": "villa",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": true,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true,
+      "allowedInWrappedShareCard": false
+    },
+    "photo_tci_013": {
+      "inPhoto": [
+        "mem_tci_lily"
+      ],
+      "placeName": "reef snorkel tour",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": true,
+      "note": "Lily's own upload: her 'photos on' needs Dad's (guardian) opt-in, which never happens, so it is never shown",
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false,
+      "allowedInWrappedShareCard": false
+    },
+    "photo_tci_014": {
+      "inPhoto": [
+        "mem_tci_lily"
+      ],
+      "placeName": "sunset cruise",
+      "activityId": null,
+      "isVideo": true,
+      "durationSec": 12,
+      "includesMinor": true,
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false,
+      "allowedInWrappedShareCard": false
+    },
+    "photo_tci_015": {
+      "inPhoto": [
+        "mem_tci_dean",
+        "mem_tci_dad"
+      ],
+      "placeName": "Palm Lights Casino (fictional)",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": false,
+      "note": "adults-only night: never in a family recap highlight or Wrapped (SAFETY §2.7 rule 4)",
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true,
+      "allowedInWrappedShareCard": false
+    }
+  },
+  "consentTimeline": [
+    {
+      "at": "2026-06-20T15:00:00-04:00",
+      "memberId": "mem_tci_mom",
+      "photos": true
+    },
+    {
+      "at": "2026-06-20T15:01:00-04:00",
+      "memberId": "mem_tci_dean",
+      "photos": true
+    },
+    {
+      "at": "2026-06-20T15:02:00-04:00",
+      "memberId": "mem_tci_dad",
+      "photos": true
+    }
+  ],
+  "minorConsentNote": "Lily's photos flag is ignored without a guardian opt-in (VOICE §8); minors never appear in the shareable Wrapped card"
+}

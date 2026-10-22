@@ -1,0 +1,334 @@
+{
+  "fixtureVersion": 1,
+  "groupId": "grp_lisbon",
+  "tripId": "trip_lisbon",
+  "photos": [
+    {
+      "photoId": "photo_lis_001",
+      "groupId": "grp_lisbon",
+      "tripId": "trip_lisbon",
+      "ownerMemberId": "mem_lis_dad",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/lis/photo_lis_001.jpg",
+      "thumbnailUrl": "https://album.example.test/lis/thumb/photo_lis_001.jpg",
+      "takenAt": "2026-04-15T16:00:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-04-15T16:20:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_lis_002",
+      "groupId": "grp_lisbon",
+      "tripId": "trip_lisbon",
+      "ownerMemberId": "mem_lis_dad",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/lis/photo_lis_002.jpg",
+      "thumbnailUrl": "https://album.example.test/lis/thumb/photo_lis_002.jpg",
+      "takenAt": "2026-04-16T11:30:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-04-16T11:50:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_lis_003",
+      "groupId": "grp_lisbon",
+      "tripId": "trip_lisbon",
+      "ownerMemberId": "mem_lis_dean",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/lis/photo_lis_003.jpg",
+      "thumbnailUrl": "https://album.example.test/lis/thumb/photo_lis_003.jpg",
+      "takenAt": "2026-04-16T21:15:00+01:00",
+      "qualityTag": "ok",
+      "addedAt": "2026-04-16T21:35:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_lis_004",
+      "groupId": "grp_lisbon",
+      "tripId": "trip_lisbon",
+      "ownerMemberId": "mem_lis_dad",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/lis/photo_lis_004.jpg",
+      "thumbnailUrl": "https://album.example.test/lis/thumb/photo_lis_004.jpg",
+      "takenAt": "2026-04-17T15:10:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-04-17T15:30:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_lis_005",
+      "groupId": "grp_lisbon",
+      "tripId": "trip_lisbon",
+      "ownerMemberId": "mem_lis_dean",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/lis/photo_lis_005.jpg",
+      "thumbnailUrl": "https://album.example.test/lis/thumb/photo_lis_005.jpg",
+      "takenAt": "2026-04-17T16:30:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-04-17T16:50:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_lis_006",
+      "groupId": "grp_lisbon",
+      "tripId": "trip_lisbon",
+      "ownerMemberId": "mem_lis_dad",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/lis/photo_lis_006.jpg",
+      "thumbnailUrl": "https://album.example.test/lis/thumb/photo_lis_006.jpg",
+      "takenAt": "2026-04-17T18:40:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-04-17T19:00:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_lis_007",
+      "groupId": "grp_lisbon",
+      "tripId": "trip_lisbon",
+      "ownerMemberId": "mem_lis_dad",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/lis/photo_lis_007.jpg",
+      "thumbnailUrl": "https://album.example.test/lis/thumb/photo_lis_007.jpg",
+      "takenAt": "2026-04-18T20:20:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-04-18T20:40:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_lis_008",
+      "groupId": "grp_lisbon",
+      "tripId": "trip_lisbon",
+      "ownerMemberId": "mem_lis_dad",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/lis/photo_lis_008.jpg",
+      "thumbnailUrl": "https://album.example.test/lis/thumb/photo_lis_008.jpg",
+      "takenAt": "2026-04-18T22:25:00+01:00",
+      "qualityTag": "blurry",
+      "addedAt": "2026-04-18T22:45:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_lis_009",
+      "groupId": "grp_lisbon",
+      "tripId": "trip_lisbon",
+      "ownerMemberId": "mem_lis_dad",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/lis/photo_lis_009.jpg",
+      "thumbnailUrl": "https://album.example.test/lis/thumb/photo_lis_009.jpg",
+      "takenAt": "2026-04-19T10:00:00+01:00",
+      "qualityTag": "ok",
+      "addedAt": "2026-04-19T10:20:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_lis_010",
+      "groupId": "grp_lisbon",
+      "tripId": "trip_lisbon",
+      "ownerMemberId": "mem_lis_dad",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/lis/photo_lis_010.jpg",
+      "thumbnailUrl": "https://album.example.test/lis/thumb/photo_lis_010.jpg",
+      "takenAt": "2026-04-19T18:10:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-04-19T18:30:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_lis_011",
+      "groupId": "grp_lisbon",
+      "tripId": "trip_lisbon",
+      "ownerMemberId": "mem_lis_dad",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/lis/photo_lis_011.jpg",
+      "thumbnailUrl": "https://album.example.test/lis/thumb/photo_lis_011.jpg",
+      "takenAt": "2026-04-20T09:30:00+01:00",
+      "qualityTag": "bad",
+      "addedAt": "2026-04-20T09:50:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_lis_012",
+      "groupId": "grp_lisbon",
+      "tripId": "trip_lisbon",
+      "ownerMemberId": "mem_lis_dean",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/lis/photo_lis_012.jpg",
+      "thumbnailUrl": "https://album.example.test/lis/thumb/photo_lis_012.jpg",
+      "takenAt": "2026-04-17T12:40:00+01:00",
+      "qualityTag": "receipt",
+      "addedAt": "2026-04-17T13:00:00+01:00",
+      "hidden": false
+    }
+  ],
+  "labels": {
+    "photo_lis_001": {
+      "inPhoto": [
+        "mem_lis_dean",
+        "mem_lis_dad"
+      ],
+      "placeName": "Miradouro da Senhora do Monte",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true
+    },
+    "photo_lis_002": {
+      "inPhoto": [
+        "mem_lis_dean"
+      ],
+      "placeName": "Oficina do Azulejo (fictional)",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true
+    },
+    "photo_lis_003": {
+      "inPhoto": [
+        "mem_lis_dean",
+        "mem_lis_dad"
+      ],
+      "placeName": "Tasca da Saudade (fictional), Alfama",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true
+    },
+    "photo_lis_004": {
+      "inPhoto": [
+        "mem_lis_dad"
+      ],
+      "placeName": "Palácio da Pena, Sintra",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true
+    },
+    "photo_lis_005": {
+      "inPhoto": [
+        "mem_lis_dean",
+        "mem_lis_dad"
+      ],
+      "placeName": "Castelo dos Mouros, Sintra",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true
+    },
+    "photo_lis_006": {
+      "inPhoto": [
+        "mem_lis_dad"
+      ],
+      "placeName": "Cabo da Roca",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true
+    },
+    "photo_lis_007": {
+      "inPhoto": [
+        "mem_lis_dean",
+        "mem_lis_dad"
+      ],
+      "placeName": "Estádio da Luz",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true
+    },
+    "photo_lis_008": {
+      "inPhoto": [
+        "mem_lis_dean",
+        "mem_lis_dad"
+      ],
+      "placeName": "Estádio da Luz",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": false
+    },
+    "photo_lis_009": {
+      "inPhoto": [
+        "mem_lis_dad"
+      ],
+      "placeName": "Belém",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true
+    },
+    "photo_lis_010": {
+      "inPhoto": [
+        "mem_lis_dean"
+      ],
+      "placeName": "Estádio José Alvalade",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true
+    },
+    "photo_lis_011": {
+      "inPhoto": [],
+      "placeName": "hotel breakfast",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": false
+    },
+    "photo_lis_012": {
+      "inPhoto": [],
+      "placeName": "conference lunch receipt",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": false
+    }
+  },
+  "consentTimeline": [
+    {
+      "at": "2026-04-15T12:00:00+01:00",
+      "memberId": "mem_lis_dean",
+      "photos": true
+    },
+    {
+      "at": "2026-04-15T12:01:00+01:00",
+      "memberId": "mem_lis_dad",
+      "photos": true
+    }
+  ]
+}

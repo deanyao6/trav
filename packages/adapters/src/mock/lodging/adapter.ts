@@ -53,7 +53,6 @@ import type {
   LodgingRate,
   LodgingSearchRequest,
   LodgingSearchResult,
-  PropertyKind,
   PropertyMessage,
 } from '../../interfaces/lodging.js';
 import {
@@ -62,7 +61,7 @@ import {
   checkApprovalProofValidity,
 } from '../payments/proof.js';
 import type { InventoryProperty, InventoryRate, LodgingInventory } from './inventory.js';
-import { loadLodgingInventory } from './inventory.js';
+import { isWholeUnit, loadLodgingInventory } from './inventory.js';
 
 export interface MockLodgingOptions {
   readonly clock: Clock;
@@ -130,6 +129,12 @@ interface RateState {
   quoted: Money;
   soldOutObserved: boolean;
   activeBookings: number;
+  /**
+   * Active bookings across every rate of the property. A whole unit
+   * (apartment / vacation rental) is one physical place: once any of its rates
+   * is booked, all of its rates are gone.
+   */
+  readonly propertyLoad: { active: number };
 }
 
 interface BookingRecord {
@@ -139,13 +144,14 @@ interface BookingRecord {
   readonly approvalId: string;
   readonly rateId: string;
   readonly guestKey: string;
+  /** Lead guest identity (member + name on the booking) for idempotent replays. */
+  readonly leadKey: string;
   readonly expectedTotal: Money;
   readonly state: RateState;
   readonly messages: PropertyMessage[];
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-const WHOLE_UNIT_KINDS: ReadonlySet<PropertyKind> = new Set(['apartment', 'vacation_rental']);
 const ALL_KINDS: ReadonlySet<string> = new Set(['hotel', 'apartment', 'hostel', 'vacation_rental']);
 const MAX_MESSAGE_CHARS = 1000;
 const MAX_SPECIAL_REQUEST_CHARS = 500;
@@ -197,19 +203,15 @@ function validDate(v: unknown): v is IsoDate {
 
 /** Lowercase, strip accents, collapse whitespace ("Gràcia" ⇒ "gracia"). */
 function fold(s: string): string {
-  return s
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
 function distanceKm(a: GeoPoint, b: GeoPoint): number {
   const rad = (x: number) => (x * Math.PI) / 180;
   const dLat = rad(b.lat - a.lat);
   const dLon = rad(b.lon - a.lon);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
   return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
@@ -238,8 +240,7 @@ function cancellationTerms(
   nowMs: number,
 ): { refund: Money; forfeited: Money; deadlinePassed: boolean } {
   const nothing = money(0, total.currency);
-  const deadlinePassed =
-    p.refundableUntil !== undefined && nowMs > parseIso(p.refundableUntil);
+  const deadlinePassed = p.refundableUntil !== undefined && nowMs > parseIso(p.refundableUntil);
   if (!p.refundable || deadlinePassed) {
     return { refund: nothing, forfeited: total, deadlinePassed };
   }
@@ -250,8 +251,25 @@ function cancellationTerms(
   return { refund: subtract(total, penalty), forfeited: penalty, deadlinePassed };
 }
 
-function liveSoldOut(s: RateState): boolean {
-  return s.inv.soldOut || s.inv.recheck?.kind === 'sold_out' || s.activeBookings >= s.inv.units;
+/** Bookable on our side: not a fixture sell-out, units left, whole unit not taken. */
+function hasRoom(s: RateState): boolean {
+  if (s.inv.soldOut) return false;
+  if (s.activeBookings >= s.inv.units) return false;
+  return !(isWholeUnit(s.prop.property.kind) && s.propertyLoad.active > 0);
+}
+
+/**
+ * What the provider says right now. A fixture sell-out discovered on
+ * recheck/book is remembered (`soldOutObserved`, so search stops listing the
+ * stale cache entry). A unit our own bookings filled is NOT remembered:
+ * `hasRoom` re-evaluates it, so a cancellation frees the rate again.
+ */
+function soldOutNow(s: RateState): boolean {
+  if (s.inv.recheck?.kind === 'sold_out') {
+    s.soldOutObserved = true;
+    return true;
+  }
+  return !hasRoom(s);
 }
 
 function livePrice(s: RateState): Money {
@@ -262,6 +280,12 @@ function guestKeyOf(ids: readonly string[]): string {
   return [...ids].sort().join(',');
 }
 
+function leadKeyOf(lead: unknown): string {
+  if (typeof lead !== 'object' || lead === null) return '';
+  const l = lead as { memberId?: unknown; givenName?: unknown; familyName?: unknown };
+  return JSON.stringify([l.memberId, l.givenName, l.familyName]);
+}
+
 export function createMockLodging(options: MockLodgingOptions): MockLodging {
   const { clock } = options;
   const inventory = options.inventory ?? loadLodgingInventory('barcelona');
@@ -269,6 +293,7 @@ export function createMockLodging(options: MockLodgingOptions): MockLodging {
 
   const rates = new Map<string, RateState>();
   for (const prop of inventory.properties) {
+    const propertyLoad = { active: 0 };
     for (const inv of prop.rates) {
       rates.set(inv.rate.rateId, {
         inv,
@@ -276,6 +301,7 @@ export function createMockLodging(options: MockLodgingOptions): MockLodging {
         quoted: inv.rate.totalAmount,
         soldOutObserved: false,
         activeBookings: 0,
+        propertyLoad,
       });
     }
   }
@@ -303,7 +329,8 @@ export function createMockLodging(options: MockLodgingOptions): MockLodging {
 
   const validateSearch = (r: LodgingSearchRequest): string | undefined => {
     if (typeof r !== 'object' || r === null) return 'request required';
-    if (!validDate(r.checkIn) || !validDate(r.checkOut)) return 'checkIn/checkOut must be YYYY-MM-DD';
+    if (!validDate(r.checkIn) || !validDate(r.checkOut))
+      return 'checkIn/checkOut must be YYYY-MM-DD';
     if (r.checkOut <= r.checkIn) return 'checkOut must be after checkIn';
     if (!Number.isInteger(r.adults) || r.adults < 1 || r.adults > 30) return 'adults must be 1-30';
     if (r.childrenAges !== undefined) {
@@ -315,11 +342,15 @@ export function createMockLodging(options: MockLodgingOptions): MockLodging {
     if (r.minBedrooms !== undefined && (!Number.isInteger(r.minBedrooms) || r.minBedrooms < 0)) {
       return 'minBedrooms must be a non-negative integer';
     }
-    if (r.kinds !== undefined && (!Array.isArray(r.kinds) || r.kinds.some((k) => !ALL_KINDS.has(k)))) {
+    if (
+      r.kinds !== undefined &&
+      (!Array.isArray(r.kinds) || r.kinds.some((k) => !ALL_KINDS.has(k)))
+    ) {
       return 'unknown property kind';
     }
     if (r.maxTotal !== undefined) {
-      if (!isMoney(r.maxTotal) || r.maxTotal.amountMinor <= 0) return 'maxTotal must be positive Money';
+      if (!isMoney(r.maxTotal) || r.maxTotal.amountMinor <= 0)
+        return 'maxTotal must be positive Money';
       if (r.maxTotal.currency !== inventory.currency) {
         return `maxTotal must be in ${inventory.currency}`;
       }
@@ -409,15 +440,16 @@ export function createMockLodging(options: MockLodgingOptions): MockLodging {
       for (const prop of inventory.properties) {
         const p = prop.property;
         if (!nearMatches(prop, request.near)) continue;
-        if (p.maxOccupancy < guests) continue;
+        // Whole units: the listing's capacity. Hotels/hostels: per room; the rate decides.
+        if (isWholeUnit(p.kind) && p.maxOccupancy < guests) continue;
         if (request.kinds && !request.kinds.includes(p.kind)) continue;
-        if (request.wholeUnitForGroup && !WHOLE_UNIT_KINDS.has(p.kind)) continue;
+        if (request.wholeUnitForGroup && !isWholeUnit(p.kind)) continue;
         if (request.minBedrooms !== undefined && (p.bedrooms ?? 0) < request.minBedrooms) continue;
         const shown: LodgingRate[] = [];
         for (const inv of prop.rates) {
           const s = rates.get(inv.rate.rateId);
           if (!s) continue;
-          if (s.inv.soldOut || s.soldOutObserved || s.activeBookings >= s.inv.units) continue;
+          if (s.soldOutObserved || !hasRoom(s)) continue;
           if (inv.rate.sleeps < guests) continue;
           const rate = present(s, s.quoted, nowMs, false);
           if (request.refundableOnly && !rate.refundPolicy.refundable) continue;
@@ -454,8 +486,7 @@ export function createMockLodging(options: MockLodgingOptions): MockLodging {
       if (stayStarted(s.prop)) {
         return done(fail('offer_expired', `rate ${rateId} is for a stay that has already started`));
       }
-      if (liveSoldOut(s)) {
-        s.soldOutObserved = true;
+      if (soldOutNow(s)) {
         return done(fail('sold_out', `rate ${rateId} is no longer available`));
       }
       const live = livePrice(s);
@@ -485,6 +516,7 @@ export function createMockLodging(options: MockLodgingOptions): MockLodging {
           replay.approvalId === request.approval.approvalId &&
           Array.isArray(ids) &&
           guestKeyOf(ids as string[]) === replay.guestKey &&
+          leadKeyOf(request.leadGuest) === replay.leadKey &&
           isMoney(request.expectedTotal) &&
           equals(replay.expectedTotal, request.expectedTotal);
         if (!same) {
@@ -513,8 +545,7 @@ export function createMockLodging(options: MockLodgingOptions): MockLodging {
       if (stayStarted(s.prop)) {
         return done(fail('offer_expired', 'this stay has already started'));
       }
-      if (liveSoldOut(s)) {
-        s.soldOutObserved = true;
+      if (soldOutNow(s)) {
         return done(fail('sold_out', `rate ${request.rateId} is no longer available`));
       }
 
@@ -563,12 +594,14 @@ export function createMockLodging(options: MockLodgingOptions): MockLodging {
         approvalId: proof.approvalId,
         rateId: s.inv.rate.rateId,
         guestKey: guestKeyOf(request.guestMemberIds),
+        leadKey: leadKeyOf(request.leadGuest),
         expectedTotal: money(live.amountMinor, live.currency),
         state: s,
         messages: [],
       };
       s.quoted = live;
       s.activeBookings += 1;
+      s.propertyLoad.active += 1;
       bookings.set(bookingId, record);
       bookingsByKey.set(request.idempotencyKey, record);
       approvalUse.set(proof.approvalId, `book:${request.idempotencyKey}`);
@@ -589,12 +622,14 @@ export function createMockLodging(options: MockLodgingOptions): MockLodging {
         const rec = bookings.get(replayOf.bookingId);
         const proofShape = checkApprovalProofShape(approval);
         if (proofShape) return done({ ok: false, error: proofShape });
-        if (replayOf.bookingId === bookingId && rec && replayOf.approvalId === approval.approvalId) {
+        if (
+          replayOf.bookingId === bookingId &&
+          rec &&
+          replayOf.approvalId === approval.approvalId
+        ) {
           return done(ok(rec.booking));
         }
-        return done(
-          fail('duplicate', 'idempotency key already used for a different cancellation'),
-        );
+        return done(fail('duplicate', 'idempotency key already used for a different cancellation'));
       }
       const nowMs = clock.nowMs();
       const proofError = checkApprovalProofValidity(approval, nowMs);
@@ -624,6 +659,7 @@ export function createMockLodging(options: MockLodgingOptions): MockLodging {
 
       rec.booking = { ...rec.booking, status: 'cancelled' };
       rec.state.activeBookings -= 1;
+      rec.state.propertyLoad.active -= 1;
       cancellationsByKey.set(idempotencyKey, {
         bookingId: rec.booking.bookingId,
         approvalId: approval.approvalId,
@@ -643,9 +679,7 @@ export function createMockLodging(options: MockLodgingOptions): MockLodging {
         return done(fail('invalid_request', `booking ${bookingId} is cancelled`));
       }
       if (!nonEmpty(text) || text.length > MAX_MESSAGE_CHARS) {
-        return done(
-          fail('invalid_request', `message must be 1-${MAX_MESSAGE_CHARS} characters`),
-        );
+        return done(fail('invalid_request', `message must be 1-${MAX_MESSAGE_CHARS} characters`));
       }
       const msg: PropertyMessage = { from: 'guest', text, sentAt: clock.now() };
       rec.messages.push(msg);

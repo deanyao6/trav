@@ -16,23 +16,27 @@
  *   `not_supported` for `vacation_rental`, Airbnb-style listings have no host
  *   messaging API; `supported` otherwise), `checkInFrom`/`checkOutBy` ("HH:MM").
  *
- * The JSON is imported statically (no `fs`). `barcelona-fixed` is a private
- * copy owned by this module's tests so fixed-value assertions do not depend on
- * whatever the shared fixture generator writes next. All listings are fictional.
- * Malformed fixtures throw `TravError('invalid_argument')` naming the path.
+ * Occupancy: for whole units (`apartment`, `vacation_rental`) `maxOccupancy`
+ * is the whole listing and a rate may not sleep more. For `hotel`/`hostel`
+ * `maxOccupancy` is per room and a multi-room rate (e.g. "2 triple rooms",
+ * sleeps 6) may exceed it; the rate's `sleeps` is what search and book use.
+ *
+ * The JSON is imported statically from `fixtures/lodging/` (no `fs`, no I/O,
+ * same as the tickets mock), and parsed once per name. The generator is
+ * deterministic, so tests assert fixed values against the shared fixture.
+ * All listings are fictional. Malformed fixtures throw
+ * `TravError('invalid_argument')` naming the path.
  */
 import type { CurrencyCode, IsoDate, Money, TimeZone } from '@trav/core';
 import { TravError, addDays, money, parseIso } from '@trav/core';
 import type { RefundPolicy } from '../../interfaces/common.js';
 import type { LodgingProperty, LodgingRate, PropertyKind } from '../../interfaces/lodging.js';
-import barcelonaFixedJson from './barcelona.fixed.json' with { type: 'json' };
 import barcelonaJson from '../../../../../fixtures/lodging/barcelona.json' with { type: 'json' };
 
 export type HostMessaging = 'supported' | 'not_supported';
 
 export type RecheckOutcome =
-  | { readonly kind: 'price_changed'; readonly newAmount: Money }
-  | { readonly kind: 'sold_out' };
+  { readonly kind: 'price_changed'; readonly newAmount: Money } | { readonly kind: 'sold_out' };
 
 export interface InventoryRate {
   /** The rate as cached by search (price before any recheck). */
@@ -84,6 +88,19 @@ const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const PREFIX_RE = /^[A-Z]{2,4}$/;
 
 type Obj = Record<string, unknown>;
+
+/** Apartments and vacation rentals are let as one unit to one party. */
+export function isWholeUnit(kind: PropertyKind): boolean {
+  return kind === 'apartment' || kind === 'vacation_rental';
+}
+
+function deepFreeze<T>(value: T): T {
+  if (typeof value === 'object' && value !== null && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const v of Object.values(value)) deepFreeze(v);
+  }
+  return value;
+}
 
 function bad(path: string, msg: string): never {
   throw new TravError('invalid_argument', `lodging fixture ${path}: ${msg}`);
@@ -300,7 +317,9 @@ export function parseLodgingInventory(json: unknown, name = 'inline'): LodgingIn
       const rate = parseRate(rv, rat, property.propertyId, currency);
       if (seenRates.has(rate.rateId)) bad(rat, `duplicate rate ${rate.rateId}`);
       seenRates.add(rate.rateId);
-      if (rate.sleeps > property.maxOccupancy) bad(`${rat}.sleeps`, 'exceeds maxOccupancy');
+      if (isWholeUnit(property.kind) && rate.sleeps > property.maxOccupancy) {
+        bad(`${rat}.sleeps`, 'exceeds maxOccupancy');
+      }
       const rh = hint(rate.rateId);
       const hp = `$.mockHints.${rate.rateId}`;
       if (rh.soldOut !== undefined && typeof rh.soldOut !== 'boolean') {
@@ -345,15 +364,24 @@ export function parseLodgingInventory(json: unknown, name = 'inline'): LodgingIn
 
 const BUNDLED: Readonly<Record<string, unknown>> = {
   barcelona: barcelonaJson,
-  'barcelona-fixed': barcelonaFixedJson,
 };
 
-/** Bundled inventory names: the shared fixture and this module's private copy. */
+const parsed = new Map<string, LodgingInventory>();
+
+/** Bundled inventory names (`fixtures/lodging/<name>.json`). */
 export const LODGING_INVENTORY_NAMES: readonly string[] = Object.keys(BUNDLED);
 
-/** Loads a bundled inventory by name. Throws `TravError('not_found')` for unknown names. */
+/**
+ * Loads a bundled inventory by name, parsed once and shared (the inventory is
+ * immutable; each adapter keeps its own mutable state). Throws
+ * `TravError('not_found')` for unknown names.
+ */
 export function loadLodgingInventory(name: string): LodgingInventory {
-  const json = BUNDLED[name];
+  const cached = parsed.get(name);
+  if (cached) return cached;
+  const json = Object.hasOwn(BUNDLED, name) ? BUNDLED[name] : undefined;
   if (json === undefined) throw new TravError('not_found', `no lodging inventory "${name}"`);
-  return parseLodgingInventory(json, name);
+  const inventory = deepFreeze(parseLodgingInventory(json, name));
+  parsed.set(name, inventory);
+  return inventory;
 }

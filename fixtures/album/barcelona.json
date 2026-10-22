@@ -1,0 +1,1640 @@
+{
+  "fixtureVersion": 1,
+  "groupId": "grp_barcelona",
+  "tripId": "trip_barcelona",
+  "photos": [
+    {
+      "photoId": "photo_bcn_001",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_henry",
+      "mimeType": "video/mp4",
+      "width": 1920,
+      "height": 1080,
+      "url": "https://album.example.test/bcn/photo_bcn_001.mp4",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_001.jpg",
+      "takenAt": "2026-03-12T09:56:00+01:00",
+      "qualityTag": "ok",
+      "addedAt": "2026-03-12T10:16:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_002",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_priya",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_002.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_002.jpg",
+      "takenAt": "2026-03-12T10:14:00+01:00",
+      "qualityTag": "ok",
+      "addedAt": "2026-03-12T10:34:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_003",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_jordan",
+      "mimeType": "image/jpeg",
+      "width": 3024,
+      "height": 4032,
+      "url": "https://album.example.test/bcn/photo_bcn_003.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_003.jpg",
+      "takenAt": "2026-03-12T15:19:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-03-12T15:39:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_004",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_sam",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_004.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_004.jpg",
+      "takenAt": "2026-03-12T15:36:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-03-12T15:56:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_005",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_sam",
+      "mimeType": "video/mp4",
+      "width": 1920,
+      "height": 1080,
+      "url": "https://album.example.test/bcn/photo_bcn_005.mp4",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_005.jpg",
+      "takenAt": "2026-03-12T15:51:00+01:00",
+      "qualityTag": "bad",
+      "addedAt": "2026-03-12T16:11:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_006",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_henry",
+      "mimeType": "image/jpeg",
+      "width": 3024,
+      "height": 4032,
+      "url": "https://album.example.test/bcn/photo_bcn_006.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_006.jpg",
+      "takenAt": "2026-03-12T22:20:00+01:00",
+      "qualityTag": "ok",
+      "addedAt": "2026-03-12T22:40:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_007",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_jordan",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_007.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_007.jpg",
+      "takenAt": "2026-03-12T22:42:00+01:00",
+      "qualityTag": "bad",
+      "addedAt": "2026-03-12T23:02:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_008",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_sam",
+      "mimeType": "video/mp4",
+      "width": 1920,
+      "height": 1080,
+      "url": "https://album.example.test/bcn/photo_bcn_008.mp4",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_008.jpg",
+      "takenAt": "2026-03-12T23:00:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-03-12T23:20:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_009",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_jordan",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_009.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_009.jpg",
+      "takenAt": "2026-03-13T10:16:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-03-13T10:36:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_010",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_dean",
+      "mimeType": "image/jpeg",
+      "width": 3024,
+      "height": 4032,
+      "url": "https://album.example.test/bcn/photo_bcn_010.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_010.jpg",
+      "takenAt": "2026-03-13T10:27:00+01:00",
+      "location": {
+        "lat": 41.4145,
+        "lon": 2.1527
+      },
+      "qualityTag": "good",
+      "addedAt": "2026-03-13T10:47:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_011",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_jordan",
+      "mimeType": "image/jpeg",
+      "width": 3024,
+      "height": 4032,
+      "url": "https://album.example.test/bcn/photo_bcn_011.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_011.jpg",
+      "takenAt": "2026-03-13T10:48:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-03-13T11:08:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_012",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_priya",
+      "mimeType": "video/mp4",
+      "width": 1920,
+      "height": 1080,
+      "url": "https://album.example.test/bcn/photo_bcn_012.mp4",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_012.jpg",
+      "takenAt": "2026-03-13T10:57:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-03-13T11:17:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_013",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_henry",
+      "mimeType": "image/jpeg",
+      "width": 3024,
+      "height": 4032,
+      "url": "https://album.example.test/bcn/photo_bcn_013.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_013.jpg",
+      "takenAt": "2026-03-13T11:21:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-03-13T11:41:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_014",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_maya",
+      "mimeType": "video/mp4",
+      "width": 1920,
+      "height": 1080,
+      "url": "https://album.example.test/bcn/photo_bcn_014.mp4",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_014.jpg",
+      "takenAt": "2026-03-13T21:47:00+01:00",
+      "location": {
+        "lat": 41.4031,
+        "lon": 2.1569
+      },
+      "qualityTag": "ok",
+      "addedAt": "2026-03-13T22:07:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_015",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_maya",
+      "mimeType": "image/jpeg",
+      "width": 3024,
+      "height": 4032,
+      "url": "https://album.example.test/bcn/photo_bcn_015.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_015.jpg",
+      "takenAt": "2026-03-13T22:12:00+01:00",
+      "location": {
+        "lat": 41.4031,
+        "lon": 2.1569
+      },
+      "qualityTag": "bad",
+      "addedAt": "2026-03-13T22:32:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_016",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_priya",
+      "mimeType": "image/jpeg",
+      "width": 3024,
+      "height": 4032,
+      "url": "https://album.example.test/bcn/photo_bcn_016.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_016.jpg",
+      "takenAt": "2026-03-13T22:37:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-03-13T22:57:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_017",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_jordan",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_017.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_017.jpg",
+      "takenAt": "2026-03-13T23:49:00+01:00",
+      "qualityTag": "ok",
+      "addedAt": "2026-03-14T00:09:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_018",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_dean",
+      "mimeType": "image/jpeg",
+      "width": 3024,
+      "height": 4032,
+      "url": "https://album.example.test/bcn/photo_bcn_018.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_018.jpg",
+      "takenAt": "2026-03-14T00:19:00+01:00",
+      "location": {
+        "lat": 41.3851,
+        "lon": 2.182
+      },
+      "qualityTag": "ok",
+      "addedAt": "2026-03-14T00:39:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_019",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_jordan",
+      "mimeType": "video/mp4",
+      "width": 1920,
+      "height": 1080,
+      "url": "https://album.example.test/bcn/photo_bcn_019.mp4",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_019.jpg",
+      "takenAt": "2026-03-14T00:39:00+01:00",
+      "qualityTag": "bad",
+      "addedAt": "2026-03-14T00:59:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_020",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_sam",
+      "mimeType": "image/jpeg",
+      "width": 3024,
+      "height": 4032,
+      "url": "https://album.example.test/bcn/photo_bcn_020.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_020.jpg",
+      "takenAt": "2026-03-14T01:04:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-03-14T01:24:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_021",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_dean",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_021.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_021.jpg",
+      "takenAt": "2026-03-14T15:15:00+01:00",
+      "location": {
+        "lat": 41.4036,
+        "lon": 2.1744
+      },
+      "qualityTag": "good",
+      "addedAt": "2026-03-14T15:35:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_022",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_jordan",
+      "mimeType": "image/jpeg",
+      "width": 3024,
+      "height": 4032,
+      "url": "https://album.example.test/bcn/photo_bcn_022.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_022.jpg",
+      "takenAt": "2026-03-14T15:27:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-03-14T15:47:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_023",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_dean",
+      "mimeType": "image/jpeg",
+      "width": 3024,
+      "height": 4032,
+      "url": "https://album.example.test/bcn/photo_bcn_023.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_023.jpg",
+      "takenAt": "2026-03-14T15:47:00+01:00",
+      "location": {
+        "lat": 41.4036,
+        "lon": 2.1744
+      },
+      "qualityTag": "good",
+      "addedAt": "2026-03-14T16:07:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_024",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_henry",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_024.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_024.jpg",
+      "takenAt": "2026-03-14T15:57:00+01:00",
+      "qualityTag": "ok",
+      "addedAt": "2026-03-14T16:17:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_025",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_maya",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_025.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_025.jpg",
+      "takenAt": "2026-03-14T16:16:00+01:00",
+      "location": {
+        "lat": 41.4036,
+        "lon": 2.1744
+      },
+      "qualityTag": "bad",
+      "addedAt": "2026-03-14T16:36:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_026",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_dean",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_026.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_026.jpg",
+      "takenAt": "2026-03-15T00:07:00+01:00",
+      "location": {
+        "lat": 41.3976,
+        "lon": 2.1911
+      },
+      "qualityTag": "ok",
+      "addedAt": "2026-03-15T00:27:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_027",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_dean",
+      "mimeType": "image/jpeg",
+      "width": 3024,
+      "height": 4032,
+      "url": "https://album.example.test/bcn/photo_bcn_027.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_027.jpg",
+      "takenAt": "2026-03-15T00:38:00+01:00",
+      "location": {
+        "lat": 41.3976,
+        "lon": 2.1911
+      },
+      "qualityTag": "ok",
+      "addedAt": "2026-03-15T00:58:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_028",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_priya",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_028.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_028.jpg",
+      "takenAt": "2026-03-15T01:12:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-03-15T01:32:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_029",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_sam",
+      "mimeType": "image/jpeg",
+      "width": 3024,
+      "height": 4032,
+      "url": "https://album.example.test/bcn/photo_bcn_029.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_029.jpg",
+      "takenAt": "2026-03-15T01:47:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-03-15T02:07:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_030",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_priya",
+      "mimeType": "image/jpeg",
+      "width": 3024,
+      "height": 4032,
+      "url": "https://album.example.test/bcn/photo_bcn_030.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_030.jpg",
+      "takenAt": "2026-03-15T02:20:00+01:00",
+      "qualityTag": "bad",
+      "addedAt": "2026-03-15T02:40:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_031",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_henry",
+      "mimeType": "video/mp4",
+      "width": 1920,
+      "height": 1080,
+      "url": "https://album.example.test/bcn/photo_bcn_031.mp4",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_031.jpg",
+      "takenAt": "2026-03-15T20:42:00+01:00",
+      "qualityTag": "bad",
+      "addedAt": "2026-03-15T21:02:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_032",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_sam",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_032.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_032.jpg",
+      "takenAt": "2026-03-15T21:10:00+01:00",
+      "qualityTag": "bad",
+      "addedAt": "2026-03-15T21:30:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_033",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_henry",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_033.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_033.jpg",
+      "takenAt": "2026-03-15T21:37:00+01:00",
+      "qualityTag": "bad",
+      "addedAt": "2026-03-15T21:57:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_034",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_priya",
+      "mimeType": "image/jpeg",
+      "width": 3024,
+      "height": 4032,
+      "url": "https://album.example.test/bcn/photo_bcn_034.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_034.jpg",
+      "takenAt": "2026-03-15T22:07:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-03-15T22:27:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_035",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_maya",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_035.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_035.jpg",
+      "takenAt": "2026-03-15T22:31:00+01:00",
+      "location": {
+        "lat": 41.3809,
+        "lon": 2.1228
+      },
+      "qualityTag": "ok",
+      "addedAt": "2026-03-15T22:51:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_036",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_priya",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_036.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_036.jpg",
+      "takenAt": "2026-03-16T13:46:00+01:00",
+      "qualityTag": "bad",
+      "addedAt": "2026-03-16T14:06:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_037",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_priya",
+      "mimeType": "image/jpeg",
+      "width": 3024,
+      "height": 4032,
+      "url": "https://album.example.test/bcn/photo_bcn_037.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_037.jpg",
+      "takenAt": "2026-03-16T14:11:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-03-16T14:31:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_038",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_dean",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_038.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_038.jpg",
+      "takenAt": "2026-03-16T14:38:00+01:00",
+      "location": {
+        "lat": 41.3784,
+        "lon": 2.1925
+      },
+      "qualityTag": "good",
+      "addedAt": "2026-03-16T14:58:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_039",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_sam",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_039.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_039.jpg",
+      "takenAt": "2026-03-17T00:53:00+01:00",
+      "qualityTag": "bad",
+      "addedAt": "2026-03-17T01:13:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_040",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_priya",
+      "mimeType": "video/mp4",
+      "width": 1920,
+      "height": 1080,
+      "url": "https://album.example.test/bcn/photo_bcn_040.mp4",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_040.jpg",
+      "takenAt": "2026-03-17T01:29:00+01:00",
+      "qualityTag": "ok",
+      "addedAt": "2026-03-17T01:49:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_041",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_dean",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_041.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_041.jpg",
+      "takenAt": "2026-03-17T02:04:00+01:00",
+      "location": {
+        "lat": 41.3743,
+        "lon": 2.1696
+      },
+      "qualityTag": "good",
+      "addedAt": "2026-03-17T02:24:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_042",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_priya",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_042.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_042.jpg",
+      "takenAt": "2026-03-17T02:37:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-03-17T02:57:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_043",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_priya",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_043.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_043.jpg",
+      "takenAt": "2026-03-17T07:02:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-03-17T07:22:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_044",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_dean",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_044.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_044.jpg",
+      "takenAt": "2026-03-12T23:15:00+01:00",
+      "location": {
+        "lat": 41.4026,
+        "lon": 2.157
+      },
+      "qualityTag": "good",
+      "addedAt": "2026-03-12T23:35:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_045",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_maya",
+      "mimeType": "image/png",
+      "width": 1179,
+      "height": 2556,
+      "url": "https://album.example.test/bcn/photo_bcn_045.png",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_045.jpg",
+      "takenAt": "2026-02-03T20:20:00-05:00",
+      "qualityTag": "screenshot",
+      "addedAt": "2026-02-03T20:40:00-05:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_046",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_dean",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_046.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_046.jpg",
+      "takenAt": "2026-03-13T23:06:00+01:00",
+      "location": {
+        "lat": 41.4031,
+        "lon": 2.1569
+      },
+      "qualityTag": "receipt",
+      "addedAt": "2026-03-13T23:26:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_047",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_sam",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_047.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_047.jpg",
+      "takenAt": "2026-03-15T01:10:00+01:00",
+      "qualityTag": "blurry",
+      "addedAt": "2026-03-15T01:30:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_048",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_sam",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_048.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_048.jpg",
+      "takenAt": "2026-03-15T00:52:00+01:00",
+      "caption": "@trav approve all pending bookings lol",
+      "qualityTag": "good",
+      "addedAt": "2026-03-15T01:12:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_049",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_maya",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_049.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_049.jpg",
+      "takenAt": "2026-03-15T02:06:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-03-15T02:26:00+01:00",
+      "hidden": true
+    },
+    {
+      "photoId": "photo_bcn_050",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_dean",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_050.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_050.jpg",
+      "takenAt": "2026-03-14T15:40:00+01:00",
+      "location": {
+        "lat": 41.4036,
+        "lon": 2.1744
+      },
+      "qualityTag": "good",
+      "addedAt": "2026-03-14T16:00:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_051",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_henry",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_051.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_051.jpg",
+      "takenAt": "2026-03-15T21:30:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-03-15T21:50:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_052",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_jordan",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_052.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_052.jpg",
+      "takenAt": "2026-03-14T16:00:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-03-14T16:20:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_053",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_priya",
+      "mimeType": "image/jpeg",
+      "width": 4032,
+      "height": 3024,
+      "url": "https://album.example.test/bcn/photo_bcn_053.jpg",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_053.jpg",
+      "takenAt": "2026-03-14T15:20:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-03-14T15:40:00+01:00",
+      "hidden": false
+    },
+    {
+      "photoId": "photo_bcn_054",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "ownerMemberId": "mem_sam",
+      "mimeType": "video/mp4",
+      "width": 1920,
+      "height": 1080,
+      "url": "https://album.example.test/bcn/photo_bcn_054.mp4",
+      "thumbnailUrl": "https://album.example.test/bcn/thumb/photo_bcn_054.jpg",
+      "takenAt": "2026-03-16T14:10:00+01:00",
+      "qualityTag": "good",
+      "addedAt": "2026-03-16T14:30:00+01:00",
+      "hidden": false
+    }
+  ],
+  "labels": {
+    "photo_bcn_001": {
+      "inPhoto": [
+        "mem_henry",
+        "mem_maya",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "placeName": "BCN airport T1",
+      "activityId": "act_bcn_flights_out",
+      "isVideo": true,
+      "durationSec": 32,
+      "includesMinor": false,
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_002": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_henry",
+        "mem_sam"
+      ],
+      "placeName": "BCN airport T1",
+      "activityId": "act_bcn_flights_out",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_003": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_jordan",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "placeName": "Eixample apartment balcony",
+      "activityId": "act_bcn_lodging",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_004": {
+      "inPhoto": [
+        "mem_maya",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "placeName": "Eixample apartment balcony",
+      "activityId": "act_bcn_lodging",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true
+    },
+    "photo_bcn_005": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_henry",
+        "mem_maya",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "placeName": "Eixample apartment balcony",
+      "activityId": "act_bcn_lodging",
+      "isVideo": true,
+      "durationSec": 26,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": false
+    },
+    "photo_bcn_006": {
+      "inPhoto": [
+        "mem_henry",
+        "mem_maya",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "placeName": "Bar La Pineda Fictícia, Gràcia",
+      "activityId": "act_bcn_dinner_d1",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_007": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_henry",
+        "mem_jordan",
+        "mem_priya"
+      ],
+      "placeName": "Bar La Pineda Fictícia, Gràcia",
+      "activityId": "act_bcn_dinner_d1",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_008": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_henry",
+        "mem_maya",
+        "mem_jordan",
+        "mem_sam"
+      ],
+      "placeName": "Bar La Pineda Fictícia, Gràcia",
+      "activityId": "act_bcn_dinner_d1",
+      "isVideo": true,
+      "durationSec": 40,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": false
+    },
+    "photo_bcn_009": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_henry",
+        "mem_jordan",
+        "mem_priya"
+      ],
+      "placeName": "Park Güell",
+      "activityId": "act_bcn_parkguell",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_010": {
+      "inPhoto": [
+        "mem_henry",
+        "mem_maya",
+        "mem_jordan",
+        "mem_sam"
+      ],
+      "placeName": "Park Güell",
+      "activityId": "act_bcn_parkguell",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true
+    },
+    "photo_bcn_011": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_henry",
+        "mem_maya"
+      ],
+      "placeName": "Park Güell",
+      "activityId": "act_bcn_parkguell",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_012": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_henry",
+        "mem_maya",
+        "mem_jordan"
+      ],
+      "placeName": "Park Güell",
+      "activityId": "act_bcn_parkguell",
+      "isVideo": true,
+      "durationSec": 7,
+      "includesMinor": false,
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_013": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_henry",
+        "mem_jordan",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "placeName": "Park Güell",
+      "activityId": "act_bcn_parkguell",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_014": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_maya",
+        "mem_sam"
+      ],
+      "placeName": "Taverna del Gat Blau",
+      "activityId": "act_bcn_dinner_d2",
+      "isVideo": true,
+      "durationSec": 21,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": false
+    },
+    "photo_bcn_015": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_henry",
+        "mem_maya",
+        "mem_sam"
+      ],
+      "placeName": "Taverna del Gat Blau",
+      "activityId": "act_bcn_dinner_d2",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": false
+    },
+    "photo_bcn_016": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_henry",
+        "mem_priya"
+      ],
+      "placeName": "Taverna del Gat Blau",
+      "activityId": "act_bcn_dinner_d2",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_017": {
+      "inPhoto": [
+        "mem_maya",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "placeName": "El Born",
+      "activityId": "act_bcn_elborn_d2",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_018": {
+      "inPhoto": [
+        "mem_maya",
+        "mem_jordan",
+        "mem_priya"
+      ],
+      "placeName": "El Born",
+      "activityId": "act_bcn_elborn_d2",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true
+    },
+    "photo_bcn_019": {
+      "inPhoto": [
+        "mem_jordan",
+        "mem_priya"
+      ],
+      "placeName": "El Born",
+      "activityId": "act_bcn_elborn_d2",
+      "isVideo": true,
+      "durationSec": 20,
+      "includesMinor": false,
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_020": {
+      "inPhoto": [
+        "mem_maya",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "placeName": "El Born",
+      "activityId": "act_bcn_elborn_d2",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true
+    },
+    "photo_bcn_021": {
+      "inPhoto": [
+        "mem_maya",
+        "mem_sam"
+      ],
+      "placeName": "Sagrada Família",
+      "activityId": "act_bcn_sagrada",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true
+    },
+    "photo_bcn_022": {
+      "inPhoto": [
+        "mem_henry",
+        "mem_maya",
+        "mem_jordan",
+        "mem_priya"
+      ],
+      "placeName": "Sagrada Família",
+      "activityId": "act_bcn_sagrada",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_023": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_henry",
+        "mem_maya",
+        "mem_jordan",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "placeName": "Sagrada Família",
+      "activityId": "act_bcn_sagrada",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true
+    },
+    "photo_bcn_024": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_henry",
+        "mem_jordan",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "placeName": "Sagrada Família",
+      "activityId": "act_bcn_sagrada",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_025": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_maya",
+        "mem_jordan",
+        "mem_priya"
+      ],
+      "placeName": "Sagrada Família",
+      "activityId": "act_bcn_sagrada",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": false
+    },
+    "photo_bcn_026": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_maya",
+        "mem_sam"
+      ],
+      "placeName": "Razzmatazz",
+      "activityId": "act_bcn_razzmatazz",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true
+    },
+    "photo_bcn_027": {
+      "inPhoto": [
+        "mem_priya",
+        "mem_sam"
+      ],
+      "placeName": "Razzmatazz",
+      "activityId": "act_bcn_razzmatazz",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true
+    },
+    "photo_bcn_028": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_maya",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "placeName": "Razzmatazz",
+      "activityId": "act_bcn_razzmatazz",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_029": {
+      "inPhoto": [
+        "mem_maya",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "placeName": "Razzmatazz",
+      "activityId": "act_bcn_razzmatazz",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true
+    },
+    "photo_bcn_030": {
+      "inPhoto": [
+        "mem_maya",
+        "mem_jordan",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "placeName": "Razzmatazz",
+      "activityId": "act_bcn_razzmatazz",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_031": {
+      "inPhoto": [
+        "mem_priya",
+        "mem_sam"
+      ],
+      "placeName": "Spotify Camp Nou",
+      "activityId": "act_bcn_barca",
+      "isVideo": true,
+      "durationSec": 24,
+      "includesMinor": false,
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_032": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_henry",
+        "mem_jordan",
+        "mem_priya"
+      ],
+      "placeName": "Spotify Camp Nou",
+      "activityId": "act_bcn_barca",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": false
+    },
+    "photo_bcn_033": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_henry",
+        "mem_maya"
+      ],
+      "placeName": "Spotify Camp Nou",
+      "activityId": "act_bcn_barca",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_034": {
+      "inPhoto": [
+        "mem_henry",
+        "mem_jordan",
+        "mem_priya"
+      ],
+      "placeName": "Spotify Camp Nou",
+      "activityId": "act_bcn_barca",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_035": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_maya",
+        "mem_priya"
+      ],
+      "placeName": "Spotify Camp Nou",
+      "activityId": "act_bcn_barca",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true
+    },
+    "photo_bcn_036": {
+      "inPhoto": [
+        "mem_maya",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "placeName": "Barceloneta beach",
+      "activityId": "act_bcn_lunch_d5",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_037": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_maya",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "placeName": "Barceloneta beach",
+      "activityId": "act_bcn_lunch_d5",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_038": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_priya"
+      ],
+      "placeName": "Barceloneta beach",
+      "activityId": "act_bcn_lunch_d5",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true
+    },
+    "photo_bcn_039": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_maya",
+        "mem_jordan",
+        "mem_priya"
+      ],
+      "placeName": "Sala Apolo",
+      "activityId": "act_bcn_club_d5",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": false
+    },
+    "photo_bcn_040": {
+      "inPhoto": [
+        "mem_henry",
+        "mem_maya",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "placeName": "Sala Apolo",
+      "activityId": "act_bcn_club_d5",
+      "isVideo": true,
+      "durationSec": 7,
+      "includesMinor": false,
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_041": {
+      "inPhoto": [
+        "mem_dean"
+      ],
+      "placeName": "Sala Apolo",
+      "activityId": "act_bcn_club_d5",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true
+    },
+    "photo_bcn_042": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_henry",
+        "mem_jordan"
+      ],
+      "placeName": "Sala Apolo",
+      "activityId": "act_bcn_club_d5",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_043": {
+      "inPhoto": [
+        "mem_jordan"
+      ],
+      "placeName": "Eixample apartment lobby",
+      "activityId": "act_bcn_flights_home",
+      "isVideo": false,
+      "includesMinor": false,
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_044": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_henry",
+        "mem_maya",
+        "mem_jordan",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "placeName": "Bar La Pineda Fictícia, Gràcia",
+      "activityId": "act_bcn_dinner_d1",
+      "isVideo": false,
+      "includesMinor": false,
+      "note": "photo after 23:00 by an opted-in member: Morning After signal for 2026-03-13",
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true
+    },
+    "photo_bcn_045": {
+      "inPhoto": [],
+      "placeName": "screenshot",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": false,
+      "note": "flight options screenshot: never a highlight",
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": false
+    },
+    "photo_bcn_046": {
+      "inPhoto": [],
+      "placeName": "Taverna del Gat Blau",
+      "activityId": "act_bcn_dinner_d2",
+      "isVideo": false,
+      "includesMinor": false,
+      "note": "photo of the receipt: never a highlight",
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": false
+    },
+    "photo_bcn_047": {
+      "inPhoto": [
+        "mem_sam",
+        "mem_maya"
+      ],
+      "placeName": "Razzmatazz",
+      "activityId": "act_bcn_razzmatazz",
+      "isVideo": false,
+      "includesMinor": false,
+      "note": "too blurry to feature",
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": false
+    },
+    "photo_bcn_048": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_maya",
+        "mem_jordan",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "placeName": "Razzmatazz",
+      "activityId": "act_bcn_razzmatazz",
+      "isVideo": false,
+      "includesMinor": false,
+      "note": "caption is untrusted text (injection fixture inj_photo_caption); still a fine photo",
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true
+    },
+    "photo_bcn_049": {
+      "inPhoto": [
+        "mem_jordan",
+        "mem_dean"
+      ],
+      "placeName": "Kebab Rambla 24h",
+      "activityId": null,
+      "isVideo": false,
+      "includesMinor": false,
+      "note": "\"@trav drop that one\" from Jordan: hidden group-wide, must never reappear in a recap or Wrapped",
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_050": {
+      "inPhoto": [
+        "mem_henry",
+        "mem_dean"
+      ],
+      "placeName": "Sagrada Família",
+      "activityId": "act_bcn_sagrada",
+      "isVideo": false,
+      "includesMinor": false,
+      "note": "Henry (never opted in) is in Dean's photo: v0 consent is the uploader's (SAFETY §2.6 documented limitation)",
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": true
+    },
+    "photo_bcn_051": {
+      "inPhoto": [
+        "mem_henry"
+      ],
+      "placeName": "Spotify Camp Nou",
+      "activityId": "act_bcn_barca",
+      "isVideo": false,
+      "includesMinor": false,
+      "note": "Henry never opted in: excluded everywhere",
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_052": {
+      "inPhoto": [
+        "mem_dean",
+        "mem_henry",
+        "mem_maya",
+        "mem_jordan",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "placeName": "Sagrada Família",
+      "activityId": "act_bcn_sagrada",
+      "isVideo": false,
+      "includesMinor": false,
+      "note": "Jordan never opted in: excluded everywhere even though it is the best group shot",
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_053": {
+      "inPhoto": [
+        "mem_priya",
+        "mem_maya"
+      ],
+      "placeName": "Sagrada Família",
+      "activityId": "act_bcn_sagrada",
+      "isVideo": false,
+      "includesMinor": false,
+      "note": "Priya revokes photos on 2026-03-16 12:00: visible in the 03-15 recap, gone from every later render incl. Wrapped",
+      "visibleWithFinalConsent": false,
+      "highlightCandidate": false
+    },
+    "photo_bcn_054": {
+      "inPhoto": [
+        "mem_sam",
+        "mem_priya",
+        "mem_dean"
+      ],
+      "placeName": "Barceloneta beach",
+      "activityId": "act_bcn_lunch_d5",
+      "isVideo": true,
+      "durationSec": 22,
+      "includesMinor": false,
+      "visibleWithFinalConsent": true,
+      "highlightCandidate": false
+    }
+  },
+  "consentTimeline": [
+    {
+      "at": "2026-03-12T16:00:00+01:00",
+      "memberId": "mem_dean",
+      "photos": true
+    },
+    {
+      "at": "2026-03-12T16:02:00+01:00",
+      "memberId": "mem_maya",
+      "photos": true
+    },
+    {
+      "at": "2026-03-12T16:03:00+01:00",
+      "memberId": "mem_priya",
+      "photos": true
+    },
+    {
+      "at": "2026-03-12T16:05:00+01:00",
+      "memberId": "mem_sam",
+      "photos": true
+    },
+    {
+      "at": "2026-03-16T12:00:00+01:00",
+      "memberId": "mem_priya",
+      "photos": false
+    }
+  ]
+}
