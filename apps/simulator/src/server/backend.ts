@@ -144,7 +144,13 @@ export function createChannelBackend(options: ChannelBackendOptions): ChannelBac
     const group = groupOf(event);
     // Typing shows as soon as the event lands, even while it waits its turn.
     if (group) setTyping(group.groupId, 1);
-    notify();
+    try {
+      notify();
+    } catch {
+      // A throwing listener must not leave the typing counter stuck at 1.
+      if (group) setTyping(group.groupId, -1);
+      throw new Error('simulator state listener threw');
+    }
     const run = queue.then(() => turn(event, group));
     // `turn` catches the responder's errors; this also survives a throwing
     // state listener, so one bad turn can never wedge every later one.
@@ -263,8 +269,9 @@ export function silentTurnStatus(
   result: Pick<TurnResult, 'silent' | 'note'> | undefined,
 ): string | undefined {
   if (!result || !result.silent) return undefined;
-  if (event.type !== 'button_tap' && event.type !== 'reaction') return undefined;
+  // A typed alias ("yes", "book it") takes the same approval path as a tap.
   if (result.note === HANDLER_NOT_WIRED_NOTE) return HANDLER_NOT_WIRED_STATUS;
+  if (event.type !== 'button_tap' && event.type !== 'reaction') return undefined;
   if (event.type === 'reaction') {
     if (!result.note.startsWith('approval:') || result.note === 'approval:no_pending') {
       return undefined;

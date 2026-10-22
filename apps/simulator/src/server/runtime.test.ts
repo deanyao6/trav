@@ -258,8 +258,25 @@ describe('agent backend', () => {
     expect(backend.state().lastError).toBeUndefined();
   });
 
+  it('a throwing state listener never leaves the typing indicator stuck', async () => {
+    const backend = await loadAgentBackend({
+      offline: true,
+      createTravRuntime: fakeRuntime().create,
+    });
+    const unsubscribe = backend.subscribe(() => {
+      throw new Error('boom');
+    });
+    await expect(
+      backend.inject({ type: 'message', from: 'h_dean', text: '@trav a' }),
+    ).rejects.toThrow();
+    unsubscribe();
+    await backend.inject({ type: 'message', from: 'h_dean', text: '@trav b' });
+    const typing = backend.state().groups.map((g) => g.typing);
+    expect(typing.every((t) => t === false)).toBe(true);
+  });
+
   it('a silent tap surfaces as a status line; the next turn clears it', async () => {
-    let next: TurnResult = { ...SILENT, note: 'approval:handler_not_wired' };
+    let next: TurnResult = { ...SILENT, note: 'mention:none' };
     const { create } = fakeRuntime();
     const backend = await loadAgentBackend({
       offline: true,
@@ -281,6 +298,7 @@ describe('agent backend', () => {
     const card = backend
       .state()
       .groups[0]!.thread.find((e): e is ThreadMessage => e.kind === 'message' && e.isTrav)!;
+    next = { ...SILENT, note: 'approval:handler_not_wired' };
     await backend.inject({
       type: 'button_tap',
       from: 'h_dean',
@@ -327,7 +345,11 @@ describe('agent backend', () => {
     expect(silentTurnStatus(like, silent('approval:not_charged'))).toMatch(/tapback/);
     expect(silentTurnStatus(like, silent('approval:no_pending'))).toBeUndefined();
     expect(silentTurnStatus(like, silent('reaction:ack'))).toBeUndefined();
-    expect(silentTurnStatus(msg, silent('approval:handler_not_wired'))).toBeUndefined();
+    // A typed alias ("yes") takes the approval path too, so a dead handler must show there.
+    expect(silentTurnStatus(msg, silent('approval:handler_not_wired'))).toBe(
+      HANDLER_NOT_WIRED_STATUS,
+    );
+    expect(silentTurnStatus(msg, silent('mention:none'))).toBeUndefined();
     expect(silentTurnStatus(tap, undefined)).toBeUndefined();
   });
 
