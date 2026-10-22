@@ -1,0 +1,414 @@
+{
+  "name": "barcelona",
+  "description": "Synthetic ticket inventory for the Barcelona flagship trip (mar 12-17, 2026). Fictional prices and order numbers; venue names and public addresses only. Used by createMockTickets (packages/adapters/src/mock/tickets).",
+  "provider": "mock-tickets",
+  "currency": "EUR",
+  "holdMinutes": 15,
+  "events": [
+    {
+      "eventId": "evt_rzm_20260312",
+      "orderPrefix": "RZ",
+      "keywords": ["razz", "club", "clubbing", "techno", "party"],
+      "name": "Razzmatazz: Thursday club night",
+      "category": "nightlife",
+      "venue": {
+        "name": "Razzmatazz",
+        "address": "Carrer dels Almogàvers 122",
+        "city": "Barcelona",
+        "countryCode": "ES",
+        "geo": { "lat": 41.3976, "lon": 2.1911 },
+        "timeZone": "Europe/Madrid"
+      },
+      "startsAt": "2026-03-13T00:00:00+01:00",
+      "endsAt": "2026-03-13T06:00:00+01:00",
+      "doorsAt": "2026-03-13T00:00:00+01:00",
+      "minimumAge": 18,
+      "contentFlags": ["nightlife", "club", "alcohol", "18+", "late_night"],
+      "url": "https://tickets.example/razzmatazz/2026-03-12",
+      "offers": [
+        {
+          "offerId": "off_rzm_20260312_ga",
+          "tierName": "General admission",
+          "unitPrice": { "amountMinor": 1800, "currency": "EUR" },
+          "unitFees": { "amountMinor": 0, "currency": "EUR" },
+          "available": 150,
+          "maxPerOrder": 10,
+          "refundPolicy": {
+            "refundable": true,
+            "refundableUntil": "2026-03-12T22:00:00+01:00",
+            "summary": "Full refund until 10pm on the night"
+          },
+          "deliveryMethod": "per_person_qr",
+          "requiresHolderNames": true,
+          "purchaseMode": "api"
+        }
+      ]
+    },
+    {
+      "eventId": "evt_rzm_20260315",
+      "orderPrefix": "RZ",
+      "keywords": ["razz", "club", "clubbing", "techno", "party"],
+      "name": "Razzmatazz: Sunday closing party",
+      "category": "nightlife",
+      "venue": {
+        "name": "Razzmatazz",
+        "address": "Carrer dels Almogàvers 122",
+        "city": "Barcelona",
+        "countryCode": "ES",
+        "geo": { "lat": 41.3976, "lon": 2.1911 },
+        "timeZone": "Europe/Madrid"
+      },
+      "startsAt": "2026-03-16T00:00:00+01:00",
+      "endsAt": "2026-03-16T05:00:00+01:00",
+      "doorsAt": "2026-03-16T00:00:00+01:00",
+      "minimumAge": 18,
+      "contentFlags": ["nightlife", "club", "alcohol", "18+", "late_night"],
+      "url": "https://tickets.example/razzmatazz/2026-03-15",
+      "offers": [
+        {
+          "offerId": "off_rzm_20260315_ga",
+          "tierName": "General admission",
+          "unitPrice": { "amountMinor": 2000, "currency": "EUR" },
+          "unitFees": { "amountMinor": 0, "currency": "EUR" },
+          "available": 0,
+          "maxPerOrder": 10,
+          "refundPolicy": {
+            "refundable": true,
+            "refundableUntil": "2026-03-15T22:00:00+01:00",
+            "summary": "Full refund until 10pm on the night"
+          },
+          "deliveryMethod": "per_person_qr",
+          "requiresHolderNames": true,
+          "purchaseMode": "api"
+        }
+      ]
+    },
+    {
+      "eventId": "evt_rzm_20260313",
+      "orderPrefix": "RZ",
+      "keywords": ["razz", "club", "clubbing", "techno", "party"],
+      "name": "Razzmatazz: Friday big night",
+      "category": "nightlife",
+      "venue": {
+        "name": "Razzmatazz",
+        "address": "Carrer dels Almogàvers 122",
+        "city": "Barcelona",
+        "countryCode": "ES",
+        "geo": { "lat": 41.3976, "lon": 2.1911 },
+        "timeZone": "Europe/Madrid"
+      },
+      "startsAt": "2026-03-14T00:00:00+01:00",
+      "endsAt": "2026-03-14T06:00:00+01:00",
+      "doorsAt": "2026-03-14T00:00:00+01:00",
+      "minimumAge": 18,
+      "contentFlags": ["nightlife", "club", "alcohol", "18+", "late_night"],
+      "url": "https://tickets.example/razzmatazz/2026-03-13",
+      "offers": [
+        {
+          "offerId": "off_rzm_20260313_ga",
+          "tierName": "General admission",
+          "unitPrice": { "amountMinor": 2500, "currency": "EUR" },
+          "unitFees": { "amountMinor": 0, "currency": "EUR" },
+          "available": 200,
+          "maxPerOrder": 10,
+          "refundPolicy": {
+            "refundable": true,
+            "refundableUntil": "2026-03-13T22:00:00+01:00",
+            "summary": "Full refund until 10pm on the night"
+          },
+          "deliveryMethod": "per_person_qr",
+          "requiresHolderNames": true,
+          "purchaseMode": "api"
+        }
+      ]
+    },
+    {
+      "eventId": "evt_rzm_20260314",
+      "orderPrefix": "RZ",
+      "keywords": ["razz", "club", "clubbing", "techno", "party"],
+      "name": "Razzmatazz: Saturday club night",
+      "category": "nightlife",
+      "venue": {
+        "name": "Razzmatazz",
+        "address": "Carrer dels Almogàvers 122",
+        "city": "Barcelona",
+        "countryCode": "ES",
+        "geo": { "lat": 41.3976, "lon": 2.1911 },
+        "timeZone": "Europe/Madrid"
+      },
+      "startsAt": "2026-03-15T00:00:00+01:00",
+      "endsAt": "2026-03-15T06:00:00+01:00",
+      "doorsAt": "2026-03-15T00:00:00+01:00",
+      "minimumAge": 18,
+      "contentFlags": ["nightlife", "club", "alcohol", "18+", "late_night"],
+      "url": "https://tickets.example/razzmatazz/2026-03-14",
+      "offers": [
+        {
+          "offerId": "off_rzm_20260314_ga",
+          "tierName": "General admission",
+          "unitPrice": { "amountMinor": 1800, "currency": "EUR" },
+          "unitFees": { "amountMinor": 0, "currency": "EUR" },
+          "available": 120,
+          "maxPerOrder": 10,
+          "refundPolicy": {
+            "refundable": true,
+            "refundableUntil": "2026-03-14T22:00:00+01:00",
+            "summary": "Full refund until 10pm on the night"
+          },
+          "deliveryMethod": "per_person_qr",
+          "requiresHolderNames": true,
+          "purchaseMode": "api"
+        },
+        {
+          "offerId": "off_rzm_20260314_fast",
+          "tierName": "Fast-line presale",
+          "unitPrice": { "amountMinor": 2200, "currency": "EUR" },
+          "unitFees": { "amountMinor": 0, "currency": "EUR" },
+          "available": 40,
+          "maxPerOrder": 8,
+          "refundPolicy": {
+            "refundable": true,
+            "refundableUntil": "2026-03-14T22:00:00+01:00",
+            "summary": "Full refund until 10pm on the night"
+          },
+          "deliveryMethod": "per_person_qr",
+          "requiresHolderNames": true,
+          "purchaseMode": "api",
+          "entryBefore": "2026-03-15T01:30:00+01:00"
+        },
+        {
+          "offerId": "off_rzm_20260314_vip",
+          "tierName": "VIP mezzanine",
+          "unitPrice": { "amountMinor": 8500, "currency": "EUR" },
+          "unitFees": { "amountMinor": 1000, "currency": "EUR" },
+          "available": 12,
+          "maxPerOrder": 8,
+          "refundPolicy": {
+            "refundable": false,
+            "summary": "Non-refundable"
+          },
+          "deliveryMethod": "per_person_qr",
+          "requiresHolderNames": true,
+          "purchaseMode": "api"
+        }
+      ]
+    },
+    {
+      "eventId": "evt_apolo_20260314",
+      "orderPrefix": "AP",
+      "keywords": ["apolo", "club", "clubbing", "party"],
+      "name": "Apolo: Saturday session",
+      "category": "nightlife",
+      "venue": {
+        "name": "Sala Apolo",
+        "address": "Carrer Nou de la Rambla 113",
+        "city": "Barcelona",
+        "countryCode": "ES",
+        "geo": { "lat": 41.3744, "lon": 2.1695 },
+        "timeZone": "Europe/Madrid"
+      },
+      "startsAt": "2026-03-15T00:30:00+01:00",
+      "endsAt": "2026-03-15T06:00:00+01:00",
+      "doorsAt": "2026-03-15T00:30:00+01:00",
+      "minimumAge": 18,
+      "contentFlags": ["nightlife", "club", "alcohol", "18+", "late_night"],
+      "url": "https://tickets.example/apolo/2026-03-14",
+      "offers": [
+        {
+          "offerId": "off_apolo_20260314_ga",
+          "tierName": "General admission",
+          "unitPrice": { "amountMinor": 1500, "currency": "EUR" },
+          "unitFees": { "amountMinor": 0, "currency": "EUR" },
+          "available": 80,
+          "maxPerOrder": 10,
+          "refundPolicy": {
+            "refundable": true,
+            "refundableUntil": "2026-03-14T23:00:00+01:00",
+            "summary": "Full refund until 11pm on the night"
+          },
+          "deliveryMethod": "per_person_qr",
+          "requiresHolderNames": true,
+          "purchaseMode": "api"
+        }
+      ]
+    },
+    {
+      "eventId": "evt_fcb_sev_20260315",
+      "orderPrefix": "FCB",
+      "keywords": ["barca", "fcb", "football", "soccer", "match", "futbol", "sevilla"],
+      "name": "FC Barcelona vs Sevilla FC",
+      "category": "sports",
+      "venue": {
+        "name": "Camp Nou",
+        "address": "Carrer d'Arístides Maillol 12",
+        "city": "Barcelona",
+        "countryCode": "ES",
+        "geo": { "lat": 41.3809, "lon": 2.1228 },
+        "timeZone": "Europe/Madrid"
+      },
+      "startsAt": "2026-03-15T21:00:00+01:00",
+      "endsAt": "2026-03-15T23:00:00+01:00",
+      "doorsAt": "2026-03-15T19:30:00+01:00",
+      "contentFlags": [],
+      "url": "https://tickets.example/fcb/2026-03-15",
+      "offers": [
+        {
+          "offerId": "off_fcb_sev_tribuna",
+          "tierName": "Tribuna lateral",
+          "unitPrice": { "amountMinor": 6500, "currency": "EUR" },
+          "unitFees": { "amountMinor": 700, "currency": "EUR" },
+          "available": 30,
+          "maxPerOrder": 6,
+          "refundPolicy": {
+            "refundable": false,
+            "summary": "Non-refundable"
+          },
+          "deliveryMethod": "per_person_qr",
+          "requiresHolderNames": true,
+          "purchaseMode": "api",
+          "seating": { "gate": "14", "section": "234", "row": "8", "firstSeat": 10 }
+        },
+        {
+          "offerId": "off_fcb_sev_gol",
+          "tierName": "Gol Nord",
+          "unitPrice": { "amountMinor": 6200, "currency": "EUR" },
+          "unitFees": { "amountMinor": 600, "currency": "EUR" },
+          "available": 24,
+          "maxPerOrder": 6,
+          "refundPolicy": {
+            "refundable": false,
+            "summary": "Non-refundable"
+          },
+          "deliveryMethod": "per_person_qr",
+          "requiresHolderNames": true,
+          "purchaseMode": "api",
+          "seating": { "gate": "3", "section": "112", "row": "21", "firstSeat": 1 }
+        }
+      ]
+    },
+    {
+      "eventId": "evt_sagrada_20260313",
+      "orderPrefix": "SF",
+      "keywords": ["sagrada", "gaudi", "basilica"],
+      "name": "Sagrada Família: basilica timed entry",
+      "category": "attraction",
+      "venue": {
+        "name": "Sagrada Família",
+        "address": "Carrer de Mallorca 401",
+        "city": "Barcelona",
+        "countryCode": "ES",
+        "geo": { "lat": 41.4036, "lon": 2.1744 },
+        "timeZone": "Europe/Madrid"
+      },
+      "startsAt": "2026-03-13T10:00:00+01:00",
+      "endsAt": "2026-03-13T12:00:00+01:00",
+      "contentFlags": ["family"],
+      "url": "https://tickets.example/sagrada/2026-03-13",
+      "offers": [
+        {
+          "offerId": "off_sagrada_20260313_basilica",
+          "tierName": "Basilica entry, 10:00 slot",
+          "unitPrice": { "amountMinor": 2600, "currency": "EUR" },
+          "unitFees": { "amountMinor": 0, "currency": "EUR" },
+          "available": 40,
+          "maxPerOrder": 10,
+          "refundPolicy": {
+            "refundable": true,
+            "refundableUntil": "2026-03-12T10:00:00+01:00",
+            "summary": "Free cancellation until 24h before the slot"
+          },
+          "deliveryMethod": "per_person_qr",
+          "requiresHolderNames": false,
+          "purchaseMode": "api"
+        },
+        {
+          "offerId": "off_sagrada_20260313_towers",
+          "tierName": "Basilica + towers, 10:00 slot",
+          "unitPrice": { "amountMinor": 3600, "currency": "EUR" },
+          "unitFees": { "amountMinor": 0, "currency": "EUR" },
+          "available": 8,
+          "maxPerOrder": 8,
+          "refundPolicy": {
+            "refundable": false,
+            "summary": "Non-refundable"
+          },
+          "deliveryMethod": "per_person_qr",
+          "requiresHolderNames": false,
+          "purchaseMode": "api"
+        }
+      ]
+    },
+    {
+      "eventId": "evt_parkguell_20260316",
+      "orderPrefix": "PG",
+      "keywords": ["park guell", "gaudi", "park"],
+      "name": "Park Güell: monumental zone",
+      "category": "attraction",
+      "venue": {
+        "name": "Park Güell",
+        "address": "Carrer d'Olot",
+        "city": "Barcelona",
+        "countryCode": "ES",
+        "geo": { "lat": 41.4145, "lon": 2.1527 },
+        "timeZone": "Europe/Madrid"
+      },
+      "startsAt": "2026-03-16T09:30:00+01:00",
+      "endsAt": "2026-03-16T11:00:00+01:00",
+      "contentFlags": ["family"],
+      "url": "https://tickets.example/parkguell/2026-03-16",
+      "offers": [
+        {
+          "offerId": "off_parkguell_20260316_general",
+          "tierName": "General entry, 9:30 slot",
+          "unitPrice": { "amountMinor": 1800, "currency": "EUR" },
+          "unitFees": { "amountMinor": 0, "currency": "EUR" },
+          "available": 30,
+          "maxPerOrder": 10,
+          "refundPolicy": {
+            "refundable": false,
+            "summary": "Non-refundable"
+          },
+          "deliveryMethod": "per_person_qr",
+          "requiresHolderNames": false,
+          "purchaseMode": "api"
+        }
+      ]
+    },
+    {
+      "eventId": "evt_flamenco_20260313",
+      "orderPrefix": "FL",
+      "keywords": ["flamenco", "show", "tablao"],
+      "name": "Tablao del Gòtic: flamenco show",
+      "category": "theatre",
+      "venue": {
+        "name": "Tablao del Gòtic",
+        "address": "Barri Gòtic",
+        "city": "Barcelona",
+        "countryCode": "ES",
+        "timeZone": "Europe/Madrid"
+      },
+      "startsAt": "2026-03-13T21:00:00+01:00",
+      "endsAt": "2026-03-13T22:15:00+01:00",
+      "contentFlags": [],
+      "url": "https://tickets.example/tablao-del-gotic/2026-03-13",
+      "offers": [
+        {
+          "offerId": "off_flamenco_20260313_show",
+          "tierName": "Show ticket",
+          "unitPrice": { "amountMinor": 4500, "currency": "EUR" },
+          "unitFees": { "amountMinor": 0, "currency": "EUR" },
+          "available": 50,
+          "maxPerOrder": 10,
+          "refundPolicy": {
+            "refundable": false,
+            "summary": "Sold by the venue; terms on its site"
+          },
+          "deliveryMethod": "redirect",
+          "requiresHolderNames": false,
+          "purchaseMode": "redirect_only",
+          "checkoutUrl": "https://tickets.example/tablao-del-gotic/checkout?date=2026-03-13"
+        }
+      ]
+    }
+  ]
+}
