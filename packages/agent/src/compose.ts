@@ -1,0 +1,382 @@
+/**
+ * Composition root: `createTravRuntime(options)` wires stores, clock, ids,
+ * model client, tools, providers, executor, scheduler, memory, proposals and
+ * the single send path (`outbound/send.ts`) into one `TravAgent` for the CLI,
+ * the simulator and the evals.
+ *
+ * Defaults are the offline demo: in-memory stores seeded with the Barcelona
+ * group (ids and handles follow `fixtures/_gen/trips.mjs` and the simulator's
+ * groups), mock tickets/flights/lodging/payments, the offline model client,
+ * an in-memory scheduler. Everything is overridable. Nothing here talks to a
+ * network.
+ *
+ * The simulator calls `createTravRuntime({ channel, clock, offline })`, reads
+ * back `{ agent }` and feeds `agent.handleInbound` itself, so the runtime does
+ * not subscribe to the channel unless `subscribe: true` is passed.
+ */
+import type {
+  Activity,
+  Attendance,
+  Clock,
+  Group,
+  IdGenerator,
+  IsoDateTime,
+  Member,
+  MemberId,
+  Scheduler,
+  Stores,
+  Trip,
+} from '@trav/core';
+import {
+  createInMemoryScheduler,
+  createSimulatedClock,
+  createUlidIdGenerator,
+  DEFAULT_GROUP_SETTINGS,
+  defaultSpendingPolicy,
+  TravError,
+} from '@trav/core';
+import { createMemoryStores } from '@trav/core/storage';
+import type { ChannelAdapter } from '@trav/adapters';
+import {
+  createMockBookingPayments,
+  createMockFlights,
+  createMockLodging,
+  createMockTickets,
+  loadTicketInventory,
+} from '@trav/adapters';
+import type { ApprovalHandler } from './approval/events.js';
+import { normalizeApprovalEvent } from './approval/events.js';
+import {
+  createBookingExecutor,
+  type BookingExecutor,
+  type ProviderRegistry,
+} from './booking/executor.js';
+import { createProposalService, type ProposalService } from './booking/proposals.js';
+import {
+  createTravAgent,
+  type AgentDeps,
+  type TravAgent,
+  type TurnResult,
+  type TurnSender,
+} from './loop.js';
+import {
+  createGroupMemory,
+  createMemberMemory,
+  type GroupMemory,
+  type MemberMemory,
+} from './memory/index.js';
+import { createModelClient, readModelEnv, type ModelClient } from './model/client.js';
+import { sendTurn as sendTurnViaSendPath, type SendDeps } from './outbound/send.js';
+import { createV0ToolRegistry } from './tools/index.js';
+import type { ToolRegistry } from './tools/registry.js';
+
+export interface TravRuntimeOptions {
+  readonly channel: ChannelAdapter;
+  /** Default: a simulated clock at the Barcelona "Razzmatazz moment" (sat 14 mar 2026, 9:40pm). */
+  readonly clock?: Clock;
+  readonly startAt?: IsoDateTime;
+  /** Set by the simulator; the model client reads `TRAV_OFFLINE` itself, this forces offline when true. */
+  readonly offline?: boolean;
+  readonly ids?: IdGenerator;
+  /** Default: in-memory stores seeded with `seed` (Barcelona). */
+  readonly stores?: Stores;
+  /** `'barcelona'` (default when `stores` is not given) or `'none'`. */
+  readonly seed?: 'barcelona' | 'none';
+  readonly model?: ModelClient;
+  /** Environment for the model client; default `process.env`. Never logged. */
+  readonly env?: Readonly<Record<string, string | undefined>>;
+  readonly providers?: Partial<ProviderRegistry>;
+  readonly scheduler?: Scheduler;
+  /** Default: `outbound/send.ts` (screen → voice lint → lane → audit). */
+  readonly sendTurn?: TurnSender;
+  /** `strict` throws on a voice violation (default under Vitest); `log` reports and sends. */
+  readonly voice?: SendDeps['voice'];
+  readonly onLintViolation?: SendDeps['onLintViolation'];
+  /** T-030's approval handler; approvals stop at the identity gate until it is wired. */
+  readonly approvalHandler?: ApprovalHandler;
+  readonly maxToolRounds?: number;
+  /** Called after every turn the channel subscription or `drain()` triggers. */
+  readonly onTurn?: (result: TurnResult) => void;
+  /** Subscribe `agent.handleInbound` to `channel.onEvent` (default false: the caller feeds events). */
+  readonly subscribe?: boolean;
+}
+
+export interface TravRuntime {
+  readonly agent: TravAgent;
+  readonly stores: Stores;
+  readonly clock: Clock;
+  readonly ids: IdGenerator;
+  readonly model: ModelClient;
+  readonly channel: ChannelAdapter;
+  readonly providers: ProviderRegistry;
+  readonly executor: BookingExecutor;
+  readonly scheduler: Scheduler;
+  readonly tools: ToolRegistry;
+  readonly groupMemory: GroupMemory;
+  readonly memberMemory: MemberMemory;
+  readonly proposals: ProposalService;
+  /** Turns produced by the channel subscription and `drain()`, in order. */
+  readonly turns: readonly TurnResult[];
+  /** Run every due scheduled job (`scheduler.drain(clock.now())`) through the agent. */
+  drain(): Promise<readonly TurnResult[]>;
+  /** Unsubscribe from the channel and close the stores. */
+  close(): void;
+}
+
+export const BARCELONA_NOW: IsoDateTime = '2026-03-14T21:40:00+01:00';
+
+export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
+  const clock = options.clock ?? createSimulatedClock(options.startAt ?? BARCELONA_NOW);
+  const ids = options.ids ?? createUlidIdGenerator(clock);
+  const stores = options.stores ?? createMemoryStores({ clock, ids });
+  const seed = options.seed ?? (options.stores === undefined ? 'barcelona' : 'none');
+  if (seed === 'barcelona' && stores.group.groups.get(BARCELONA.groupId) === undefined) {
+    seedBarcelona(stores);
+  }
+  const env = readModelEnv({
+    ...(options.env ?? process.env),
+    ...(options.offline === true ? { TRAV_OFFLINE: '1' } : {}),
+  });
+  const model = options.model ?? createModelClient({ env, clock });
+  const providers: ProviderRegistry = {
+    tickets:
+      options.providers?.tickets ??
+      createMockTickets({ clock, ids, inventory: loadTicketInventory('barcelona') }),
+    flights: options.providers?.flights ?? createMockFlights({ clock }),
+    lodging: options.providers?.lodging ?? createMockLodging({ clock }),
+    payments: options.providers?.payments ?? createMockBookingPayments({ clock }),
+  };
+  const scheduler = options.scheduler ?? createInMemoryScheduler();
+  const groupMemory = createGroupMemory({ repo: stores.group.groupMemory, ids });
+  const memberMemory = createMemberMemory({ store: stores.private, ids });
+  const proposals = createProposalService({ stores, tickets: providers.tickets, clock, ids });
+  const tools = createV0ToolRegistry({
+    proposals,
+    tickets: providers.tickets,
+    flights: providers.flights,
+    lodging: providers.lodging,
+    groupMemory,
+    memberMemory,
+  });
+  const executor = createLazyExecutor({ stores, providers, clock, ids });
+  const sendTurn =
+    options.sendTurn ??
+    createSendPathSender(options.channel, stores, clock, {
+      ids,
+      ...(options.voice !== undefined ? { voice: options.voice } : {}),
+      ...(options.onLintViolation !== undefined
+        ? { onLintViolation: options.onLintViolation }
+        : {}),
+    });
+
+  const deps: AgentDeps = {
+    stores,
+    model,
+    tools,
+    channel: options.channel,
+    providers,
+    executor,
+    clock,
+    ids,
+    scheduler,
+    groupMemory,
+    memberMemory,
+    proposals,
+    sendTurn,
+    ...(options.approvalHandler !== undefined
+      ? { approval: { normalize: normalizeApprovalEvent, handler: options.approvalHandler } }
+      : {}),
+    ...(options.maxToolRounds !== undefined ? { maxToolRounds: options.maxToolRounds } : {}),
+  };
+  const agent = createTravAgent(deps);
+
+  const turns: TurnResult[] = [];
+  let unsubscribe: (() => void) | undefined;
+  if (options.subscribe === true) {
+    unsubscribe = options.channel.onEvent(async (event) => {
+      const result = await agent.handleInbound(event);
+      turns.push(result);
+      options.onTurn?.(result);
+    });
+  }
+
+  return {
+    agent,
+    stores,
+    clock,
+    ids,
+    model,
+    channel: options.channel,
+    providers,
+    executor,
+    scheduler,
+    tools,
+    groupMemory,
+    memberMemory,
+    proposals,
+    turns,
+    async drain() {
+      const out: TurnResult[] = [];
+      for (const job of scheduler.drain(clock.now())) {
+        const result = await agent.runScheduled(job);
+        turns.push(result);
+        options.onTurn?.(result);
+        out.push(result);
+      }
+      return out;
+    },
+    close() {
+      unsubscribe?.();
+      stores.close();
+    },
+  };
+}
+
+// ---------- executor (T-009 implements `createBookingExecutor`; until then its stub throws on first use) ----------
+
+function createLazyExecutor(deps: Parameters<typeof createBookingExecutor>[0]): BookingExecutor {
+  let real: BookingExecutor | undefined;
+  return {
+    async execute(proposalId, grantId) {
+      if (real === undefined) real = createBookingExecutor(deps);
+      return real.execute(proposalId, grantId);
+    },
+  };
+}
+
+// ---------- the send path ----------
+
+/** Adapts the loop's `TurnSender` to `outbound/send.ts` (`sendTurn`), the one production path (D-009). */
+export function createSendPathSender(
+  channel: ChannelAdapter,
+  stores: Stores,
+  clock: Clock,
+  extra: Pick<SendDeps, 'ids' | 'voice' | 'onLintViolation'> = {},
+): TurnSender {
+  return (outbounds, ctx) =>
+    sendTurnViaSendPath(outbounds, {
+      channel,
+      group: ctx.group,
+      members: ctx.members,
+      trip: ctx.trip,
+      consent: (memberId) => stores.private.getConsent(memberId, ctx.group.groupId),
+      audit: stores.group.audit,
+      clock,
+      handleFor: ctx.handleFor,
+      ...extra,
+    });
+}
+
+// ---------- the Barcelona seed (ids and handles follow fixtures/_gen/trips.mjs) ----------
+
+export interface BarcelonaSeed {
+  readonly groupId: string;
+  readonly tripId: string;
+  readonly conversationId: string;
+  readonly razzmatazzActivityId: string;
+  readonly members: readonly {
+    readonly memberId: MemberId;
+    readonly name: string;
+    readonly handle: string;
+  }[];
+}
+
+export const BARCELONA: BarcelonaSeed = {
+  groupId: 'grp_barcelona',
+  tripId: 'trip_barcelona',
+  conversationId: 'conv_barcelona',
+  razzmatazzActivityId: 'act_bcn_razzmatazz',
+  members: [
+    { memberId: 'mem_dean', name: 'Dean', handle: 'h_dean' },
+    { memberId: 'mem_henry', name: 'Henry', handle: 'h_henry' },
+    { memberId: 'mem_maya', name: 'Maya', handle: 'h_maya' },
+    { memberId: 'mem_jordan', name: 'Jordan', handle: 'h_jordan' },
+    { memberId: 'mem_priya', name: 'Priya', handle: 'h_priya' },
+    { memberId: 'mem_sam', name: 'Sam', handle: 'h_sam' },
+  ],
+};
+
+/** Six adults, Dean leads, €60/person cap, trip 12–17 mar 2026, Razzmatazz planned for saturday night with everyone in. */
+export function seedBarcelona(stores: Stores): BarcelonaSeed {
+  const created = '2026-02-03T20:00:00-05:00';
+  const b = BARCELONA;
+  if (stores.group.groups.get(b.groupId) !== undefined) {
+    throw new TravError('duplicate', 'barcelona group already seeded');
+  }
+  const group: Group = {
+    groupId: b.groupId,
+    name: 'barcelona 🇪🇸',
+    conversationId: b.conversationId,
+    channelKind: 'simulator',
+    currency: 'EUR',
+    settings: { ...DEFAULT_GROUP_SETTINGS, allAdultsConfirmed: true },
+    spendingPolicy: { ...defaultSpendingPolicy(b.groupId, 'EUR'), perPersonAutoCapMinor: 6000 },
+    createdAt: created,
+  };
+  stores.group.groups.create(group);
+  const birthDates: Record<string, string> = {
+    mem_dean: '2004-05-02',
+    mem_henry: '2003-11-19',
+    mem_maya: '2005-01-27',
+    mem_jordan: '2005-08-14',
+    mem_priya: '2004-09-03',
+    mem_sam: '2005-12-30',
+  };
+  for (const m of b.members) {
+    const member: Member = {
+      memberId: m.memberId,
+      groupId: b.groupId,
+      displayName: m.name,
+      role: m.memberId === 'mem_dean' ? 'lead' : 'member',
+      active: true,
+      senderId: m.handle,
+      birthDate: birthDates[m.memberId] ?? '2004-01-01',
+      ageBand: 'adult',
+      joinedAt: created,
+    };
+    stores.group.members.upsert(member);
+  }
+  const trip: Trip = {
+    tripId: b.tripId,
+    groupId: b.groupId,
+    name: 'Barcelona spring break',
+    city: 'Barcelona',
+    countryCode: 'ES',
+    timeZone: 'Europe/Madrid',
+    startDate: '2026-03-12',
+    endDate: '2026-03-17',
+    currency: 'EUR',
+    status: 'active',
+    familyTab: false,
+    createdBy: 'mem_dean',
+    createdAt: created,
+  };
+  stores.group.trips.create(trip);
+  const razz: Activity = {
+    activityId: b.razzmatazzActivityId,
+    tripId: b.tripId,
+    groupId: b.groupId,
+    kind: 'nightlife',
+    name: 'Razzmatazz',
+    venue: 'Razzmatazz',
+    address: 'Carrer dels Almogàvers 122',
+    startsAt: '2026-03-15T00:00:00+01:00',
+    endsAt: '2026-03-15T06:00:00+01:00',
+    contentTags: ['nightlife', 'club', '18+', 'alcohol', 'late_night'],
+    ageRestriction: 18,
+    createdAt: '2026-03-10T12:30:00-04:00',
+  };
+  stores.group.trips.upsertActivity(razz);
+  for (const m of b.members) {
+    const row: Attendance = {
+      activityId: razz.activityId,
+      memberId: m.memberId,
+      status: 'in',
+      updatedAt: '2026-03-10T12:30:00-04:00',
+      sourceMessageId: 'msg_bcn_razz_plan',
+      setBy: 'mem_sam',
+    };
+    stores.group.trips.setAttendance(row);
+  }
+  return b;
+}

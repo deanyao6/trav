@@ -12,7 +12,8 @@ export type UntrustedSource =
   | 'host_message'
   | 'forwarded_message'
   | 'guest_message'
-  | 'photo_caption';
+  | 'photo_caption'
+  | 'card_descriptor';
 
 /** The fixed sentence the system prompt must contain whenever an `<untrusted>` block is present. */
 export const UNTRUSTED_SYSTEM_SENTENCE =

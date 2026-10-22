@@ -1,0 +1,43 @@
+[
+  {
+    "key": "1767e9edd9ea0843c8da0bb013d816f6cb4b04a518c17d2cd4eb881765c4cee0",
+    "model": "main",
+    "systemPromptId": "group_chat_v1",
+    "lastUserText": "Dean: @trav get the 5 of us Razzmatazz tickets, Henry's sick",
+    "toolNames": [
+      "cancel_proposal",
+      "get_balances",
+      "get_group_memory",
+      "get_pending_proposals",
+      "get_roster",
+      "get_settings",
+      "log_expense",
+      "propose_booking",
+      "remember",
+      "request_settings_change",
+      "search_events",
+      "search_flights",
+      "search_lodging",
+      "set_attendance"
+    ],
+    "response": {
+      "kind": "completion",
+      "text": "",
+      "toolCalls": [
+        {
+          "id": "toolu_bcn_razzmatazz_1",
+          "name": "propose_booking",
+          "input": {
+            "kind": "ticket",
+            "query": "razzmatazz",
+            "attendeeMemberIds": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"],
+            "excludedMemberIds": ["mem_henry"],
+            "activityId": "act_bcn_razzmatazz",
+            "requestText": "@trav get the 5 of us Razzmatazz tickets, Henry's sick"
+          }
+        }
+      ]
+    },
+    "note": "T-007-b: the Razzmatazz moment (MOTIVATION.md, CLAUDE.md §8). The group-lane loop prefixes the sender's display name, so the keyed text is \"Dean: ...\" and the tool list is every v0 tool except the DM-only get_my_pending_items. The model names the five members and excludes Henry; booking/proposals.ts stops at a BookingProposal, and the next round is answered by the offline tool_result_ack responder. packages/agent/src/loop.test.ts asserts this key matches deriveScriptKey of the real request."
+  }
+]

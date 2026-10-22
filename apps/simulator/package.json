@@ -7,12 +7,26 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.ui.json --noEmit",
+    "test": "vitest run",
+    "sim": "node --import tsx src/server/main.ts --dev",
+    "start": "node --import tsx src/server/main.ts",
+    "dev:ui": "vite --config vite.config.ts",
+    "build": "vite build --config vite.config.ts",
+    "qa": "vite build --config vite.config.ts && node --import tsx e2e/smoke.spec.ts"
   },
   "dependencies": {
-    "@trav/core": "workspace:*",
+    "@trav/adapters": "workspace:*",
     "@trav/agent": "workspace:*",
-    "@trav/adapters": "workspace:*"
+    "@trav/core": "workspace:*",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "playwright": "1.64.1",
+    "vite": "8.3.5"
   }
 }
