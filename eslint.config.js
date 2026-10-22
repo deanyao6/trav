@@ -37,8 +37,8 @@ export default tseslint.config(
   },
   {
     // D-008: domain code reads time from the injected Clock, never the wall clock.
-    files: ['packages/*/src/**/*.ts', 'apps/*/src/**/*.ts'],
-    ignores: ['**/clock.ts', '**/*.test.ts', 'packages/core/src/storage/**'],
+    files: ['packages/*/src/**/*.{ts,tsx}', 'apps/*/src/**/*.{ts,tsx}'],
+    ignores: ['**/clock.ts', '**/*.test.{ts,tsx}', 'packages/core/src/storage/**'],
     rules: {
       'no-restricted-syntax': [
         'error',
