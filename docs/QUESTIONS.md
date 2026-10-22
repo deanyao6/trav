@@ -12,3 +12,4 @@ Things the overnight run could not decide or was blocked on. Ranked by importanc
 
 - pnpm 12 needs `XDG_RUNTIME_DIR` pointed inside the repo to work in the sandbox (see `docs/DECISIONS.md` D-002). `scripts/overnight.sh` now sets it; the currently running overnight loop already started, so this session's agents set it per shell. If you run pnpm yourself outside the sandbox, nothing changes.
 - The guard hook's "dumping environment variables" rule also matches any command that mentions `.env` followed by a pipe (e.g. `cat .env | wc -c`). Harmless, but the orchestrator avoids touching `.env` entirely.
+- The guard hook also rejects any Bash command text containing parent-directory tokens, `/**` doc-comment openers, or regex-looking `/x/` tokens, so agents can't write throwaway TypeScript via heredoc; they write temp files with the Write tool under the temp dir instead. Harmless, but it costs each reviewer a few minutes.
