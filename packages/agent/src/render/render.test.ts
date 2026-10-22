@@ -369,6 +369,25 @@ describe('expense_confirm logged (VOICE §4.4)', () => {
     expectClean(m);
   });
 
+  it('a sub-cent-per-head equal split keeps zero-share participants out of the "not" list', () => {
+    const all = renderCtx()
+      .members.filter((m) => m.active)
+      .map((m) => m.memberId);
+    const m = renderExpenseLogged(
+      {
+        expense: chatExpense({
+          amount: eur(3),
+          paidBy: [{ memberId: 'mem_dean', amount: eur(3) }],
+          split: { method: 'equal', participants: all },
+        }),
+      },
+      renderCtx(),
+    );
+    expect(m.card.split.excluded ?? []).toEqual([]);
+    expect(m.text).not.toContain('(not');
+    expectClean(m);
+  });
+
   it('custom shares (exact) and the remainder going to the payer', () => {
     const custom = renderExpenseLogged(
       {

@@ -275,7 +275,7 @@ The hash commits to the payload only through its digest (D-016), so a §2.9 tomb
 | `policy.changed` | `memberId, before, after` |
 | `roast.generated` | `targets, topics` |
 | `roast.suppressed` | `cause: 'mode_off' \| 'minor_in_group' \| 'age_unconfirmed' \| 'trip_over' \| 'member_opted_out' \| 'target_not_member' \| 'target_inactive' \| 'topic_blocked' \| 'classifier_blocked' \| 'wrong_place' \| 'line_limit' \| 'unlocatable', messageDraftId, topicCategory?, detail?` (typed as `RoastSuppressedAuditCause` in `core/safety`; `unlocatable` = a failing line or award could not be stripped from the text, so the whole message was dropped) |
-| `content.suppressed` | `cause: 'minor_nightlife' \| 'minor_alcohol' \| 'age_restricted' \| 'adult_audience_not_named' \| 'dm_only_card_in_group' \| 'private_card_in_group', messageDraftId, detail?` (typed as `ContentSuppressedAuditCause`) |
+| `content.suppressed` | `cause: 'minor_nightlife' \| 'minor_alcohol' \| 'age_restricted' \| 'adult_audience_not_named' \| 'dm_only_card_in_group' \| 'private_card_in_group' \| 'private_card_wrong_recipient' \| 'no_dm_handle' \| 'no_dm_lane', messageDraftId, detail?` (typed as `ContentSuppressedAuditCause`; the last three are written by the agent send path: a private card or ticket addressed to the wrong member is suppressed in every voice mode, and an undeliverable DM is recorded with ids only) |
 | `injection.detected` | `source, itemId, matchedPattern, excerpt (max 200 chars)` |
 | `member.joined` / `member.left` / `member.role_changed` | `memberId, role, by` |
 | `data.deletion_requested` / `data.deleted` | `scope: 'trip' \| 'member', confirmedBy, tables: Record<string, number>` |

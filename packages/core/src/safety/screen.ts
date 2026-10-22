@@ -139,7 +139,11 @@ export type ContentSuppressedAuditCause =
   | 'age_restricted'
   | 'adult_audience_not_named'
   | 'dm_only_card_in_group'
-  | 'private_card_in_group';
+  | 'private_card_in_group'
+  // Written by the agent send path (`packages/agent/src/outbound/send.ts`), not the screen.
+  | 'private_card_wrong_recipient'
+  | 'no_dm_handle'
+  | 'no_dm_lane';
 
 /** Runtime copies of the unions above, for tests and the SAFETY §2.2 table. */
 export const ROAST_AUDIT_CAUSES: readonly RoastSuppressedAuditCause[] = [
@@ -163,6 +167,9 @@ export const CONTENT_AUDIT_CAUSES: readonly ContentSuppressedAuditCause[] = [
   'adult_audience_not_named',
   'dm_only_card_in_group',
   'private_card_in_group',
+  'private_card_wrong_recipient',
+  'no_dm_handle',
+  'no_dm_lane',
 ];
 
 export interface Suppression {
@@ -219,7 +226,9 @@ const ROAST_AUDIT_CAUSE: Partial<Record<SuppressionCause, RoastSuppressedAuditCa
   roast_unlocatable: 'unlocatable',
 };
 
-function isContentCause(cause: SuppressionCause): cause is ContentSuppressedAuditCause {
+function isContentCause(
+  cause: SuppressionCause,
+): cause is SuppressionCause & ContentSuppressedAuditCause {
   return ROAST_AUDIT_CAUSE[cause] === undefined;
 }
 

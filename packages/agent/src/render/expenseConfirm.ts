@@ -50,6 +50,18 @@ function defaultSplitContext(ctx: RenderContext): ledger.SplitContext {
   };
 }
 
+/**
+ * Members of the universe left out of an `equal` split, from the split's own participant
+ * list (not from the non-zero shares: a sub-cent-per-head amount gives some participants a
+ * zero share, and they are still in the split).
+ */
+function excludedFromEqual(
+  universe: readonly MemberId[],
+  participants: readonly MemberId[],
+): MemberId[] {
+  return universe.filter((id) => !participants.includes(id));
+}
+
 /** Most common amount among `shares` (ties: the first seen). */
 function modeShare(shares: readonly Money[]): Money | undefined {
   const counts = new Map<number, number>();
@@ -120,7 +132,7 @@ export function renderExpenseLogged(
     expense.split.method === 'exclude'
       ? expense.split.excluded
       : expense.split.method === 'equal'
-        ? splitCtx.participantsUniverse.filter((id) => !participantIds.includes(id))
+        ? excludedFromEqual(splitCtx.participantsUniverse, expense.split.participants)
         : [],
   );
   const excluded: Participant[] = excludedIds.map((id) => ({
