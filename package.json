@@ -20,7 +20,8 @@
     "demo:barcelona": "pnpm --filter @trav/simulator demo:barcelona",
     "sim": "pnpm --filter @trav/simulator sim",
     "eval": "pnpm --filter @trav/evals eval",
-    "audit:verify": "node --import tsx scripts/audit-verify.ts"
+    "audit:verify": "node --import tsx scripts/audit-verify.ts",
+    "fixtures:gen": "node fixtures/_gen/index.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

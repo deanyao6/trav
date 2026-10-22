@@ -1,0 +1,445 @@
+{
+  "fixtureVersion": 1,
+  "receiptId": "rcpt_bcn_gatblau",
+  "title": "itemized dinner, drinks excluded for one person (VOICE §4.4 C)",
+  "groupId": "grp_barcelona",
+  "tripId": "trip_barcelona",
+  "imageFile": "fixtures/receipts/rcpt_bcn_gatblau.png",
+  "imageMimeType": "image/png",
+  "imageSha256": "4bb4989e55fe4917d42882f73d56093d4f114d1fc170d461e83134897d6a1c30",
+  "postedBy": "mem_jordan",
+  "postedInGroup": true,
+  "chatText": "@trav dinner, i paid, Priya didn't drink",
+  "ocrText": "TAVERNA DEL GAT BLAU\nCarrer de Verdi 12, Gracia\nBarcelona  NIF B-00000000\n13/03/2026   23:01   TAULA 7\n----------------------------------\n3 PA AMB TOMÀQUET            15,00\n2 PATATAS BRAVAS             13,80\n2 CROQUETES DE PERNIL        18,00\n1 POP A LA GALLEGA           21,60\n1 ESCALIVADA                 12,00\n1 ARRÒS NEGRE (2 PAX)        24,00\n3 CREMA CATALANA             15,00\n1 BOTTLE OF PRIORAT RED      32,00\n5 CAÑA                       15,00\n2 VERMUT                     11,00\n2 WATER 1L                    6,60\n----------------------------------\nTOTAL                     184,00 €\nIVA 10% INCLOS        16,73\nCARD                        184,00\nGRACIES! TORNEU AVIAT",
+  "parsed": {
+    "source": "restaurant",
+    "merchantName": "Taverna del Gat Blau",
+    "total": {
+      "amountMinor": 18400,
+      "currency": "EUR"
+    },
+    "subtotal": {
+      "amountMinor": 18400,
+      "currency": "EUR"
+    },
+    "occurredAt": "2026-03-13T23:01:00+01:00",
+    "lineItems": [
+      {
+        "description": "pa amb tomàquet",
+        "quantity": 3,
+        "amount": {
+          "amountMinor": 1500,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "patatas bravas",
+        "quantity": 2,
+        "amount": {
+          "amountMinor": 1380,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "croquetes de pernil",
+        "quantity": 2,
+        "amount": {
+          "amountMinor": 1800,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "pop a la gallega",
+        "quantity": 1,
+        "amount": {
+          "amountMinor": 2160,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "escalivada",
+        "quantity": 1,
+        "amount": {
+          "amountMinor": 1200,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "arròs negre (2 pax)",
+        "quantity": 1,
+        "amount": {
+          "amountMinor": 2400,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "crema catalana",
+        "quantity": 3,
+        "amount": {
+          "amountMinor": 1500,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "bottle of Priorat red",
+        "quantity": 1,
+        "amount": {
+          "amountMinor": 3200,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "caña",
+        "quantity": 5,
+        "amount": {
+          "amountMinor": 1500,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "vermut",
+        "quantity": 2,
+        "amount": {
+          "amountMinor": 1100,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "water 1L",
+        "quantity": 2,
+        "amount": {
+          "amountMinor": 660,
+          "currency": "EUR"
+        }
+      }
+    ],
+    "confidence": 0.95,
+    "warnings": []
+  },
+  "lineItems": [
+    {
+      "lineId": "gb1",
+      "label": "pa amb tomàquet x3",
+      "amount": {
+        "amountMinor": 1500,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "gb2",
+      "label": "patatas bravas x2",
+      "amount": {
+        "amountMinor": 1380,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "gb3",
+      "label": "croquetes de pernil x2",
+      "amount": {
+        "amountMinor": 1800,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "gb4",
+      "label": "pop a la gallega",
+      "amount": {
+        "amountMinor": 2160,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "gb5",
+      "label": "escalivada",
+      "amount": {
+        "amountMinor": 1200,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "gb6",
+      "label": "arròs negre (2 pax)",
+      "amount": {
+        "amountMinor": 2400,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "gb7",
+      "label": "crema catalana x3",
+      "amount": {
+        "amountMinor": 1500,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "gb8",
+      "label": "bottle of Priorat red",
+      "amount": {
+        "amountMinor": 3200,
+        "currency": "EUR"
+      },
+      "claimedBy": [
+        "mem_dean",
+        "mem_henry",
+        "mem_maya",
+        "mem_jordan",
+        "mem_sam"
+      ],
+      "kind": "item"
+    },
+    {
+      "lineId": "gb9",
+      "label": "caña x5",
+      "amount": {
+        "amountMinor": 1500,
+        "currency": "EUR"
+      },
+      "claimedBy": [
+        "mem_dean",
+        "mem_henry",
+        "mem_maya",
+        "mem_jordan",
+        "mem_sam"
+      ],
+      "kind": "item"
+    },
+    {
+      "lineId": "gb10",
+      "label": "vermut x2",
+      "amount": {
+        "amountMinor": 1100,
+        "currency": "EUR"
+      },
+      "claimedBy": [
+        "mem_dean",
+        "mem_henry",
+        "mem_maya",
+        "mem_jordan",
+        "mem_sam"
+      ],
+      "kind": "item"
+    },
+    {
+      "lineId": "gb11",
+      "label": "water 1L x2",
+      "amount": {
+        "amountMinor": 660,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    }
+  ],
+  "payer": "mem_jordan",
+  "split": {
+    "method": "itemized",
+    "participants": [
+      "mem_dean",
+      "mem_henry",
+      "mem_maya",
+      "mem_jordan",
+      "mem_priya",
+      "mem_sam"
+    ],
+    "lineItems": [
+      {
+        "lineId": "gb1",
+        "label": "pa amb tomàquet x3",
+        "amount": {
+          "amountMinor": 1500,
+          "currency": "EUR"
+        },
+        "claimedBy": [],
+        "kind": "item"
+      },
+      {
+        "lineId": "gb2",
+        "label": "patatas bravas x2",
+        "amount": {
+          "amountMinor": 1380,
+          "currency": "EUR"
+        },
+        "claimedBy": [],
+        "kind": "item"
+      },
+      {
+        "lineId": "gb3",
+        "label": "croquetes de pernil x2",
+        "amount": {
+          "amountMinor": 1800,
+          "currency": "EUR"
+        },
+        "claimedBy": [],
+        "kind": "item"
+      },
+      {
+        "lineId": "gb4",
+        "label": "pop a la gallega",
+        "amount": {
+          "amountMinor": 2160,
+          "currency": "EUR"
+        },
+        "claimedBy": [],
+        "kind": "item"
+      },
+      {
+        "lineId": "gb5",
+        "label": "escalivada",
+        "amount": {
+          "amountMinor": 1200,
+          "currency": "EUR"
+        },
+        "claimedBy": [],
+        "kind": "item"
+      },
+      {
+        "lineId": "gb6",
+        "label": "arròs negre (2 pax)",
+        "amount": {
+          "amountMinor": 2400,
+          "currency": "EUR"
+        },
+        "claimedBy": [],
+        "kind": "item"
+      },
+      {
+        "lineId": "gb7",
+        "label": "crema catalana x3",
+        "amount": {
+          "amountMinor": 1500,
+          "currency": "EUR"
+        },
+        "claimedBy": [],
+        "kind": "item"
+      },
+      {
+        "lineId": "gb8",
+        "label": "bottle of Priorat red",
+        "amount": {
+          "amountMinor": 3200,
+          "currency": "EUR"
+        },
+        "claimedBy": [
+          "mem_dean",
+          "mem_henry",
+          "mem_maya",
+          "mem_jordan",
+          "mem_sam"
+        ],
+        "kind": "item"
+      },
+      {
+        "lineId": "gb9",
+        "label": "caña x5",
+        "amount": {
+          "amountMinor": 1500,
+          "currency": "EUR"
+        },
+        "claimedBy": [
+          "mem_dean",
+          "mem_henry",
+          "mem_maya",
+          "mem_jordan",
+          "mem_sam"
+        ],
+        "kind": "item"
+      },
+      {
+        "lineId": "gb10",
+        "label": "vermut x2",
+        "amount": {
+          "amountMinor": 1100,
+          "currency": "EUR"
+        },
+        "claimedBy": [
+          "mem_dean",
+          "mem_henry",
+          "mem_maya",
+          "mem_jordan",
+          "mem_sam"
+        ],
+        "kind": "item"
+      },
+      {
+        "lineId": "gb11",
+        "label": "water 1L x2",
+        "amount": {
+          "amountMinor": 660,
+          "currency": "EUR"
+        },
+        "claimedBy": [],
+        "kind": "item"
+      }
+    ]
+  },
+  "expectedShares": [
+    {
+      "memberId": "mem_dean",
+      "amount": {
+        "amountMinor": 3260,
+        "currency": "EUR"
+      }
+    },
+    {
+      "memberId": "mem_henry",
+      "amount": {
+        "amountMinor": 3260,
+        "currency": "EUR"
+      }
+    },
+    {
+      "memberId": "mem_maya",
+      "amount": {
+        "amountMinor": 3260,
+        "currency": "EUR"
+      }
+    },
+    {
+      "memberId": "mem_jordan",
+      "amount": {
+        "amountMinor": 3260,
+        "currency": "EUR"
+      }
+    },
+    {
+      "memberId": "mem_priya",
+      "amount": {
+        "amountMinor": 2100,
+        "currency": "EUR"
+      }
+    },
+    {
+      "memberId": "mem_sam",
+      "amount": {
+        "amountMinor": 3260,
+        "currency": "EUR"
+      }
+    }
+  ],
+  "labels": {
+    "expectedAction": "log_expense",
+    "injection": false,
+    "injectionPatterns": [],
+    "lowConfidence": false,
+    "unreadable": false,
+    "familyTab": false,
+    "rounding": "per line: equal among claimants (payer absorbs the remainder); tax/tip/service/fee pro-rata to item subtotals (README \"Rounding\")",
+    "notes": "food (incl. water) split 6 ways €21 each; drinks (€58) split 5 ways without Priya. IVA is included in prices, so there is no tax line to allocate."
+  }
+}

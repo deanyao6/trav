@@ -1,0 +1,468 @@
+{
+  "fixtureVersion": 1,
+  "groupId": "grp_lisbon",
+  "tripId": "trip_lisbon",
+  "currency": "EUR",
+  "note": "Expected ledger after replaying the chat with every expect honored. Shares follow README \"Rounding\". `final.transfers` is one valid minimal settlement (greedy reference); graders should accept any transfer set with ≤ n−1 transfers that clears every balance to the cent.",
+  "expenses": [
+    {
+      "expenseId": "exp_lis_001",
+      "groupId": "grp_lisbon",
+      "tripId": "trip_lisbon",
+      "description": "Benfica vs Porto tickets",
+      "category": "tickets",
+      "amount": {
+        "amountMinor": 11000,
+        "currency": "EUR"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_lis_dean",
+          "amount": {
+            "amountMinor": 11000,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "equal",
+        "participants": [
+          "mem_lis_dean",
+          "mem_lis_dad"
+        ]
+      },
+      "source": "booking",
+      "sourceRef": {
+        "kind": "booking",
+        "id": "bk_lis_001"
+      },
+      "activityId": "act_lis_benfica",
+      "occurredAt": "2026-03-20T19:14:00-04:00",
+      "createdAt": "2026-03-20T19:14:00-04:00",
+      "createdBy": "mem_lis_dean",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_lis_dean",
+          "amount": {
+            "amountMinor": 5500,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_lis_dad",
+          "amount": {
+            "amountMinor": 5500,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_lis_0010"
+    },
+    {
+      "expenseId": "exp_lis_002",
+      "groupId": "grp_lisbon",
+      "tripId": "trip_lisbon",
+      "description": "tile workshop",
+      "category": "activities",
+      "amount": {
+        "amountMinor": 3500,
+        "currency": "EUR"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_lis_dean",
+          "amount": {
+            "amountMinor": 3500,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "equal",
+        "participants": [
+          "mem_lis_dean"
+        ]
+      },
+      "source": "booking",
+      "sourceRef": {
+        "kind": "booking",
+        "id": "bk_lis_002"
+      },
+      "occurredAt": "2026-04-15T21:06:00+01:00",
+      "createdAt": "2026-04-15T21:06:00+01:00",
+      "createdBy": "mem_lis_dean",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_lis_dean",
+          "amount": {
+            "amountMinor": 3500,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_lis_0019"
+    },
+    {
+      "expenseId": "exp_lis_003",
+      "groupId": "grp_lisbon",
+      "tripId": "trip_lisbon",
+      "description": "fado night with dinner",
+      "category": "food",
+      "amount": {
+        "amountMinor": 9000,
+        "currency": "EUR"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_lis_dean",
+          "amount": {
+            "amountMinor": 9000,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "equal",
+        "participants": [
+          "mem_lis_dean",
+          "mem_lis_dad"
+        ]
+      },
+      "source": "booking",
+      "sourceRef": {
+        "kind": "booking",
+        "id": "bk_lis_003"
+      },
+      "activityId": "act_lis_fado",
+      "occurredAt": "2026-04-16T17:34:00+01:00",
+      "createdAt": "2026-04-16T17:34:00+01:00",
+      "createdBy": "mem_lis_dean",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_lis_dean",
+          "amount": {
+            "amountMinor": 4500,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_lis_dad",
+          "amount": {
+            "amountMinor": 4500,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_lis_0023"
+    },
+    {
+      "expenseId": "exp_lis_004",
+      "groupId": "grp_lisbon",
+      "tripId": "trip_lisbon",
+      "description": "tasca",
+      "category": "food",
+      "amount": {
+        "amountMinor": 4650,
+        "currency": "EUR"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_lis_dad",
+          "amount": {
+            "amountMinor": 4650,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "equal",
+        "participants": [
+          "mem_lis_dean",
+          "mem_lis_dad"
+        ]
+      },
+      "source": "chat",
+      "sourceRef": {
+        "kind": "message",
+        "id": "msg_lis_0024"
+      },
+      "occurredAt": "2026-04-16T23:10:00+01:00",
+      "createdAt": "2026-04-16T23:10:00+01:00",
+      "createdBy": "mem_lis_dad",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_lis_dean",
+          "amount": {
+            "amountMinor": 2325,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_lis_dad",
+          "amount": {
+            "amountMinor": 2325,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_lis_0024"
+    },
+    {
+      "expenseId": "exp_lis_005",
+      "groupId": "grp_lisbon",
+      "tripId": "trip_lisbon",
+      "description": "Sintra driver",
+      "category": "transport",
+      "amount": {
+        "amountMinor": 18000,
+        "currency": "EUR"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_lis_dean",
+          "amount": {
+            "amountMinor": 18000,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "equal",
+        "participants": [
+          "mem_lis_dean",
+          "mem_lis_dad"
+        ]
+      },
+      "source": "chat",
+      "sourceRef": {
+        "kind": "message",
+        "id": "msg_lis_0027"
+      },
+      "activityId": "act_lis_sintra",
+      "occurredAt": "2026-04-17T13:30:00+01:00",
+      "createdAt": "2026-04-17T13:30:00+01:00",
+      "createdBy": "mem_lis_dean",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_lis_dean",
+          "amount": {
+            "amountMinor": 9000,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_lis_dad",
+          "amount": {
+            "amountMinor": 9000,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_lis_0027"
+    },
+    {
+      "expenseId": "exp_lis_006",
+      "groupId": "grp_lisbon",
+      "tripId": "trip_lisbon",
+      "description": "Sporting vs Braga tickets",
+      "category": "tickets",
+      "amount": {
+        "amountMinor": 7000,
+        "currency": "EUR"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_lis_dean",
+          "amount": {
+            "amountMinor": 7000,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "equal",
+        "participants": [
+          "mem_lis_dean",
+          "mem_lis_dad"
+        ]
+      },
+      "source": "booking",
+      "sourceRef": {
+        "kind": "booking",
+        "id": "bk_lis_006"
+      },
+      "occurredAt": "2026-04-19T12:01:00+01:00",
+      "createdAt": "2026-04-19T12:01:00+01:00",
+      "createdBy": "mem_lis_dean",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_lis_dean",
+          "amount": {
+            "amountMinor": 3500,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_lis_dad",
+          "amount": {
+            "amountMinor": 3500,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_lis_0033"
+    }
+  ],
+  "checkpoints": {
+    "before_settle": {
+      "before": "2026-04-20T09:00:00+01:00",
+      "expenseIds": [
+        "exp_lis_001",
+        "exp_lis_002",
+        "exp_lis_003",
+        "exp_lis_004",
+        "exp_lis_005",
+        "exp_lis_006"
+      ],
+      "totalSpent": {
+        "amountMinor": 53150,
+        "currency": "EUR"
+      },
+      "balances": [
+        {
+          "memberId": "mem_lis_dean",
+          "net": {
+            "amountMinor": 20175,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_lis_dad",
+          "net": {
+            "amountMinor": -20175,
+            "currency": "EUR"
+          }
+        }
+      ]
+    }
+  },
+  "final": {
+    "totalSpent": {
+      "amountMinor": 53150,
+      "currency": "EUR"
+    },
+    "balances": [
+      {
+        "memberId": "mem_lis_dean",
+        "net": {
+          "amountMinor": 20175,
+          "currency": "EUR"
+        },
+        "paid": {
+          "amountMinor": 48500,
+          "currency": "EUR"
+        },
+        "share": {
+          "amountMinor": 28325,
+          "currency": "EUR"
+        }
+      },
+      {
+        "memberId": "mem_lis_dad",
+        "net": {
+          "amountMinor": -20175,
+          "currency": "EUR"
+        },
+        "paid": {
+          "amountMinor": 4650,
+          "currency": "EUR"
+        },
+        "share": {
+          "amountMinor": 24825,
+          "currency": "EUR"
+        }
+      }
+    ],
+    "transfers": [
+      {
+        "from": "mem_lis_dad",
+        "to": "mem_lis_dean",
+        "amount": {
+          "amountMinor": 20175,
+          "currency": "EUR"
+        }
+      }
+    ],
+    "maxTransfers": 1
+  },
+  "wrappedFacts": {
+    "totalSpent": {
+      "amountMinor": 53150,
+      "currency": "EUR"
+    },
+    "people": 2,
+    "perPersonAverage": {
+      "amountMinor": 26575,
+      "currency": "EUR"
+    },
+    "byCategory": [
+      {
+        "category": "tickets",
+        "amount": {
+          "amountMinor": 18000,
+          "currency": "EUR"
+        }
+      },
+      {
+        "category": "transport",
+        "amount": {
+          "amountMinor": 18000,
+          "currency": "EUR"
+        }
+      },
+      {
+        "category": "food",
+        "amount": {
+          "amountMinor": 13650,
+          "currency": "EUR"
+        }
+      },
+      {
+        "category": "activities",
+        "amount": {
+          "amountMinor": 3500,
+          "currency": "EUR"
+        }
+      }
+    ],
+    "expenseCount": 6,
+    "bookingCount": 4,
+    "biggestExpense": {
+      "expenseId": "exp_lis_005",
+      "description": "Sintra driver",
+      "amount": {
+        "amountMinor": 18000,
+        "currency": "EUR"
+      }
+    },
+    "mostFronted": {
+      "memberId": "mem_lis_dean",
+      "paid": {
+        "amountMinor": 48500,
+        "currency": "EUR"
+      },
+      "basis": "ledger"
+    },
+    "latestNightExpense": {
+      "expenseId": "exp_lis_004",
+      "description": "tasca",
+      "occurredAt": "2026-04-16T23:10:00+01:00"
+    }
+  }
+}

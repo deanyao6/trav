@@ -1,0 +1,2170 @@
+{
+  "fixtureVersion": 1,
+  "groupId": "grp_barcelona",
+  "tripId": "trip_barcelona",
+  "currency": "EUR",
+  "note": "Expected ledger after replaying the chat with every expect honored. Shares follow README \"Rounding\". `final.transfers` is one valid minimal settlement (greedy reference); graders should accept any transfer set with ≤ n−1 transfers that clears every balance to the cent.",
+  "expenses": [
+    {
+      "expenseId": "exp_bcn_001",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "description": "Eixample 3br apartment",
+      "category": "lodging",
+      "amount": {
+        "amountMinor": 138000,
+        "currency": "EUR"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_dean",
+          "amount": {
+            "amountMinor": 138000,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "equal",
+        "participants": [
+          "mem_dean",
+          "mem_henry",
+          "mem_maya",
+          "mem_jordan",
+          "mem_priya",
+          "mem_sam"
+        ]
+      },
+      "source": "booking",
+      "sourceRef": {
+        "kind": "booking",
+        "id": "bk_bcn_001"
+      },
+      "activityId": "act_bcn_lodging",
+      "occurredAt": "2026-02-03T20:40:00-05:00",
+      "createdAt": "2026-02-03T20:40:00-05:00",
+      "createdBy": "mem_henry",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_dean",
+          "amount": {
+            "amountMinor": 23000,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_henry",
+          "amount": {
+            "amountMinor": 23000,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_maya",
+          "amount": {
+            "amountMinor": 23000,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_jordan",
+          "amount": {
+            "amountMinor": 23000,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_priya",
+          "amount": {
+            "amountMinor": 23000,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_sam",
+          "amount": {
+            "amountMinor": 23000,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_bcn_0037"
+    },
+    {
+      "expenseId": "exp_bcn_002",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "description": "Barça vs Sevilla tickets",
+      "category": "tickets",
+      "amount": {
+        "amountMinor": 43200,
+        "currency": "EUR"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_dean",
+          "amount": {
+            "amountMinor": 43200,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "equal",
+        "participants": [
+          "mem_dean",
+          "mem_henry",
+          "mem_maya",
+          "mem_jordan",
+          "mem_priya",
+          "mem_sam"
+        ]
+      },
+      "source": "booking",
+      "sourceRef": {
+        "kind": "booking",
+        "id": "bk_bcn_002"
+      },
+      "activityId": "act_bcn_barca",
+      "occurredAt": "2026-02-10T19:44:00-05:00",
+      "createdAt": "2026-02-10T19:44:00-05:00",
+      "createdBy": "mem_sam",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_dean",
+          "amount": {
+            "amountMinor": 7200,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_henry",
+          "amount": {
+            "amountMinor": 7200,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_maya",
+          "amount": {
+            "amountMinor": 7200,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_jordan",
+          "amount": {
+            "amountMinor": 7200,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_priya",
+          "amount": {
+            "amountMinor": 7200,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_sam",
+          "amount": {
+            "amountMinor": 7200,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_bcn_0049"
+    },
+    {
+      "expenseId": "exp_bcn_003",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "description": "Sagrada Família tickets",
+      "category": "tickets",
+      "amount": {
+        "amountMinor": 15600,
+        "currency": "EUR"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_maya",
+          "amount": {
+            "amountMinor": 15600,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "equal",
+        "participants": [
+          "mem_dean",
+          "mem_henry",
+          "mem_maya",
+          "mem_jordan",
+          "mem_priya",
+          "mem_sam"
+        ]
+      },
+      "source": "chat",
+      "sourceRef": {
+        "kind": "message",
+        "id": "msg_bcn_0054"
+      },
+      "activityId": "act_bcn_sagrada",
+      "occurredAt": "2026-03-10T12:07:00-04:00",
+      "createdAt": "2026-03-10T12:07:00-04:00",
+      "createdBy": "mem_maya",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_dean",
+          "amount": {
+            "amountMinor": 2600,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_henry",
+          "amount": {
+            "amountMinor": 2600,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_maya",
+          "amount": {
+            "amountMinor": 2600,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_jordan",
+          "amount": {
+            "amountMinor": 2600,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_priya",
+          "amount": {
+            "amountMinor": 2600,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_sam",
+          "amount": {
+            "amountMinor": 2600,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_bcn_0054"
+    },
+    {
+      "expenseId": "exp_bcn_004",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "description": "Park Güell tickets",
+      "category": "tickets",
+      "amount": {
+        "amountMinor": 10800,
+        "currency": "EUR"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_jordan",
+          "amount": {
+            "amountMinor": 10800,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "equal",
+        "participants": [
+          "mem_dean",
+          "mem_henry",
+          "mem_maya",
+          "mem_jordan",
+          "mem_priya",
+          "mem_sam"
+        ]
+      },
+      "source": "chat",
+      "sourceRef": {
+        "kind": "message",
+        "id": "msg_bcn_0058"
+      },
+      "activityId": "act_bcn_parkguell",
+      "occurredAt": "2026-03-10T12:31:00-04:00",
+      "createdAt": "2026-03-10T12:31:00-04:00",
+      "createdBy": "mem_jordan",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_dean",
+          "amount": {
+            "amountMinor": 1800,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_henry",
+          "amount": {
+            "amountMinor": 1800,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_maya",
+          "amount": {
+            "amountMinor": 1800,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_jordan",
+          "amount": {
+            "amountMinor": 1800,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_priya",
+          "amount": {
+            "amountMinor": 1800,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_sam",
+          "amount": {
+            "amountMinor": 1800,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_bcn_0058"
+    },
+    {
+      "expenseId": "exp_bcn_005",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "description": "eSIMs",
+      "category": "other",
+      "amount": {
+        "amountMinor": 3294,
+        "currency": "EUR"
+      },
+      "original": {
+        "amount": {
+          "amountMinor": 3600,
+          "currency": "USD"
+        },
+        "rate": "1.0928",
+        "rateDate": "2026-03-10"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_priya",
+          "amount": {
+            "amountMinor": 3294,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "equal",
+        "participants": [
+          "mem_priya",
+          "mem_jordan",
+          "mem_sam"
+        ]
+      },
+      "source": "chat",
+      "sourceRef": {
+        "kind": "message",
+        "id": "msg_bcn_0063"
+      },
+      "occurredAt": "2026-03-10T12:50:00-04:00",
+      "createdAt": "2026-03-10T12:50:00-04:00",
+      "createdBy": "mem_priya",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_jordan",
+          "amount": {
+            "amountMinor": 1098,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_priya",
+          "amount": {
+            "amountMinor": 1098,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_sam",
+          "amount": {
+            "amountMinor": 1098,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_bcn_0063"
+    },
+    {
+      "expenseId": "exp_bcn_006",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "description": "airport taxi",
+      "category": "transport",
+      "amount": {
+        "amountMinor": 3200,
+        "currency": "EUR"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_dean",
+          "amount": {
+            "amountMinor": 3200,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "equal",
+        "participants": [
+          "mem_dean",
+          "mem_maya",
+          "mem_sam"
+        ]
+      },
+      "source": "chat",
+      "sourceRef": {
+        "kind": "message",
+        "id": "msg_bcn_0069"
+      },
+      "occurredAt": "2026-03-12T11:02:00+01:00",
+      "createdAt": "2026-03-12T11:02:00+01:00",
+      "createdBy": "mem_dean",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_dean",
+          "amount": {
+            "amountMinor": 1067,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_maya",
+          "amount": {
+            "amountMinor": 1067,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_sam",
+          "amount": {
+            "amountMinor": 1066,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_bcn_0069"
+    },
+    {
+      "expenseId": "exp_bcn_007",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "description": "groceries for the apartment",
+      "category": "groceries",
+      "amount": {
+        "amountMinor": 4740,
+        "currency": "EUR"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_priya",
+          "amount": {
+            "amountMinor": 4740,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "equal",
+        "participants": [
+          "mem_dean",
+          "mem_henry",
+          "mem_maya",
+          "mem_jordan",
+          "mem_priya",
+          "mem_sam"
+        ]
+      },
+      "source": "chat",
+      "sourceRef": {
+        "kind": "message",
+        "id": "msg_bcn_0076"
+      },
+      "occurredAt": "2026-03-12T17:45:00+01:00",
+      "createdAt": "2026-03-12T17:45:00+01:00",
+      "createdBy": "mem_priya",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_dean",
+          "amount": {
+            "amountMinor": 790,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_henry",
+          "amount": {
+            "amountMinor": 790,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_maya",
+          "amount": {
+            "amountMinor": 790,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_jordan",
+          "amount": {
+            "amountMinor": 790,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_priya",
+          "amount": {
+            "amountMinor": 790,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_sam",
+          "amount": {
+            "amountMinor": 790,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_bcn_0076"
+    },
+    {
+      "expenseId": "exp_bcn_008",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "description": "welcome dinner",
+      "category": "food",
+      "amount": {
+        "amountMinor": 12600,
+        "currency": "EUR"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_jordan",
+          "amount": {
+            "amountMinor": 12600,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "equal",
+        "participants": [
+          "mem_dean",
+          "mem_henry",
+          "mem_maya",
+          "mem_jordan",
+          "mem_priya",
+          "mem_sam"
+        ]
+      },
+      "source": "chat",
+      "sourceRef": {
+        "kind": "message",
+        "id": "msg_bcn_0083"
+      },
+      "activityId": "act_bcn_dinner_d1",
+      "occurredAt": "2026-03-12T23:50:00+01:00",
+      "createdAt": "2026-03-12T23:50:00+01:00",
+      "createdBy": "mem_jordan",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_dean",
+          "amount": {
+            "amountMinor": 2100,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_henry",
+          "amount": {
+            "amountMinor": 2100,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_maya",
+          "amount": {
+            "amountMinor": 2100,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_jordan",
+          "amount": {
+            "amountMinor": 2100,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_priya",
+          "amount": {
+            "amountMinor": 2100,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_sam",
+          "amount": {
+            "amountMinor": 2100,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_bcn_0083"
+    },
+    {
+      "expenseId": "exp_bcn_009",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "description": "cava",
+      "category": "drinks",
+      "amount": {
+        "amountMinor": 3000,
+        "currency": "EUR"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_maya",
+          "amount": {
+            "amountMinor": 3000,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "equal",
+        "participants": [
+          "mem_maya",
+          "mem_priya",
+          "mem_jordan"
+        ]
+      },
+      "source": "chat",
+      "sourceRef": {
+        "kind": "message",
+        "id": "msg_bcn_0089"
+      },
+      "occurredAt": "2026-03-13T14:01:00+01:00",
+      "createdAt": "2026-03-13T14:01:00+01:00",
+      "createdBy": "mem_maya",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_maya",
+          "amount": {
+            "amountMinor": 1000,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_jordan",
+          "amount": {
+            "amountMinor": 1000,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_priya",
+          "amount": {
+            "amountMinor": 1000,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_bcn_0089"
+    },
+    {
+      "expenseId": "exp_bcn_010",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "description": "dinner at Taverna del Gat Blau",
+      "category": "food",
+      "amount": {
+        "amountMinor": 18400,
+        "currency": "EUR"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_jordan",
+          "amount": {
+            "amountMinor": 18400,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "itemized",
+        "participants": [
+          "mem_dean",
+          "mem_henry",
+          "mem_maya",
+          "mem_jordan",
+          "mem_priya",
+          "mem_sam"
+        ],
+        "lineItems": [
+          {
+            "lineId": "gb1",
+            "label": "pa amb tomàquet x3",
+            "amount": {
+              "amountMinor": 1500,
+              "currency": "EUR"
+            },
+            "claimedBy": [],
+            "kind": "item"
+          },
+          {
+            "lineId": "gb2",
+            "label": "patatas bravas x2",
+            "amount": {
+              "amountMinor": 1380,
+              "currency": "EUR"
+            },
+            "claimedBy": [],
+            "kind": "item"
+          },
+          {
+            "lineId": "gb3",
+            "label": "croquetes de pernil x2",
+            "amount": {
+              "amountMinor": 1800,
+              "currency": "EUR"
+            },
+            "claimedBy": [],
+            "kind": "item"
+          },
+          {
+            "lineId": "gb4",
+            "label": "pop a la gallega",
+            "amount": {
+              "amountMinor": 2160,
+              "currency": "EUR"
+            },
+            "claimedBy": [],
+            "kind": "item"
+          },
+          {
+            "lineId": "gb5",
+            "label": "escalivada",
+            "amount": {
+              "amountMinor": 1200,
+              "currency": "EUR"
+            },
+            "claimedBy": [],
+            "kind": "item"
+          },
+          {
+            "lineId": "gb6",
+            "label": "arròs negre (2 pax)",
+            "amount": {
+              "amountMinor": 2400,
+              "currency": "EUR"
+            },
+            "claimedBy": [],
+            "kind": "item"
+          },
+          {
+            "lineId": "gb7",
+            "label": "crema catalana x3",
+            "amount": {
+              "amountMinor": 1500,
+              "currency": "EUR"
+            },
+            "claimedBy": [],
+            "kind": "item"
+          },
+          {
+            "lineId": "gb8",
+            "label": "bottle of Priorat red",
+            "amount": {
+              "amountMinor": 3200,
+              "currency": "EUR"
+            },
+            "claimedBy": [
+              "mem_dean",
+              "mem_henry",
+              "mem_maya",
+              "mem_jordan",
+              "mem_sam"
+            ],
+            "kind": "item"
+          },
+          {
+            "lineId": "gb9",
+            "label": "caña x5",
+            "amount": {
+              "amountMinor": 1500,
+              "currency": "EUR"
+            },
+            "claimedBy": [
+              "mem_dean",
+              "mem_henry",
+              "mem_maya",
+              "mem_jordan",
+              "mem_sam"
+            ],
+            "kind": "item"
+          },
+          {
+            "lineId": "gb10",
+            "label": "vermut x2",
+            "amount": {
+              "amountMinor": 1100,
+              "currency": "EUR"
+            },
+            "claimedBy": [
+              "mem_dean",
+              "mem_henry",
+              "mem_maya",
+              "mem_jordan",
+              "mem_sam"
+            ],
+            "kind": "item"
+          },
+          {
+            "lineId": "gb11",
+            "label": "water 1L x2",
+            "amount": {
+              "amountMinor": 660,
+              "currency": "EUR"
+            },
+            "claimedBy": [],
+            "kind": "item"
+          }
+        ]
+      },
+      "source": "receipt_photo",
+      "sourceRef": {
+        "kind": "message",
+        "id": "msg_bcn_0093"
+      },
+      "activityId": "act_bcn_dinner_d2",
+      "occurredAt": "2026-03-13T23:05:00+01:00",
+      "createdAt": "2026-03-13T23:05:00+01:00",
+      "createdBy": "mem_jordan",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_dean",
+          "amount": {
+            "amountMinor": 3260,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_henry",
+          "amount": {
+            "amountMinor": 3260,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_maya",
+          "amount": {
+            "amountMinor": 3260,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_jordan",
+          "amount": {
+            "amountMinor": 3260,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_priya",
+          "amount": {
+            "amountMinor": 2100,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_sam",
+          "amount": {
+            "amountMinor": 3260,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_bcn_0093"
+    },
+    {
+      "expenseId": "exp_bcn_011",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "description": "uber El Born → Eixample",
+      "category": "transport",
+      "amount": {
+        "amountMinor": 1860,
+        "currency": "EUR"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_priya",
+          "amount": {
+            "amountMinor": 1860,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "equal",
+        "participants": [
+          "mem_priya",
+          "mem_dean",
+          "mem_jordan",
+          "mem_sam"
+        ]
+      },
+      "source": "email_receipt",
+      "sourceRef": {
+        "kind": "private_item",
+        "id": "priv_bcn_011"
+      },
+      "occurredAt": "2026-03-14T01:52:00+01:00",
+      "createdAt": "2026-03-14T09:12:00+01:00",
+      "createdBy": "mem_priya",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_dean",
+          "amount": {
+            "amountMinor": 465,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_jordan",
+          "amount": {
+            "amountMinor": 465,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_priya",
+          "amount": {
+            "amountMinor": 465,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_sam",
+          "amount": {
+            "amountMinor": 465,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_bcn_d_0009"
+    },
+    {
+      "expenseId": "exp_bcn_012",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "description": "dinner",
+      "category": "food",
+      "amount": {
+        "amountMinor": 8400,
+        "currency": "EUR"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_dean",
+          "amount": {
+            "amountMinor": 8400,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "exclude",
+        "excluded": [
+          "mem_henry"
+        ]
+      },
+      "source": "chat",
+      "sourceRef": {
+        "kind": "message",
+        "id": "msg_bcn_0129"
+      },
+      "activityId": "act_bcn_dinner_d3",
+      "occurredAt": "2026-03-14T21:35:00+01:00",
+      "createdAt": "2026-03-14T21:35:00+01:00",
+      "createdBy": "mem_dean",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_dean",
+          "amount": {
+            "amountMinor": 1680,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_maya",
+          "amount": {
+            "amountMinor": 1680,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_jordan",
+          "amount": {
+            "amountMinor": 1680,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_priya",
+          "amount": {
+            "amountMinor": 1680,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_sam",
+          "amount": {
+            "amountMinor": 1680,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_bcn_0129"
+    },
+    {
+      "expenseId": "exp_bcn_013",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "description": "Razzmatazz tickets",
+      "category": "tickets",
+      "amount": {
+        "amountMinor": 9000,
+        "currency": "EUR"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_dean",
+          "amount": {
+            "amountMinor": 9000,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "equal",
+        "participants": [
+          "mem_dean",
+          "mem_maya",
+          "mem_jordan",
+          "mem_priya",
+          "mem_sam"
+        ]
+      },
+      "source": "booking",
+      "sourceRef": {
+        "kind": "booking",
+        "id": "bk_bcn_013"
+      },
+      "activityId": "act_bcn_razzmatazz",
+      "occurredAt": "2026-03-14T21:41:00+01:00",
+      "createdAt": "2026-03-14T21:41:00+01:00",
+      "createdBy": "mem_dean",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_dean",
+          "amount": {
+            "amountMinor": 1800,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_maya",
+          "amount": {
+            "amountMinor": 1800,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_jordan",
+          "amount": {
+            "amountMinor": 1800,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_priya",
+          "amount": {
+            "amountMinor": 1800,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_sam",
+          "amount": {
+            "amountMinor": 1800,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_bcn_0132"
+    },
+    {
+      "expenseId": "exp_bcn_014",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "description": "waters at Razzmatazz",
+      "category": "drinks",
+      "amount": {
+        "amountMinor": 2800,
+        "currency": "EUR"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_sam",
+          "amount": {
+            "amountMinor": 2800,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "equal",
+        "participants": [
+          "mem_sam",
+          "mem_maya"
+        ]
+      },
+      "source": "chat",
+      "sourceRef": {
+        "kind": "message",
+        "id": "msg_bcn_0139"
+      },
+      "activityId": "act_bcn_razzmatazz",
+      "occurredAt": "2026-03-15T01:30:00+01:00",
+      "createdAt": "2026-03-15T01:30:00+01:00",
+      "createdBy": "mem_sam",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_maya",
+          "amount": {
+            "amountMinor": 1400,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_sam",
+          "amount": {
+            "amountMinor": 1400,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_bcn_0139"
+    },
+    {
+      "expenseId": "exp_bcn_015",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "description": "late-night kebabs",
+      "category": "food",
+      "amount": {
+        "amountMinor": 6200,
+        "currency": "EUR"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_jordan",
+          "amount": {
+            "amountMinor": 6200,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "equal",
+        "participants": [
+          "mem_dean",
+          "mem_maya",
+          "mem_jordan",
+          "mem_priya",
+          "mem_sam"
+        ]
+      },
+      "source": "chat",
+      "sourceRef": {
+        "kind": "message",
+        "id": "msg_bcn_0140"
+      },
+      "occurredAt": "2026-03-15T02:07:00+01:00",
+      "createdAt": "2026-03-15T02:07:00+01:00",
+      "createdBy": "mem_jordan",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_dean",
+          "amount": {
+            "amountMinor": 1240,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_maya",
+          "amount": {
+            "amountMinor": 1240,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_jordan",
+          "amount": {
+            "amountMinor": 1240,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_priya",
+          "amount": {
+            "amountMinor": 1240,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_sam",
+          "amount": {
+            "amountMinor": 1240,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_bcn_0140"
+    },
+    {
+      "expenseId": "exp_bcn_016",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "description": "uber back from Razzmatazz",
+      "category": "transport",
+      "amount": {
+        "amountMinor": 2340,
+        "currency": "EUR"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_sam",
+          "amount": {
+            "amountMinor": 2340,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "equal",
+        "participants": [
+          "mem_dean",
+          "mem_maya",
+          "mem_jordan",
+          "mem_priya",
+          "mem_sam"
+        ]
+      },
+      "source": "card_transaction",
+      "sourceRef": {
+        "kind": "private_item",
+        "id": "priv_bcn_016"
+      },
+      "occurredAt": "2026-03-15T02:14:00+01:00",
+      "createdAt": "2026-03-15T09:20:00+01:00",
+      "createdBy": "mem_sam",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_dean",
+          "amount": {
+            "amountMinor": 468,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_maya",
+          "amount": {
+            "amountMinor": 468,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_jordan",
+          "amount": {
+            "amountMinor": 468,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_priya",
+          "amount": {
+            "amountMinor": 468,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_sam",
+          "amount": {
+            "amountMinor": 468,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_bcn_d_0010"
+    },
+    {
+      "expenseId": "exp_bcn_017",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "description": "coffees",
+      "category": "food",
+      "amount": {
+        "amountMinor": 1320,
+        "currency": "EUR"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_henry",
+          "amount": {
+            "amountMinor": 1320,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "equal",
+        "participants": [
+          "mem_dean",
+          "mem_henry",
+          "mem_maya",
+          "mem_jordan",
+          "mem_priya",
+          "mem_sam"
+        ]
+      },
+      "source": "chat",
+      "sourceRef": {
+        "kind": "message",
+        "id": "msg_bcn_0154"
+      },
+      "occurredAt": "2026-03-15T13:45:00+01:00",
+      "createdAt": "2026-03-15T13:45:00+01:00",
+      "createdBy": "mem_henry",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_dean",
+          "amount": {
+            "amountMinor": 220,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_henry",
+          "amount": {
+            "amountMinor": 220,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_maya",
+          "amount": {
+            "amountMinor": 220,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_jordan",
+          "amount": {
+            "amountMinor": 220,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_priya",
+          "amount": {
+            "amountMinor": 220,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_sam",
+          "amount": {
+            "amountMinor": 220,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_bcn_0154"
+    },
+    {
+      "expenseId": "exp_bcn_018",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "description": "lunch at Xiringuito Mar Blava",
+      "category": "food",
+      "amount": {
+        "amountMinor": 10890,
+        "currency": "EUR"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_maya",
+          "amount": {
+            "amountMinor": 10890,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "itemized",
+        "participants": [
+          "mem_dean",
+          "mem_maya",
+          "mem_priya"
+        ],
+        "lineItems": [
+          {
+            "lineId": "lu1",
+            "label": "paella marinera (2 pax)",
+            "amount": {
+              "amountMinor": 4400,
+              "currency": "EUR"
+            },
+            "claimedBy": [
+              "mem_dean",
+              "mem_maya"
+            ],
+            "kind": "item"
+          },
+          {
+            "lineId": "lu2",
+            "label": "burrata",
+            "amount": {
+              "amountMinor": 1600,
+              "currency": "EUR"
+            },
+            "claimedBy": [
+              "mem_priya"
+            ],
+            "kind": "item"
+          },
+          {
+            "lineId": "lu3",
+            "label": "bottle of cava",
+            "amount": {
+              "amountMinor": 3000,
+              "currency": "EUR"
+            },
+            "claimedBy": [
+              "mem_dean",
+              "mem_maya",
+              "mem_priya"
+            ],
+            "kind": "item"
+          },
+          {
+            "lineId": "lu4",
+            "label": "service 10%",
+            "amount": {
+              "amountMinor": 900,
+              "currency": "EUR"
+            },
+            "claimedBy": [],
+            "kind": "service"
+          },
+          {
+            "lineId": "lu5",
+            "label": "IVA 10%",
+            "amount": {
+              "amountMinor": 990,
+              "currency": "EUR"
+            },
+            "claimedBy": [],
+            "kind": "tax"
+          }
+        ]
+      },
+      "source": "receipt_photo",
+      "sourceRef": {
+        "kind": "message",
+        "id": "msg_bcn_0161"
+      },
+      "activityId": "act_bcn_lunch_d5",
+      "occurredAt": "2026-03-16T13:52:00+01:00",
+      "createdAt": "2026-03-16T13:52:00+01:00",
+      "createdBy": "mem_maya",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_dean",
+          "amount": {
+            "amountMinor": 3872,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_maya",
+          "amount": {
+            "amountMinor": 3872,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_priya",
+          "amount": {
+            "amountMinor": 3146,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_bcn_0161"
+    },
+    {
+      "expenseId": "exp_bcn_019",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "description": "Apolo tickets",
+      "category": "tickets",
+      "amount": {
+        "amountMinor": 9000,
+        "currency": "EUR"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_sam",
+          "amount": {
+            "amountMinor": 9000,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "equal",
+        "participants": [
+          "mem_dean",
+          "mem_henry",
+          "mem_maya",
+          "mem_jordan",
+          "mem_priya",
+          "mem_sam"
+        ]
+      },
+      "source": "chat",
+      "sourceRef": {
+        "kind": "message",
+        "id": "msg_bcn_0166"
+      },
+      "activityId": "act_bcn_club_d5",
+      "occurredAt": "2026-03-16T17:05:00+01:00",
+      "createdAt": "2026-03-16T17:05:00+01:00",
+      "createdBy": "mem_sam",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_dean",
+          "amount": {
+            "amountMinor": 1500,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_henry",
+          "amount": {
+            "amountMinor": 1500,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_maya",
+          "amount": {
+            "amountMinor": 1500,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_jordan",
+          "amount": {
+            "amountMinor": 1500,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_priya",
+          "amount": {
+            "amountMinor": 1500,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_sam",
+          "amount": {
+            "amountMinor": 1500,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_bcn_0166"
+    },
+    {
+      "expenseId": "exp_bcn_020",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "description": "groceries for the apartment",
+      "category": "groceries",
+      "amount": {
+        "amountMinor": 4720,
+        "currency": "EUR"
+      },
+      "paidBy": [
+        {
+          "memberId": "mem_dean",
+          "amount": {
+            "amountMinor": 4720,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "split": {
+        "method": "equal",
+        "participants": [
+          "mem_dean",
+          "mem_henry",
+          "mem_maya",
+          "mem_jordan",
+          "mem_priya",
+          "mem_sam"
+        ]
+      },
+      "source": "card_transaction",
+      "sourceRef": {
+        "kind": "private_item",
+        "id": "priv_bcn_020"
+      },
+      "occurredAt": "2026-03-13T11:40:00+01:00",
+      "createdAt": "2026-03-17T08:40:00+01:00",
+      "createdBy": "mem_dean",
+      "status": "logged",
+      "expectedShares": [
+        {
+          "memberId": "mem_dean",
+          "amount": {
+            "amountMinor": 787,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_henry",
+          "amount": {
+            "amountMinor": 787,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_maya",
+          "amount": {
+            "amountMinor": 787,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_jordan",
+          "amount": {
+            "amountMinor": 787,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_priya",
+          "amount": {
+            "amountMinor": 786,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_sam",
+          "amount": {
+            "amountMinor": 786,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "fromChatLine": "msg_bcn_d_0012"
+    }
+  ],
+  "checkpoints": {
+    "after_dinner_d1": {
+      "before": "2026-03-13T13:20:00+01:00",
+      "expenseIds": [
+        "exp_bcn_001",
+        "exp_bcn_002",
+        "exp_bcn_003",
+        "exp_bcn_004",
+        "exp_bcn_005",
+        "exp_bcn_006",
+        "exp_bcn_007",
+        "exp_bcn_008"
+      ],
+      "totalSpent": {
+        "amountMinor": 231434,
+        "currency": "EUR"
+      },
+      "balances": [
+        {
+          "memberId": "mem_dean",
+          "net": {
+            "amountMinor": 145843,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_henry",
+          "net": {
+            "amountMinor": -37490,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_maya",
+          "net": {
+            "amountMinor": -22957,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_jordan",
+          "net": {
+            "amountMinor": -15188,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_priya",
+          "net": {
+            "amountMinor": -30554,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_sam",
+          "net": {
+            "amountMinor": -39654,
+            "currency": "EUR"
+          }
+        }
+      ]
+    },
+    "morning_day4": {
+      "before": "2026-03-15T12:00:00+01:00",
+      "expenseIds": [
+        "exp_bcn_001",
+        "exp_bcn_002",
+        "exp_bcn_003",
+        "exp_bcn_004",
+        "exp_bcn_005",
+        "exp_bcn_006",
+        "exp_bcn_007",
+        "exp_bcn_008",
+        "exp_bcn_009",
+        "exp_bcn_010",
+        "exp_bcn_011",
+        "exp_bcn_012",
+        "exp_bcn_013",
+        "exp_bcn_014",
+        "exp_bcn_015",
+        "exp_bcn_016"
+      ],
+      "totalSpent": {
+        "amountMinor": 283434,
+        "currency": "EUR"
+      },
+      "balances": [
+        {
+          "memberId": "mem_dean",
+          "net": {
+            "amountMinor": 154330,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_henry",
+          "net": {
+            "amountMinor": -40750,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_maya",
+          "net": {
+            "amountMinor": -30805,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_jordan",
+          "net": {
+            "amountMinor": -501,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_priya",
+          "net": {
+            "amountMinor": -37447,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_sam",
+          "net": {
+            "amountMinor": -44827,
+            "currency": "EUR"
+          }
+        }
+      ]
+    },
+    "before_settle": {
+      "before": "2026-03-17T09:00:00+01:00",
+      "expenseIds": [
+        "exp_bcn_001",
+        "exp_bcn_002",
+        "exp_bcn_003",
+        "exp_bcn_004",
+        "exp_bcn_005",
+        "exp_bcn_006",
+        "exp_bcn_007",
+        "exp_bcn_008",
+        "exp_bcn_009",
+        "exp_bcn_010",
+        "exp_bcn_011",
+        "exp_bcn_012",
+        "exp_bcn_013",
+        "exp_bcn_014",
+        "exp_bcn_015",
+        "exp_bcn_016",
+        "exp_bcn_017",
+        "exp_bcn_018",
+        "exp_bcn_019",
+        "exp_bcn_020"
+      ],
+      "totalSpent": {
+        "amountMinor": 309364,
+        "currency": "EUR"
+      },
+      "balances": [
+        {
+          "memberId": "mem_dean",
+          "net": {
+            "amountMinor": 152671,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_henry",
+          "net": {
+            "amountMinor": -41937,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_maya",
+          "net": {
+            "amountMinor": -26294,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_jordan",
+          "net": {
+            "amountMinor": -3008,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_priya",
+          "net": {
+            "amountMinor": -43099,
+            "currency": "EUR"
+          }
+        },
+        {
+          "memberId": "mem_sam",
+          "net": {
+            "amountMinor": -38333,
+            "currency": "EUR"
+          }
+        }
+      ]
+    }
+  },
+  "final": {
+    "totalSpent": {
+      "amountMinor": 309364,
+      "currency": "EUR"
+    },
+    "balances": [
+      {
+        "memberId": "mem_dean",
+        "net": {
+          "amountMinor": 152671,
+          "currency": "EUR"
+        },
+        "paid": {
+          "amountMinor": 206520,
+          "currency": "EUR"
+        },
+        "share": {
+          "amountMinor": 53849,
+          "currency": "EUR"
+        }
+      },
+      {
+        "memberId": "mem_henry",
+        "net": {
+          "amountMinor": -41937,
+          "currency": "EUR"
+        },
+        "paid": {
+          "amountMinor": 1320,
+          "currency": "EUR"
+        },
+        "share": {
+          "amountMinor": 43257,
+          "currency": "EUR"
+        }
+      },
+      {
+        "memberId": "mem_maya",
+        "net": {
+          "amountMinor": -26294,
+          "currency": "EUR"
+        },
+        "paid": {
+          "amountMinor": 29490,
+          "currency": "EUR"
+        },
+        "share": {
+          "amountMinor": 55784,
+          "currency": "EUR"
+        }
+      },
+      {
+        "memberId": "mem_jordan",
+        "net": {
+          "amountMinor": -3008,
+          "currency": "EUR"
+        },
+        "paid": {
+          "amountMinor": 48000,
+          "currency": "EUR"
+        },
+        "share": {
+          "amountMinor": 51008,
+          "currency": "EUR"
+        }
+      },
+      {
+        "memberId": "mem_priya",
+        "net": {
+          "amountMinor": -43099,
+          "currency": "EUR"
+        },
+        "paid": {
+          "amountMinor": 9894,
+          "currency": "EUR"
+        },
+        "share": {
+          "amountMinor": 52993,
+          "currency": "EUR"
+        }
+      },
+      {
+        "memberId": "mem_sam",
+        "net": {
+          "amountMinor": -38333,
+          "currency": "EUR"
+        },
+        "paid": {
+          "amountMinor": 14140,
+          "currency": "EUR"
+        },
+        "share": {
+          "amountMinor": 52473,
+          "currency": "EUR"
+        }
+      }
+    ],
+    "transfers": [
+      {
+        "from": "mem_priya",
+        "to": "mem_dean",
+        "amount": {
+          "amountMinor": 43099,
+          "currency": "EUR"
+        }
+      },
+      {
+        "from": "mem_henry",
+        "to": "mem_dean",
+        "amount": {
+          "amountMinor": 41937,
+          "currency": "EUR"
+        }
+      },
+      {
+        "from": "mem_sam",
+        "to": "mem_dean",
+        "amount": {
+          "amountMinor": 38333,
+          "currency": "EUR"
+        }
+      },
+      {
+        "from": "mem_maya",
+        "to": "mem_dean",
+        "amount": {
+          "amountMinor": 26294,
+          "currency": "EUR"
+        }
+      },
+      {
+        "from": "mem_jordan",
+        "to": "mem_dean",
+        "amount": {
+          "amountMinor": 3008,
+          "currency": "EUR"
+        }
+      }
+    ],
+    "maxTransfers": 5
+  },
+  "wrappedFacts": {
+    "totalSpent": {
+      "amountMinor": 309364,
+      "currency": "EUR"
+    },
+    "people": 6,
+    "perPersonAverage": {
+      "amountMinor": 51561,
+      "currency": "EUR"
+    },
+    "byCategory": [
+      {
+        "category": "lodging",
+        "amount": {
+          "amountMinor": 138000,
+          "currency": "EUR"
+        }
+      },
+      {
+        "category": "tickets",
+        "amount": {
+          "amountMinor": 87600,
+          "currency": "EUR"
+        }
+      },
+      {
+        "category": "food",
+        "amount": {
+          "amountMinor": 57810,
+          "currency": "EUR"
+        }
+      },
+      {
+        "category": "groceries",
+        "amount": {
+          "amountMinor": 9460,
+          "currency": "EUR"
+        }
+      },
+      {
+        "category": "transport",
+        "amount": {
+          "amountMinor": 7400,
+          "currency": "EUR"
+        }
+      },
+      {
+        "category": "drinks",
+        "amount": {
+          "amountMinor": 5800,
+          "currency": "EUR"
+        }
+      },
+      {
+        "category": "other",
+        "amount": {
+          "amountMinor": 3294,
+          "currency": "EUR"
+        }
+      }
+    ],
+    "expenseCount": 20,
+    "bookingCount": 3,
+    "biggestExpense": {
+      "expenseId": "exp_bcn_001",
+      "description": "Eixample 3br apartment",
+      "amount": {
+        "amountMinor": 138000,
+        "currency": "EUR"
+      }
+    },
+    "mostFronted": {
+      "memberId": "mem_dean",
+      "paid": {
+        "amountMinor": 206520,
+        "currency": "EUR"
+      },
+      "basis": "ledger"
+    },
+    "latestNightExpense": {
+      "expenseId": "exp_bcn_015",
+      "description": "late-night kebabs",
+      "occurredAt": "2026-03-15T02:07:00+01:00"
+    }
+  }
+}

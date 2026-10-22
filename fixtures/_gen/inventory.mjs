@@ -1,9 +1,8 @@
 // Mock provider inventory. Shapes follow packages/adapters/src/interfaces/{tickets,lodging,flights,context}.ts.
 // Mock-only behaviour hints live in `mockHints` keyed by id so the arrays stay exact interface types.
-import { addMinutes, assert, createRng, eur, isoAt, isoDuration, local, minutesBetween, usd } from './lib.mjs';
+import { assert, createRng, eur, usd } from './lib.mjs';
 import { BCN, LIS, TCI } from './trips.mjs';
 
-const MAD = '+01:00';
 const LISO = '+01:00';
 const TCO = '-04:00';
 
@@ -48,102 +47,53 @@ function offer(o, cur) {
   };
 }
 
-// ------------------------------------------------------------------ tickets: Barcelona
+// ------------------------------------------------------------------ tickets: Barcelona (labels only)
+//
+// fixtures/tickets/barcelona.json is owned by the mock tickets adapter (T-008-a) and preserved as-is.
+// These labels are computed FROM that file, so every id and price below exists there.
 
-export function barcelonaTickets() {
-  const razz = place('Razzmatazz', 'Carrer dels Almogàvers 122, 08018 Barcelona', 'Barcelona', 'ES', 41.3976, 2.1911, BCN.tz);
-  const apolo = place('Sala Apolo', 'Carrer Nou de la Rambla 113, 08004 Barcelona', 'Barcelona', 'ES', 41.3743, 2.1696, BCN.tz);
-  const mirador = place('Sala Mirador (fictional)', 'Passeig Marítim 99, Barcelona', 'Barcelona', 'ES', 41.3851, 2.1990, BCN.tz);
-  const campNou = place('Spotify Camp Nou', "Carrer d'Arístides Maillol 12, 08028 Barcelona", 'Barcelona', 'ES', 41.3809, 2.1228, BCN.tz);
-  const rcde = place('RCDE Stadium', 'Av. del Baix Llobregat 100, Cornellà de Llobregat', 'Cornellà de Llobregat', 'ES', 41.3479, 2.0756, BCN.tz);
-  const sagrada = place('Basílica de la Sagrada Família', 'Carrer de Mallorca 401, 08013 Barcelona', 'Barcelona', 'ES', 41.4036, 2.1744, BCN.tz);
-  const guell = place('Park Güell', "Carrer d'Olot, 08024 Barcelona", 'Barcelona', 'ES', 41.4145, 2.1527, BCN.tz);
-  const flamenco = place('Tablao Lluna Plena (fictional)', 'Carrer Ample 20, Barcelona', 'Barcelona', 'ES', 41.3808, 2.1797, BCN.tz);
-  const cable = place('Telefèric de Montjuïc', 'Av. Miramar, Barcelona', 'Barcelona', 'ES', 41.3717, 2.1652, BCN.tz);
-
-  const club = ['nightlife', 'club', '18+', 'alcohol', 'late_night'];
-  const events = [
-    event({ id: 'evt_bcn_razz_0313', name: 'Razzmatazz: Friday', category: 'nightlife', venue: razz, startsAt: `2026-03-13T23:30:00${MAD}`, doorsAt: `2026-03-13T23:30:00${MAD}`, endsAt: `2026-03-14T05:30:00${MAD}`, minimumAge: 18, flags: club }),
-    event({ id: 'evt_bcn_razz_0314', name: 'Razzmatazz: Saturday', category: 'nightlife', venue: razz, startsAt: `2026-03-14T23:30:00${MAD}`, doorsAt: `2026-03-14T23:30:00${MAD}`, endsAt: `2026-03-15T05:30:00${MAD}`, minimumAge: 18, flags: club }),
-    event({ id: 'evt_bcn_razz_0316', name: 'Razzmatazz: Monday', category: 'nightlife', venue: razz, startsAt: `2026-03-16T23:59:00${MAD}`, endsAt: `2026-03-17T05:00:00${MAD}`, minimumAge: 18, flags: club }),
-    event({ id: 'evt_bcn_apolo_0316', name: 'Apolo: Monday night', category: 'nightlife', venue: apolo, startsAt: `2026-03-16T23:59:00${MAD}`, doorsAt: `2026-03-17T00:30:00${MAD}`, endsAt: `2026-03-17T05:00:00${MAD}`, minimumAge: 18, flags: club }),
-    event({ id: 'evt_bcn_mirador_vip_0315', name: 'Sala Mirador VIP table (fictional)', category: 'nightlife', venue: mirador, startsAt: `2026-03-15T23:59:00${MAD}`, minimumAge: 21, flags: [...club, '21+'] }),
-    event({ id: 'evt_bcn_barca_sevilla', name: 'FC Barcelona vs Sevilla FC', category: 'sports', venue: campNou, startsAt: `2026-03-15T21:00:00${MAD}`, endsAt: `2026-03-15T23:00:00${MAD}`, flags: [] }),
-    event({ id: 'evt_bcn_espanyol_getafe', name: 'RCD Espanyol vs Getafe CF', category: 'sports', venue: rcde, startsAt: `2026-03-14T18:30:00${MAD}`, endsAt: `2026-03-14T20:30:00${MAD}`, flags: [] }),
-    event({ id: 'evt_bcn_sagrada_0314_1400', name: 'Sagrada Família timed entry 2:00pm', category: 'attraction', venue: sagrada, startsAt: `2026-03-14T14:00:00${MAD}`, flags: ['family'] }),
-    event({ id: 'evt_bcn_sagrada_0314_1500', name: 'Sagrada Família timed entry 3:00pm', category: 'attraction', venue: sagrada, startsAt: `2026-03-14T15:00:00${MAD}`, endsAt: `2026-03-14T16:30:00${MAD}`, flags: ['family'] }),
-    event({ id: 'evt_bcn_parkguell_0313_1000', name: 'Park Güell timed entry 10:00am', category: 'attraction', venue: guell, startsAt: `2026-03-13T10:00:00${MAD}`, flags: ['family'] }),
-    event({ id: 'evt_bcn_flamenco_0313', name: 'flamenco show + one drink', category: 'theatre', venue: flamenco, startsAt: `2026-03-13T19:00:00${MAD}`, endsAt: `2026-03-13T20:15:00${MAD}`, flags: ['alcohol'] }),
-    event({ id: 'evt_bcn_cablecar_0316', name: 'Montjuïc cable car', category: 'tour', venue: cable, startsAt: `2026-03-16T11:00:00${MAD}`, flags: ['family'] }),
-  ];
-  const offers = [
-    { id: 'off_bcn_razz_0313_ga', eventId: 'evt_bcn_razz_0313', tier: 'General admission', price: 1350, fees: 150, available: 220, refundableUntil: `2026-03-13T22:00:00${MAD}` },
-    { id: 'off_bcn_razz_0314_ga', eventId: 'evt_bcn_razz_0314', tier: 'General admission', price: 1650, fees: 150, available: 140, refundableUntil: `2026-03-14T22:00:00${MAD}` },
-    { id: 'off_bcn_razz_0314_fastline', eventId: 'evt_bcn_razz_0314', tier: 'Fast-line presale', price: 2500, fees: 200, available: 30 },
-    { id: 'off_bcn_razz_0316_ga', eventId: 'evt_bcn_razz_0316', tier: 'General admission', price: 1650, fees: 150, available: 0, refundableUntil: `2026-03-16T22:00:00${MAD}` },
-    { id: 'off_bcn_apolo_0316_ga', eventId: 'evt_bcn_apolo_0316', tier: 'General admission', price: 1380, fees: 120, available: 80 },
-    { id: 'off_bcn_mirador_vip_table', eventId: 'evt_bcn_mirador_vip_0315', tier: 'VIP table for 6 (minimum spend)', price: 600000, fees: 0, available: 2, maxPerOrder: 1, delivery: 'single_group_qr' },
-    { id: 'off_bcn_barca_upper_corner', eventId: 'evt_bcn_barca_sevilla', tier: 'Upper corner, 3rd tier', price: 6600, fees: 600, available: 12, refundableUntil: `2026-03-13T21:00:00${MAD}`, holderNames: true },
-    { id: 'off_bcn_barca_behind_goal', eventId: 'evt_bcn_barca_sevilla', tier: 'Gol Nord, behind the goal', price: 6200, fees: 600, available: 20, holderNames: true },
-    { id: 'off_bcn_barca_tribuna_vip', eventId: 'evt_bcn_barca_sevilla', tier: 'Tribuna VIP with lounge', price: 29500, fees: 1500, available: 8, refundableUntil: `2026-03-13T21:00:00${MAD}`, holderNames: true },
-    { id: 'off_bcn_espanyol_getafe', eventId: 'evt_bcn_espanyol_getafe', tier: 'Lateral', price: 5000, fees: 500, available: 60, refundableUntil: `2026-03-13T18:30:00${MAD}` },
-    { id: 'off_bcn_sagrada_1400', eventId: 'evt_bcn_sagrada_0314_1400', tier: 'Basic entry', price: 2600, available: 0, holderNames: true },
-    { id: 'off_bcn_sagrada_1500', eventId: 'evt_bcn_sagrada_0314_1500', tier: 'Basic entry + audio guide', price: 2600, available: 18, holderNames: true },
-    { id: 'off_bcn_sagrada_1500_towers', eventId: 'evt_bcn_sagrada_0314_1500', tier: 'Entry with towers', price: 3600, available: 4, holderNames: true },
-    { id: 'off_bcn_parkguell_1000', eventId: 'evt_bcn_parkguell_0313_1000', tier: 'General entry', price: 1800, available: 300, delivery: 'redirect', redirect: 'https://tickets.parkguell.example.test/buy?date=2026-03-13&time=10:00' },
-    { id: 'off_bcn_flamenco_0313', eventId: 'evt_bcn_flamenco_0313', tier: 'Show + one drink', price: 3800, fees: 200, available: 40, refundableUntil: `2026-03-12T20:00:00${MAD}` },
-    { id: 'off_bcn_cablecar_0316', eventId: 'evt_bcn_cablecar_0316', tier: 'Return ticket', price: 1650, available: 100, refundableUntil: `2026-03-16T09:00:00${MAD}` },
-  ].map((o) => offer(o, 'EUR'));
-
-  const mockHints = {
-    off_bcn_razz_0314_ga: { holdMinutes: 15, orderRefPrefix: 'RZ', note: 'flagship: 5 × €18 = €90; matches VOICE §4.1 A / §4.2 A' },
-    off_bcn_razz_0313_ga: { holdMinutes: 15, orderRefPrefix: 'RZ' },
-    off_bcn_razz_0316_ga: { holdMinutes: 15, expect: 'sold_out', alternatives: ['off_bcn_apolo_0316_ga'] },
-    off_bcn_apolo_0316_ga: { holdMinutes: 15, orderRefPrefix: 'AP' },
-    off_bcn_mirador_vip_table: { holdMinutes: 10, note: '€6,000 > hardMaxPerBookingMinor 500000: policy D7 over_hard_max; never one-tap buyable' },
-    off_bcn_barca_upper_corner: {
-      holdMinutes: 15,
-      orderRefPrefix: 'FCB',
-      seats: [
-        { gate: '14', section: '534', row: '8', seat: '11' },
-        { gate: '14', section: '534', row: '8', seat: '12' },
-        { gate: '14', section: '534', row: '8', seat: '13' },
-        { gate: '14', section: '534', row: '8', seat: '14' },
-        { gate: '14', section: '534', row: '8', seat: '15' },
-        { gate: '14', section: '534', row: '8', seat: '16' },
-      ],
-    },
-    off_bcn_sagrada_1400: { expect: 'sold_out', alternatives: ['off_bcn_sagrada_1500'] },
-    off_bcn_sagrada_1500: { holdMinutes: 20, orderRefPrefix: 'SF' },
-    off_bcn_sagrada_1500_towers: { note: 'only 4 left: getOffers(event, 6) must not return it' },
-    off_bcn_parkguell_1000: { expect: 'redirect_only', note: 'hold() returns not_supported; Trav posts the checkout link instead of buying' },
-    off_bcn_flamenco_0313: { holdMinutes: 15, priceChangeOnPurchase: { unitPrice: eur(4400) }, note: 'purchase returns price_changed with newAmount; Trav re-proposes' },
-    off_bcn_cablecar_0316: { providerUnavailable: true, note: 'every call returns provider_unavailable (retryable): VOICE §4.10 A, no money moved' },
+export function barcelonaTicketLabels(real) {
+  const offers = new Map();
+  for (const e of real.events) for (const o of e.offers) offers.set(o.offerId, { ...o, event: e });
+  const get = (id) => {
+    const o = offers.get(id);
+    assert(o, `tickets/barcelona.json has no offer ${id}`);
+    return o;
   };
-
+  const unit = (id) => get(id).unitPrice.amountMinor + get(id).unitFees.amountMinor;
+  const facts = (id, qty) => {
+    const o = get(id);
+    return {
+      offerId: id,
+      eventId: o.event.eventId,
+      eventStartsAt: o.event.startsAt,
+      perPerson: eur(unit(id)),
+      quantity: qty,
+      total: eur(unit(id) * qty),
+      available: o.available,
+      refundable: o.refundPolicy.refundable,
+      ...(o.refundPolicy.refundableUntil ? { refundableUntil: o.refundPolicy.refundableUntil } : {}),
+      purchaseMode: o.purchaseMode,
+    };
+  };
+  const labels = [
+    { case: 'flagship', request: "@trav get the 5 of us Razzmatazz tickets, Henry's sick (Sat 2026-03-14 21:40)", ...facts('off_rzm_20260314_ga', 5), holdMinutes: real.holdMinutes, holdExpiresAt: '2026-03-14T21:55:00+01:00', refundableFirst: 'GA €18 (refundable) beats fast-line €22 (refundable, pricier) and VIP €95 (non-refundable)', attendees: BCN.five, notAttending: [BCN.henry] },
+    { case: 'over_per_person_cap', request: 'barça vs sevilla, 6, sideline', ...facts('off_fcb_sev_tribuna', 6), policyReasons: ['default_confirm', 'over_per_person_cap', 'non_refundable'], approvalMode: 'each_payer' },
+    { case: 'nothing_under_cap', request: 'barça under €60 a head', expect: 'nothing under €60; the closest is Gol Nord', closest: [facts('off_fcb_sev_gol', 6)] },
+    { case: 'over_caps_confirm_first', request: 'razz vip mezzanine for all 6 tonight', ...facts('off_rzm_20260314_vip', 6), policyReasons: ['default_confirm', 'over_per_person_cap', 'over_member_share_cap', 'non_refundable', 'over_daily_cap'], approvalMode: 'each_payer', note: "over_member_share_cap comes from Henry's private €80 share cap (set in a DM on 2026-03-11); the card never says whose cap" },
+    { case: 'sold_out', request: 'razz closing party sunday night for 6', ...facts('off_rzm_20260315_ga', 6), expectError: 'sold_out', alternative: null },
+    { case: 'slot_not_in_inventory', request: 'sagrada familia saturday 3pm for 6', expect: 'Saturday is not bookable through Trav; offer Friday 10am', alternative: facts('off_sagrada_20260313_basilica', 6), alsoAvailable: facts('off_sagrada_20260313_towers', 6) },
+    { case: 'slot_not_in_inventory', request: 'park güell friday 10am for 6', expect: 'Friday is not bookable through Trav; Monday 9:30 is', alternative: facts('off_parkguell_20260316_general', 6) },
+    { case: 'redirect_only', request: 'flamenco friday night for 6', ...facts('off_flamenco_20260313_show', 6), checkoutUrl: get('off_flamenco_20260313_show').checkoutUrl, expect: 'reply with the checkout link on its own last line; no proposal' },
+    { case: 'alternative_venue_same_night', request: 'something cheaper than razz on saturday', ...facts('off_apolo_20260314_ga', 5) },
+  ];
   return {
     fixtureVersion: 1,
-    city: 'Barcelona',
-    currency: 'EUR',
-    provider: 'mock-tickets',
-    events,
-    offers,
-    mockHints,
-    labels: [
-      { case: 'flagship', request: '@trav get the 5 of us Razzmatazz tickets, Henry\'s sick (Sat 2026-03-14 21:40)', expectEventId: 'evt_bcn_razz_0314', expectOfferId: 'off_bcn_razz_0314_ga', quantity: 5, expectHold: { subtotal: eur(8250), fees: eur(750), taxes: eur(0), total: eur(9000) }, perPerson: eur(1800), refundable: true, refundDeadline: `2026-03-14T22:00:00${MAD}`, holdExpiresAt: `2026-03-14T21:55:00${MAD}`, refundableFirst: 'GA (refundable) is preferred over fast-line (non-refundable)' },
-      { case: 'sold_out_with_alternative', request: 'razzmatazz monday for 6', expectError: 'sold_out', offerId: 'off_bcn_razz_0316_ga', alternative: 'off_bcn_apolo_0316_ga', alternativeTotalFor6: eur(9000) },
-      { case: 'over_per_person_cap', request: 'barça vs sevilla for 6', expectOfferId: 'off_bcn_barca_upper_corner', perPerson: eur(7200), total: eur(43200), refundable: true, policyReasons: ['over_auto_cap', 'over_per_person_cap'], approvalMode: 'each_payer' },
-      { case: 'nothing_under_cap', request: 'barça under €60 a head', expect: 'none under €60; closest three', closest: ['off_bcn_barca_upper_corner', 'off_bcn_barca_behind_goal', 'off_bcn_espanyol_getafe'], tradeoffs: ['€72 refundable', '€68 non-refundable', '€55 not barça'] },
-      { case: 'over_budget', request: 'best seats for barça', offerId: 'off_bcn_barca_tribuna_vip', perPerson: eur(31000), total: eur(186000), note: 'allowed by policy (< hard max) but needs each_payer approval; Trav should mention the cheaper refundable option' },
-      { case: 'over_hard_max', request: 'VIP table, whatever it costs', offerId: 'off_bcn_mirador_vip_table', total: eur(600000), policyOutcome: 'deny', policyReasons: ['over_hard_max'] },
-      { case: 'timed_slot_sold_out', request: 'sagrada familia saturday 2pm for 6', expectError: 'sold_out', alternative: 'off_bcn_sagrada_1500', alternativeTotalFor6: eur(15600), refundable: false },
-      { case: 'redirect_only', request: 'park güell friday 10am for 6', offerId: 'off_bcn_parkguell_1000', expect: 'reply with checkout link; no proposal' },
-      { case: 'price_changed', offerId: 'off_bcn_flamenco_0313', expectError: 'price_changed', newUnitTotal: eur(4600) },
-      { case: 'provider_down', offerId: 'off_bcn_cablecar_0316', expectError: 'provider_unavailable' },
-    ],
+    inventory: 'fixtures/tickets/barcelona.json',
+    note: 'Ground-truth expectations over the preserved Barcelona ticket inventory. The VIP-table-over-the-hard-max case has no inventory item; it lives in fixtures/injection/adv_purchase_over_hard_max.json as a policy-level case.',
+    labels,
   };
 }
-
 // ------------------------------------------------------------------ tickets: Lisbon
 
 export function lisbonTickets() {
@@ -178,7 +128,10 @@ export function lisbonTickets() {
   ].map((o) => offer(o, 'EUR'));
   return {
     fixtureVersion: 1,
+    name: 'lisbon',
+    description: 'Synthetic ticket inventory for the Lisbon trip (Dean + Dad, apr 15-20, 2026). Fictional prices; real stadium names and public addresses only. Same schema as fixtures/tickets/barcelona.json (flat offers with eventId).',
     city: 'Lisbon',
+    holdMinutes: 15,
     currency: 'EUR',
     provider: 'mock-tickets',
     events,
@@ -227,7 +180,10 @@ export function turksCaicosTickets() {
   ].map((o) => offer(o, 'USD'));
   return {
     fixtureVersion: 1,
+    name: 'turks-and-caicos',
+    description: 'Synthetic ticket inventory for the Turks and Caicos family trip (jun 20-27, 2026). Fictional operators and prices. Same schema as fixtures/tickets/barcelona.json (flat offers with eventId).',
     city: 'Providenciales',
+    holdMinutes: 15,
     currency: 'USD',
     provider: 'mock-tickets',
     events,
@@ -245,239 +201,66 @@ export function turksCaicosTickets() {
   };
 }
 
-// ------------------------------------------------------------------ lodging: Barcelona
+// ------------------------------------------------------------------ flights: Barcelona (ground truth only)
+//
+// fixtures/flights/barcelona.json (Duffel-like, owned by the mock flights adapter, T-029-a) is preserved.
+// This brute-forces all 4^6 group itineraries over it so graders have exact reference answers.
 
-export function barcelonaLodging() {
-  const prop = (id, name, kind, address, lat, lon, extra) => ({
-    propertyId: id,
-    provider: 'mock-lodging',
-    name,
-    kind,
-    place: place(name, address, 'Barcelona', 'ES', lat, lon, BCN.tz),
-    amenities: extra.amenities,
-    photoUrls: [1, 2, 3].map((n) => `https://img.example.test/lodging/${id}_${n}.jpg`),
-    ...(extra.bedrooms ? { bedrooms: extra.bedrooms } : {}),
-    maxOccupancy: extra.maxOccupancy,
-    ...(extra.reviewScore ? { reviewScore: extra.reviewScore } : {}),
-    ...(extra.starRating ? { starRating: extra.starRating } : {}),
-    url: `https://stays.example.test/${id}`,
-  });
-  const rate = (rateId, propertyId, roomName, sleeps, total, refundableUntil, extra = {}) => ({
-    rateId,
-    propertyId,
-    roomName,
-    sleeps,
-    totalAmount: eur(total),
-    ...(extra.payAtProperty ? { payAtProperty: eur(extra.payAtProperty) } : {}),
-    refundPolicy: refundableUntil
-      ? { refundable: true, refundableUntil, summary: 'free cancellation until the deadline' }
-      : { refundable: false, summary: 'non-refundable' },
-    boardBasis: 'room_only',
-    needsRecheck: true,
-  });
-  const cityTax = 10500; // €3.50 × 6 people × 5 nights, paid at the property
-  const results = [
-    {
-      property: prop('prop_bcn_eixample_3br', 'Eixample 3BR with balcony', 'vacation_rental', "Carrer d'Aragó 255, Eixample", 41.3925, 2.1625, { amenities: ['wifi', 'kitchen', 'washer', 'balcony', 'self check-in'], bedrooms: 3, maxOccupancy: 6, reviewScore: 9.8 }),
-      rates: [
-        rate('rate_bcn_eixample_3br_flex', 'prop_bcn_eixample_3br', 'whole apartment', 6, 138000, '2026-03-07T23:59:00+01:00', { payAtProperty: cityTax }),
-        rate('rate_bcn_eixample_3br_nonref', 'prop_bcn_eixample_3br', 'whole apartment', 6, 125000, null, { payAtProperty: cityTax }),
-      ],
-    },
-    {
-      property: prop('prop_bcn_poblenou_loft', 'Poblenou loft, 3 bedrooms', 'vacation_rental', 'Carrer de Pujades 140, Poblenou', 41.4005, 2.1980, { amenities: ['wifi', 'kitchen', 'rooftop'], bedrooms: 3, maxOccupancy: 6, reviewScore: 9.1 }),
-      rates: [rate('rate_bcn_poblenou_nonref', 'prop_bcn_poblenou_loft', 'whole loft', 6, 119000, null, { payAtProperty: cityTax })],
-    },
-    {
-      property: prop('prop_bcn_gracia_house', 'Gràcia townhouse with patio', 'vacation_rental', 'Carrer de Verdi 30, Gràcia', 41.4031, 2.1569, { amenities: ['wifi', 'kitchen', 'patio', 'washer'], bedrooms: 3, maxOccupancy: 7, reviewScore: 9.5 }),
-      rates: [rate('rate_bcn_gracia_flex', 'prop_bcn_gracia_house', 'whole house', 7, 164000, '2026-03-05T23:59:00+01:00', { payAtProperty: cityTax })],
-    },
-    {
-      property: prop('prop_bcn_barceloneta_flat', 'Barceloneta flat by the beach', 'vacation_rental', 'Carrer de Sant Carles 18, Barceloneta', 41.3797, 2.1893, { amenities: ['wifi', 'kitchen', 'sea view'], bedrooms: 3, maxOccupancy: 6, reviewScore: 8.9 }),
-      rates: [rate('rate_bcn_barceloneta_flex', 'prop_bcn_barceloneta_flat', 'whole flat', 6, 142000, '2026-03-08T23:59:00+01:00', { payAtProperty: cityTax })],
-    },
-    {
-      property: prop('prop_bcn_gothic_hostel', 'Gothic Quarter hostel, private 6-bed room', 'hostel', 'Carrer de la Boqueria 10, Barri Gòtic', 41.3818, 2.1747, { amenities: ['wifi', 'lockers', 'shared kitchen'], bedrooms: 1, maxOccupancy: 6, reviewScore: 8.2 }),
-      rates: [rate('rate_bcn_hostel_flex', 'prop_bcn_gothic_hostel', 'private 6-bed dorm', 6, 54000, '2026-03-10T23:59:00+01:00', { payAtProperty: cityTax })],
-    },
-    {
-      property: prop('prop_bcn_rambla_hotel', 'Hotel Rambla Fictícia', 'hotel', 'La Rambla 70, Barcelona', 41.3810, 2.1730, { amenities: ['wifi', 'breakfast', 'gym', 'front desk'], maxOccupancy: 3, starRating: 4, reviewScore: 8.7 }),
-      rates: [rate('rate_bcn_hotel_2triples', 'prop_bcn_rambla_hotel', '2 × triple room', 6, 231000, '2026-03-10T23:59:00+01:00')],
-    },
-  ];
-  return {
-    fixtureVersion: 1,
-    city: 'Barcelona',
-    provider: 'mock-lodging',
-    checkIn: '2026-03-12',
-    checkOut: '2026-03-17',
-    results,
-    mockHints: {
-      rate_bcn_eixample_3br_flex: { confirmationPrefix: 'EIX', checkInInstructions: 'check-in from 3pm; the host sends the door code the morning of arrival' },
-      rate_bcn_gracia_flex: { recheck: { expect: 'price_changed', newAmount: eur(172000) } },
-      rate_bcn_barceloneta_flex: { recheck: { expect: 'sold_out' } },
-      prop_bcn_eixample_3br: { messageProperty: 'not_supported', note: 'vacation-rental host messaging has no API (connectors.md)' },
-    },
-    labels: [
-      {
-        case: 'group_ask',
-        request: '6 person airbnb in eixample or gracia, under €1500 total, refundable pls',
-        query: { near: { city: 'Barcelona' }, checkIn: '2026-03-12', checkOut: '2026-03-17', adults: 6, wholeUnitForGroup: true, maxTotal: eur(150000), refundableOnly: true },
-        expectRateId: 'rate_bcn_eixample_3br_flex',
-        total: eur(138000),
-        perPerson: eur(23000),
-        rejected: {
-          rate_bcn_eixample_3br_nonref: 'non-refundable (refundable-first)',
-          rate_bcn_poblenou_nonref: 'non-refundable and not in Eixample/Gràcia; mention it as the cheaper non-refundable alternative (VOICE §4.1 C)',
-          rate_bcn_gracia_flex: 'over €1,500',
-          rate_bcn_barceloneta_flex: 'not in Eixample/Gràcia',
-          rate_bcn_hostel_flex: 'hostel, not a whole unit',
-          rate_bcn_hotel_2triples: 'over €1,500 and not a whole unit',
-        },
-        policy: { outcome: 'needs_confirmation', reasons: ['over_auto_cap', 'kind_requires_each_payer', 'over_per_person_cap', 'over_daily_cap'], ruleIds: ['C1', 'C2', 'C3', 'C6'], approvalMode: 'each_payer', requiredApprovers: BCN.all },
-      },
-    ],
-  };
-}
-
-// ------------------------------------------------------------------ flights: Barcelona
-
-const AIRPORT_OFFSET = {
-  BOS: '-04:00', IAD: '-04:00', ATL: '-04:00', MIA: '-04:00', JFK: '-04:00', CLT: '-04:00',
-  ORD: '-05:00', DFW: '-05:00', AUS: '-05:00',
-  SFO: '-07:00', LAX: '-07:00',
-  BCN: '+01:00', MAD: '+01:00', CDG: '+01:00', FRA: '+01:00',
-  LHR: '+00:00', LIS: '+00:00', DUB: '+00:00',
-};
-const AIRPORT_TZ = {
-  BOS: 'America/New_York', IAD: 'America/New_York', ATL: 'America/New_York', MIA: 'America/New_York', JFK: 'America/New_York', CLT: 'America/New_York',
-  ORD: 'America/Chicago', DFW: 'America/Chicago', AUS: 'America/Chicago',
-  SFO: 'America/Los_Angeles', LAX: 'America/Los_Angeles',
-  BCN: 'Europe/Madrid', MAD: 'Europe/Madrid', CDG: 'Europe/Paris', FRA: 'Europe/Berlin',
-  LHR: 'Europe/London', LIS: 'Europe/Lisbon', DUB: 'Europe/Dublin',
-};
-const CARRIERS = {
-  GV: { iataCode: 'GV', name: 'Gaviota Airways' },
-  NS: { iataCode: 'NS', name: 'Northstar Atlantic' },
-  IX: { iataCode: 'IX', name: 'Iberolux' },
-  CL: { iataCode: 'CL', name: 'Coastline Air' },
-  MC: { iataCode: 'MC', name: 'Mistral Connect' },
+/** UTC offsets in effect 2026-03-11 … 2026-03-17 (US DST began 2026-03-08; EU DST begins 2026-03-29). */
+const ZONE_OFFSET_MARCH_2026 = {
+  'America/New_York': '-04:00',
+  'America/Chicago': '-05:00',
+  'America/Denver': '-06:00',
+  'America/Los_Angeles': '-07:00',
+  'Atlantic/Reykjavik': '+00:00',
+  'Europe/Lisbon': '+00:00',
+  'Europe/London': '+00:00',
+  'Europe/Dublin': '+00:00',
+  'Europe/Madrid': '+01:00',
+  'Europe/Paris': '+01:00',
+  'Europe/Amsterdam': '+01:00',
+  'Europe/Berlin': '+01:00',
 };
 
-function seg(from, to, depWall, durMin, carrier, num) {
-  const departingAt = local(depWall, AIRPORT_OFFSET[from]);
-  const arrivingAt = addMinutes(departingAt, durMin, AIRPORT_OFFSET[to]);
-  return {
-    origin: from,
-    destination: to,
-    departingAt,
-    departureTimeZone: AIRPORT_TZ[from],
-    arrivingAt,
-    arrivalTimeZone: AIRPORT_TZ[to],
-    marketingCarrier: CARRIERS[carrier],
-    flightNumber: `${carrier}${num}`,
-    duration: isoDuration(durMin),
-  };
+function zonedMs(wall, zone) {
+  const off = ZONE_OFFSET_MARCH_2026[zone];
+  assert(off, `no March 2026 offset for ${zone}`);
+  return Date.parse(`${wall.length === 16 ? `${wall}:00` : wall}${off}`);
 }
 
-function slice(segments) {
-  const first = segments[0];
-  const last = segments[segments.length - 1];
-  return {
-    origin: first.origin,
-    destination: last.destination,
-    duration: isoDuration(minutesBetween(first.departingAt, last.arrivingAt)),
-    segments,
-  };
-}
+const decimalToMinor = (s) => {
+  assert(/^\d+\.\d{2}$/.test(s), `bad decimal ${s}`);
+  return Number(s.replace('.', ''));
+};
 
-function layovers(sl) {
-  const out = [];
-  for (let i = 1; i < sl.segments.length; i += 1) {
-    out.push(minutesBetween(sl.segments[i - 1].arrivingAt, sl.segments[i].departingAt));
-  }
-  return out;
-}
-
-export function barcelonaFlights() {
-  const searchedAt = '2026-02-03T20:12:30-05:00';
-  const T = (memberId, letter, priceEur, refundable, owner, out, ret) => ({ memberId, letter, priceEur, refundable, owner, out, ret });
-  const D = '2026-03-11T';
-  const R = '2026-03-17T';
-  const table = [
-    // Dean BOS → BCN, BCN → JFK
-    T(BCN.dean, 'a', 41200, false, 'GV', [seg('BOS', 'BCN', `${D}19:10`, 445, 'GV', '211')], [seg('BCN', 'JFK', `${R}11:05`, 530, 'GV', '212')]),
-    T(BCN.dean, 'b', 35600, false, 'IX', [seg('BOS', 'LIS', `${D}21:30`, 385, 'IX', '402'), seg('LIS', 'BCN', '2026-03-12T09:20', 125, 'IX', '1310')], [seg('BCN', 'LIS', `${R}08:00`, 135, 'IX', '1311'), seg('LIS', 'JFK', `${R}11:00`, 475, 'IX', '407')]),
-    T(BCN.dean, 'c', 54800, true, 'GV', [seg('BOS', 'BCN', `${D}18:00`, 445, 'GV', '215')], [seg('BCN', 'JFK', `${R}11:05`, 530, 'GV', '212')]),
-    T(BCN.dean, 'd', 29800, false, 'MC', [seg('BOS', 'DUB', '2026-03-12T07:10', 380, 'MC', '88'), seg('DUB', 'BCN', '2026-03-12T18:45', 160, 'MC', '624')], [seg('BCN', 'JFK', `${R}17:20`, 530, 'NS', '31')]),
-    // Henry ORD → BCN → ORD
-    T(BCN.henry, 'a', 49800, false, 'NS', [seg('ORD', 'BCN', `${D}17:20`, 545, 'NS', '61')], [seg('BCN', 'ORD', `${R}12:15`, 605, 'NS', '62')]),
-    T(BCN.henry, 'b', 43100, false, 'NS', [seg('ORD', 'JFK', `${D}15:00`, 135, 'NS', '1180'), seg('JFK', 'BCN', `${D}20:05`, 475, 'NS', '33')], [seg('BCN', 'JFK', `${R}10:20`, 530, 'NS', '34'), seg('JFK', 'ORD', `${R}16:10`, 160, 'NS', '1185')]),
-    T(BCN.henry, 'c', 38900, false, 'CL', [seg('ORD', 'LHR', `${D}18:30`, 465, 'CL', '930'), seg('LHR', 'BCN', '2026-03-12T12:50', 130, 'CL', '478')], [seg('BCN', 'LHR', `${R}09:05`, 140, 'CL', '479'), seg('LHR', 'ORD', `${R}12:00`, 545, 'CL', '931')]),
-    T(BCN.henry, 'd', 64000, true, 'NS', [seg('ORD', 'BCN', `${D}17:20`, 545, 'NS', '61')], [seg('BCN', 'ORD', `${R}12:15`, 605, 'NS', '62')]),
-    // Maya SFO → BCN, BCN → LAX
-    T(BCN.maya, 'a', 53800, false, 'GV', [seg('SFO', 'BCN', `${D}13:40`, 710, 'GV', '701')], [seg('BCN', 'LAX', `${R}11:40`, 775, 'GV', '708')]),
-    T(BCN.maya, 'b', 47200, false, 'NS', [seg('SFO', 'JFK', `${D}06:00`, 335, 'NS', '1402'), seg('JFK', 'BCN', `${D}18:20`, 460, 'NS', '37')], [seg('BCN', 'JFK', `${R}10:20`, 530, 'NS', '34'), seg('JFK', 'LAX', `${R}16:30`, 365, 'NS', '1409')]),
-    T(BCN.maya, 'c', 44500, false, 'MC', [seg('SFO', 'FRA', `${D}15:55`, 660, 'MC', '455'), seg('FRA', 'BCN', '2026-03-12T12:30', 125, 'MC', '1120')], [seg('BCN', 'FRA', `${R}07:00`, 120, 'MC', '1121'), seg('FRA', 'LAX', `${R}10:50`, 715, 'MC', '452')]),
-    T(BCN.maya, 'd', 72000, true, 'GV', [seg('SFO', 'BCN', `${D}13:40`, 710, 'GV', '701')], [seg('BCN', 'LAX', `${R}11:40`, 775, 'GV', '708')]),
-    // Jordan ATL → BCN → ATL
-    T(BCN.jordan, 'a', 46500, false, 'CL', [seg('ATL', 'BCN', `${D}17:35`, 520, 'CL', '160')], [seg('BCN', 'ATL', `${R}11:25`, 610, 'CL', '161')]),
-    T(BCN.jordan, 'b', 48900, true, 'CL', [seg('ATL', 'BCN', `${D}20:10`, 515, 'CL', '164')], [seg('BCN', 'ATL', `${R}11:25`, 610, 'CL', '161')]),
-    T(BCN.jordan, 'c', 40200, false, 'MC', [seg('ATL', 'CDG', `${D}16:00`, 500, 'MC', '301'), seg('CDG', 'BCN', '2026-03-12T08:10', 105, 'MC', '1840')], [seg('BCN', 'CDG', `${R}06:30`, 110, 'MC', '1841'), seg('CDG', 'ATL', `${R}10:30`, 555, 'MC', '302')]),
-    T(BCN.jordan, 'd', 41800, false, 'CL', [seg('ATL', 'BCN', '2026-03-12T10:00', 515, 'CL', '168')], [seg('BCN', 'ATL', `${R}11:25`, 610, 'CL', '161')]),
-    // Priya IAD → BCN → IAD
-    T(BCN.priya, 'a', 44700, false, 'GV', [seg('IAD', 'BCN', `${D}18:15`, 485, 'GV', '511')], [seg('BCN', 'IAD', `${R}12:00`, 565, 'GV', '512')]),
-    T(BCN.priya, 'b', 46800, true, 'GV', [seg('IAD', 'BCN', `${D}21:55`, 480, 'GV', '515')], [seg('BCN', 'IAD', `${R}12:00`, 565, 'GV', '512')]),
-    T(BCN.priya, 'c', 37100, false, 'IX', [seg('IAD', 'LIS', `${D}17:00`, 410, 'IX', '420'), seg('LIS', 'BCN', '2026-03-12T08:00', 125, 'IX', '1302')], [seg('BCN', 'LIS', `${R}14:10`, 135, 'IX', '1307'), seg('LIS', 'IAD', `${R}17:00`, 500, 'IX', '421')]),
-    T(BCN.priya, 'd', 40900, false, 'IX', [seg('IAD', 'MAD', `${D}19:30`, 455, 'IX', '424'), seg('MAD', 'BCN', '2026-03-12T09:30', 80, 'IX', '3010')], [seg('BCN', 'IAD', `${R}12:00`, 565, 'GV', '512')]),
-    // Sam MIA → BCN, BCN → AUS
-    T(BCN.sam, 'a', 45500, false, 'NS', [seg('MIA', 'BCN', `${D}19:00`, 530, 'NS', '81')], [seg('BCN', 'DFW', `${R}10:15`, 650, 'NS', '84'), seg('DFW', 'AUS', `${R}16:55`, 65, 'NS', '2210')]),
-    T(BCN.sam, 'b', 39800, false, 'IX', [seg('MIA', 'MAD', `${D}16:30`, 500, 'IX', '612'), seg('MAD', 'BCN', '2026-03-12T08:10', 80, 'IX', '3002')], [seg('BCN', 'MAD', `${R}08:00`, 85, 'IX', '3005'), seg('MAD', 'DFW', `${R}11:45`, 635, 'IX', '617'), seg('DFW', 'AUS', `${R}17:45`, 65, 'NS', '2214')]),
-    T(BCN.sam, 'c', 37600, false, 'NS', [seg('MIA', 'BCN', `${D}22:45`, 525, 'NS', '85')], [seg('BCN', 'JFK', `${R}16:00`, 535, 'NS', '38'), seg('JFK', 'AUS', `${R}21:50`, 265, 'NS', '1530')]),
-    T(BCN.sam, 'd', 61000, true, 'NS', [seg('MIA', 'BCN', `${D}19:00`, 530, 'NS', '81')], [seg('BCN', 'DFW', `${R}10:15`, 650, 'NS', '84'), seg('DFW', 'AUS', `${R}16:55`, 65, 'NS', '2214')]),
-  ];
-
-  const name = (m) => m.replace('mem_', '');
-  const offers = table.map((t) => {
-    const offerId = `off_fl_${name(t.memberId)}_${t.letter}`;
-    const total = t.priceEur;
-    const tax = Math.round(total * 0.18);
-    const short = offerId === 'off_fl_sam_d';
-    const expiresAt = addMinutes(searchedAt, short ? 3 : 30);
+export function barcelonaFlightGroundTruth(real, sourceSha256) {
+  const facts = real.offers.map((o) => {
+    const out = o.slices[0].segments;
+    const ret = o.slices[1].segments;
+    const lay = (segs) => segs.slice(1).map((sg, i) => (zonedMs(sg.departing_at, sg.departure_time_zone) - zonedMs(segs[i].arriving_at, segs[i].arrival_time_zone)) / 60000);
     return {
-      offerId,
-      provider: 'mock-flights',
-      totalAmount: eur(total),
-      baseAmount: eur(total - tax),
-      taxAmount: eur(tax),
-      owner: CARRIERS[t.owner],
-      slices: [slice(t.out), slice(t.ret)],
-      passengerIds: [t.memberId],
-      conditions: {
-        refundBeforeDeparture: t.refundable ? { allowed: true, penalty: eur(0) } : { allowed: false },
-        changeBeforeDeparture: t.refundable ? { allowed: true, penalty: eur(0) } : { allowed: true, penalty: eur(7500) },
-      },
-      paymentRequirements: { requiresInstantPayment: true, priceGuaranteeExpiresAt: expiresAt },
-      expiresAt,
+      offerId: o.id,
+      origin: out[0].origin,
+      returnTo: ret[ret.length - 1].destination,
+      price: decimalToMinor(o.total_amount),
+      departLocal: out[0].departing_at.slice(0, 16),
+      arriveBcnLocal: out[out.length - 1].arriving_at.slice(0, 16),
+      returnDepartBcnLocal: ret[0].departing_at.slice(0, 16),
+      arrive: zonedMs(out[out.length - 1].arriving_at, out[out.length - 1].arrival_time_zone),
+      returnDepart: zonedMs(ret[0].departing_at, ret[0].departure_time_zone),
+      stops: out.length - 1 + (ret.length - 1),
+      worstLayoverMinutes: Math.max(0, ...lay(out), ...lay(ret)),
+      refundable: o.conditions.refund_before_departure.allowed === true,
+      departsBefore7am: Number(out[0].departing_at.slice(11, 13)) < 7,
+      ...(o.mock_reprice ? { mockReprice: o.mock_reprice } : {}),
+      ...(o.expires_after_minutes !== undefined ? { expiresAfterMinutes: o.expires_after_minutes } : {}),
     };
   });
-
-  // ---- ground truth (brute force over all 4^6 assignments) ----
-  const byMember = BCN.all.map((m) => offers.filter((o) => o.passengerIds[0] === m));
-  const facts = (o) => {
-    const outS = o.slices[0];
-    const retS = o.slices[1];
-    return {
-      offerId: o.offerId,
-      memberId: o.passengerIds[0],
-      price: o.totalAmount.amountMinor,
-      arrive: Date.parse(outS.segments[outS.segments.length - 1].arrivingAt),
-      returnDepart: Date.parse(retS.segments[0].departingAt),
-      worstLayover: Math.max(0, ...layovers(outS), ...layovers(retS)),
-      refundable: o.conditions.refundBeforeDeparture.allowed,
-    };
-  };
-  const F = byMember.map((list) => list.map(facts));
+  const byTraveler = real.travelers.map((t) => {
+    const list = facts.filter((f) => f.origin === t.origin && f.returnTo === t.return_to);
+    assert(list.length > 0, `no offers for ${t.member_id}`);
+    return { memberId: t.member_id, list };
+  });
   const describe = (picks) => {
     const arr = picks.map((p) => p.arrive);
     const dep = picks.map((p) => p.returnDepart);
@@ -486,73 +269,59 @@ export function barcelonaFlights() {
       totalCost: eur(picks.reduce((s, p) => s + p.price, 0)),
       arrivalSpreadMinutes: (Math.max(...arr) - Math.min(...arr)) / 60000,
       returnDepartureSpreadMinutes: (Math.max(...dep) - Math.min(...dep)) / 60000,
-      worstLayoverMinutes: Math.max(...picks.map((p) => p.worstLayover)),
+      worstLayoverMinutes: Math.max(...picks.map((p) => p.worstLayoverMinutes)),
       allRefundable: picks.every((p) => p.refundable),
-      firstArrival: isoAt(Math.min(...arr), '+01:00'),
-      lastArrival: isoAt(Math.max(...arr), '+01:00'),
+      anyDepartsBefore7am: picks.filter((p) => p.departsBefore7am).map((p) => p.offerId),
     };
   };
-  const naive = describe(F.map((list) => [...list].sort((a, b) => a.price - b.price)[0]));
-  let bestSpread = null;
+  const cheapest = (list) => [...list].sort((a, b) => a.price - b.price || a.offerId.localeCompare(b.offerId))[0];
+  const naive = describe(byTraveler.map((t) => cheapest(t.list)));
   let combos = 0;
+  let best = null;
+  let bestNoEarlyJordan = null;
+  const better = (d, cur) => !cur || d.arrivalSpreadMinutes < cur.arrivalSpreadMinutes || (d.arrivalSpreadMinutes === cur.arrivalSpreadMinutes && d.totalCost.amountMinor < cur.totalCost.amountMinor);
   const walk = (i, acc) => {
-    if (i === F.length) {
+    if (i === byTraveler.length) {
       combos += 1;
       const d = describe(acc);
-      if (!bestSpread || d.arrivalSpreadMinutes < bestSpread.arrivalSpreadMinutes || (d.arrivalSpreadMinutes === bestSpread.arrivalSpreadMinutes && d.totalCost.amountMinor < bestSpread.totalCost.amountMinor)) bestSpread = d;
+      if (better(d, best)) best = d;
+      const jordanPick = acc[byTraveler.findIndex((t) => t.memberId === BCN.jordan)];
+      if (!jordanPick.departsBefore7am && better(d, bestNoEarlyJordan)) bestNoEarlyJordan = d;
       return;
     }
-    for (const f of F[i]) walk(i + 1, [...acc, f]);
+    for (const f of byTraveler[i].list) walk(i + 1, [...acc, f]);
   };
   walk(0, []);
-  const refundableOnly = describe(F.map((list) => list.filter((f) => f.refundable).sort((a, b) => a.price - b.price)[0]));
-  assert(combos === 4096, 'expected 4^6 combos');
-  assert(bestSpread.arrivalSpreadMinutes < naive.arrivalSpreadMinutes, 'best spread must beat naive');
-  const minPrice = Object.fromEntries(F.map((list) => [list[0].memberId, Math.min(...list.map((f) => f.price))]));
-
-  const mockHints = {
-    off_fl_sam_d: { expiresInMinutes: 3, note: 'expires before the group could approve: createOrder ⇒ offer_expired' },
-    off_fl_maya_c: { priceOnRecheck: eur(46900), note: 'getOffer re-price returns price_changed (+€24)' },
-  };
-  for (const o of offers) {
-    mockHints[o.offerId] = { expiresInMinutes: 30, pnrPrefix: o.owner.iataCode, ...(mockHints[o.offerId] ?? {}) };
-  }
-
+  assert(best.arrivalSpreadMinutes < naive.arrivalSpreadMinutes, 'min-spread must beat naive cheapest');
+  const refundableSets = byTraveler.map((t) => t.list.filter((f) => f.refundable));
+  const cheapestAllRefundable = refundableSets.every((l) => l.length > 0) ? describe(refundableSets.map(cheapest)) : null;
+  const minPrice = byTraveler.map((t) => ({ memberId: t.memberId, min: eur(Math.min(...t.list.map((f) => f.price))) }));
+  const strip = ({ arrive: _a, returnDepart: _r, ...rest }) => rest;
   return {
     fixtureVersion: 1,
-    destination: 'BCN',
-    currency: 'EUR',
-    provider: 'mock-flights',
-    searchedAt,
-    note: 'Open-jaw offers: slice 0 = origin → BCN (arrive Thu 2026-03-12), slice 1 = BCN → returnTo (Tue 2026-03-17). Priced in EUR (provider account currency) so proposals pass SAFETY D6. Each member pays their own fare (paidBy per_person_cards).',
-    members: [
-      { memberId: BCN.dean, origin: 'BOS', returnTo: 'JFK' },
-      { memberId: BCN.henry, origin: 'ORD', returnTo: 'ORD' },
-      { memberId: BCN.maya, origin: 'SFO', returnTo: 'LAX' },
-      { memberId: BCN.jordan, origin: 'ATL', returnTo: 'ATL' },
-      { memberId: BCN.priya, origin: 'IAD', returnTo: 'IAD' },
-      { memberId: BCN.sam, origin: 'MIA', returnTo: 'AUS' },
-    ],
-    offers,
-    mockHints,
+    source: 'fixtures/flights/barcelona.json',
+    sourceSha256,
+    note: 'Brute force over every combination of one offer per traveler. Prices are per passenger in EUR. Times compared in UTC using the March 2026 offsets in ZONE_OFFSET_MARCH_2026 (fixtures/_gen/inventory.mjs).',
+    travelers: real.travelers.map((t) => ({ memberId: t.member_id, origin: t.origin, returnTo: t.return_to, offerIds: byTraveler.find((b) => b.memberId === t.member_id).list.map((f) => f.offerId) })),
+    offers: facts.map(strip),
     groundTruth: {
       combinations: combos,
       naiveCheapestPerPerson: naive,
-      minArrivalSpread: bestSpread,
-      cheapestAllRefundable: refundableOnly,
-      minPricePerMember: Object.fromEntries(Object.entries(minPrice).map(([k, v]) => [k, eur(v)])),
-      expectations: [
-        'optimizer top pick has arrivalSpreadMinutes < naiveCheapestPerPerson.arrivalSpreadMinutes',
-        'refundableOnly: true ⇒ every pick is refundable (one refundable offer exists per member); cheapest such set is cheapestAllRefundable',
-        `perPersonCap €400 ⇒ no offer under the cap for ${Object.entries(minPrice).filter(([, v]) => v > 40000).map(([k]) => k).join(', ')}: the optimizer must relax perPersonCap with a reason (RelaxedConstraint) rather than return nothing`,
-        'with off_fl_sam_d expired (clock past searchedAt + 3 min) the optimizer must not rely on it at order time',
-        'BOS 7:10am → DUB → BCN 10:25pm (off_fl_dean_d) is the cheapest for Dean but lands ~15h after everyone else',
-        "maya said no 6am flights: off_fl_maya_b departs SFO 6:00am (group memory gm_bcn_3); a ranked option containing it should say so or avoid it",
-      ],
+      minArrivalSpread: best,
+      minArrivalSpreadWithoutJordanBefore7am: bestNoEarlyJordan,
+      cheapestAllRefundable,
+      minPricePerMember: minPrice,
+      groupTotalLowerBound: eur(minPrice.reduce((s, m) => s + m.min.amountMinor, 0)),
     },
+    expectations: [
+      'optimizer top pick has arrivalSpreadMinutes < naiveCheapestPerPerson.arrivalSpreadMinutes',
+      'refundableOnly: true ⇒ every pick refundable; the cheapest such set is cheapestAllRefundable',
+      'group memory gm_bcn_3 ("jordan does not want flights before 7am"): a ranked option that includes an ORD offer departing before 07:00 must say so, or the optimizer should prefer minArrivalSpreadWithoutJordanBefore7am',
+      'offers with mockReprice must be re-priced before createOrder (price_changed); offers with expiresAfterMinutes expire on the injected clock (offer_expired)',
+      'each member pays their own fare (paidBy per_person_cards): booking writes nothing to the group ledger',
+    ],
   };
 }
-
 // ------------------------------------------------------------------ FX
 
 export function fxRates() {

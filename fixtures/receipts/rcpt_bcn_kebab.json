@@ -1,0 +1,144 @@
+{
+  "fixtureVersion": 1,
+  "receiptId": "rcpt_bcn_kebab",
+  "title": "simple late-night receipt, equal split among the night roster",
+  "groupId": "grp_barcelona",
+  "tripId": "trip_barcelona",
+  "imageFile": "fixtures/receipts/rcpt_bcn_kebab.png",
+  "imageMimeType": "image/png",
+  "imageSha256": "3713887a6969fca57c4ea07d5cc8be3cdb725723b9467aec64c3e41a20c31f03",
+  "postedBy": "mem_jordan",
+  "postedInGroup": false,
+  "ocrText": "KEBAB RAMBLA 24H\nRambla del Raval 9, Barcelona\nOBERT 24H\n15/03/2026   02:05\n----------------------------------\n5 DURUM MIXT                 42,50\n5 REFRESC LLAUNA             12,50\n1 PATATES FREGIDES            7,00\n----------------------------------\nTOTAL                      62,00 €\nIVA 10% INCLOS         5,64\nCARD                         62,00\nGRACIES",
+  "parsed": {
+    "source": "restaurant",
+    "merchantName": "Kebab Rambla 24h",
+    "total": {
+      "amountMinor": 6200,
+      "currency": "EUR"
+    },
+    "subtotal": {
+      "amountMinor": 6200,
+      "currency": "EUR"
+    },
+    "occurredAt": "2026-03-15T02:05:00+01:00",
+    "lineItems": [
+      {
+        "description": "durum mixt",
+        "quantity": 5,
+        "amount": {
+          "amountMinor": 4250,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "refresc llauna",
+        "quantity": 5,
+        "amount": {
+          "amountMinor": 1250,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "patates fregides",
+        "quantity": 1,
+        "amount": {
+          "amountMinor": 700,
+          "currency": "EUR"
+        }
+      }
+    ],
+    "confidence": 0.95,
+    "warnings": []
+  },
+  "lineItems": [
+    {
+      "lineId": "kb1",
+      "label": "durum mixt x5",
+      "amount": {
+        "amountMinor": 4250,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "kb2",
+      "label": "refresc llauna x5",
+      "amount": {
+        "amountMinor": 1250,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "kb3",
+      "label": "patates fregides",
+      "amount": {
+        "amountMinor": 700,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    }
+  ],
+  "payer": "mem_jordan",
+  "split": {
+    "method": "equal",
+    "participants": [
+      "mem_dean",
+      "mem_maya",
+      "mem_jordan",
+      "mem_priya",
+      "mem_sam"
+    ]
+  },
+  "expectedShares": [
+    {
+      "memberId": "mem_dean",
+      "amount": {
+        "amountMinor": 1240,
+        "currency": "EUR"
+      }
+    },
+    {
+      "memberId": "mem_maya",
+      "amount": {
+        "amountMinor": 1240,
+        "currency": "EUR"
+      }
+    },
+    {
+      "memberId": "mem_jordan",
+      "amount": {
+        "amountMinor": 1240,
+        "currency": "EUR"
+      }
+    },
+    {
+      "memberId": "mem_priya",
+      "amount": {
+        "amountMinor": 1240,
+        "currency": "EUR"
+      }
+    },
+    {
+      "memberId": "mem_sam",
+      "amount": {
+        "amountMinor": 1240,
+        "currency": "EUR"
+      }
+    }
+  ],
+  "labels": {
+    "expectedAction": "log_expense",
+    "injection": false,
+    "injectionPatterns": [],
+    "lowConfidence": false,
+    "unreadable": false,
+    "familyTab": false,
+    "rounding": "per line: equal among claimants (payer absorbs the remainder); tax/tip/service/fee pro-rata to item subtotals (README \"Rounding\")",
+    "notes": "the chat logs this from text (€62, the 5 of us); the receipt is the same purchase: a second log must be suppressed as a duplicate"
+  }
+}

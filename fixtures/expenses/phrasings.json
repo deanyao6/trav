@@ -1,0 +1,1698 @@
+{
+  "fixtureVersion": 1,
+  "note": "Chat-text expense phrasings (T-010). expected.shares follow README \"Rounding\"; clarify rows must produce exactly one question and no ledger write.",
+  "phrasings": [
+    {
+      "id": "ex_001",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_dean",
+      "senderId": "h_dean",
+      "text": "@trav i paid €84 for dinner, split with everyone but Henry",
+      "expected": {
+        "action": "log_expense",
+        "currency": "EUR",
+        "payer": "mem_dean",
+        "amount": {
+          "amountMinor": 8400,
+          "currency": "EUR"
+        },
+        "split": {
+          "method": "exclude",
+          "excluded": [
+            "mem_henry"
+          ]
+        },
+        "category": "food",
+        "mode": "exclude",
+        "shares": [
+          {
+            "memberId": "mem_dean",
+            "amount": {
+              "amountMinor": 1680,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_maya",
+            "amount": {
+              "amountMinor": 1680,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_jordan",
+            "amount": {
+              "amountMinor": 1680,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_priya",
+            "amount": {
+              "amountMinor": 1680,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_sam",
+            "amount": {
+              "amountMinor": 1680,
+              "currency": "EUR"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ex_002",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_maya",
+      "senderId": "h_maya",
+      "text": "trav the taxi was €32, me and Sam, Sam had the suitcase so he pays 20",
+      "expected": {
+        "action": "log_expense",
+        "currency": "EUR",
+        "payer": "mem_maya",
+        "amount": {
+          "amountMinor": 3200,
+          "currency": "EUR"
+        },
+        "split": {
+          "method": "exact",
+          "amounts": [
+            {
+              "memberId": "mem_sam",
+              "amount": {
+                "amountMinor": 2000,
+                "currency": "EUR"
+              }
+            },
+            {
+              "memberId": "mem_maya",
+              "amount": {
+                "amountMinor": 1200,
+                "currency": "EUR"
+              }
+            }
+          ]
+        },
+        "category": "transport",
+        "mode": "exact",
+        "shares": [
+          {
+            "memberId": "mem_maya",
+            "amount": {
+              "amountMinor": 1200,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_sam",
+            "amount": {
+              "amountMinor": 2000,
+              "currency": "EUR"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ex_003",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_sam",
+      "senderId": "h_sam",
+      "text": "@trav venmo me 20 each for the cab",
+      "expected": {
+        "action": "clarify",
+        "clarifyAbout": [
+          "participants",
+          "currency"
+        ],
+        "questionCount": 1,
+        "ledgerWrites": 0,
+        "note": "who rode, and is that euros or dollars? one question"
+      }
+    },
+    {
+      "id": "ex_004",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_jordan",
+      "senderId": "h_jordan",
+      "text": "@trav put 45 euros on the tab for the beach drinks, me priya and sam",
+      "expected": {
+        "action": "log_expense",
+        "currency": "EUR",
+        "payer": "mem_jordan",
+        "amount": {
+          "amountMinor": 4500,
+          "currency": "EUR"
+        },
+        "split": {
+          "method": "equal",
+          "participants": [
+            "mem_jordan",
+            "mem_priya",
+            "mem_sam"
+          ]
+        },
+        "category": "drinks",
+        "mode": "equal",
+        "shares": [
+          {
+            "memberId": "mem_jordan",
+            "amount": {
+              "amountMinor": 1500,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_priya",
+            "amount": {
+              "amountMinor": 1500,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_sam",
+            "amount": {
+              "amountMinor": 1500,
+              "currency": "EUR"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ex_005",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_priya",
+      "senderId": "h_priya",
+      "text": "@trav I covered groceries at the supermarket, 47.40€, everyone",
+      "expected": {
+        "action": "log_expense",
+        "currency": "EUR",
+        "payer": "mem_priya",
+        "amount": {
+          "amountMinor": 4740,
+          "currency": "EUR"
+        },
+        "split": {
+          "method": "equal",
+          "participants": [
+            "mem_dean",
+            "mem_henry",
+            "mem_maya",
+            "mem_jordan",
+            "mem_priya",
+            "mem_sam"
+          ]
+        },
+        "category": "groceries",
+        "mode": "equal",
+        "note": "symbol after the number",
+        "shares": [
+          {
+            "memberId": "mem_dean",
+            "amount": {
+              "amountMinor": 790,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_henry",
+            "amount": {
+              "amountMinor": 790,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_maya",
+            "amount": {
+              "amountMinor": 790,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_jordan",
+            "amount": {
+              "amountMinor": 790,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_priya",
+            "amount": {
+              "amountMinor": 790,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_sam",
+            "amount": {
+              "amountMinor": 790,
+              "currency": "EUR"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ex_006",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_dean",
+      "senderId": "h_dean",
+      "text": "@trav add $60 for the airport uber, me maya and sam",
+      "expected": {
+        "action": "log_expense",
+        "currency": "USD",
+        "payer": "mem_dean",
+        "amount": {
+          "amountMinor": 6000,
+          "currency": "USD"
+        },
+        "split": {
+          "method": "equal",
+          "participants": [
+            "mem_dean",
+            "mem_maya",
+            "mem_sam"
+          ]
+        },
+        "category": "transport",
+        "mode": "equal",
+        "note": "USD on a EUR trip: keep the original amount + rate (T-031); shares shown here in the original currency",
+        "shares": [
+          {
+            "memberId": "mem_dean",
+            "amount": {
+              "amountMinor": 2000,
+              "currency": "USD"
+            }
+          },
+          {
+            "memberId": "mem_maya",
+            "amount": {
+              "amountMinor": 2000,
+              "currency": "USD"
+            }
+          },
+          {
+            "memberId": "mem_sam",
+            "amount": {
+              "amountMinor": 2000,
+              "currency": "USD"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ex_007",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_henry",
+      "senderId": "h_henry",
+      "text": "trav i got the metro cards, 6x €11.35 = 68.10 total",
+      "expected": {
+        "action": "log_expense",
+        "currency": "EUR",
+        "payer": "mem_henry",
+        "amount": {
+          "amountMinor": 6810,
+          "currency": "EUR"
+        },
+        "split": {
+          "method": "equal",
+          "participants": [
+            "mem_dean",
+            "mem_henry",
+            "mem_maya",
+            "mem_jordan",
+            "mem_priya",
+            "mem_sam"
+          ]
+        },
+        "category": "transport",
+        "mode": "equal",
+        "note": "arithmetic in the message; \"6x\" means all six",
+        "shares": [
+          {
+            "memberId": "mem_dean",
+            "amount": {
+              "amountMinor": 1135,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_henry",
+            "amount": {
+              "amountMinor": 1135,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_maya",
+            "amount": {
+              "amountMinor": 1135,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_jordan",
+            "amount": {
+              "amountMinor": 1135,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_priya",
+            "amount": {
+              "amountMinor": 1135,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_sam",
+            "amount": {
+              "amountMinor": 1135,
+              "currency": "EUR"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ex_008",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_sam",
+      "senderId": "h_sam",
+      "text": "@trav kebabs were on me, 62 euros, the 5 of us from razz",
+      "context": {
+        "roster": {
+          "activityId": "act_bcn_razzmatazz",
+          "in": [
+            "mem_dean",
+            "mem_maya",
+            "mem_jordan",
+            "mem_priya",
+            "mem_sam"
+          ]
+        }
+      },
+      "expected": {
+        "action": "log_expense",
+        "currency": "EUR",
+        "payer": "mem_sam",
+        "amount": {
+          "amountMinor": 6200,
+          "currency": "EUR"
+        },
+        "split": {
+          "method": "equal",
+          "participants": [
+            "mem_dean",
+            "mem_maya",
+            "mem_jordan",
+            "mem_priya",
+            "mem_sam"
+          ]
+        },
+        "category": "food",
+        "mode": "equal",
+        "shares": [
+          {
+            "memberId": "mem_dean",
+            "amount": {
+              "amountMinor": 1240,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_maya",
+            "amount": {
+              "amountMinor": 1240,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_jordan",
+            "amount": {
+              "amountMinor": 1240,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_priya",
+            "amount": {
+              "amountMinor": 1240,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_sam",
+            "amount": {
+              "amountMinor": 1240,
+              "currency": "EUR"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ex_009",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_maya",
+      "senderId": "h_maya",
+      "text": "@trav log 30 for the cava",
+      "expected": {
+        "action": "clarify",
+        "clarifyAbout": [
+          "participants",
+          "currency"
+        ],
+        "questionCount": 1,
+        "ledgerWrites": 0
+      }
+    },
+    {
+      "id": "ex_010",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_dean",
+      "senderId": "h_dean",
+      "text": "@trav split the airbnb cleaning fee €60 evenly",
+      "expected": {
+        "action": "log_expense",
+        "currency": "EUR",
+        "payer": "mem_dean",
+        "amount": {
+          "amountMinor": 6000,
+          "currency": "EUR"
+        },
+        "split": {
+          "method": "equal",
+          "participants": [
+            "mem_dean",
+            "mem_henry",
+            "mem_maya",
+            "mem_jordan",
+            "mem_priya",
+            "mem_sam"
+          ]
+        },
+        "category": "lodging",
+        "mode": "equal",
+        "shares": [
+          {
+            "memberId": "mem_dean",
+            "amount": {
+              "amountMinor": 1000,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_henry",
+            "amount": {
+              "amountMinor": 1000,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_maya",
+            "amount": {
+              "amountMinor": 1000,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_jordan",
+            "amount": {
+              "amountMinor": 1000,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_priya",
+            "amount": {
+              "amountMinor": 1000,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_sam",
+            "amount": {
+              "amountMinor": 1000,
+              "currency": "EUR"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ex_011",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_priya",
+      "senderId": "h_priya",
+      "text": "@trav Priya paid 36 euros for sagrada audio guides, just me jordan and dean",
+      "expected": {
+        "action": "log_expense",
+        "currency": "EUR",
+        "payer": "mem_priya",
+        "amount": {
+          "amountMinor": 3600,
+          "currency": "EUR"
+        },
+        "split": {
+          "method": "equal",
+          "participants": [
+            "mem_priya",
+            "mem_jordan",
+            "mem_dean"
+          ]
+        },
+        "category": "activities",
+        "mode": "equal",
+        "note": "speaker refers to herself in third person",
+        "shares": [
+          {
+            "memberId": "mem_dean",
+            "amount": {
+              "amountMinor": 1200,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_jordan",
+            "amount": {
+              "amountMinor": 1200,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_priya",
+            "amount": {
+              "amountMinor": 1200,
+              "currency": "EUR"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ex_012",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_jordan",
+      "senderId": "h_jordan",
+      "text": "@trav I paid €100 for the boat, Dean owes 40, Maya 30, rest is mine",
+      "expected": {
+        "action": "log_expense",
+        "currency": "EUR",
+        "payer": "mem_jordan",
+        "amount": {
+          "amountMinor": 10000,
+          "currency": "EUR"
+        },
+        "split": {
+          "method": "exact",
+          "amounts": [
+            {
+              "memberId": "mem_dean",
+              "amount": {
+                "amountMinor": 4000,
+                "currency": "EUR"
+              }
+            },
+            {
+              "memberId": "mem_maya",
+              "amount": {
+                "amountMinor": 3000,
+                "currency": "EUR"
+              }
+            },
+            {
+              "memberId": "mem_jordan",
+              "amount": {
+                "amountMinor": 3000,
+                "currency": "EUR"
+              }
+            }
+          ]
+        },
+        "category": "activities",
+        "mode": "exact",
+        "shares": [
+          {
+            "memberId": "mem_dean",
+            "amount": {
+              "amountMinor": 4000,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_maya",
+            "amount": {
+              "amountMinor": 3000,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_jordan",
+            "amount": {
+              "amountMinor": 3000,
+              "currency": "EUR"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ex_013",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_dean",
+      "senderId": "h_dean",
+      "text": "@trav dinner was €90: i had the steak (€30), maya and priya split the paella (€40), wine €20 for the three of us",
+      "expected": {
+        "action": "log_expense",
+        "currency": "EUR",
+        "payer": "mem_dean",
+        "amount": {
+          "amountMinor": 9000,
+          "currency": "EUR"
+        },
+        "split": {
+          "method": "itemized",
+          "participants": [
+            "mem_dean",
+            "mem_maya",
+            "mem_priya"
+          ],
+          "lineItems": [
+            {
+              "lineId": "x1",
+              "label": "steak",
+              "amount": {
+                "amountMinor": 3000,
+                "currency": "EUR"
+              },
+              "claimedBy": [
+                "mem_dean"
+              ],
+              "kind": "item"
+            },
+            {
+              "lineId": "x2",
+              "label": "paella",
+              "amount": {
+                "amountMinor": 4000,
+                "currency": "EUR"
+              },
+              "claimedBy": [
+                "mem_maya",
+                "mem_priya"
+              ],
+              "kind": "item"
+            },
+            {
+              "lineId": "x3",
+              "label": "wine",
+              "amount": {
+                "amountMinor": 2000,
+                "currency": "EUR"
+              },
+              "claimedBy": [
+                "mem_dean",
+                "mem_maya",
+                "mem_priya"
+              ],
+              "kind": "item"
+            }
+          ]
+        },
+        "category": "food",
+        "mode": "itemized",
+        "note": "€20 / 3 leaves 2 cents: the payer (Dean) absorbs them",
+        "shares": [
+          {
+            "memberId": "mem_dean",
+            "amount": {
+              "amountMinor": 3667,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_maya",
+            "amount": {
+              "amountMinor": 2667,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_priya",
+            "amount": {
+              "amountMinor": 2666,
+              "currency": "EUR"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ex_014",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_sam",
+      "senderId": "h_sam",
+      "text": "@trav 2 waters at razz were €28 (€14 EACH???) me and maya",
+      "expected": {
+        "action": "log_expense",
+        "currency": "EUR",
+        "payer": "mem_sam",
+        "amount": {
+          "amountMinor": 2800,
+          "currency": "EUR"
+        },
+        "split": {
+          "method": "equal",
+          "participants": [
+            "mem_sam",
+            "mem_maya"
+          ]
+        },
+        "category": "drinks",
+        "mode": "equal",
+        "shares": [
+          {
+            "memberId": "mem_maya",
+            "amount": {
+              "amountMinor": 1400,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_sam",
+            "amount": {
+              "amountMinor": 1400,
+              "currency": "EUR"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ex_015",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_maya",
+      "senderId": "h_maya",
+      "text": "@trav I paid €120 for the flamenco show for me priya and jordan, priya pays double since she brought her cousin",
+      "expected": {
+        "action": "log_expense",
+        "currency": "EUR",
+        "payer": "mem_maya",
+        "amount": {
+          "amountMinor": 12000,
+          "currency": "EUR"
+        },
+        "split": {
+          "method": "weighted",
+          "weights": [
+            {
+              "memberId": "mem_maya",
+              "weight": 1
+            },
+            {
+              "memberId": "mem_priya",
+              "weight": 2
+            },
+            {
+              "memberId": "mem_jordan",
+              "weight": 1
+            }
+          ]
+        },
+        "category": "activities",
+        "mode": "weighted",
+        "note": "the cousin is not a member and is never on the ledger; Priya carries her share",
+        "shares": [
+          {
+            "memberId": "mem_maya",
+            "amount": {
+              "amountMinor": 3000,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_jordan",
+            "amount": {
+              "amountMinor": 3000,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_priya",
+            "amount": {
+              "amountMinor": 6000,
+              "currency": "EUR"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ex_016",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_dean",
+      "senderId": "h_dean",
+      "text": "@trav weighted split for the bike tour €90: dean 1 maya 1 sam 2 (he took the ebike)",
+      "expected": {
+        "action": "log_expense",
+        "currency": "EUR",
+        "payer": "mem_dean",
+        "amount": {
+          "amountMinor": 9000,
+          "currency": "EUR"
+        },
+        "split": {
+          "method": "weighted",
+          "weights": [
+            {
+              "memberId": "mem_dean",
+              "weight": 1
+            },
+            {
+              "memberId": "mem_maya",
+              "weight": 1
+            },
+            {
+              "memberId": "mem_sam",
+              "weight": 2
+            }
+          ]
+        },
+        "category": "activities",
+        "mode": "weighted",
+        "shares": [
+          {
+            "memberId": "mem_dean",
+            "amount": {
+              "amountMinor": 2250,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_maya",
+            "amount": {
+              "amountMinor": 2250,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_sam",
+            "amount": {
+              "amountMinor": 4500,
+              "currency": "EUR"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ex_017",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_henry",
+      "senderId": "h_henry",
+      "text": "@trav i got everyone coffee €13.20",
+      "expected": {
+        "action": "log_expense",
+        "currency": "EUR",
+        "payer": "mem_henry",
+        "amount": {
+          "amountMinor": 1320,
+          "currency": "EUR"
+        },
+        "split": {
+          "method": "equal",
+          "participants": [
+            "mem_dean",
+            "mem_henry",
+            "mem_maya",
+            "mem_jordan",
+            "mem_priya",
+            "mem_sam"
+          ]
+        },
+        "category": "food",
+        "mode": "equal",
+        "shares": [
+          {
+            "memberId": "mem_dean",
+            "amount": {
+              "amountMinor": 220,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_henry",
+            "amount": {
+              "amountMinor": 220,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_maya",
+            "amount": {
+              "amountMinor": 220,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_jordan",
+            "amount": {
+              "amountMinor": 220,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_priya",
+            "amount": {
+              "amountMinor": 220,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_sam",
+            "amount": {
+              "amountMinor": 220,
+              "currency": "EUR"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ex_018",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_jordan",
+      "senderId": "h_jordan",
+      "text": "@trav put the €25 laundromat on me and sam 50/50",
+      "expected": {
+        "action": "log_expense",
+        "currency": "EUR",
+        "payer": "mem_jordan",
+        "amount": {
+          "amountMinor": 2500,
+          "currency": "EUR"
+        },
+        "split": {
+          "method": "equal",
+          "participants": [
+            "mem_jordan",
+            "mem_sam"
+          ]
+        },
+        "category": "other",
+        "mode": "equal",
+        "shares": [
+          {
+            "memberId": "mem_jordan",
+            "amount": {
+              "amountMinor": 1250,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_sam",
+            "amount": {
+              "amountMinor": 1250,
+              "currency": "EUR"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ex_019",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_priya",
+      "senderId": "h_priya",
+      "text": "@trav dinner was 96.50 euros on my card, split 6 ways but henry only had a drink so he pays 10",
+      "expected": {
+        "action": "log_expense",
+        "currency": "EUR",
+        "payer": "mem_priya",
+        "amount": {
+          "amountMinor": 9650,
+          "currency": "EUR"
+        },
+        "split": {
+          "method": "exact",
+          "amounts": [
+            {
+              "memberId": "mem_henry",
+              "amount": {
+                "amountMinor": 1000,
+                "currency": "EUR"
+              }
+            },
+            {
+              "memberId": "mem_dean",
+              "amount": {
+                "amountMinor": 1730,
+                "currency": "EUR"
+              }
+            },
+            {
+              "memberId": "mem_maya",
+              "amount": {
+                "amountMinor": 1730,
+                "currency": "EUR"
+              }
+            },
+            {
+              "memberId": "mem_jordan",
+              "amount": {
+                "amountMinor": 1730,
+                "currency": "EUR"
+              }
+            },
+            {
+              "memberId": "mem_priya",
+              "amount": {
+                "amountMinor": 1730,
+                "currency": "EUR"
+              }
+            },
+            {
+              "memberId": "mem_sam",
+              "amount": {
+                "amountMinor": 1730,
+                "currency": "EUR"
+              }
+            }
+          ]
+        },
+        "category": "food",
+        "mode": "exact",
+        "note": "fixed amount for one person, the rest split evenly among the other five",
+        "shares": [
+          {
+            "memberId": "mem_dean",
+            "amount": {
+              "amountMinor": 1730,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_henry",
+            "amount": {
+              "amountMinor": 1000,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_maya",
+            "amount": {
+              "amountMinor": 1730,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_jordan",
+            "amount": {
+              "amountMinor": 1730,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_priya",
+            "amount": {
+              "amountMinor": 1730,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_sam",
+            "amount": {
+              "amountMinor": 1730,
+              "currency": "EUR"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ex_020",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_dean",
+      "senderId": "h_dean",
+      "text": "@trav i paid for dinner",
+      "expected": {
+        "action": "clarify",
+        "clarifyAbout": [
+          "amount"
+        ],
+        "questionCount": 1,
+        "ledgerWrites": 0
+      }
+    },
+    {
+      "id": "ex_021",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_maya",
+      "senderId": "h_maya",
+      "text": "@trav split $45 for the uber w jordan",
+      "expected": {
+        "action": "log_expense",
+        "currency": "USD",
+        "payer": "mem_maya",
+        "amount": {
+          "amountMinor": 4500,
+          "currency": "USD"
+        },
+        "split": {
+          "method": "equal",
+          "participants": [
+            "mem_maya",
+            "mem_jordan"
+          ]
+        },
+        "category": "transport",
+        "mode": "equal",
+        "shares": [
+          {
+            "memberId": "mem_maya",
+            "amount": {
+              "amountMinor": 2250,
+              "currency": "USD"
+            }
+          },
+          {
+            "memberId": "mem_jordan",
+            "amount": {
+              "amountMinor": 2250,
+              "currency": "USD"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ex_022",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_jordan",
+      "senderId": "h_jordan",
+      "text": "trav €18.50 ice cream for me and priya",
+      "expected": {
+        "action": "log_expense",
+        "currency": "EUR",
+        "payer": "mem_jordan",
+        "amount": {
+          "amountMinor": 1850,
+          "currency": "EUR"
+        },
+        "split": {
+          "method": "equal",
+          "participants": [
+            "mem_jordan",
+            "mem_priya"
+          ]
+        },
+        "category": "food",
+        "mode": "equal",
+        "shares": [
+          {
+            "memberId": "mem_jordan",
+            "amount": {
+              "amountMinor": 925,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_priya",
+            "amount": {
+              "amountMinor": 925,
+              "currency": "EUR"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ex_023",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_sam",
+      "senderId": "h_sam",
+      "text": "@trav i owe dean €20 for the tickets",
+      "expected": {
+        "action": "log_expense",
+        "currency": "EUR",
+        "payer": "mem_dean",
+        "amount": {
+          "amountMinor": 2000,
+          "currency": "EUR"
+        },
+        "split": {
+          "method": "exact",
+          "amounts": [
+            {
+              "memberId": "mem_sam",
+              "amount": {
+                "amountMinor": 2000,
+                "currency": "EUR"
+              }
+            }
+          ]
+        },
+        "category": "tickets",
+        "mode": "exact",
+        "note": "payer is not the sender",
+        "shares": [
+          {
+            "memberId": "mem_sam",
+            "amount": {
+              "amountMinor": 2000,
+              "currency": "EUR"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ex_024",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_dean",
+      "senderId": "h_dean",
+      "text": "@trav 6 of us at dinner, I paid 150 euros, Sam and Henry left early and only had apps so they pay 15 each",
+      "expected": {
+        "action": "log_expense",
+        "currency": "EUR",
+        "payer": "mem_dean",
+        "amount": {
+          "amountMinor": 15000,
+          "currency": "EUR"
+        },
+        "split": {
+          "method": "exact",
+          "amounts": [
+            {
+              "memberId": "mem_sam",
+              "amount": {
+                "amountMinor": 1500,
+                "currency": "EUR"
+              }
+            },
+            {
+              "memberId": "mem_henry",
+              "amount": {
+                "amountMinor": 1500,
+                "currency": "EUR"
+              }
+            },
+            {
+              "memberId": "mem_dean",
+              "amount": {
+                "amountMinor": 3000,
+                "currency": "EUR"
+              }
+            },
+            {
+              "memberId": "mem_maya",
+              "amount": {
+                "amountMinor": 3000,
+                "currency": "EUR"
+              }
+            },
+            {
+              "memberId": "mem_jordan",
+              "amount": {
+                "amountMinor": 3000,
+                "currency": "EUR"
+              }
+            },
+            {
+              "memberId": "mem_priya",
+              "amount": {
+                "amountMinor": 3000,
+                "currency": "EUR"
+              }
+            }
+          ]
+        },
+        "category": "food",
+        "mode": "exact",
+        "shares": [
+          {
+            "memberId": "mem_dean",
+            "amount": {
+              "amountMinor": 3000,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_henry",
+            "amount": {
+              "amountMinor": 1500,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_maya",
+            "amount": {
+              "amountMinor": 3000,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_jordan",
+            "amount": {
+              "amountMinor": 3000,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_priya",
+            "amount": {
+              "amountMinor": 3000,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_sam",
+            "amount": {
+              "amountMinor": 1500,
+              "currency": "EUR"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ex_025",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_priya",
+      "senderId": "h_priya",
+      "text": "@trav i paid 84 for dinner, everyone but henry",
+      "expected": {
+        "action": "clarify",
+        "clarifyAbout": [
+          "currency"
+        ],
+        "questionCount": 1,
+        "ledgerWrites": 0,
+        "note": "VOICE §4.11: money facts are never assumed. A bare number gets one currency question."
+      }
+    },
+    {
+      "id": "ex_026",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_maya",
+      "senderId": "h_maya",
+      "text": "@trav €40 for the club entry, me and the girls",
+      "expected": {
+        "action": "clarify",
+        "clarifyAbout": [
+          "participants"
+        ],
+        "questionCount": 1,
+        "ledgerWrites": 0,
+        "note": "\"the girls\" is not a member list; Trav asks who, never guesses by gender"
+      }
+    },
+    {
+      "id": "ex_027",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_dean",
+      "senderId": "h_dean",
+      "text": "@trav taxi €18 split with everyone except me",
+      "expected": {
+        "action": "log_expense",
+        "currency": "EUR",
+        "payer": "mem_dean",
+        "amount": {
+          "amountMinor": 1800,
+          "currency": "EUR"
+        },
+        "split": {
+          "method": "exclude",
+          "excluded": [
+            "mem_dean"
+          ]
+        },
+        "category": "transport",
+        "mode": "exclude",
+        "note": "payer is not a participant: remainder rule falls back to allocate() order",
+        "shares": [
+          {
+            "memberId": "mem_henry",
+            "amount": {
+              "amountMinor": 360,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_maya",
+            "amount": {
+              "amountMinor": 360,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_jordan",
+            "amount": {
+              "amountMinor": 360,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_priya",
+            "amount": {
+              "amountMinor": 360,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_sam",
+            "amount": {
+              "amountMinor": 360,
+              "currency": "EUR"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ex_028",
+      "groupId": "grp_barcelona",
+      "tripId": "trip_barcelona",
+      "senderMemberId": "mem_jordan",
+      "senderId": "h_jordan",
+      "text": "@trav €10 for the 3 of us coffees, me dean sam",
+      "expected": {
+        "action": "log_expense",
+        "currency": "EUR",
+        "payer": "mem_jordan",
+        "amount": {
+          "amountMinor": 1000,
+          "currency": "EUR"
+        },
+        "split": {
+          "method": "equal",
+          "participants": [
+            "mem_jordan",
+            "mem_dean",
+            "mem_sam"
+          ]
+        },
+        "category": "food",
+        "mode": "equal",
+        "note": "€10/3: Jordan (payer) absorbs the extra cent",
+        "shares": [
+          {
+            "memberId": "mem_dean",
+            "amount": {
+              "amountMinor": 333,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_jordan",
+            "amount": {
+              "amountMinor": 334,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_sam",
+            "amount": {
+              "amountMinor": 333,
+              "currency": "EUR"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ex_029",
+      "groupId": "grp_lisbon",
+      "tripId": "trip_lisbon",
+      "senderMemberId": "mem_lis_dad",
+      "senderId": "h_dad",
+      "text": "@trav I paid 46,50 € for dinner, half each",
+      "expected": {
+        "action": "log_expense",
+        "currency": "EUR",
+        "payer": "mem_lis_dad",
+        "amount": {
+          "amountMinor": 4650,
+          "currency": "EUR"
+        },
+        "split": {
+          "method": "equal",
+          "participants": [
+            "mem_lis_dean",
+            "mem_lis_dad"
+          ]
+        },
+        "category": "food",
+        "mode": "equal",
+        "note": "European decimal comma",
+        "shares": [
+          {
+            "memberId": "mem_lis_dean",
+            "amount": {
+              "amountMinor": 2325,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_lis_dad",
+            "amount": {
+              "amountMinor": 2325,
+              "currency": "EUR"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ex_030",
+      "groupId": "grp_lisbon",
+      "tripId": "trip_lisbon",
+      "senderMemberId": "mem_lis_dean",
+      "senderId": "h_dean",
+      "text": "@trav the sintra driver was 180 euro, 50/50 with dad",
+      "expected": {
+        "action": "log_expense",
+        "currency": "EUR",
+        "payer": "mem_lis_dean",
+        "amount": {
+          "amountMinor": 18000,
+          "currency": "EUR"
+        },
+        "split": {
+          "method": "equal",
+          "participants": [
+            "mem_lis_dean",
+            "mem_lis_dad"
+          ]
+        },
+        "category": "transport",
+        "mode": "equal",
+        "shares": [
+          {
+            "memberId": "mem_lis_dean",
+            "amount": {
+              "amountMinor": 9000,
+              "currency": "EUR"
+            }
+          },
+          {
+            "memberId": "mem_lis_dad",
+            "amount": {
+              "amountMinor": 9000,
+              "currency": "EUR"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "ex_031",
+      "groupId": "grp_lisbon",
+      "tripId": "trip_lisbon",
+      "senderMemberId": "mem_lis_dad",
+      "senderId": "h_dad",
+      "text": "@trav I paid €38 for lunch but i'll expense it to the conference, leave it off",
+      "expected": {
+        "action": "no_log",
+        "ledgerWrites": 0,
+        "reactionOk": "👍"
+      }
+    },
+    {
+      "id": "ex_032",
+      "groupId": "grp_turks_caicos",
+      "tripId": "trip_turks_caicos",
+      "senderMemberId": "mem_tci_mom",
+      "senderId": "h_mom",
+      "text": "@trav add $142 dinner at conch corner",
+      "expected": {
+        "action": "log_expense",
+        "payer": "mem_tci_mom",
+        "amount": {
+          "amountMinor": 14200,
+          "currency": "USD"
+        },
+        "currency": "USD",
+        "familyTab": true,
+        "settleTransfers": 0,
+        "mode": "family_tab",
+        "note": "one pot, no split; Lily never a debtor"
+      }
+    },
+    {
+      "id": "ex_033",
+      "groupId": "grp_turks_caicos",
+      "tripId": "trip_turks_caicos",
+      "senderMemberId": "mem_tci_lily",
+      "senderId": "h_lily",
+      "text": "@trav i paid $24 for smoothies for everyone",
+      "expected": {
+        "action": "log_expense",
+        "payer": "mem_tci_lily",
+        "amount": {
+          "amountMinor": 2400,
+          "currency": "USD"
+        },
+        "currency": "USD",
+        "familyTab": true,
+        "minorFoldedInto": "mem_tci_dad",
+        "settleTransfers": 0,
+        "mode": "family_tab"
+      }
+    }
+  ]
+}

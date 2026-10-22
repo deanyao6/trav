@@ -1,0 +1,49 @@
+{
+  "fixtureVersion": 1,
+  "receiptId": "rcpt_bcn_blurry",
+  "title": "unreadable photo (VOICE §4.10 D)",
+  "groupId": "grp_barcelona",
+  "tripId": "trip_barcelona",
+  "imageFile": "fixtures/receipts/rcpt_bcn_blurry.png",
+  "imageMimeType": "image/png",
+  "imageSha256": "2a389b85624247424b2fb3b4f095786ff459109c5bf9ac9fb9e7a5ca6edd1f40",
+  "postedBy": "mem_priya",
+  "postedInGroup": false,
+  "ocrText": "GRANJA FICTÍCIA\nCarrer Petritxol 4, Barcelona\n15/03/2026   10:40\n----------------------------------\n4 XOCOLATA DESFETA           14,00\n2 XURROS                      7,00\n----------------------------------\nTOTAL                      21,00 €\nCARD                         21,00\nGRACIES",
+  "parsed": null,
+  "lineItems": [
+    {
+      "lineId": "bl1",
+      "label": "xocolata desfeta x4",
+      "amount": {
+        "amountMinor": 1400,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "bl2",
+      "label": "xurros x2",
+      "amount": {
+        "amountMinor": 700,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    }
+  ],
+  "payer": "mem_priya",
+  "split": null,
+  "expectedShares": null,
+  "labels": {
+    "expectedAction": "ask_resend_or_total",
+    "injection": false,
+    "injectionPatterns": [],
+    "lowConfidence": true,
+    "unreadable": true,
+    "familyTab": false,
+    "rounding": "per line: equal among claimants (payer absorbs the remainder); tax/tip/service/fee pro-rata to item subtotals (README \"Rounding\")",
+    "notes": "parsed is null; Trav DMs \"couldn't read that receipt, too blurry. send another shot or just tell me the total and who's in\". Nothing logged."
+  }
+}

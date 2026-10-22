@@ -8,6 +8,8 @@ Things the overnight run could not decide or was blocked on. Ranked by importanc
 
 ## Noted, not blocking
 
+- **Who may approve a booking (T-026 builder, 2026-10-22 09:40):** the ApprovalPolicy's default rule C1 lets any adult member approve (including Henry, who is not going), while VOICE §6.2 says the requester or a lead. The proposal card currently shows the policy's list. Decide: approvers = any adult member (simpler, current code) or requester + leads + attendees (stricter). Related: over the auto-approve cap the policy escalates to `each_payer`, so the card reads "all 6 of you have to ok it" rather than VOICE §4.1 B's "@Dean has to ok it".
+
 - **Adapter interface gaps found in review (T-008-a):** (a) `PurchaseTicketsRequest`/`ChargeRequest` carry no `groupId`, so provider mocks can't compare `ApprovalProof.groupId`; the executor (T-009) does that check instead (recorded in the T-009 acceptance). (b) `BookingPaymentsAdapter.refund` takes no `ApprovalProof` or caller identity, unlike `TicketsAdapter.refund`; a refund only returns money, but audit should record who asked. Proposed as T-059 (P1).
 
 - pnpm 12 needs `XDG_RUNTIME_DIR` pointed inside the repo to work in the sandbox (see `docs/DECISIONS.md` D-002). `scripts/overnight.sh` now sets it; the currently running overnight loop already started, so this session's agents set it per shell. If you run pnpm yourself outside the sandbox, nothing changes.

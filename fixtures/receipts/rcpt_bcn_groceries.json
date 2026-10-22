@@ -1,0 +1,409 @@
+{
+  "fixtureVersion": 1,
+  "receiptId": "rcpt_bcn_groceries",
+  "title": "grocery run with one personal item",
+  "groupId": "grp_barcelona",
+  "tripId": "trip_barcelona",
+  "postedBy": "mem_priya",
+  "postedInGroup": false,
+  "ocrText": "SUPERMERCAT FICTICI\nCarrer d'Arago 240, Barcelona\n12/03/2026   17:31\n----------------------------------\n6 AIGUA 1,5L                  3,30\n1 CAFE MOLT                   5,95\n2 LLET                        2,30\n1 PA DE PAGES                 2,10\n12 OUS                        2,85\n1 PERNIL                      6,90\n1 FORMATGE                    4,95\n1 FRUITA                      5,10\n1 CAVA BRUT                   6,95\n1 PATATES XIPS                3,40\n1 BARRETES PROTEINA           3,60\n----------------------------------\nTOTAL                      47,40 €\nIVA INCLOS (4%/10%/21%)\nCARD                         47,40\nGRACIES PER LA VISITA",
+  "parsed": {
+    "source": "grocery",
+    "merchantName": "Supermercat Fictici",
+    "total": {
+      "amountMinor": 4740,
+      "currency": "EUR"
+    },
+    "subtotal": {
+      "amountMinor": 4740,
+      "currency": "EUR"
+    },
+    "occurredAt": "2026-03-12T17:31:00+01:00",
+    "lineItems": [
+      {
+        "description": "aigua 1,5L",
+        "quantity": 6,
+        "amount": {
+          "amountMinor": 330,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "cafe molt",
+        "quantity": 1,
+        "amount": {
+          "amountMinor": 595,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "llet",
+        "quantity": 2,
+        "amount": {
+          "amountMinor": 230,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "pa de pages",
+        "quantity": 1,
+        "amount": {
+          "amountMinor": 210,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "ous",
+        "quantity": 12,
+        "amount": {
+          "amountMinor": 285,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "pernil",
+        "quantity": 1,
+        "amount": {
+          "amountMinor": 690,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "formatge",
+        "quantity": 1,
+        "amount": {
+          "amountMinor": 495,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "fruita",
+        "quantity": 1,
+        "amount": {
+          "amountMinor": 510,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "cava brut",
+        "quantity": 1,
+        "amount": {
+          "amountMinor": 695,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "patates xips",
+        "quantity": 1,
+        "amount": {
+          "amountMinor": 340,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "barretes proteina",
+        "quantity": 1,
+        "amount": {
+          "amountMinor": 360,
+          "currency": "EUR"
+        }
+      }
+    ],
+    "confidence": 0.95,
+    "warnings": []
+  },
+  "lineItems": [
+    {
+      "lineId": "gr1",
+      "label": "aigua 1,5L x6",
+      "amount": {
+        "amountMinor": 330,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "gr2",
+      "label": "cafe molt",
+      "amount": {
+        "amountMinor": 595,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "gr3",
+      "label": "llet x2",
+      "amount": {
+        "amountMinor": 230,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "gr4",
+      "label": "pa de pages",
+      "amount": {
+        "amountMinor": 210,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "gr5",
+      "label": "ous x12",
+      "amount": {
+        "amountMinor": 285,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "gr6",
+      "label": "pernil",
+      "amount": {
+        "amountMinor": 690,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "gr7",
+      "label": "formatge",
+      "amount": {
+        "amountMinor": 495,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "gr8",
+      "label": "fruita",
+      "amount": {
+        "amountMinor": 510,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "gr9",
+      "label": "cava brut",
+      "amount": {
+        "amountMinor": 695,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "gr10",
+      "label": "patates xips",
+      "amount": {
+        "amountMinor": 340,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "gr11",
+      "label": "barretes proteina",
+      "amount": {
+        "amountMinor": 360,
+        "currency": "EUR"
+      },
+      "claimedBy": [
+        "mem_sam"
+      ],
+      "kind": "item"
+    }
+  ],
+  "payer": "mem_priya",
+  "split": {
+    "method": "itemized",
+    "participants": [
+      "mem_dean",
+      "mem_henry",
+      "mem_maya",
+      "mem_jordan",
+      "mem_priya",
+      "mem_sam"
+    ],
+    "lineItems": [
+      {
+        "lineId": "gr1",
+        "label": "aigua 1,5L x6",
+        "amount": {
+          "amountMinor": 330,
+          "currency": "EUR"
+        },
+        "claimedBy": [],
+        "kind": "item"
+      },
+      {
+        "lineId": "gr2",
+        "label": "cafe molt",
+        "amount": {
+          "amountMinor": 595,
+          "currency": "EUR"
+        },
+        "claimedBy": [],
+        "kind": "item"
+      },
+      {
+        "lineId": "gr3",
+        "label": "llet x2",
+        "amount": {
+          "amountMinor": 230,
+          "currency": "EUR"
+        },
+        "claimedBy": [],
+        "kind": "item"
+      },
+      {
+        "lineId": "gr4",
+        "label": "pa de pages",
+        "amount": {
+          "amountMinor": 210,
+          "currency": "EUR"
+        },
+        "claimedBy": [],
+        "kind": "item"
+      },
+      {
+        "lineId": "gr5",
+        "label": "ous x12",
+        "amount": {
+          "amountMinor": 285,
+          "currency": "EUR"
+        },
+        "claimedBy": [],
+        "kind": "item"
+      },
+      {
+        "lineId": "gr6",
+        "label": "pernil",
+        "amount": {
+          "amountMinor": 690,
+          "currency": "EUR"
+        },
+        "claimedBy": [],
+        "kind": "item"
+      },
+      {
+        "lineId": "gr7",
+        "label": "formatge",
+        "amount": {
+          "amountMinor": 495,
+          "currency": "EUR"
+        },
+        "claimedBy": [],
+        "kind": "item"
+      },
+      {
+        "lineId": "gr8",
+        "label": "fruita",
+        "amount": {
+          "amountMinor": 510,
+          "currency": "EUR"
+        },
+        "claimedBy": [],
+        "kind": "item"
+      },
+      {
+        "lineId": "gr9",
+        "label": "cava brut",
+        "amount": {
+          "amountMinor": 695,
+          "currency": "EUR"
+        },
+        "claimedBy": [],
+        "kind": "item"
+      },
+      {
+        "lineId": "gr10",
+        "label": "patates xips",
+        "amount": {
+          "amountMinor": 340,
+          "currency": "EUR"
+        },
+        "claimedBy": [],
+        "kind": "item"
+      },
+      {
+        "lineId": "gr11",
+        "label": "barretes proteina",
+        "amount": {
+          "amountMinor": 360,
+          "currency": "EUR"
+        },
+        "claimedBy": [
+          "mem_sam"
+        ],
+        "kind": "item"
+      }
+    ]
+  },
+  "expectedShares": [
+    {
+      "memberId": "mem_dean",
+      "amount": {
+        "amountMinor": 730,
+        "currency": "EUR"
+      }
+    },
+    {
+      "memberId": "mem_henry",
+      "amount": {
+        "amountMinor": 730,
+        "currency": "EUR"
+      }
+    },
+    {
+      "memberId": "mem_maya",
+      "amount": {
+        "amountMinor": 730,
+        "currency": "EUR"
+      }
+    },
+    {
+      "memberId": "mem_jordan",
+      "amount": {
+        "amountMinor": 730,
+        "currency": "EUR"
+      }
+    },
+    {
+      "memberId": "mem_priya",
+      "amount": {
+        "amountMinor": 730,
+        "currency": "EUR"
+      }
+    },
+    {
+      "memberId": "mem_sam",
+      "amount": {
+        "amountMinor": 1090,
+        "currency": "EUR"
+      }
+    }
+  ],
+  "labels": {
+    "expectedAction": "log_expense",
+    "injection": false,
+    "injectionPatterns": [],
+    "lowConfidence": false,
+    "unreadable": false,
+    "familyTab": false,
+    "rounding": "per line: equal among claimants (payer absorbs the remainder); tax/tip/service/fee pro-rata to item subtotals (README \"Rounding\")",
+    "notes": "the chat logs this as an equal 6-way split (Priya said \"everyone\"); if itemized from the receipt, Sam alone pays for his protein bars and per-line rounding remainders go to Priya (the payer); see expectedShares"
+  }
+}

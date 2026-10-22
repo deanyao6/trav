@@ -1,0 +1,267 @@
+{
+  "fixtureVersion": 1,
+  "groupId": "grp_barcelona",
+  "tripId": "trip_barcelona",
+  "rule": "T-015: full recap if ≥2 of {nightlife booking or activity that night, group expense logged after 22:00, opted-in album photo after 23:00, member chat after 00:00}; else a quiet settle-up if balances changed since the last recap; else silence. Window: previous day 12:00 → recap day 06:00, local.",
+  "mornings": {
+    "2026-03-12": {
+      "recapAt": "2026-03-12T10:00:00+01:00",
+      "window": {
+        "from": "2026-03-11T12:00:00+01:00",
+        "to": "2026-03-12T06:00:00+01:00"
+      },
+      "signals": {
+        "nightlifeBooking": false,
+        "expenseAfter22": false,
+        "photoAfter23": false,
+        "chatAfterMidnight": false,
+        "balancesChanged": false
+      },
+      "expectedMode": "silent",
+      "lastNightExpenses": [],
+      "lastNightTotal": {
+        "amountMinor": 0,
+        "currency": "EUR"
+      },
+      "eligiblePhotoIds": [],
+      "maxPhotos": 3
+    },
+    "2026-03-13": {
+      "recapAt": "2026-03-13T10:00:00+01:00",
+      "window": {
+        "from": "2026-03-12T12:00:00+01:00",
+        "to": "2026-03-13T06:00:00+01:00"
+      },
+      "signals": {
+        "nightlifeBooking": false,
+        "expenseAfter22": true,
+        "photoAfter23": true,
+        "chatAfterMidnight": false,
+        "balancesChanged": true
+      },
+      "expectedMode": "full",
+      "lastNightExpenses": [
+        {
+          "expenseId": "exp_bcn_007",
+          "description": "groceries for the apartment",
+          "amount": {
+            "amountMinor": 4740,
+            "currency": "EUR"
+          }
+        },
+        {
+          "expenseId": "exp_bcn_008",
+          "description": "welcome dinner",
+          "amount": {
+            "amountMinor": 12600,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "lastNightTotal": {
+        "amountMinor": 17340,
+        "currency": "EUR"
+      },
+      "eligiblePhotoIds": [
+        "photo_bcn_004",
+        "photo_bcn_005",
+        "photo_bcn_008",
+        "photo_bcn_044"
+      ],
+      "maxPhotos": 3
+    },
+    "2026-03-14": {
+      "recapAt": "2026-03-14T10:00:00+01:00",
+      "window": {
+        "from": "2026-03-13T12:00:00+01:00",
+        "to": "2026-03-14T06:00:00+01:00"
+      },
+      "signals": {
+        "nightlifeBooking": false,
+        "expenseAfter22": true,
+        "photoAfter23": true,
+        "chatAfterMidnight": true,
+        "balancesChanged": true
+      },
+      "expectedMode": "full",
+      "lastNightExpenses": [
+        {
+          "expenseId": "exp_bcn_009",
+          "description": "cava",
+          "amount": {
+            "amountMinor": 3000,
+            "currency": "EUR"
+          }
+        },
+        {
+          "expenseId": "exp_bcn_010",
+          "description": "dinner at Taverna del Gat Blau",
+          "amount": {
+            "amountMinor": 18400,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "lastNightTotal": {
+        "amountMinor": 21400,
+        "currency": "EUR"
+      },
+      "eligiblePhotoIds": [
+        "photo_bcn_014",
+        "photo_bcn_015",
+        "photo_bcn_016",
+        "photo_bcn_018",
+        "photo_bcn_020",
+        "photo_bcn_046"
+      ],
+      "maxPhotos": 3
+    },
+    "2026-03-15": {
+      "recapAt": "2026-03-15T10:00:00+01:00",
+      "window": {
+        "from": "2026-03-14T12:00:00+01:00",
+        "to": "2026-03-15T06:00:00+01:00"
+      },
+      "signals": {
+        "nightlifeBooking": true,
+        "expenseAfter22": true,
+        "photoAfter23": true,
+        "chatAfterMidnight": true,
+        "balancesChanged": true
+      },
+      "expectedMode": "full",
+      "lastNightExpenses": [
+        {
+          "expenseId": "exp_bcn_012",
+          "description": "dinner",
+          "amount": {
+            "amountMinor": 8400,
+            "currency": "EUR"
+          }
+        },
+        {
+          "expenseId": "exp_bcn_013",
+          "description": "Razzmatazz tickets",
+          "amount": {
+            "amountMinor": 9000,
+            "currency": "EUR"
+          }
+        },
+        {
+          "expenseId": "exp_bcn_014",
+          "description": "waters at Razzmatazz",
+          "amount": {
+            "amountMinor": 2800,
+            "currency": "EUR"
+          }
+        },
+        {
+          "expenseId": "exp_bcn_015",
+          "description": "late-night kebabs",
+          "amount": {
+            "amountMinor": 6200,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "lastNightTotal": {
+        "amountMinor": 26400,
+        "currency": "EUR"
+      },
+      "eligiblePhotoIds": [
+        "photo_bcn_021",
+        "photo_bcn_023",
+        "photo_bcn_025",
+        "photo_bcn_026",
+        "photo_bcn_027",
+        "photo_bcn_028",
+        "photo_bcn_029",
+        "photo_bcn_030",
+        "photo_bcn_047",
+        "photo_bcn_048",
+        "photo_bcn_050",
+        "photo_bcn_053"
+      ],
+      "maxPhotos": 3
+    },
+    "2026-03-16": {
+      "recapAt": "2026-03-16T10:00:00+01:00",
+      "window": {
+        "from": "2026-03-15T12:00:00+01:00",
+        "to": "2026-03-16T06:00:00+01:00"
+      },
+      "signals": {
+        "nightlifeBooking": false,
+        "expenseAfter22": false,
+        "photoAfter23": false,
+        "chatAfterMidnight": false,
+        "balancesChanged": true
+      },
+      "expectedMode": "quiet",
+      "lastNightExpenses": [
+        {
+          "expenseId": "exp_bcn_017",
+          "description": "coffees",
+          "amount": {
+            "amountMinor": 1320,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "lastNightTotal": {
+        "amountMinor": 1320,
+        "currency": "EUR"
+      },
+      "eligiblePhotoIds": [
+        "photo_bcn_032",
+        "photo_bcn_034",
+        "photo_bcn_035"
+      ],
+      "maxPhotos": 3
+    },
+    "2026-03-17": {
+      "recapAt": "2026-03-17T10:00:00+01:00",
+      "window": {
+        "from": "2026-03-16T12:00:00+01:00",
+        "to": "2026-03-17T06:00:00+01:00"
+      },
+      "signals": {
+        "nightlifeBooking": false,
+        "expenseAfter22": false,
+        "photoAfter23": true,
+        "chatAfterMidnight": true,
+        "balancesChanged": true
+      },
+      "expectedMode": "full",
+      "lastNightExpenses": [
+        {
+          "expenseId": "exp_bcn_018",
+          "description": "lunch at Xiringuito Mar Blava",
+          "amount": {
+            "amountMinor": 10890,
+            "currency": "EUR"
+          }
+        },
+        {
+          "expenseId": "exp_bcn_019",
+          "description": "Apolo tickets",
+          "amount": {
+            "amountMinor": 9000,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "lastNightTotal": {
+        "amountMinor": 19890,
+        "currency": "EUR"
+      },
+      "eligiblePhotoIds": [
+        "photo_bcn_038",
+        "photo_bcn_039",
+        "photo_bcn_041",
+        "photo_bcn_054"
+      ],
+      "maxPhotos": 3
+    }
+  }
+}

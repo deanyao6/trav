@@ -1,0 +1,400 @@
+{
+  "fixtureVersion": 1,
+  "name": "turks-and-caicos",
+  "description": "Synthetic ticket inventory for the Turks and Caicos family trip (jun 20-27, 2026). Fictional operators and prices. Same schema as fixtures/tickets/barcelona.json (flat offers with eventId).",
+  "city": "Providenciales",
+  "holdMinutes": 15,
+  "currency": "USD",
+  "provider": "mock-tickets",
+  "events": [
+    {
+      "eventId": "evt_tci_snorkel_0622",
+      "provider": "mock-tickets",
+      "name": "reef snorkel tour",
+      "category": "tour",
+      "venue": {
+        "name": "Grace Bay dock (fictional)",
+        "address": "Grace Bay Rd, Providenciales",
+        "city": "Providenciales",
+        "countryCode": "TC",
+        "geo": {
+          "lat": 21.7962,
+          "lon": -72.1767
+        },
+        "timeZone": "America/Grand_Turk"
+      },
+      "startsAt": "2026-06-22T09:00:00-04:00",
+      "endsAt": "2026-06-22T12:00:00-04:00",
+      "contentFlags": [
+        "family"
+      ],
+      "imageUrl": "https://img.example.test/events/evt_tci_snorkel_0622.jpg",
+      "url": "https://tickets.example.test/e/evt_tci_snorkel_0622"
+    },
+    {
+      "eventId": "evt_tci_cruise_0623",
+      "provider": "mock-tickets",
+      "name": "sunset cruise (family sailing)",
+      "category": "tour",
+      "venue": {
+        "name": "Leeward marina (fictional)",
+        "address": "Leeward Hwy, Providenciales",
+        "city": "Providenciales",
+        "countryCode": "TC",
+        "geo": {
+          "lat": 21.8072,
+          "lon": -72.1352
+        },
+        "timeZone": "America/Grand_Turk"
+      },
+      "startsAt": "2026-06-23T17:30:00-04:00",
+      "endsAt": "2026-06-23T19:30:00-04:00",
+      "contentFlags": [
+        "family"
+      ],
+      "imageUrl": "https://img.example.test/events/evt_tci_cruise_0623.jpg",
+      "url": "https://tickets.example.test/e/evt_tci_cruise_0623"
+    },
+    {
+      "eventId": "evt_tci_iguana_0624",
+      "provider": "mock-tickets",
+      "name": "Little Water Cay iguana trip",
+      "category": "tour",
+      "venue": {
+        "name": "Leeward marina (fictional)",
+        "address": "Leeward Hwy, Providenciales",
+        "city": "Providenciales",
+        "countryCode": "TC",
+        "geo": {
+          "lat": 21.8072,
+          "lon": -72.1352
+        },
+        "timeZone": "America/Grand_Turk"
+      },
+      "startsAt": "2026-06-24T10:00:00-04:00",
+      "contentFlags": [
+        "family"
+      ],
+      "imageUrl": "https://img.example.test/events/evt_tci_iguana_0624.jpg",
+      "url": "https://tickets.example.test/e/evt_tci_iguana_0624"
+    },
+    {
+      "eventId": "evt_tci_fishfry_0625",
+      "provider": "mock-tickets",
+      "name": "Thursday fish fry (free entry)",
+      "category": "food_drink",
+      "venue": {
+        "name": "Bight Park",
+        "address": "Lower Bight Rd, Providenciales",
+        "city": "Providenciales",
+        "countryCode": "TC",
+        "geo": {
+          "lat": 21.7966,
+          "lon": -72.1878
+        },
+        "timeZone": "America/Grand_Turk"
+      },
+      "startsAt": "2026-06-25T17:30:00-04:00",
+      "contentFlags": [
+        "family"
+      ],
+      "imageUrl": "https://img.example.test/events/evt_tci_fishfry_0625.jpg",
+      "url": "https://tickets.example.test/e/evt_tci_fishfry_0625"
+    },
+    {
+      "eventId": "evt_tci_jetski_0623",
+      "provider": "mock-tickets",
+      "name": "jet ski rental, 1 hour",
+      "category": "tour",
+      "venue": {
+        "name": "Leeward marina (fictional)",
+        "address": "Leeward Hwy, Providenciales",
+        "city": "Providenciales",
+        "countryCode": "TC",
+        "geo": {
+          "lat": 21.8072,
+          "lon": -72.1352
+        },
+        "timeZone": "America/Grand_Turk"
+      },
+      "startsAt": "2026-06-23T10:00:00-04:00",
+      "minimumAge": 16,
+      "contentFlags": [],
+      "imageUrl": "https://img.example.test/events/evt_tci_jetski_0623.jpg",
+      "url": "https://tickets.example.test/e/evt_tci_jetski_0623"
+    },
+    {
+      "eventId": "evt_tci_trivia_0624",
+      "provider": "mock-tickets",
+      "name": "bar trivia night",
+      "category": "nightlife",
+      "venue": {
+        "name": "The Tipsy Pelican (fictional)",
+        "address": "Grace Bay Rd, Providenciales",
+        "city": "Providenciales",
+        "countryCode": "TC",
+        "geo": {
+          "lat": 21.795,
+          "lon": -72.17
+        },
+        "timeZone": "America/Grand_Turk"
+      },
+      "startsAt": "2026-06-24T21:00:00-04:00",
+      "minimumAge": 18,
+      "contentFlags": [
+        "nightlife",
+        "bar",
+        "alcohol",
+        "18+"
+      ],
+      "imageUrl": "https://img.example.test/events/evt_tci_trivia_0624.jpg",
+      "url": "https://tickets.example.test/e/evt_tci_trivia_0624"
+    },
+    {
+      "eventId": "evt_tci_casino_0624",
+      "provider": "mock-tickets",
+      "name": "casino night + $40 play voucher",
+      "category": "nightlife",
+      "venue": {
+        "name": "Palm Lights Casino (fictional)",
+        "address": "Grace Bay Rd, Providenciales",
+        "city": "Providenciales",
+        "countryCode": "TC",
+        "geo": {
+          "lat": 21.794,
+          "lon": -72.169
+        },
+        "timeZone": "America/Grand_Turk"
+      },
+      "startsAt": "2026-06-24T21:30:00-04:00",
+      "minimumAge": 21,
+      "contentFlags": [
+        "gambling",
+        "21+",
+        "alcohol",
+        "late_night"
+      ],
+      "imageUrl": "https://img.example.test/events/evt_tci_casino_0624.jpg",
+      "url": "https://tickets.example.test/e/evt_tci_casino_0624"
+    }
+  ],
+  "offers": [
+    {
+      "offerId": "off_tci_snorkel_0622",
+      "eventId": "evt_tci_snorkel_0622",
+      "tierName": "Shared boat, gear included",
+      "unitPrice": {
+        "amountMinor": 6000,
+        "currency": "USD"
+      },
+      "unitFees": {
+        "amountMinor": 500,
+        "currency": "USD"
+      },
+      "available": 12,
+      "maxPerOrder": 10,
+      "refundPolicy": {
+        "refundable": true,
+        "refundableUntil": "2026-06-21T17:00:00-04:00",
+        "summary": "full refund before the deadline"
+      },
+      "deliveryMethod": "per_person_qr",
+      "requiresHolderNames": false,
+      "purchaseMode": "api"
+    },
+    {
+      "offerId": "off_tci_cruise_0623",
+      "eventId": "evt_tci_cruise_0623",
+      "tierName": "Family sail, soft drinks",
+      "unitPrice": {
+        "amountMinor": 9500,
+        "currency": "USD"
+      },
+      "unitFees": {
+        "amountMinor": 0,
+        "currency": "USD"
+      },
+      "available": 10,
+      "maxPerOrder": 10,
+      "refundPolicy": {
+        "refundable": true,
+        "refundableUntil": "2026-06-22T17:30:00-04:00",
+        "summary": "full refund before the deadline"
+      },
+      "deliveryMethod": "per_person_qr",
+      "requiresHolderNames": false,
+      "purchaseMode": "api"
+    },
+    {
+      "offerId": "off_tci_iguana_0624",
+      "eventId": "evt_tci_iguana_0624",
+      "tierName": "Half day",
+      "unitPrice": {
+        "amountMinor": 8500,
+        "currency": "USD"
+      },
+      "unitFees": {
+        "amountMinor": 0,
+        "currency": "USD"
+      },
+      "available": 8,
+      "maxPerOrder": 10,
+      "refundPolicy": {
+        "refundable": false,
+        "summary": "no refunds or exchanges"
+      },
+      "deliveryMethod": "per_person_qr",
+      "requiresHolderNames": false,
+      "purchaseMode": "api"
+    },
+    {
+      "offerId": "off_tci_jetski_0623",
+      "eventId": "evt_tci_jetski_0623",
+      "tierName": "1 hour, 1 rider",
+      "unitPrice": {
+        "amountMinor": 12000,
+        "currency": "USD"
+      },
+      "unitFees": {
+        "amountMinor": 0,
+        "currency": "USD"
+      },
+      "available": 4,
+      "maxPerOrder": 10,
+      "refundPolicy": {
+        "refundable": false,
+        "summary": "no refunds or exchanges"
+      },
+      "deliveryMethod": "per_person_qr",
+      "requiresHolderNames": false,
+      "purchaseMode": "api"
+    },
+    {
+      "offerId": "off_tci_trivia_0624",
+      "eventId": "evt_tci_trivia_0624",
+      "tierName": "Team entry",
+      "unitPrice": {
+        "amountMinor": 1000,
+        "currency": "USD"
+      },
+      "unitFees": {
+        "amountMinor": 0,
+        "currency": "USD"
+      },
+      "available": 20,
+      "maxPerOrder": 10,
+      "refundPolicy": {
+        "refundable": false,
+        "summary": "no refunds or exchanges"
+      },
+      "deliveryMethod": "per_person_qr",
+      "requiresHolderNames": false,
+      "purchaseMode": "api"
+    },
+    {
+      "offerId": "off_tci_casino_0624",
+      "eventId": "evt_tci_casino_0624",
+      "tierName": "Entry + $40 voucher",
+      "unitPrice": {
+        "amountMinor": 5000,
+        "currency": "USD"
+      },
+      "unitFees": {
+        "amountMinor": 0,
+        "currency": "USD"
+      },
+      "available": 50,
+      "maxPerOrder": 10,
+      "refundPolicy": {
+        "refundable": false,
+        "summary": "no refunds or exchanges"
+      },
+      "deliveryMethod": "per_person_qr",
+      "requiresHolderNames": false,
+      "purchaseMode": "api"
+    }
+  ],
+  "mockHints": {
+    "evt_tci_fishfry_0625": {
+      "note": "free event with no offers: Trav can suggest it, never propose a €0 booking"
+    },
+    "off_tci_snorkel_0622": {
+      "holdMinutes": 15,
+      "orderRefPrefix": "SN",
+      "note": "Lily's ticket is delivered to Dad (guardian)"
+    }
+  },
+  "labels": [
+    {
+      "case": "family_booking",
+      "request": "snorkel tour for all 4 on monday",
+      "offerId": "off_tci_snorkel_0622",
+      "total": {
+        "amountMinor": 26000,
+        "currency": "USD"
+      },
+      "perPerson": {
+        "amountMinor": 6500,
+        "currency": "USD"
+      },
+      "refundable": true,
+      "payers": [
+        {
+          "memberId": "mem_tci_dad",
+          "shareMinor": 26000
+        }
+      ],
+      "attendees": [
+        "mem_tci_mom",
+        "mem_tci_dad",
+        "mem_tci_dean",
+        "mem_tci_lily"
+      ],
+      "policyReasons": [
+        "over_auto_cap",
+        "over_per_person_cap"
+      ],
+      "approvalMode": "each_payer",
+      "requiredApprovers": [
+        "mem_tci_dad"
+      ]
+    },
+    {
+      "case": "minor_age_restricted",
+      "request": "lily: book me a jet ski",
+      "offerId": "off_tci_jetski_0623",
+      "policyOutcome": "deny",
+      "policyReasons": [
+        "minor_age_restricted"
+      ]
+    },
+    {
+      "case": "never_suggest_with_minor",
+      "offerIds": [
+        "off_tci_trivia_0624",
+        "off_tci_casino_0624"
+      ]
+    },
+    {
+      "case": "adults_only_explicit",
+      "request": "casino night for me and dad",
+      "offerId": "off_tci_casino_0624",
+      "attendees": [
+        "mem_tci_dean",
+        "mem_tci_dad"
+      ],
+      "total": {
+        "amountMinor": 10000,
+        "currency": "USD"
+      },
+      "perPerson": {
+        "amountMinor": 5000,
+        "currency": "USD"
+      },
+      "policyReasons": [
+        "over_auto_cap"
+      ],
+      "note": "exactly at the $50 per-person cap is inside the cap (> not >=)"
+    }
+  ]
+}

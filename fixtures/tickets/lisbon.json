@@ -1,0 +1,476 @@
+{
+  "fixtureVersion": 1,
+  "name": "lisbon",
+  "description": "Synthetic ticket inventory for the Lisbon trip (Dean + Dad, apr 15-20, 2026). Fictional prices; real stadium names and public addresses only. Same schema as fixtures/tickets/barcelona.json (flat offers with eventId).",
+  "city": "Lisbon",
+  "holdMinutes": 15,
+  "currency": "EUR",
+  "provider": "mock-tickets",
+  "events": [
+    {
+      "eventId": "evt_lis_benfica_porto",
+      "provider": "mock-tickets",
+      "name": "SL Benfica vs FC Porto",
+      "category": "sports",
+      "venue": {
+        "name": "Estádio da Luz",
+        "address": "Av. Eusébio da Silva Ferreira, 1500-313 Lisboa",
+        "city": "Lisbon",
+        "countryCode": "PT",
+        "geo": {
+          "lat": 38.7527,
+          "lon": -9.1847
+        },
+        "timeZone": "Europe/Lisbon"
+      },
+      "startsAt": "2026-04-18T20:30:00+01:00",
+      "endsAt": "2026-04-18T22:30:00+01:00",
+      "contentFlags": [],
+      "imageUrl": "https://img.example.test/events/evt_lis_benfica_porto.jpg",
+      "url": "https://tickets.example.test/e/evt_lis_benfica_porto"
+    },
+    {
+      "eventId": "evt_lis_sporting_benfica",
+      "provider": "mock-tickets",
+      "name": "Sporting CP vs SL Benfica (derby)",
+      "category": "sports",
+      "venue": {
+        "name": "Estádio José Alvalade",
+        "address": "R. Prof. Fernando da Fonseca, 1600-616 Lisboa",
+        "city": "Lisbon",
+        "countryCode": "PT",
+        "geo": {
+          "lat": 38.7614,
+          "lon": -9.1609
+        },
+        "timeZone": "Europe/Lisbon"
+      },
+      "startsAt": "2026-04-19T20:00:00+01:00",
+      "contentFlags": [],
+      "imageUrl": "https://img.example.test/events/evt_lis_sporting_benfica.jpg",
+      "url": "https://tickets.example.test/e/evt_lis_sporting_benfica"
+    },
+    {
+      "eventId": "evt_lis_sporting_braga",
+      "provider": "mock-tickets",
+      "name": "Sporting CP vs SC Braga",
+      "category": "sports",
+      "venue": {
+        "name": "Estádio José Alvalade",
+        "address": "R. Prof. Fernando da Fonseca, 1600-616 Lisboa",
+        "city": "Lisbon",
+        "countryCode": "PT",
+        "geo": {
+          "lat": 38.7614,
+          "lon": -9.1609
+        },
+        "timeZone": "Europe/Lisbon"
+      },
+      "startsAt": "2026-04-19T18:00:00+01:00",
+      "endsAt": "2026-04-19T20:00:00+01:00",
+      "contentFlags": [],
+      "imageUrl": "https://img.example.test/events/evt_lis_sporting_braga.jpg",
+      "url": "https://tickets.example.test/e/evt_lis_sporting_braga"
+    },
+    {
+      "eventId": "evt_lis_porto_vitoria",
+      "provider": "mock-tickets",
+      "name": "FC Porto vs Vitória SC",
+      "category": "sports",
+      "venue": {
+        "name": "Estádio do Dragão",
+        "address": "Via Futebol Clube do Porto, 4350-415 Porto",
+        "city": "Porto",
+        "countryCode": "PT",
+        "geo": {
+          "lat": 41.1617,
+          "lon": -8.5839
+        },
+        "timeZone": "Europe/Lisbon"
+      },
+      "startsAt": "2026-04-18T18:00:00+01:00",
+      "endsAt": "2026-04-18T20:00:00+01:00",
+      "contentFlags": [],
+      "imageUrl": "https://img.example.test/events/evt_lis_porto_vitoria.jpg",
+      "url": "https://tickets.example.test/e/evt_lis_porto_vitoria"
+    },
+    {
+      "eventId": "evt_lis_fado_0416",
+      "provider": "mock-tickets",
+      "name": "fado night with dinner",
+      "category": "food_drink",
+      "venue": {
+        "name": "Tasca da Saudade (fictional)",
+        "address": "Rua dos Remédios 40, Alfama, Lisboa",
+        "city": "Lisbon",
+        "countryCode": "PT",
+        "geo": {
+          "lat": 38.7116,
+          "lon": -9.1294
+        },
+        "timeZone": "Europe/Lisbon"
+      },
+      "startsAt": "2026-04-16T20:30:00+01:00",
+      "contentFlags": [
+        "bar",
+        "alcohol"
+      ],
+      "imageUrl": "https://img.example.test/events/evt_lis_fado_0416.jpg",
+      "url": "https://tickets.example.test/e/evt_lis_fado_0416"
+    },
+    {
+      "eventId": "evt_lis_club_0417",
+      "provider": "mock-tickets",
+      "name": "riverside club night",
+      "category": "nightlife",
+      "venue": {
+        "name": "Cais Club (fictional)",
+        "address": "Av. Infante D. Henrique, Lisboa",
+        "city": "Lisbon",
+        "countryCode": "PT",
+        "geo": {
+          "lat": 38.7146,
+          "lon": -9.1222
+        },
+        "timeZone": "Europe/Lisbon"
+      },
+      "startsAt": "2026-04-17T23:59:00+01:00",
+      "minimumAge": 18,
+      "contentFlags": [
+        "nightlife",
+        "club",
+        "18+",
+        "alcohol",
+        "late_night"
+      ],
+      "imageUrl": "https://img.example.test/events/evt_lis_club_0417.jpg",
+      "url": "https://tickets.example.test/e/evt_lis_club_0417"
+    },
+    {
+      "eventId": "evt_lis_pena_0417",
+      "provider": "mock-tickets",
+      "name": "Pena Palace timed entry 3:00pm",
+      "category": "attraction",
+      "venue": {
+        "name": "Palácio da Pena",
+        "address": "Estrada da Pena, 2710-609 Sintra",
+        "city": "Sintra",
+        "countryCode": "PT",
+        "geo": {
+          "lat": 38.7876,
+          "lon": -9.3906
+        },
+        "timeZone": "Europe/Lisbon"
+      },
+      "startsAt": "2026-04-17T15:00:00+01:00",
+      "contentFlags": [
+        "family"
+      ],
+      "imageUrl": "https://img.example.test/events/evt_lis_pena_0417.jpg",
+      "url": "https://tickets.example.test/e/evt_lis_pena_0417"
+    },
+    {
+      "eventId": "evt_lis_tiles_0416",
+      "provider": "mock-tickets",
+      "name": "azulejo tile-painting workshop",
+      "category": "tour",
+      "venue": {
+        "name": "Oficina do Azulejo (fictional)",
+        "address": "Rua da Madalena 120, Lisboa",
+        "city": "Lisbon",
+        "countryCode": "PT",
+        "geo": {
+          "lat": 38.7117,
+          "lon": -9.136
+        },
+        "timeZone": "Europe/Lisbon"
+      },
+      "startsAt": "2026-04-16T10:30:00+01:00",
+      "endsAt": "2026-04-16T13:00:00+01:00",
+      "contentFlags": [
+        "family"
+      ],
+      "imageUrl": "https://img.example.test/events/evt_lis_tiles_0416.jpg",
+      "url": "https://tickets.example.test/e/evt_lis_tiles_0416"
+    }
+  ],
+  "offers": [
+    {
+      "offerId": "off_lis_benfica_porto_std",
+      "eventId": "evt_lis_benfica_porto",
+      "tierName": "Bancada Sul",
+      "unitPrice": {
+        "amountMinor": 5000,
+        "currency": "EUR"
+      },
+      "unitFees": {
+        "amountMinor": 500,
+        "currency": "EUR"
+      },
+      "available": 40,
+      "maxPerOrder": 10,
+      "refundPolicy": {
+        "refundable": false,
+        "summary": "no refunds or exchanges"
+      },
+      "deliveryMethod": "per_person_qr",
+      "requiresHolderNames": true,
+      "purchaseMode": "api"
+    },
+    {
+      "offerId": "off_lis_benfica_porto_premium",
+      "eventId": "evt_lis_benfica_porto",
+      "tierName": "Premium lounge",
+      "unitPrice": {
+        "amountMinor": 22500,
+        "currency": "EUR"
+      },
+      "unitFees": {
+        "amountMinor": 1500,
+        "currency": "EUR"
+      },
+      "available": 6,
+      "maxPerOrder": 10,
+      "refundPolicy": {
+        "refundable": true,
+        "refundableUntil": "2026-04-16T20:30:00+01:00",
+        "summary": "full refund before the deadline"
+      },
+      "deliveryMethod": "per_person_qr",
+      "requiresHolderNames": true,
+      "purchaseMode": "api"
+    },
+    {
+      "offerId": "off_lis_derby_any",
+      "eventId": "evt_lis_sporting_benfica",
+      "tierName": "Any seat",
+      "unitPrice": {
+        "amountMinor": 7000,
+        "currency": "EUR"
+      },
+      "unitFees": {
+        "amountMinor": 500,
+        "currency": "EUR"
+      },
+      "available": 0,
+      "maxPerOrder": 10,
+      "refundPolicy": {
+        "refundable": false,
+        "summary": "no refunds or exchanges"
+      },
+      "deliveryMethod": "per_person_qr",
+      "requiresHolderNames": true,
+      "purchaseMode": "api"
+    },
+    {
+      "offerId": "off_lis_sporting_braga",
+      "eventId": "evt_lis_sporting_braga",
+      "tierName": "Central",
+      "unitPrice": {
+        "amountMinor": 3200,
+        "currency": "EUR"
+      },
+      "unitFees": {
+        "amountMinor": 300,
+        "currency": "EUR"
+      },
+      "available": 50,
+      "maxPerOrder": 10,
+      "refundPolicy": {
+        "refundable": true,
+        "refundableUntil": "2026-04-18T18:00:00+01:00",
+        "summary": "full refund before the deadline"
+      },
+      "deliveryMethod": "per_person_qr",
+      "requiresHolderNames": false,
+      "purchaseMode": "api"
+    },
+    {
+      "offerId": "off_lis_porto_vitoria",
+      "eventId": "evt_lis_porto_vitoria",
+      "tierName": "Lateral",
+      "unitPrice": {
+        "amountMinor": 3700,
+        "currency": "EUR"
+      },
+      "unitFees": {
+        "amountMinor": 300,
+        "currency": "EUR"
+      },
+      "available": 30,
+      "maxPerOrder": 10,
+      "refundPolicy": {
+        "refundable": false,
+        "summary": "no refunds or exchanges"
+      },
+      "deliveryMethod": "per_person_qr",
+      "requiresHolderNames": false,
+      "purchaseMode": "api"
+    },
+    {
+      "offerId": "off_lis_fado_0416",
+      "eventId": "evt_lis_fado_0416",
+      "tierName": "Dinner + fado",
+      "unitPrice": {
+        "amountMinor": 4500,
+        "currency": "EUR"
+      },
+      "unitFees": {
+        "amountMinor": 0,
+        "currency": "EUR"
+      },
+      "available": 12,
+      "maxPerOrder": 10,
+      "refundPolicy": {
+        "refundable": true,
+        "refundableUntil": "2026-04-16T12:00:00+01:00",
+        "summary": "full refund before the deadline"
+      },
+      "deliveryMethod": "per_person_qr",
+      "requiresHolderNames": false,
+      "purchaseMode": "api"
+    },
+    {
+      "offerId": "off_lis_club_0417",
+      "eventId": "evt_lis_club_0417",
+      "tierName": "Entry",
+      "unitPrice": {
+        "amountMinor": 2000,
+        "currency": "EUR"
+      },
+      "unitFees": {
+        "amountMinor": 0,
+        "currency": "EUR"
+      },
+      "available": 200,
+      "maxPerOrder": 10,
+      "refundPolicy": {
+        "refundable": false,
+        "summary": "no refunds or exchanges"
+      },
+      "deliveryMethod": "per_person_qr",
+      "requiresHolderNames": false,
+      "purchaseMode": "api"
+    },
+    {
+      "offerId": "off_lis_pena_0417",
+      "eventId": "evt_lis_pena_0417",
+      "tierName": "Palace + park",
+      "unitPrice": {
+        "amountMinor": 2000,
+        "currency": "EUR"
+      },
+      "unitFees": {
+        "amountMinor": 0,
+        "currency": "EUR"
+      },
+      "available": 30,
+      "maxPerOrder": 10,
+      "refundPolicy": {
+        "refundable": true,
+        "refundableUntil": "2026-04-16T23:59:00+01:00",
+        "summary": "full refund before the deadline"
+      },
+      "deliveryMethod": "per_person_qr",
+      "requiresHolderNames": false,
+      "purchaseMode": "api"
+    },
+    {
+      "offerId": "off_lis_tiles_0416",
+      "eventId": "evt_lis_tiles_0416",
+      "tierName": "Workshop seat",
+      "unitPrice": {
+        "amountMinor": 3500,
+        "currency": "EUR"
+      },
+      "unitFees": {
+        "amountMinor": 0,
+        "currency": "EUR"
+      },
+      "available": 4,
+      "maxPerOrder": 10,
+      "refundPolicy": {
+        "refundable": true,
+        "refundableUntil": "2026-04-15T18:00:00+01:00",
+        "summary": "full refund before the deadline"
+      },
+      "deliveryMethod": "per_person_qr",
+      "requiresHolderNames": false,
+      "purchaseMode": "api"
+    }
+  ],
+  "mockHints": {
+    "off_lis_derby_any": {
+      "expect": "sold_out",
+      "alternatives": [
+        "off_lis_sporting_braga",
+        "off_lis_benfica_porto_std"
+      ]
+    },
+    "off_lis_benfica_porto_std": {
+      "holdMinutes": 15,
+      "orderRefPrefix": "SLB"
+    },
+    "off_lis_club_0417": {
+      "note": "group memory says no clubbing: Trav must not suggest this (preference, not safety)"
+    }
+  },
+  "labels": [
+    {
+      "case": "match_options",
+      "request": "a match while we are there, benfica sporting or porto",
+      "expectOptions": [
+        "off_lis_benfica_porto_std",
+        "off_lis_sporting_braga",
+        "off_lis_porto_vitoria"
+      ],
+      "derbySoldOut": true
+    },
+    {
+      "case": "two_tickets_non_refundable_over_pp_cap",
+      "request": "benfica vs porto, 2 tickets, the normal ones",
+      "offerId": "off_lis_benfica_porto_std",
+      "total": {
+        "amountMinor": 11000,
+        "currency": "EUR"
+      },
+      "perPerson": {
+        "amountMinor": 5500,
+        "currency": "EUR"
+      },
+      "policyReasons": [
+        "over_auto_cap",
+        "over_per_person_cap",
+        "non_refundable"
+      ],
+      "approvalMode": "each_payer"
+    },
+    {
+      "case": "over_budget",
+      "offerId": "off_lis_benfica_porto_premium",
+      "total": {
+        "amountMinor": 48000,
+        "currency": "EUR"
+      },
+      "note": "well over the €250/day budget; Trav warns (VOICE §4.9 B) before proposing"
+    },
+    {
+      "case": "sold_out",
+      "offerId": "off_lis_derby_any",
+      "expectError": "sold_out"
+    },
+    {
+      "case": "dean_only_during_conference",
+      "offerId": "off_lis_tiles_0416",
+      "attendees": [
+        "mem_lis_dean"
+      ],
+      "note": "inside Dad's Thu 09:00–17:00 block"
+    },
+    {
+      "case": "never_suggest",
+      "offerId": "off_lis_club_0417",
+      "reason": "group said no clubbing"
+    }
+  ]
+}

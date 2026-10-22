@@ -155,11 +155,11 @@ export function barcelonaTrip() {
   const g = BCN;
   const members = [
     member(g.groupId, g.dean, 'Dean', 'lead', 'h_dean', '2004-05-02', 'adult', created, { homeAirport: 'BOS' }),
-    member(g.groupId, g.henry, 'Henry', 'member', 'h_henry', '2003-11-19', 'adult', created, { homeAirport: 'ORD' }),
+    member(g.groupId, g.henry, 'Henry', 'member', 'h_henry', '2003-11-19', 'adult', created, { homeAirport: 'MIA' }),
     member(g.groupId, g.maya, 'Maya', 'member', 'h_maya', '2005-01-27', 'adult', created, { homeAirport: 'SFO' }),
-    member(g.groupId, g.jordan, 'Jordan', 'member', 'h_jordan', '2005-08-14', 'adult', created, { homeAirport: 'ATL' }),
-    member(g.groupId, g.priya, 'Priya', 'member', 'h_priya', '2004-09-03', 'adult', created, { homeAirport: 'IAD' }),
-    member(g.groupId, g.sam, 'Sam', 'member', 'h_sam', '2005-12-30', 'adult', created, { homeAirport: 'MIA' }),
+    member(g.groupId, g.jordan, 'Jordan', 'member', 'h_jordan', '2005-08-14', 'adult', created, { homeAirport: 'ORD' }),
+    member(g.groupId, g.priya, 'Priya', 'member', 'h_priya', '2004-09-03', 'adult', created, { homeAirport: 'JFK' }),
+    member(g.groupId, g.sam, 'Sam', 'member', 'h_sam', '2005-12-30', 'adult', created, { homeAirport: 'LAX' }),
   ];
   const group = {
     groupId: g.groupId,
@@ -198,7 +198,7 @@ export function barcelonaTrip() {
     { id: 'act_bcn_elborn_d2', kind: 'nightlife', name: 'bars in El Born', venue: 'El Born', startsAt: `2026-03-13T23:30:00${o}`, tags: ['nightlife', 'bar', 'alcohol', 'late_night'], age: 18, createdAt: `2026-03-13T23:30:00${o}` },
     { id: 'act_bcn_sagrada', kind: 'attraction', name: 'Sagrada Família', venue: 'Basílica de la Sagrada Família', address: 'Carrer de Mallorca 401', startsAt: `2026-03-14T15:00:00${o}`, endsAt: `2026-03-14T16:30:00${o}`, tags: ['family'], createdAt: '2026-03-10T12:05:00-04:00' },
     { id: 'act_bcn_dinner_d3', kind: 'dinner', name: 'dinner at Bodega Lluna', venue: 'Bodega Lluna', startsAt: `2026-03-14T20:30:00${o}`, tags: [], createdAt: `2026-03-14T17:40:00${o}` },
-    { id: 'act_bcn_razzmatazz', kind: 'nightlife', name: 'Razzmatazz', venue: 'Razzmatazz', address: 'Carrer dels Almogàvers 122', startsAt: `2026-03-14T23:30:00${o}`, endsAt: `2026-03-15T05:30:00${o}`, tags: ['nightlife', 'club', '18+', 'alcohol', 'late_night'], age: 18, createdAt: '2026-03-10T12:30:00-04:00' },
+    { id: 'act_bcn_razzmatazz', kind: 'nightlife', name: 'Razzmatazz', venue: 'Razzmatazz', address: 'Carrer dels Almogàvers 122', startsAt: `2026-03-15T00:00:00${o}`, endsAt: `2026-03-15T06:00:00${o}`, tags: ['nightlife', 'club', '18+', 'alcohol', 'late_night'], age: 18, createdAt: '2026-03-10T12:30:00-04:00' },
     { id: 'act_bcn_barca', kind: 'sports', name: 'Barça vs Sevilla', venue: 'Spotify Camp Nou', address: "Carrer d'Arístides Maillol 12", startsAt: `2026-03-15T21:00:00${o}`, endsAt: `2026-03-15T23:00:00${o}`, tags: [], createdAt: '2026-02-10T19:35:00-05:00' },
     { id: 'act_bcn_lunch_d5', kind: 'dinner', name: 'lunch in Barceloneta', venue: 'Xiringuito Mar Blava', startsAt: `2026-03-16T13:30:00${o}`, tags: [], createdAt: `2026-03-16T13:00:00${o}` },
     { id: 'act_bcn_club_d5', kind: 'nightlife', name: 'last night out (Apolo)', venue: 'Sala Apolo', address: 'Carrer Nou de la Rambla 113', startsAt: `2026-03-16T23:59:00${o}`, endsAt: `2026-03-17T05:00:00${o}`, tags: ['nightlife', 'club', '18+', 'alcohol', 'late_night'], age: 18, createdAt: `2026-03-16T17:00:00${o}` },
@@ -215,21 +215,24 @@ export function barcelonaTrip() {
     ...attendanceRows('act_bcn_razzmatazz', allIn(g.all), '2026-03-10T12:30:00-04:00', '@ref:bcn_razz_plan', g.sam),
     ...attendanceRows('act_bcn_flights_home', allIn(g.all), '2026-02-03T20:29:00-05:00', '@ref:bcn_flights_complete', g.dean),
   ];
+  // Airports match the preserved flight inventory (fixtures/flights/barcelona.json `travelers`).
   const travel = [
     { memberId: g.dean, origin: 'BOS', returnTo: 'JFK' },
-    { memberId: g.henry, origin: 'ORD', returnTo: 'ORD' },
+    { memberId: g.henry, origin: 'MIA', returnTo: 'ATL' },
     { memberId: g.maya, origin: 'SFO', returnTo: 'LAX' },
-    { memberId: g.jordan, origin: 'ATL', returnTo: 'ATL' },
-    { memberId: g.priya, origin: 'IAD', returnTo: 'IAD' },
-    { memberId: g.sam, origin: 'MIA', returnTo: 'AUS' },
+    { memberId: g.jordan, origin: 'ORD', returnTo: 'ORD' },
+    { memberId: g.priya, origin: 'JFK', returnTo: 'IAD' },
+    { memberId: g.sam, origin: 'LAX', returnTo: 'SEA' },
   ];
+  // `cardCity` = where the preserved card fixtures put each member's home-life noise
+  // (fixtures/transactions/<member>.json). It is not always the departure city.
   const homes = {
-    [g.dean]: { homeCity: 'Boston', returnCity: 'New York', why: 'starts an internship in NYC' },
-    [g.henry]: { homeCity: 'Chicago', returnCity: 'Chicago' },
-    [g.maya]: { homeCity: 'San Francisco', returnCity: 'Los Angeles', why: "cousin's thing on the 18th" },
-    [g.jordan]: { homeCity: 'Atlanta', returnCity: 'Atlanta' },
-    [g.priya]: { homeCity: 'Washington DC', returnCity: 'Washington DC' },
-    [g.sam]: { homeCity: 'Miami', returnCity: 'Austin', why: 'SXSW' },
+    [g.dean]: { departCity: 'Boston', returnCity: 'New York', cardCity: 'Boston, then New York', why: 'starts an internship in NYC' },
+    [g.henry]: { departCity: 'Miami', returnCity: 'Atlanta', cardCity: 'Chicago', why: 'visiting family before and after' },
+    [g.maya]: { departCity: 'San Francisco', returnCity: 'Los Angeles', cardCity: 'San Francisco, then Los Angeles', why: "cousin's thing on the 18th" },
+    [g.jordan]: { departCity: 'Chicago', returnCity: 'Chicago', cardCity: 'Atlanta' },
+    [g.priya]: { departCity: 'New York', returnCity: 'Washington DC', cardCity: 'Washington DC' },
+    [g.sam]: { departCity: 'Los Angeles', returnCity: 'Seattle', cardCity: 'Miami, then Austin', why: 'spring internship in Seattle' },
   };
   const consent = consentRows(g.groupId, g.all, created);
   // Changes the chat replay makes (all owner-initiated; ground truth for consent gates).
@@ -249,13 +252,13 @@ export function barcelonaTrip() {
   const groupMemory = [
     { factId: 'gm_bcn_1', groupId: g.groupId, sourceTripId: g.tripId, category: 'taste', text: 'the group are big soccer fans, barça especially', aboutMemberIds: [], sourceMessageId: '@ref:bcn_barca_hype', learnedAt: '2026-02-10T19:30:00-05:00' },
     { factId: 'gm_bcn_2', groupId: g.groupId, sourceTripId: g.tripId, category: 'inside_joke', text: 'jordan always picks the restaurant and it is always good', aboutMemberIds: [g.jordan], sourceMessageId: '@ref:bcn_remember_jordan', learnedAt: '2026-03-12T20:41:00+01:00' },
-    { factId: 'gm_bcn_3', groupId: g.groupId, sourceTripId: g.tripId, category: 'preference', text: 'maya does not want flights before 7am', aboutMemberIds: [g.maya], sourceMessageId: '@ref:bcn_maya_no_6am', learnedAt: '2026-02-03T20:12:00-05:00' },
+    { factId: 'gm_bcn_3', groupId: g.groupId, sourceTripId: g.tripId, category: 'preference', text: 'jordan does not want flights before 7am', aboutMemberIds: [g.jordan], sourceMessageId: '@ref:bcn_jordan_no_5am', learnedAt: '2026-02-03T20:12:00-05:00' },
   ];
   // Member memory is PrivateStore data (branded Private<> in code; plain JSON here).
   const memberMemory = [
     { factId: 'mm_bcn_priya_1', ownerMemberId: g.priya, groupId: g.groupId, sourceTripId: g.tripId, category: 'dietary', text: 'priya is vegetarian', sourceLane: 'private', sourceMessageId: '@ref:bcn_dm_priya_veg', learnedAt: '2026-03-11T09:00:00-04:00' },
     { factId: 'mm_bcn_henry_1', ownerMemberId: g.henry, groupId: g.groupId, sourceTripId: g.tripId, category: 'budget', text: 'henry wants to keep his share under €80 a day', sourceLane: 'private', sourceMessageId: '@ref:bcn_dm_henry_budget', learnedAt: '2026-03-11T10:00:00-05:00' },
-    { factId: 'mm_bcn_maya_1', ownerMemberId: g.maya, groupId: g.groupId, sourceTripId: g.tripId, category: 'preference', text: 'maya does not want flights before 7am', sourceLane: 'group', sourceMessageId: '@ref:bcn_maya_no_6am', learnedAt: '2026-02-03T20:12:00-05:00' },
+    { factId: 'mm_bcn_jordan_1', ownerMemberId: g.jordan, groupId: g.groupId, sourceTripId: g.tripId, category: 'preference', text: 'jordan does not want flights before 7am', sourceLane: 'group', sourceMessageId: '@ref:bcn_jordan_no_5am', learnedAt: '2026-02-03T20:12:00-05:00' },
   ];
   const memberPrefs = [
     { memberId: g.henry, perBookingShareCapMinor: 8000, dailyShareCapMinor: 8000 },
@@ -298,6 +301,8 @@ export function barcelonaTrip() {
         'Henry is out for Razzmatazz because he is sick; the reason must never be stored (Attendance has no reason field) or roasted.',
         'Group currency EUR. Flights are priced in EUR by the mock provider so proposals pass policy D6 (currency_mismatch).',
         'Dates: day 1 = Thu 2026-03-12. 2026-03-14 is a Saturday (VOICE §9.1 example says "fri mar 14"; the calendar wins).',
+        'Bookable inventory is the preserved fixtures/tickets/barcelona.json. Park Güell (Fri) and Sagrada Família (Sat 3pm) are not in it for those slots, so members buy them on the official sites and log them in chat, as in MOTIVATION.md. Apolo on Monday is bought on its own site too.',
+        'Razzmatazz Saturday = event evt_rzm_20260314 (doors 00:00 Sun 15 local), offer off_rzm_20260314_ga at €18, refundable until 22:00 Sat.',
       ],
     },
   };
@@ -443,7 +448,7 @@ export function turksCaicosTrip() {
   const activities = A.map((a) => activity({ tripId: g.tripId, groupId: g.groupId }, a));
   return {
     fixtureVersion: 1,
-    id: 'turks-caicos',
+    id: 'turks-and-caicos',
     group,
     members,
     trip,

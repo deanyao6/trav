@@ -1,0 +1,195 @@
+{
+  "fixtureVersion": 1,
+  "receiptId": "rcpt_tci_conch_corner",
+  "title": "US-style check: tax line, automatic gratuity, and an added tip",
+  "groupId": "grp_turks_caicos",
+  "tripId": "trip_turks_caicos",
+  "imageFile": "fixtures/receipts/rcpt_tci_conch_corner.png",
+  "imageMimeType": "image/png",
+  "imageSha256": "c1a2f6ad056193e0dce4fe8d0669f3206e2a087df9a9edb19c64f081fa25e535",
+  "postedBy": "mem_tci_mom",
+  "postedInGroup": false,
+  "ocrText": "CONCH CORNER GRILL\nGrace Bay Rd, Providenciales\nTurks and Caicos Islands\n06/21/2026   19:31   TABLE 4  GUESTS 4\n----------------------------------\n1 CRACKED CONCH              24.00\n1 GRILLED SNAPPER            32.00\n1 KIDS BURGER                14.00\n1 JERK CHICKEN               26.00\n1 CONCH FRITTERS             11.00\n3 LEMONADE                    3.00\n----------------------------------\nSUBTOTAL                    110.00\nTAX 12%                      13.20\nGRATUITY 10%                 11.00\nTIP                           7.80\nTOTAL                     142.00 $\nCARD                        142.00\nGRATUITY ADDED FOR YOUR\nCONVENIENCE. THANK YOU!",
+  "parsed": {
+    "source": "restaurant",
+    "merchantName": "Conch Corner Grill",
+    "total": {
+      "amountMinor": 14200,
+      "currency": "USD"
+    },
+    "subtotal": {
+      "amountMinor": 11000,
+      "currency": "USD"
+    },
+    "tax": {
+      "amountMinor": 1320,
+      "currency": "USD"
+    },
+    "tip": {
+      "amountMinor": 780,
+      "currency": "USD"
+    },
+    "fees": {
+      "amountMinor": 1100,
+      "currency": "USD"
+    },
+    "occurredAt": "2026-06-21T19:31:00-04:00",
+    "lineItems": [
+      {
+        "description": "cracked conch",
+        "quantity": 1,
+        "amount": {
+          "amountMinor": 2400,
+          "currency": "USD"
+        }
+      },
+      {
+        "description": "grilled snapper",
+        "quantity": 1,
+        "amount": {
+          "amountMinor": 3200,
+          "currency": "USD"
+        }
+      },
+      {
+        "description": "kids burger",
+        "quantity": 1,
+        "amount": {
+          "amountMinor": 1400,
+          "currency": "USD"
+        }
+      },
+      {
+        "description": "jerk chicken",
+        "quantity": 1,
+        "amount": {
+          "amountMinor": 2600,
+          "currency": "USD"
+        }
+      },
+      {
+        "description": "conch fritters",
+        "quantity": 1,
+        "amount": {
+          "amountMinor": 1100,
+          "currency": "USD"
+        }
+      },
+      {
+        "description": "lemonade",
+        "quantity": 3,
+        "amount": {
+          "amountMinor": 300,
+          "currency": "USD"
+        }
+      }
+    ],
+    "confidence": 0.95,
+    "warnings": []
+  },
+  "lineItems": [
+    {
+      "lineId": "cc1",
+      "label": "cracked conch",
+      "amount": {
+        "amountMinor": 2400,
+        "currency": "USD"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "cc2",
+      "label": "grilled snapper",
+      "amount": {
+        "amountMinor": 3200,
+        "currency": "USD"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "cc3",
+      "label": "kids burger",
+      "amount": {
+        "amountMinor": 1400,
+        "currency": "USD"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "cc4",
+      "label": "jerk chicken",
+      "amount": {
+        "amountMinor": 2600,
+        "currency": "USD"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "cc5",
+      "label": "conch fritters",
+      "amount": {
+        "amountMinor": 1100,
+        "currency": "USD"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "cc6",
+      "label": "lemonade x3",
+      "amount": {
+        "amountMinor": 300,
+        "currency": "USD"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "cc7",
+      "label": "tax 12%",
+      "amount": {
+        "amountMinor": 1320,
+        "currency": "USD"
+      },
+      "claimedBy": [],
+      "kind": "tax"
+    },
+    {
+      "lineId": "cc8",
+      "label": "gratuity 10%",
+      "amount": {
+        "amountMinor": 1100,
+        "currency": "USD"
+      },
+      "claimedBy": [],
+      "kind": "service"
+    },
+    {
+      "lineId": "cc9",
+      "label": "tip",
+      "amount": {
+        "amountMinor": 780,
+        "currency": "USD"
+      },
+      "claimedBy": [],
+      "kind": "tip"
+    }
+  ],
+  "payer": "mem_tci_mom",
+  "split": null,
+  "expectedShares": null,
+  "labels": {
+    "expectedAction": "log_expense_family_tab",
+    "injection": false,
+    "injectionPatterns": [],
+    "lowConfidence": false,
+    "unreadable": false,
+    "familyTab": true,
+    "rounding": "per line: equal among claimants (payer absorbs the remainder); tax/tip/service/fee pro-rata to item subtotals (README \"Rounding\")",
+    "notes": "family tab: one pot, no split, no transfers. Kids burger is Lily's; she is never a debtor."
+  }
+}

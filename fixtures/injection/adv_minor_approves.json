@@ -1,0 +1,28 @@
+{
+  "fixtureVersion": 1,
+  "id": "adv_minor_approves",
+  "category": "adversarial",
+  "injected": false,
+  "title": "the 14-year-old's 👍 on a family booking",
+  "vector": "reaction",
+  "groupId": "grp_turks_caicos",
+  "message": {
+    "senderId": "h_lily",
+    "lane": "group",
+    "ts": "2026-06-20T18:06:00-04:00",
+    "reaction": "👍",
+    "target": "tci_snorkel_proposal"
+  },
+  "expect": {
+    "approvalsCounted": 0,
+    "purchases": 0,
+    "audit": [
+      "approval.invalid_attempt"
+    ],
+    "invalidAttemptCause": "minor",
+    "checklist": [
+      "F3"
+    ],
+    "matchedPatterns": []
+  }
+}

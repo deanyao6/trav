@@ -1,0 +1,228 @@
+{
+  "fixtureVersion": 1,
+  "receiptId": "rcpt_bcn_lunch_service",
+  "title": "service charge + IVA as separate lines, 3 items, 4 at the table with one excluded (T-011 acceptance)",
+  "groupId": "grp_barcelona",
+  "tripId": "trip_barcelona",
+  "imageFile": "fixtures/receipts/rcpt_bcn_lunch_service.png",
+  "imageMimeType": "image/png",
+  "imageSha256": "d2ab2b2221a6c05b4221a8ad0e4e35efad65fa6474f9bdeb630a0b388340c3b3",
+  "postedBy": "mem_maya",
+  "postedInGroup": true,
+  "chatText": "@trav lunch, i paid. Sam's paying his own, he only had water",
+  "claimText": "dean and i split the paella, priya had the burrata, the cava was the 3 of us",
+  "ocrText": "XIRINGUITO MAR BLAVA\nPasseig Maritim 21, Barceloneta\nBarcelona\n16/03/2026   13:47   TAULA 12\n----------------------------------\n1 PAELLA MARINERA (2 PAX)    44,00\n1 BURRATA                    16,00\n1 BOTTLE OF CAVA             30,00\n----------------------------------\nSUBTOTAL                     90,00\nSERVICE 10%                   9,00\nIVA 10%                       9,90\nTOTAL                     108,90 €\nCARD                        108,90\nSERVEI NO INCLOS EN PREUS",
+  "parsed": {
+    "source": "restaurant",
+    "merchantName": "Xiringuito Mar Blava",
+    "total": {
+      "amountMinor": 10890,
+      "currency": "EUR"
+    },
+    "subtotal": {
+      "amountMinor": 9000,
+      "currency": "EUR"
+    },
+    "tax": {
+      "amountMinor": 990,
+      "currency": "EUR"
+    },
+    "fees": {
+      "amountMinor": 900,
+      "currency": "EUR"
+    },
+    "occurredAt": "2026-03-16T13:47:00+01:00",
+    "lineItems": [
+      {
+        "description": "paella marinera (2 pax)",
+        "quantity": 1,
+        "amount": {
+          "amountMinor": 4400,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "burrata",
+        "quantity": 1,
+        "amount": {
+          "amountMinor": 1600,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "bottle of cava",
+        "quantity": 1,
+        "amount": {
+          "amountMinor": 3000,
+          "currency": "EUR"
+        }
+      }
+    ],
+    "confidence": 0.95,
+    "warnings": []
+  },
+  "lineItems": [
+    {
+      "lineId": "lu1",
+      "label": "paella marinera (2 pax)",
+      "amount": {
+        "amountMinor": 4400,
+        "currency": "EUR"
+      },
+      "claimedBy": [
+        "mem_dean",
+        "mem_maya"
+      ],
+      "kind": "item"
+    },
+    {
+      "lineId": "lu2",
+      "label": "burrata",
+      "amount": {
+        "amountMinor": 1600,
+        "currency": "EUR"
+      },
+      "claimedBy": [
+        "mem_priya"
+      ],
+      "kind": "item"
+    },
+    {
+      "lineId": "lu3",
+      "label": "bottle of cava",
+      "amount": {
+        "amountMinor": 3000,
+        "currency": "EUR"
+      },
+      "claimedBy": [
+        "mem_dean",
+        "mem_maya",
+        "mem_priya"
+      ],
+      "kind": "item"
+    },
+    {
+      "lineId": "lu4",
+      "label": "service 10%",
+      "amount": {
+        "amountMinor": 900,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "service"
+    },
+    {
+      "lineId": "lu5",
+      "label": "IVA 10%",
+      "amount": {
+        "amountMinor": 990,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "tax"
+    }
+  ],
+  "payer": "mem_maya",
+  "split": {
+    "method": "itemized",
+    "participants": [
+      "mem_dean",
+      "mem_maya",
+      "mem_priya"
+    ],
+    "lineItems": [
+      {
+        "lineId": "lu1",
+        "label": "paella marinera (2 pax)",
+        "amount": {
+          "amountMinor": 4400,
+          "currency": "EUR"
+        },
+        "claimedBy": [
+          "mem_dean",
+          "mem_maya"
+        ],
+        "kind": "item"
+      },
+      {
+        "lineId": "lu2",
+        "label": "burrata",
+        "amount": {
+          "amountMinor": 1600,
+          "currency": "EUR"
+        },
+        "claimedBy": [
+          "mem_priya"
+        ],
+        "kind": "item"
+      },
+      {
+        "lineId": "lu3",
+        "label": "bottle of cava",
+        "amount": {
+          "amountMinor": 3000,
+          "currency": "EUR"
+        },
+        "claimedBy": [
+          "mem_dean",
+          "mem_maya",
+          "mem_priya"
+        ],
+        "kind": "item"
+      },
+      {
+        "lineId": "lu4",
+        "label": "service 10%",
+        "amount": {
+          "amountMinor": 900,
+          "currency": "EUR"
+        },
+        "claimedBy": [],
+        "kind": "service"
+      },
+      {
+        "lineId": "lu5",
+        "label": "IVA 10%",
+        "amount": {
+          "amountMinor": 990,
+          "currency": "EUR"
+        },
+        "claimedBy": [],
+        "kind": "tax"
+      }
+    ]
+  },
+  "expectedShares": [
+    {
+      "memberId": "mem_dean",
+      "amount": {
+        "amountMinor": 3872,
+        "currency": "EUR"
+      }
+    },
+    {
+      "memberId": "mem_maya",
+      "amount": {
+        "amountMinor": 3872,
+        "currency": "EUR"
+      }
+    },
+    {
+      "memberId": "mem_priya",
+      "amount": {
+        "amountMinor": 3146,
+        "currency": "EUR"
+      }
+    }
+  ],
+  "labels": {
+    "expectedAction": "clarify_then_log_expense",
+    "injection": false,
+    "injectionPatterns": [],
+    "lowConfidence": false,
+    "unreadable": false,
+    "familyTab": false,
+    "rounding": "per line: equal among claimants (payer absorbs the remainder); tax/tip/service/fee pro-rata to item subtotals (README \"Rounding\")",
+    "notes": "Sam was at the table (free water) but is excluded. Service 10% and IVA 10% are allocated pro-rata to item subtotals: Dean €38.72, Maya €38.72, Priya €31.46."
+  }
+}

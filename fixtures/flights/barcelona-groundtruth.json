@@ -1,0 +1,543 @@
+{
+  "fixtureVersion": 1,
+  "source": "fixtures/flights/barcelona.json",
+  "sourceSha256": "38db1fd22e72c7a9da980bc6d8941fcaf5d8e8f4f6a75fe216575fe93f92f35a",
+  "note": "Brute force over every combination of one offer per traveler. Prices are per passenger in EUR. Times compared in UTC using the March 2026 offsets in ZONE_OFFSET_MARCH_2026 (fixtures/_gen/inventory.mjs).",
+  "travelers": [
+    {
+      "memberId": "mem_dean",
+      "origin": "BOS",
+      "returnTo": "JFK",
+      "offerIds": [
+        "bos-jfk-1",
+        "bos-jfk-2",
+        "bos-jfk-3",
+        "bos-jfk-4"
+      ]
+    },
+    {
+      "memberId": "mem_maya",
+      "origin": "SFO",
+      "returnTo": "LAX",
+      "offerIds": [
+        "sfo-lax-1",
+        "sfo-lax-2",
+        "sfo-lax-3",
+        "sfo-lax-4"
+      ]
+    },
+    {
+      "memberId": "mem_jordan",
+      "origin": "ORD",
+      "returnTo": "ORD",
+      "offerIds": [
+        "ord-ord-1",
+        "ord-ord-2",
+        "ord-ord-3",
+        "ord-ord-4"
+      ]
+    },
+    {
+      "memberId": "mem_priya",
+      "origin": "JFK",
+      "returnTo": "IAD",
+      "offerIds": [
+        "jfk-iad-1",
+        "jfk-iad-2",
+        "jfk-iad-3",
+        "jfk-iad-4"
+      ]
+    },
+    {
+      "memberId": "mem_sam",
+      "origin": "LAX",
+      "returnTo": "SEA",
+      "offerIds": [
+        "lax-sea-1",
+        "lax-sea-2",
+        "lax-sea-3",
+        "lax-sea-4"
+      ]
+    },
+    {
+      "memberId": "mem_henry",
+      "origin": "MIA",
+      "returnTo": "ATL",
+      "offerIds": [
+        "mia-atl-1",
+        "mia-atl-2",
+        "mia-atl-3",
+        "mia-atl-4"
+      ]
+    }
+  ],
+  "offers": [
+    {
+      "offerId": "bos-jfk-1",
+      "origin": "BOS",
+      "returnTo": "JFK",
+      "price": 41200,
+      "departLocal": "2026-03-12T07:10",
+      "arriveBcnLocal": "2026-03-12T19:35",
+      "returnDepartBcnLocal": "2026-03-17T11:00",
+      "stops": 0,
+      "worstLayoverMinutes": 0,
+      "refundable": true,
+      "departsBefore7am": false
+    },
+    {
+      "offerId": "bos-jfk-2",
+      "origin": "BOS",
+      "returnTo": "JFK",
+      "price": 33800,
+      "departLocal": "2026-03-11T18:40",
+      "arriveBcnLocal": "2026-03-12T10:30",
+      "returnDepartBcnLocal": "2026-03-17T09:15",
+      "stops": 2,
+      "worstLayoverMinutes": 155,
+      "refundable": false,
+      "departsBefore7am": false
+    },
+    {
+      "offerId": "bos-jfk-3",
+      "origin": "BOS",
+      "returnTo": "JFK",
+      "price": 36500,
+      "departLocal": "2026-03-11T19:55",
+      "arriveBcnLocal": "2026-03-12T08:20",
+      "returnDepartBcnLocal": "2026-03-17T17:10",
+      "stops": 0,
+      "worstLayoverMinutes": 0,
+      "refundable": false,
+      "departsBefore7am": false
+    },
+    {
+      "offerId": "bos-jfk-4",
+      "origin": "BOS",
+      "returnTo": "JFK",
+      "price": 37900,
+      "departLocal": "2026-03-12T07:10",
+      "arriveBcnLocal": "2026-03-12T19:35",
+      "returnDepartBcnLocal": "2026-03-17T11:00",
+      "stops": 0,
+      "worstLayoverMinutes": 0,
+      "refundable": false,
+      "departsBefore7am": false,
+      "mockReprice": {
+        "after_minutes": 10,
+        "total_amount": "409.00"
+      }
+    },
+    {
+      "offerId": "sfo-lax-1",
+      "origin": "SFO",
+      "returnTo": "LAX",
+      "price": 53800,
+      "departLocal": "2026-03-11T22:30",
+      "arriveBcnLocal": "2026-03-12T21:40",
+      "returnDepartBcnLocal": "2026-03-17T10:00",
+      "stops": 2,
+      "worstLayoverMinutes": 135,
+      "refundable": true,
+      "departsBefore7am": false
+    },
+    {
+      "offerId": "sfo-lax-2",
+      "origin": "SFO",
+      "returnTo": "LAX",
+      "price": 47100,
+      "departLocal": "2026-03-11T15:50",
+      "arriveBcnLocal": "2026-03-12T16:10",
+      "returnDepartBcnLocal": "2026-03-17T08:05",
+      "stops": 2,
+      "worstLayoverMinutes": 210,
+      "refundable": false,
+      "departsBefore7am": false
+    },
+    {
+      "offerId": "sfo-lax-3",
+      "origin": "SFO",
+      "returnTo": "LAX",
+      "price": 61200,
+      "departLocal": "2026-03-11T16:05",
+      "arriveBcnLocal": "2026-03-12T11:40",
+      "returnDepartBcnLocal": "2026-03-17T12:30",
+      "stops": 0,
+      "worstLayoverMinutes": 0,
+      "refundable": true,
+      "departsBefore7am": false
+    },
+    {
+      "offerId": "sfo-lax-4",
+      "origin": "SFO",
+      "returnTo": "LAX",
+      "price": 42900,
+      "departLocal": "2026-03-11T14:00",
+      "arriveBcnLocal": "2026-03-12T18:30",
+      "returnDepartBcnLocal": "2026-03-17T08:30",
+      "stops": 2,
+      "worstLayoverMinutes": 430,
+      "refundable": false,
+      "departsBefore7am": false
+    },
+    {
+      "offerId": "ord-ord-1",
+      "origin": "ORD",
+      "returnTo": "ORD",
+      "price": 48900,
+      "departLocal": "2026-03-11T17:45",
+      "arriveBcnLocal": "2026-03-12T08:50",
+      "returnDepartBcnLocal": "2026-03-17T12:15",
+      "stops": 0,
+      "worstLayoverMinutes": 0,
+      "refundable": false,
+      "departsBefore7am": false
+    },
+    {
+      "offerId": "ord-ord-2",
+      "origin": "ORD",
+      "returnTo": "ORD",
+      "price": 52700,
+      "departLocal": "2026-03-12T05:30",
+      "arriveBcnLocal": "2026-03-12T20:35",
+      "returnDepartBcnLocal": "2026-03-17T12:15",
+      "stops": 0,
+      "worstLayoverMinutes": 0,
+      "refundable": true,
+      "departsBefore7am": true
+    },
+    {
+      "offerId": "ord-ord-3",
+      "origin": "ORD",
+      "returnTo": "ORD",
+      "price": 44100,
+      "departLocal": "2026-03-12T06:05",
+      "arriveBcnLocal": "2026-03-12T23:10",
+      "returnDepartBcnLocal": "2026-03-17T08:05",
+      "stops": 2,
+      "worstLayoverMinutes": 100,
+      "refundable": false,
+      "departsBefore7am": true
+    },
+    {
+      "offerId": "ord-ord-4",
+      "origin": "ORD",
+      "returnTo": "ORD",
+      "price": 49900,
+      "departLocal": "2026-03-12T05:30",
+      "arriveBcnLocal": "2026-03-12T20:35",
+      "returnDepartBcnLocal": "2026-03-17T12:15",
+      "stops": 0,
+      "worstLayoverMinutes": 0,
+      "refundable": false,
+      "departsBefore7am": true,
+      "mockReprice": {
+        "after_minutes": 15,
+        "total_amount": "545.00"
+      }
+    },
+    {
+      "offerId": "jfk-iad-1",
+      "origin": "JFK",
+      "returnTo": "IAD",
+      "price": 44600,
+      "departLocal": "2026-03-12T08:25",
+      "arriveBcnLocal": "2026-03-12T21:20",
+      "returnDepartBcnLocal": "2026-03-17T11:40",
+      "stops": 0,
+      "worstLayoverMinutes": 0,
+      "refundable": true,
+      "departsBefore7am": false
+    },
+    {
+      "offerId": "jfk-iad-2",
+      "origin": "JFK",
+      "returnTo": "IAD",
+      "price": 39800,
+      "departLocal": "2026-03-11T18:10",
+      "arriveBcnLocal": "2026-03-12T07:05",
+      "returnDepartBcnLocal": "2026-03-17T11:40",
+      "stops": 0,
+      "worstLayoverMinutes": 0,
+      "refundable": false,
+      "departsBefore7am": false
+    },
+    {
+      "offerId": "jfk-iad-3",
+      "origin": "JFK",
+      "returnTo": "IAD",
+      "price": 36200,
+      "departLocal": "2026-03-11T21:30",
+      "arriveBcnLocal": "2026-03-12T13:00",
+      "returnDepartBcnLocal": "2026-03-17T09:15",
+      "stops": 2,
+      "worstLayoverMinutes": 135,
+      "refundable": false,
+      "departsBefore7am": false
+    },
+    {
+      "offerId": "jfk-iad-4",
+      "origin": "JFK",
+      "returnTo": "IAD",
+      "price": 42900,
+      "departLocal": "2026-03-12T09:50",
+      "arriveBcnLocal": "2026-03-12T22:45",
+      "returnDepartBcnLocal": "2026-03-17T13:05",
+      "stops": 0,
+      "worstLayoverMinutes": 0,
+      "refundable": true,
+      "departsBefore7am": false,
+      "expiresAfterMinutes": 5
+    },
+    {
+      "offerId": "lax-sea-1",
+      "origin": "LAX",
+      "returnTo": "SEA",
+      "price": 55900,
+      "departLocal": "2026-03-11T17:30",
+      "arriveBcnLocal": "2026-03-12T18:25",
+      "returnDepartBcnLocal": "2026-03-17T09:40",
+      "stops": 2,
+      "worstLayoverMinutes": 260,
+      "refundable": true,
+      "departsBefore7am": false
+    },
+    {
+      "offerId": "lax-sea-2",
+      "origin": "LAX",
+      "returnTo": "SEA",
+      "price": 50500,
+      "departLocal": "2026-03-11T23:15",
+      "arriveBcnLocal": "2026-03-12T21:20",
+      "returnDepartBcnLocal": "2026-03-17T11:00",
+      "stops": 2,
+      "worstLayoverMinutes": 100,
+      "refundable": false,
+      "departsBefore7am": false
+    },
+    {
+      "offerId": "lax-sea-3",
+      "origin": "LAX",
+      "returnTo": "SEA",
+      "price": 64800,
+      "departLocal": "2026-03-11T15:30",
+      "arriveBcnLocal": "2026-03-12T11:15",
+      "returnDepartBcnLocal": "2026-03-17T09:40",
+      "stops": 1,
+      "worstLayoverMinutes": 95,
+      "refundable": true,
+      "departsBefore7am": false
+    },
+    {
+      "offerId": "lax-sea-4",
+      "origin": "LAX",
+      "returnTo": "SEA",
+      "price": 46200,
+      "departLocal": "2026-03-11T19:00",
+      "arriveBcnLocal": "2026-03-12T19:20",
+      "returnDepartBcnLocal": "2026-03-17T08:30",
+      "stops": 2,
+      "worstLayoverMinutes": 270,
+      "refundable": false,
+      "departsBefore7am": false
+    },
+    {
+      "offerId": "mia-atl-1",
+      "origin": "MIA",
+      "returnTo": "ATL",
+      "price": 47400,
+      "departLocal": "2026-03-12T06:20",
+      "arriveBcnLocal": "2026-03-12T20:10",
+      "returnDepartBcnLocal": "2026-03-17T11:20",
+      "stops": 0,
+      "worstLayoverMinutes": 0,
+      "refundable": true,
+      "departsBefore7am": true
+    },
+    {
+      "offerId": "mia-atl-2",
+      "origin": "MIA",
+      "returnTo": "ATL",
+      "price": 41800,
+      "departLocal": "2026-03-11T17:00",
+      "arriveBcnLocal": "2026-03-12T06:50",
+      "returnDepartBcnLocal": "2026-03-17T11:20",
+      "stops": 0,
+      "worstLayoverMinutes": 0,
+      "refundable": false,
+      "departsBefore7am": false
+    },
+    {
+      "offerId": "mia-atl-3",
+      "origin": "MIA",
+      "returnTo": "ATL",
+      "price": 39200,
+      "departLocal": "2026-03-11T20:10",
+      "arriveBcnLocal": "2026-03-12T12:35",
+      "returnDepartBcnLocal": "2026-03-17T08:00",
+      "stops": 2,
+      "worstLayoverMinutes": 105,
+      "refundable": false,
+      "departsBefore7am": false
+    },
+    {
+      "offerId": "mia-atl-4",
+      "origin": "MIA",
+      "returnTo": "ATL",
+      "price": 44100,
+      "departLocal": "2026-03-12T06:20",
+      "arriveBcnLocal": "2026-03-12T20:10",
+      "returnDepartBcnLocal": "2026-03-17T11:20",
+      "stops": 0,
+      "worstLayoverMinutes": 0,
+      "refundable": false,
+      "departsBefore7am": true,
+      "mockReprice": {
+        "after_minutes": 10,
+        "total_amount": "468.00"
+      }
+    }
+  ],
+  "groundTruth": {
+    "combinations": 4096,
+    "naiveCheapestPerPerson": {
+      "offerIds": [
+        "bos-jfk-2",
+        "sfo-lax-4",
+        "ord-ord-3",
+        "jfk-iad-3",
+        "lax-sea-4",
+        "mia-atl-3"
+      ],
+      "totalCost": {
+        "amountMinor": 242400,
+        "currency": "EUR"
+      },
+      "arrivalSpreadMinutes": 760,
+      "returnDepartureSpreadMinutes": 75,
+      "worstLayoverMinutes": 430,
+      "allRefundable": false,
+      "anyDepartsBefore7am": [
+        "ord-ord-3"
+      ]
+    },
+    "minArrivalSpread": {
+      "offerIds": [
+        "bos-jfk-4",
+        "sfo-lax-1",
+        "ord-ord-4",
+        "jfk-iad-1",
+        "lax-sea-2",
+        "mia-atl-4"
+      ],
+      "totalCost": {
+        "amountMinor": 280800,
+        "currency": "EUR"
+      },
+      "arrivalSpreadMinutes": 125,
+      "returnDepartureSpreadMinutes": 135,
+      "worstLayoverMinutes": 135,
+      "allRefundable": false,
+      "anyDepartsBefore7am": [
+        "ord-ord-4",
+        "mia-atl-4"
+      ]
+    },
+    "minArrivalSpreadWithoutJordanBefore7am": {
+      "offerIds": [
+        "bos-jfk-2",
+        "sfo-lax-3",
+        "ord-ord-1",
+        "jfk-iad-3",
+        "lax-sea-3",
+        "mia-atl-3"
+      ],
+      "totalCost": {
+        "amountMinor": 284100,
+        "currency": "EUR"
+      },
+      "arrivalSpreadMinutes": 250,
+      "returnDepartureSpreadMinutes": 270,
+      "worstLayoverMinutes": 155,
+      "allRefundable": false,
+      "anyDepartsBefore7am": []
+    },
+    "cheapestAllRefundable": {
+      "offerIds": [
+        "bos-jfk-1",
+        "sfo-lax-1",
+        "ord-ord-2",
+        "jfk-iad-4",
+        "lax-sea-1",
+        "mia-atl-1"
+      ],
+      "totalCost": {
+        "amountMinor": 293900,
+        "currency": "EUR"
+      },
+      "arrivalSpreadMinutes": 260,
+      "returnDepartureSpreadMinutes": 205,
+      "worstLayoverMinutes": 260,
+      "allRefundable": true,
+      "anyDepartsBefore7am": [
+        "ord-ord-2",
+        "mia-atl-1"
+      ]
+    },
+    "minPricePerMember": [
+      {
+        "memberId": "mem_dean",
+        "min": {
+          "amountMinor": 33800,
+          "currency": "EUR"
+        }
+      },
+      {
+        "memberId": "mem_maya",
+        "min": {
+          "amountMinor": 42900,
+          "currency": "EUR"
+        }
+      },
+      {
+        "memberId": "mem_jordan",
+        "min": {
+          "amountMinor": 44100,
+          "currency": "EUR"
+        }
+      },
+      {
+        "memberId": "mem_priya",
+        "min": {
+          "amountMinor": 36200,
+          "currency": "EUR"
+        }
+      },
+      {
+        "memberId": "mem_sam",
+        "min": {
+          "amountMinor": 46200,
+          "currency": "EUR"
+        }
+      },
+      {
+        "memberId": "mem_henry",
+        "min": {
+          "amountMinor": 39200,
+          "currency": "EUR"
+        }
+      }
+    ],
+    "groupTotalLowerBound": {
+      "amountMinor": 242400,
+      "currency": "EUR"
+    }
+  },
+  "expectations": [
+    "optimizer top pick has arrivalSpreadMinutes < naiveCheapestPerPerson.arrivalSpreadMinutes",
+    "refundableOnly: true ⇒ every pick refundable; the cheapest such set is cheapestAllRefundable",
+    "group memory gm_bcn_3 (\"jordan does not want flights before 7am\"): a ranked option that includes an ORD offer departing before 07:00 must say so, or the optimizer should prefer minArrivalSpreadWithoutJordanBefore7am",
+    "offers with mockReprice must be re-priced before createOrder (price_changed); offers with expiresAfterMinutes expire on the injected clock (offer_expired)",
+    "each member pays their own fare (paidBy per_person_cards): booking writes nothing to the group ledger"
+  ]
+}

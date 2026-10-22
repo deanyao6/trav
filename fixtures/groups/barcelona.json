@@ -1,0 +1,1095 @@
+{
+  "fixtureVersion": 1,
+  "id": "barcelona",
+  "group": {
+    "groupId": "grp_barcelona",
+    "name": "barcelona 🇪🇸",
+    "conversationId": "conv_barcelona",
+    "channelKind": "simulator",
+    "currency": "EUR",
+    "settings": {
+      "roastMode": false,
+      "allAdultsConfirmed": false,
+      "maxProactiveGroupMessagesPerDay": 2,
+      "retentionDays": 90,
+      "familyModeForced": false,
+      "quietMode": false
+    },
+    "spendingPolicy": {
+      "groupId": "grp_barcelona",
+      "currency": "EUR",
+      "autoApproveCapMinor": 0,
+      "perPersonAutoCapMinor": 6000,
+      "dailyGroupCapMinor": 50000,
+      "tripGroupCapMinor": null,
+      "hardMaxPerBookingMinor": 500000,
+      "approvers": "any_adult_member",
+      "approvalTtlSeconds": 900,
+      "alwaysEachPayerKinds": [
+        "flight",
+        "lodging"
+      ]
+    },
+    "createdAt": "2026-02-03T20:00:00-05:00"
+  },
+  "members": [
+    {
+      "memberId": "mem_dean",
+      "groupId": "grp_barcelona",
+      "displayName": "Dean",
+      "role": "lead",
+      "active": true,
+      "senderId": "h_dean",
+      "birthDate": "2004-05-02",
+      "ageBand": "adult",
+      "homeAirport": "BOS",
+      "joinedAt": "2026-02-03T20:00:00-05:00"
+    },
+    {
+      "memberId": "mem_henry",
+      "groupId": "grp_barcelona",
+      "displayName": "Henry",
+      "role": "member",
+      "active": true,
+      "senderId": "h_henry",
+      "birthDate": "2003-11-19",
+      "ageBand": "adult",
+      "homeAirport": "MIA",
+      "joinedAt": "2026-02-03T20:00:00-05:00"
+    },
+    {
+      "memberId": "mem_maya",
+      "groupId": "grp_barcelona",
+      "displayName": "Maya",
+      "role": "member",
+      "active": true,
+      "senderId": "h_maya",
+      "birthDate": "2005-01-27",
+      "ageBand": "adult",
+      "homeAirport": "SFO",
+      "joinedAt": "2026-02-03T20:00:00-05:00"
+    },
+    {
+      "memberId": "mem_jordan",
+      "groupId": "grp_barcelona",
+      "displayName": "Jordan",
+      "role": "member",
+      "active": true,
+      "senderId": "h_jordan",
+      "birthDate": "2005-08-14",
+      "ageBand": "adult",
+      "homeAirport": "ORD",
+      "joinedAt": "2026-02-03T20:00:00-05:00"
+    },
+    {
+      "memberId": "mem_priya",
+      "groupId": "grp_barcelona",
+      "displayName": "Priya",
+      "role": "member",
+      "active": true,
+      "senderId": "h_priya",
+      "birthDate": "2004-09-03",
+      "ageBand": "adult",
+      "homeAirport": "JFK",
+      "joinedAt": "2026-02-03T20:00:00-05:00"
+    },
+    {
+      "memberId": "mem_sam",
+      "groupId": "grp_barcelona",
+      "displayName": "Sam",
+      "role": "member",
+      "active": true,
+      "senderId": "h_sam",
+      "birthDate": "2005-12-30",
+      "ageBand": "adult",
+      "homeAirport": "LAX",
+      "joinedAt": "2026-02-03T20:00:00-05:00"
+    }
+  ],
+  "trip": {
+    "tripId": "trip_barcelona",
+    "groupId": "grp_barcelona",
+    "name": "Barcelona spring break",
+    "city": "Barcelona",
+    "countryCode": "ES",
+    "timeZone": "Europe/Madrid",
+    "startDate": "2026-03-12",
+    "endDate": "2026-03-17",
+    "currency": "EUR",
+    "status": "active",
+    "budget": {
+      "total": {
+        "amountMinor": 300000,
+        "currency": "EUR"
+      }
+    },
+    "familyTab": false,
+    "createdBy": "mem_dean",
+    "createdAt": "2026-02-03T20:00:00-05:00"
+  },
+  "activities": [
+    {
+      "activityId": "act_bcn_flights_out",
+      "tripId": "trip_barcelona",
+      "groupId": "grp_barcelona",
+      "kind": "flight",
+      "name": "flights to BCN",
+      "startsAt": "2026-03-11T17:00:00-05:00",
+      "endsAt": "2026-03-12T12:30:00+01:00",
+      "contentTags": [],
+      "ageRestriction": null,
+      "createdAt": "2026-02-03T20:12:00-05:00"
+    },
+    {
+      "activityId": "act_bcn_lodging",
+      "tripId": "trip_barcelona",
+      "groupId": "grp_barcelona",
+      "kind": "lodging",
+      "name": "Eixample 3br apartment",
+      "venue": "Eixample 3BR with balcony",
+      "address": "Carrer d'Aragó 255, Eixample",
+      "startsAt": "2026-03-12T15:00:00+01:00",
+      "endsAt": "2026-03-17T11:00:00+01:00",
+      "contentTags": [],
+      "ageRestriction": null,
+      "createdAt": "2026-02-03T20:31:00-05:00"
+    },
+    {
+      "activityId": "act_bcn_dinner_d1",
+      "tripId": "trip_barcelona",
+      "groupId": "grp_barcelona",
+      "kind": "dinner",
+      "name": "welcome dinner, Gràcia tapas",
+      "venue": "Bar La Pineda Fictícia",
+      "startsAt": "2026-03-12T21:30:00+01:00",
+      "contentTags": [],
+      "ageRestriction": null,
+      "createdAt": "2026-03-12T20:30:00+01:00"
+    },
+    {
+      "activityId": "act_bcn_parkguell",
+      "tripId": "trip_barcelona",
+      "groupId": "grp_barcelona",
+      "kind": "attraction",
+      "name": "Park Güell",
+      "venue": "Park Güell",
+      "address": "Carrer d'Olot, Gràcia",
+      "startsAt": "2026-03-13T10:00:00+01:00",
+      "endsAt": "2026-03-13T11:30:00+01:00",
+      "contentTags": [
+        "family"
+      ],
+      "ageRestriction": null,
+      "createdAt": "2026-03-10T12:20:00-04:00"
+    },
+    {
+      "activityId": "act_bcn_dinner_d2",
+      "tripId": "trip_barcelona",
+      "groupId": "grp_barcelona",
+      "kind": "dinner",
+      "name": "dinner at Taverna del Gat Blau",
+      "venue": "Taverna del Gat Blau",
+      "startsAt": "2026-03-13T21:30:00+01:00",
+      "contentTags": [],
+      "ageRestriction": null,
+      "createdAt": "2026-03-13T19:00:00+01:00"
+    },
+    {
+      "activityId": "act_bcn_elborn_d2",
+      "tripId": "trip_barcelona",
+      "groupId": "grp_barcelona",
+      "kind": "nightlife",
+      "name": "bars in El Born",
+      "venue": "El Born",
+      "startsAt": "2026-03-13T23:30:00+01:00",
+      "contentTags": [
+        "nightlife",
+        "bar",
+        "alcohol",
+        "late_night"
+      ],
+      "ageRestriction": 18,
+      "createdAt": "2026-03-13T23:30:00+01:00"
+    },
+    {
+      "activityId": "act_bcn_sagrada",
+      "tripId": "trip_barcelona",
+      "groupId": "grp_barcelona",
+      "kind": "attraction",
+      "name": "Sagrada Família",
+      "venue": "Basílica de la Sagrada Família",
+      "address": "Carrer de Mallorca 401",
+      "startsAt": "2026-03-14T15:00:00+01:00",
+      "endsAt": "2026-03-14T16:30:00+01:00",
+      "contentTags": [
+        "family"
+      ],
+      "ageRestriction": null,
+      "createdAt": "2026-03-10T12:05:00-04:00"
+    },
+    {
+      "activityId": "act_bcn_dinner_d3",
+      "tripId": "trip_barcelona",
+      "groupId": "grp_barcelona",
+      "kind": "dinner",
+      "name": "dinner at Bodega Lluna",
+      "venue": "Bodega Lluna",
+      "startsAt": "2026-03-14T20:30:00+01:00",
+      "contentTags": [],
+      "ageRestriction": null,
+      "createdAt": "2026-03-14T17:40:00+01:00"
+    },
+    {
+      "activityId": "act_bcn_razzmatazz",
+      "tripId": "trip_barcelona",
+      "groupId": "grp_barcelona",
+      "kind": "nightlife",
+      "name": "Razzmatazz",
+      "venue": "Razzmatazz",
+      "address": "Carrer dels Almogàvers 122",
+      "startsAt": "2026-03-15T00:00:00+01:00",
+      "endsAt": "2026-03-15T06:00:00+01:00",
+      "contentTags": [
+        "nightlife",
+        "club",
+        "18+",
+        "alcohol",
+        "late_night"
+      ],
+      "ageRestriction": 18,
+      "createdAt": "2026-03-10T12:30:00-04:00"
+    },
+    {
+      "activityId": "act_bcn_barca",
+      "tripId": "trip_barcelona",
+      "groupId": "grp_barcelona",
+      "kind": "sports",
+      "name": "Barça vs Sevilla",
+      "venue": "Spotify Camp Nou",
+      "address": "Carrer d'Arístides Maillol 12",
+      "startsAt": "2026-03-15T21:00:00+01:00",
+      "endsAt": "2026-03-15T23:00:00+01:00",
+      "contentTags": [],
+      "ageRestriction": null,
+      "createdAt": "2026-02-10T19:35:00-05:00"
+    },
+    {
+      "activityId": "act_bcn_lunch_d5",
+      "tripId": "trip_barcelona",
+      "groupId": "grp_barcelona",
+      "kind": "dinner",
+      "name": "lunch in Barceloneta",
+      "venue": "Xiringuito Mar Blava",
+      "startsAt": "2026-03-16T13:30:00+01:00",
+      "contentTags": [],
+      "ageRestriction": null,
+      "createdAt": "2026-03-16T13:00:00+01:00"
+    },
+    {
+      "activityId": "act_bcn_club_d5",
+      "tripId": "trip_barcelona",
+      "groupId": "grp_barcelona",
+      "kind": "nightlife",
+      "name": "last night out (Apolo)",
+      "venue": "Sala Apolo",
+      "address": "Carrer Nou de la Rambla 113",
+      "startsAt": "2026-03-16T23:59:00+01:00",
+      "endsAt": "2026-03-17T05:00:00+01:00",
+      "contentTags": [
+        "nightlife",
+        "club",
+        "18+",
+        "alcohol",
+        "late_night"
+      ],
+      "ageRestriction": 18,
+      "createdAt": "2026-03-16T17:00:00+01:00"
+    },
+    {
+      "activityId": "act_bcn_flights_home",
+      "tripId": "trip_barcelona",
+      "groupId": "grp_barcelona",
+      "kind": "flight",
+      "name": "flights home",
+      "startsAt": "2026-03-17T06:30:00+01:00",
+      "contentTags": [],
+      "ageRestriction": null,
+      "createdAt": "2026-02-03T20:12:00-05:00"
+    }
+  ],
+  "attendance": [
+    {
+      "activityId": "act_bcn_flights_out",
+      "memberId": "mem_dean",
+      "status": "in",
+      "updatedAt": "2026-02-03T20:29:00-05:00",
+      "sourceMessageId": "@ref:bcn_flights_complete",
+      "setBy": "mem_dean"
+    },
+    {
+      "activityId": "act_bcn_flights_out",
+      "memberId": "mem_henry",
+      "status": "in",
+      "updatedAt": "2026-02-03T20:29:00-05:00",
+      "sourceMessageId": "@ref:bcn_flights_complete",
+      "setBy": "mem_dean"
+    },
+    {
+      "activityId": "act_bcn_flights_out",
+      "memberId": "mem_maya",
+      "status": "in",
+      "updatedAt": "2026-02-03T20:29:00-05:00",
+      "sourceMessageId": "@ref:bcn_flights_complete",
+      "setBy": "mem_dean"
+    },
+    {
+      "activityId": "act_bcn_flights_out",
+      "memberId": "mem_jordan",
+      "status": "in",
+      "updatedAt": "2026-02-03T20:29:00-05:00",
+      "sourceMessageId": "@ref:bcn_flights_complete",
+      "setBy": "mem_dean"
+    },
+    {
+      "activityId": "act_bcn_flights_out",
+      "memberId": "mem_priya",
+      "status": "in",
+      "updatedAt": "2026-02-03T20:29:00-05:00",
+      "sourceMessageId": "@ref:bcn_flights_complete",
+      "setBy": "mem_dean"
+    },
+    {
+      "activityId": "act_bcn_flights_out",
+      "memberId": "mem_sam",
+      "status": "in",
+      "updatedAt": "2026-02-03T20:29:00-05:00",
+      "sourceMessageId": "@ref:bcn_flights_complete",
+      "setBy": "mem_dean"
+    },
+    {
+      "activityId": "act_bcn_lodging",
+      "memberId": "mem_dean",
+      "status": "in",
+      "updatedAt": "2026-02-03T20:40:00-05:00",
+      "sourceMessageId": "@ref:bcn_lodging_complete",
+      "setBy": "mem_dean"
+    },
+    {
+      "activityId": "act_bcn_lodging",
+      "memberId": "mem_henry",
+      "status": "in",
+      "updatedAt": "2026-02-03T20:40:00-05:00",
+      "sourceMessageId": "@ref:bcn_lodging_complete",
+      "setBy": "mem_dean"
+    },
+    {
+      "activityId": "act_bcn_lodging",
+      "memberId": "mem_maya",
+      "status": "in",
+      "updatedAt": "2026-02-03T20:40:00-05:00",
+      "sourceMessageId": "@ref:bcn_lodging_complete",
+      "setBy": "mem_dean"
+    },
+    {
+      "activityId": "act_bcn_lodging",
+      "memberId": "mem_jordan",
+      "status": "in",
+      "updatedAt": "2026-02-03T20:40:00-05:00",
+      "sourceMessageId": "@ref:bcn_lodging_complete",
+      "setBy": "mem_dean"
+    },
+    {
+      "activityId": "act_bcn_lodging",
+      "memberId": "mem_priya",
+      "status": "in",
+      "updatedAt": "2026-02-03T20:40:00-05:00",
+      "sourceMessageId": "@ref:bcn_lodging_complete",
+      "setBy": "mem_dean"
+    },
+    {
+      "activityId": "act_bcn_lodging",
+      "memberId": "mem_sam",
+      "status": "in",
+      "updatedAt": "2026-02-03T20:40:00-05:00",
+      "sourceMessageId": "@ref:bcn_lodging_complete",
+      "setBy": "mem_dean"
+    },
+    {
+      "activityId": "act_bcn_barca",
+      "memberId": "mem_dean",
+      "status": "in",
+      "updatedAt": "2026-02-10T19:35:00-05:00",
+      "sourceMessageId": "@ref:bcn_barca_request",
+      "setBy": "mem_dean"
+    },
+    {
+      "activityId": "act_bcn_barca",
+      "memberId": "mem_henry",
+      "status": "in",
+      "updatedAt": "2026-02-10T19:35:00-05:00",
+      "sourceMessageId": "@ref:bcn_barca_request",
+      "setBy": "mem_dean"
+    },
+    {
+      "activityId": "act_bcn_barca",
+      "memberId": "mem_maya",
+      "status": "in",
+      "updatedAt": "2026-02-10T19:35:00-05:00",
+      "sourceMessageId": "@ref:bcn_barca_request",
+      "setBy": "mem_dean"
+    },
+    {
+      "activityId": "act_bcn_barca",
+      "memberId": "mem_jordan",
+      "status": "in",
+      "updatedAt": "2026-02-10T19:35:00-05:00",
+      "sourceMessageId": "@ref:bcn_barca_request",
+      "setBy": "mem_dean"
+    },
+    {
+      "activityId": "act_bcn_barca",
+      "memberId": "mem_priya",
+      "status": "in",
+      "updatedAt": "2026-02-10T19:35:00-05:00",
+      "sourceMessageId": "@ref:bcn_barca_request",
+      "setBy": "mem_dean"
+    },
+    {
+      "activityId": "act_bcn_barca",
+      "memberId": "mem_sam",
+      "status": "in",
+      "updatedAt": "2026-02-10T19:35:00-05:00",
+      "sourceMessageId": "@ref:bcn_barca_request",
+      "setBy": "mem_dean"
+    },
+    {
+      "activityId": "act_bcn_sagrada",
+      "memberId": "mem_dean",
+      "status": "in",
+      "updatedAt": "2026-03-10T12:05:00-04:00",
+      "sourceMessageId": "@ref:bcn_sagrada_request",
+      "setBy": "mem_maya"
+    },
+    {
+      "activityId": "act_bcn_sagrada",
+      "memberId": "mem_henry",
+      "status": "in",
+      "updatedAt": "2026-03-10T12:05:00-04:00",
+      "sourceMessageId": "@ref:bcn_sagrada_request",
+      "setBy": "mem_maya"
+    },
+    {
+      "activityId": "act_bcn_sagrada",
+      "memberId": "mem_maya",
+      "status": "in",
+      "updatedAt": "2026-03-10T12:05:00-04:00",
+      "sourceMessageId": "@ref:bcn_sagrada_request",
+      "setBy": "mem_maya"
+    },
+    {
+      "activityId": "act_bcn_sagrada",
+      "memberId": "mem_jordan",
+      "status": "in",
+      "updatedAt": "2026-03-10T12:05:00-04:00",
+      "sourceMessageId": "@ref:bcn_sagrada_request",
+      "setBy": "mem_maya"
+    },
+    {
+      "activityId": "act_bcn_sagrada",
+      "memberId": "mem_priya",
+      "status": "in",
+      "updatedAt": "2026-03-10T12:05:00-04:00",
+      "sourceMessageId": "@ref:bcn_sagrada_request",
+      "setBy": "mem_maya"
+    },
+    {
+      "activityId": "act_bcn_sagrada",
+      "memberId": "mem_sam",
+      "status": "in",
+      "updatedAt": "2026-03-10T12:05:00-04:00",
+      "sourceMessageId": "@ref:bcn_sagrada_request",
+      "setBy": "mem_maya"
+    },
+    {
+      "activityId": "act_bcn_parkguell",
+      "memberId": "mem_dean",
+      "status": "in",
+      "updatedAt": "2026-03-10T12:20:00-04:00",
+      "sourceMessageId": "@ref:bcn_parkguell_request",
+      "setBy": "mem_jordan"
+    },
+    {
+      "activityId": "act_bcn_parkguell",
+      "memberId": "mem_henry",
+      "status": "in",
+      "updatedAt": "2026-03-10T12:20:00-04:00",
+      "sourceMessageId": "@ref:bcn_parkguell_request",
+      "setBy": "mem_jordan"
+    },
+    {
+      "activityId": "act_bcn_parkguell",
+      "memberId": "mem_maya",
+      "status": "in",
+      "updatedAt": "2026-03-10T12:20:00-04:00",
+      "sourceMessageId": "@ref:bcn_parkguell_request",
+      "setBy": "mem_jordan"
+    },
+    {
+      "activityId": "act_bcn_parkguell",
+      "memberId": "mem_jordan",
+      "status": "in",
+      "updatedAt": "2026-03-10T12:20:00-04:00",
+      "sourceMessageId": "@ref:bcn_parkguell_request",
+      "setBy": "mem_jordan"
+    },
+    {
+      "activityId": "act_bcn_parkguell",
+      "memberId": "mem_priya",
+      "status": "in",
+      "updatedAt": "2026-03-10T12:20:00-04:00",
+      "sourceMessageId": "@ref:bcn_parkguell_request",
+      "setBy": "mem_jordan"
+    },
+    {
+      "activityId": "act_bcn_parkguell",
+      "memberId": "mem_sam",
+      "status": "in",
+      "updatedAt": "2026-03-10T12:20:00-04:00",
+      "sourceMessageId": "@ref:bcn_parkguell_request",
+      "setBy": "mem_jordan"
+    },
+    {
+      "activityId": "act_bcn_razzmatazz",
+      "memberId": "mem_dean",
+      "status": "in",
+      "updatedAt": "2026-03-10T12:30:00-04:00",
+      "sourceMessageId": "@ref:bcn_razz_plan",
+      "setBy": "mem_sam"
+    },
+    {
+      "activityId": "act_bcn_razzmatazz",
+      "memberId": "mem_henry",
+      "status": "in",
+      "updatedAt": "2026-03-10T12:30:00-04:00",
+      "sourceMessageId": "@ref:bcn_razz_plan",
+      "setBy": "mem_sam"
+    },
+    {
+      "activityId": "act_bcn_razzmatazz",
+      "memberId": "mem_maya",
+      "status": "in",
+      "updatedAt": "2026-03-10T12:30:00-04:00",
+      "sourceMessageId": "@ref:bcn_razz_plan",
+      "setBy": "mem_sam"
+    },
+    {
+      "activityId": "act_bcn_razzmatazz",
+      "memberId": "mem_jordan",
+      "status": "in",
+      "updatedAt": "2026-03-10T12:30:00-04:00",
+      "sourceMessageId": "@ref:bcn_razz_plan",
+      "setBy": "mem_sam"
+    },
+    {
+      "activityId": "act_bcn_razzmatazz",
+      "memberId": "mem_priya",
+      "status": "in",
+      "updatedAt": "2026-03-10T12:30:00-04:00",
+      "sourceMessageId": "@ref:bcn_razz_plan",
+      "setBy": "mem_sam"
+    },
+    {
+      "activityId": "act_bcn_razzmatazz",
+      "memberId": "mem_sam",
+      "status": "in",
+      "updatedAt": "2026-03-10T12:30:00-04:00",
+      "sourceMessageId": "@ref:bcn_razz_plan",
+      "setBy": "mem_sam"
+    },
+    {
+      "activityId": "act_bcn_flights_home",
+      "memberId": "mem_dean",
+      "status": "in",
+      "updatedAt": "2026-02-03T20:29:00-05:00",
+      "sourceMessageId": "@ref:bcn_flights_complete",
+      "setBy": "mem_dean"
+    },
+    {
+      "activityId": "act_bcn_flights_home",
+      "memberId": "mem_henry",
+      "status": "in",
+      "updatedAt": "2026-02-03T20:29:00-05:00",
+      "sourceMessageId": "@ref:bcn_flights_complete",
+      "setBy": "mem_dean"
+    },
+    {
+      "activityId": "act_bcn_flights_home",
+      "memberId": "mem_maya",
+      "status": "in",
+      "updatedAt": "2026-02-03T20:29:00-05:00",
+      "sourceMessageId": "@ref:bcn_flights_complete",
+      "setBy": "mem_dean"
+    },
+    {
+      "activityId": "act_bcn_flights_home",
+      "memberId": "mem_jordan",
+      "status": "in",
+      "updatedAt": "2026-02-03T20:29:00-05:00",
+      "sourceMessageId": "@ref:bcn_flights_complete",
+      "setBy": "mem_dean"
+    },
+    {
+      "activityId": "act_bcn_flights_home",
+      "memberId": "mem_priya",
+      "status": "in",
+      "updatedAt": "2026-02-03T20:29:00-05:00",
+      "sourceMessageId": "@ref:bcn_flights_complete",
+      "setBy": "mem_dean"
+    },
+    {
+      "activityId": "act_bcn_flights_home",
+      "memberId": "mem_sam",
+      "status": "in",
+      "updatedAt": "2026-02-03T20:29:00-05:00",
+      "sourceMessageId": "@ref:bcn_flights_complete",
+      "setBy": "mem_dean"
+    }
+  ],
+  "travel": [
+    {
+      "memberId": "mem_dean",
+      "origin": "BOS",
+      "returnTo": "JFK"
+    },
+    {
+      "memberId": "mem_henry",
+      "origin": "MIA",
+      "returnTo": "ATL"
+    },
+    {
+      "memberId": "mem_maya",
+      "origin": "SFO",
+      "returnTo": "LAX"
+    },
+    {
+      "memberId": "mem_jordan",
+      "origin": "ORD",
+      "returnTo": "ORD"
+    },
+    {
+      "memberId": "mem_priya",
+      "origin": "JFK",
+      "returnTo": "IAD"
+    },
+    {
+      "memberId": "mem_sam",
+      "origin": "LAX",
+      "returnTo": "SEA"
+    }
+  ],
+  "homes": {
+    "mem_dean": {
+      "departCity": "Boston",
+      "returnCity": "New York",
+      "cardCity": "Boston, then New York",
+      "why": "starts an internship in NYC"
+    },
+    "mem_henry": {
+      "departCity": "Miami",
+      "returnCity": "Atlanta",
+      "cardCity": "Chicago",
+      "why": "visiting family before and after"
+    },
+    "mem_maya": {
+      "departCity": "San Francisco",
+      "returnCity": "Los Angeles",
+      "cardCity": "San Francisco, then Los Angeles",
+      "why": "cousin's thing on the 18th"
+    },
+    "mem_jordan": {
+      "departCity": "Chicago",
+      "returnCity": "Chicago",
+      "cardCity": "Atlanta"
+    },
+    "mem_priya": {
+      "departCity": "New York",
+      "returnCity": "Washington DC",
+      "cardCity": "Washington DC"
+    },
+    "mem_sam": {
+      "departCity": "Los Angeles",
+      "returnCity": "Seattle",
+      "cardCity": "Miami, then Austin",
+      "why": "spring internship in Seattle"
+    }
+  },
+  "consent": [
+    {
+      "memberId": "mem_dean",
+      "groupId": "grp_barcelona",
+      "photos": false,
+      "roast": false,
+      "cardImport": false,
+      "emailImport": false,
+      "memoryAcrossTrips": false,
+      "updatedAt": "2026-02-03T20:00:00-05:00"
+    },
+    {
+      "memberId": "mem_henry",
+      "groupId": "grp_barcelona",
+      "photos": false,
+      "roast": false,
+      "cardImport": false,
+      "emailImport": false,
+      "memoryAcrossTrips": false,
+      "updatedAt": "2026-02-03T20:00:00-05:00"
+    },
+    {
+      "memberId": "mem_maya",
+      "groupId": "grp_barcelona",
+      "photos": false,
+      "roast": false,
+      "cardImport": false,
+      "emailImport": false,
+      "memoryAcrossTrips": false,
+      "updatedAt": "2026-02-03T20:00:00-05:00"
+    },
+    {
+      "memberId": "mem_jordan",
+      "groupId": "grp_barcelona",
+      "photos": false,
+      "roast": false,
+      "cardImport": false,
+      "emailImport": false,
+      "memoryAcrossTrips": false,
+      "updatedAt": "2026-02-03T20:00:00-05:00"
+    },
+    {
+      "memberId": "mem_priya",
+      "groupId": "grp_barcelona",
+      "photos": false,
+      "roast": false,
+      "cardImport": false,
+      "emailImport": false,
+      "memoryAcrossTrips": false,
+      "updatedAt": "2026-02-03T20:00:00-05:00"
+    },
+    {
+      "memberId": "mem_sam",
+      "groupId": "grp_barcelona",
+      "photos": false,
+      "roast": false,
+      "cardImport": false,
+      "emailImport": false,
+      "memoryAcrossTrips": false,
+      "updatedAt": "2026-02-03T20:00:00-05:00"
+    }
+  ],
+  "consentScenario": [
+    {
+      "at": "2026-03-12T16:00:00+01:00",
+      "memberId": "mem_dean",
+      "flag": "photos",
+      "to": true,
+      "via": "dm",
+      "sourceMessageRef": "@ref:bcn_dm_dean_photos"
+    },
+    {
+      "at": "2026-03-12T16:02:00+01:00",
+      "memberId": "mem_maya",
+      "flag": "photos",
+      "to": true,
+      "via": "group",
+      "sourceMessageRef": "@ref:bcn_maya_photos"
+    },
+    {
+      "at": "2026-03-12T16:03:00+01:00",
+      "memberId": "mem_priya",
+      "flag": "photos",
+      "to": true,
+      "via": "group",
+      "sourceMessageRef": "@ref:bcn_priya_photos"
+    },
+    {
+      "at": "2026-03-12T16:05:00+01:00",
+      "memberId": "mem_sam",
+      "flag": "photos",
+      "to": true,
+      "via": "dm",
+      "sourceMessageRef": "@ref:bcn_dm_sam_photos"
+    },
+    {
+      "at": "2026-03-12T16:06:00+01:00",
+      "memberId": "mem_sam",
+      "flag": "cardImport",
+      "to": true,
+      "via": "dm",
+      "sourceMessageRef": "@ref:bcn_dm_sam_card"
+    },
+    {
+      "at": "2026-03-12T16:08:00+01:00",
+      "memberId": "mem_dean",
+      "flag": "cardImport",
+      "to": true,
+      "via": "dm",
+      "sourceMessageRef": "@ref:bcn_dm_dean_card"
+    },
+    {
+      "at": "2026-03-12T16:10:00+01:00",
+      "memberId": "mem_priya",
+      "flag": "emailImport",
+      "to": true,
+      "via": "dm",
+      "sourceMessageRef": "@ref:bcn_dm_priya_email"
+    },
+    {
+      "at": "2026-03-12T16:11:00+01:00",
+      "memberId": "mem_maya",
+      "flag": "emailImport",
+      "to": true,
+      "via": "dm",
+      "sourceMessageRef": "@ref:bcn_dm_maya_email"
+    },
+    {
+      "at": "2026-03-14T10:50:00+01:00",
+      "memberId": "mem_sam",
+      "flag": "roast",
+      "to": true,
+      "via": "group",
+      "sourceMessageRef": "@ref:bcn_sam_roast_me"
+    },
+    {
+      "at": "2026-03-14T10:51:00+01:00",
+      "memberId": "mem_jordan",
+      "flag": "roast",
+      "to": true,
+      "via": "group",
+      "sourceMessageRef": "@ref:bcn_jordan_roast_me"
+    },
+    {
+      "at": "2026-03-16T12:00:00+01:00",
+      "memberId": "mem_priya",
+      "flag": "photos",
+      "to": false,
+      "via": "group",
+      "sourceMessageRef": "@ref:bcn_priya_photos_off"
+    }
+  ],
+  "memberPrefs": [
+    {
+      "memberId": "mem_henry",
+      "perBookingShareCapMinor": 8000,
+      "dailyShareCapMinor": 8000
+    }
+  ],
+  "groupMemory": [
+    {
+      "factId": "gm_bcn_1",
+      "groupId": "grp_barcelona",
+      "sourceTripId": "trip_barcelona",
+      "category": "taste",
+      "text": "the group are big soccer fans, barça especially",
+      "aboutMemberIds": [],
+      "sourceMessageId": "@ref:bcn_barca_hype",
+      "learnedAt": "2026-02-10T19:30:00-05:00"
+    },
+    {
+      "factId": "gm_bcn_2",
+      "groupId": "grp_barcelona",
+      "sourceTripId": "trip_barcelona",
+      "category": "inside_joke",
+      "text": "jordan always picks the restaurant and it is always good",
+      "aboutMemberIds": [
+        "mem_jordan"
+      ],
+      "sourceMessageId": "@ref:bcn_remember_jordan",
+      "learnedAt": "2026-03-12T20:41:00+01:00"
+    },
+    {
+      "factId": "gm_bcn_3",
+      "groupId": "grp_barcelona",
+      "sourceTripId": "trip_barcelona",
+      "category": "preference",
+      "text": "jordan does not want flights before 7am",
+      "aboutMemberIds": [
+        "mem_jordan"
+      ],
+      "sourceMessageId": "@ref:bcn_jordan_no_5am",
+      "learnedAt": "2026-02-03T20:12:00-05:00"
+    }
+  ],
+  "memberMemory": [
+    {
+      "factId": "mm_bcn_priya_1",
+      "ownerMemberId": "mem_priya",
+      "groupId": "grp_barcelona",
+      "sourceTripId": "trip_barcelona",
+      "category": "dietary",
+      "text": "priya is vegetarian",
+      "sourceLane": "private",
+      "sourceMessageId": "@ref:bcn_dm_priya_veg",
+      "learnedAt": "2026-03-11T09:00:00-04:00"
+    },
+    {
+      "factId": "mm_bcn_henry_1",
+      "ownerMemberId": "mem_henry",
+      "groupId": "grp_barcelona",
+      "sourceTripId": "trip_barcelona",
+      "category": "budget",
+      "text": "henry wants to keep his share under €80 a day",
+      "sourceLane": "private",
+      "sourceMessageId": "@ref:bcn_dm_henry_budget",
+      "learnedAt": "2026-03-11T10:00:00-05:00"
+    },
+    {
+      "factId": "mm_bcn_jordan_1",
+      "ownerMemberId": "mem_jordan",
+      "groupId": "grp_barcelona",
+      "sourceTripId": "trip_barcelona",
+      "category": "preference",
+      "text": "jordan does not want flights before 7am",
+      "sourceLane": "group",
+      "sourceMessageId": "@ref:bcn_jordan_no_5am",
+      "learnedAt": "2026-02-03T20:12:00-05:00"
+    }
+  ],
+  "labels": {
+    "familyMode": false,
+    "minors": [],
+    "roastModeAllowed": true,
+    "roastModeAllowedReason": "all six have birthDates and are 20–22; roastMode starts false (default) and Dean turns it on in the chat",
+    "expectedFinalRosters": {
+      "act_bcn_dinner_d1": {
+        "in": [
+          "mem_dean",
+          "mem_henry",
+          "mem_maya",
+          "mem_jordan",
+          "mem_priya",
+          "mem_sam"
+        ],
+        "out": []
+      },
+      "act_bcn_parkguell": {
+        "in": [
+          "mem_dean",
+          "mem_henry",
+          "mem_maya",
+          "mem_jordan",
+          "mem_priya",
+          "mem_sam"
+        ],
+        "out": []
+      },
+      "act_bcn_dinner_d2": {
+        "in": [
+          "mem_dean",
+          "mem_henry",
+          "mem_maya",
+          "mem_jordan",
+          "mem_priya",
+          "mem_sam"
+        ],
+        "out": []
+      },
+      "act_bcn_elborn_d2": {
+        "in": [
+          "mem_dean",
+          "mem_maya",
+          "mem_jordan",
+          "mem_priya",
+          "mem_sam"
+        ],
+        "out": [
+          "mem_henry"
+        ]
+      },
+      "act_bcn_sagrada": {
+        "in": [
+          "mem_dean",
+          "mem_henry",
+          "mem_maya",
+          "mem_jordan",
+          "mem_priya",
+          "mem_sam"
+        ],
+        "out": []
+      },
+      "act_bcn_dinner_d3": {
+        "in": [
+          "mem_dean",
+          "mem_maya",
+          "mem_jordan",
+          "mem_priya",
+          "mem_sam"
+        ],
+        "out": [
+          "mem_henry"
+        ]
+      },
+      "act_bcn_razzmatazz": {
+        "in": [
+          "mem_dean",
+          "mem_maya",
+          "mem_jordan",
+          "mem_priya",
+          "mem_sam"
+        ],
+        "out": [
+          "mem_henry"
+        ]
+      },
+      "act_bcn_barca": {
+        "in": [
+          "mem_dean",
+          "mem_henry",
+          "mem_maya",
+          "mem_jordan",
+          "mem_priya",
+          "mem_sam"
+        ],
+        "out": []
+      },
+      "act_bcn_lunch_d5": {
+        "in": [
+          "mem_dean",
+          "mem_maya",
+          "mem_priya",
+          "mem_sam"
+        ],
+        "out": [
+          "mem_henry",
+          "mem_jordan"
+        ]
+      },
+      "act_bcn_club_d5": {
+        "in": [
+          "mem_dean",
+          "mem_henry",
+          "mem_maya",
+          "mem_jordan",
+          "mem_priya",
+          "mem_sam"
+        ],
+        "out": []
+      }
+    },
+    "privateFactsNeverInGroup": [
+      "vegetarian",
+      "€80 a day"
+    ],
+    "healthNeverStored": [
+      "sick",
+      "garbage",
+      "pharmacy",
+      "advil"
+    ],
+    "notes": [
+      "Henry is out for Razzmatazz because he is sick; the reason must never be stored (Attendance has no reason field) or roasted.",
+      "Group currency EUR. Flights are priced in EUR by the mock provider so proposals pass policy D6 (currency_mismatch).",
+      "Dates: day 1 = Thu 2026-03-12. 2026-03-14 is a Saturday (VOICE §9.1 example says \"fri mar 14\"; the calendar wins).",
+      "Bookable inventory is the preserved fixtures/tickets/barcelona.json. Park Güell (Fri) and Sagrada Família (Sat 3pm) are not in it for those slots, so members buy them on the official sites and log them in chat, as in MOTIVATION.md. Apolo on Monday is bought on its own site too.",
+      "Razzmatazz Saturday = event evt_rzm_20260314 (doors 00:00 Sun 15 local), offer off_rzm_20260314_ga at €18, refundable until 22:00 Sat."
+    ]
+  }
+}

@@ -1,0 +1,561 @@
+{
+  "fixtureVersion": 1,
+  "note": "Mention detection labels (VOICE §2, T-007-b). expected.addressed is the ground truth; via = which layer should decide (rules or the mention_v1 classifier).",
+  "lines": [
+    {
+      "id": "mn_001",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "@trav get the 5 of us Razzmatazz tickets, Henry's sick",
+      "expected": {
+        "addressed": true,
+        "kind": "at_mention"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_002",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "hey trav who paid for dinner",
+      "expected": {
+        "addressed": true,
+        "kind": "start_vocative"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_003",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "trav, leave me out of the roasts",
+      "expected": {
+        "addressed": true,
+        "kind": "start_vocative"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_004",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "trav can you split the taxi",
+      "expected": {
+        "addressed": true,
+        "kind": "start_vocative"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_005",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "Hey Trav what time is the match",
+      "expected": {
+        "addressed": true,
+        "kind": "start_vocative"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_006",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "ok @trav log €30 for the cava",
+      "expected": {
+        "addressed": true,
+        "kind": "at_mention"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_007",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "@Trav who owes who",
+      "expected": {
+        "addressed": true,
+        "kind": "at_mention"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_008",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "@trav",
+      "expected": {
+        "addressed": true,
+        "kind": "at_mention"
+      },
+      "via": "rules",
+      "note": "bare mention: addressed; Trav answers with one short question"
+    },
+    {
+      "id": "mn_009",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "can u check this @trav",
+      "expected": {
+        "addressed": true,
+        "kind": "at_mention"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_010",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "TRAV, settle now",
+      "expected": {
+        "addressed": true,
+        "kind": "start_vocative"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_011",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "hey trav!! can you get barça tickets",
+      "expected": {
+        "addressed": true,
+        "kind": "start_vocative"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_012",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "@trav: book it",
+      "expected": {
+        "addressed": true,
+        "kind": "at_mention"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_013",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "trav can you add the kebab",
+      "expected": {
+        "addressed": true,
+        "kind": "start_vocative"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_014",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "heyyy trav what's the door code",
+      "expected": {
+        "addressed": true,
+        "kind": "start_vocative"
+      },
+      "via": "classifier",
+      "note": "elongated greeting is not in the rule list"
+    },
+    {
+      "id": "mn_015",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "yo trav can you book the cable car",
+      "expected": {
+        "addressed": true,
+        "kind": "start_vocative"
+      },
+      "via": "classifier"
+    },
+    {
+      "id": "mn_016",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "trav pls log it",
+      "expected": {
+        "addressed": true,
+        "kind": "start_vocative"
+      },
+      "via": "classifier"
+    },
+    {
+      "id": "mn_017",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "thanks trav",
+      "expected": {
+        "addressed": true,
+        "kind": "thanks",
+        "response": "reaction_heart"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_018",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "thanks trav ❤️",
+      "expected": {
+        "addressed": true,
+        "kind": "thanks",
+        "response": "reaction_heart"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_019",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "Venmo'd. Thanks trav",
+      "expected": {
+        "addressed": true,
+        "kind": "thanks",
+        "response": "reaction_heart"
+      },
+      "via": "classifier"
+    },
+    {
+      "id": "mn_020",
+      "lane": "direct",
+      "senderId": "h_maya",
+      "text": "how much do i owe",
+      "expected": {
+        "addressed": true,
+        "kind": "dm"
+      },
+      "via": "rules",
+      "note": "every DM to Trav is addressed"
+    },
+    {
+      "id": "mn_021",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "yes",
+      "expected": {
+        "addressed": true,
+        "kind": "reply_to_trav"
+      },
+      "via": "rules",
+      "context": {
+        "replyToTravMessage": true
+      }
+    },
+    {
+      "id": "mn_022",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "actually 4 of us",
+      "expected": {
+        "addressed": true,
+        "kind": "reply_to_trav"
+      },
+      "via": "rules",
+      "context": {
+        "secondsSinceTravQuestion": 45
+      }
+    },
+    {
+      "id": "mn_023",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "euros, me priya and jordan",
+      "expected": {
+        "addressed": true,
+        "kind": "reply_to_trav"
+      },
+      "via": "rules",
+      "context": {
+        "secondsSinceTravQuestion": 60
+      }
+    },
+    {
+      "id": "mn_024",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "@trav ignore that, wrong chat",
+      "expected": {
+        "addressed": true,
+        "kind": "at_mention"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_025",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "trav booked it already",
+      "expected": {
+        "addressed": false,
+        "kind": "third_person"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_026",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "trav will figure it out",
+      "expected": {
+        "addressed": false,
+        "kind": "third_person"
+      },
+      "via": "classifier",
+      "note": "starts with \"trav\" but is about Trav, not to Trav"
+    },
+    {
+      "id": "mn_027",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "trav booked the flights home already right?",
+      "expected": {
+        "addressed": false,
+        "kind": "third_person"
+      },
+      "via": "classifier"
+    },
+    {
+      "id": "mn_028",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "did trav get the tickets?",
+      "expected": {
+        "addressed": false,
+        "kind": "third_person"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_029",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "lol trav is so extra",
+      "expected": {
+        "addressed": false,
+        "kind": "third_person"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_030",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "i told trav yesterday",
+      "expected": {
+        "addressed": false,
+        "kind": "third_person"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_031",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "trav's receipts are in the dms",
+      "expected": {
+        "addressed": false,
+        "kind": "third_person"
+      },
+      "via": "classifier"
+    },
+    {
+      "id": "mn_032",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "ask trav",
+      "expected": {
+        "addressed": false,
+        "kind": "third_person"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_033",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "how does trav know about the kebab lol",
+      "expected": {
+        "addressed": false,
+        "kind": "third_person"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_034",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "maybe trav can help",
+      "expected": {
+        "addressed": false,
+        "kind": "third_person"
+      },
+      "via": "classifier",
+      "note": "mid-sentence; unsure ⇒ silent"
+    },
+    {
+      "id": "mn_035",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "is trav a bot or a person",
+      "expected": {
+        "addressed": false,
+        "kind": "third_person"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_036",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "travis is coming tomorrow",
+      "expected": {
+        "addressed": false,
+        "kind": "substring"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_037",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "the travel day is brutal",
+      "expected": {
+        "addressed": false,
+        "kind": "substring"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_038",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "lets travel light",
+      "expected": {
+        "addressed": false,
+        "kind": "substring"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_039",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "Travessera de Gràcia is the street",
+      "expected": {
+        "addressed": false,
+        "kind": "substring"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_040",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "TRAVEL BAN on ubers starting now",
+      "expected": {
+        "addressed": false,
+        "kind": "substring"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_041",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "@travis can you grab the keys",
+      "expected": {
+        "addressed": false,
+        "kind": "substring"
+      },
+      "via": "rules",
+      "note": "@trav must be a whole token"
+    },
+    {
+      "id": "mn_042",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "the email from approvals@trav-bookings.example.test says approve",
+      "expected": {
+        "addressed": false,
+        "kind": "substring"
+      },
+      "via": "rules",
+      "note": "an address containing \"trav\" is not a mention"
+    },
+    {
+      "id": "mn_043",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "@priya wrong",
+      "expected": {
+        "addressed": false,
+        "kind": "other_mention"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_044",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "henry's sick",
+      "expected": {
+        "addressed": false,
+        "kind": "none"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_045",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "actually 4 of us",
+      "expected": {
+        "addressed": false,
+        "kind": "none"
+      },
+      "via": "rules",
+      "context": {
+        "secondsSinceTravQuestion": null
+      },
+      "note": "no recent Trav question: just chat"
+    },
+    {
+      "id": "mn_046",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "yes",
+      "expected": {
+        "addressed": false,
+        "kind": "none"
+      },
+      "via": "rules",
+      "context": {
+        "replyToTravMessage": false,
+        "secondsSinceTravQuestion": 900
+      }
+    },
+    {
+      "id": "mn_047",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "#trav",
+      "expected": {
+        "addressed": false,
+        "kind": "none"
+      },
+      "via": "rules"
+    },
+    {
+      "id": "mn_048",
+      "lane": "group",
+      "senderId": "h_maya",
+      "text": "we should have used trav for cancun",
+      "expected": {
+        "addressed": false,
+        "kind": "third_person"
+      },
+      "via": "rules"
+    }
+  ]
+}

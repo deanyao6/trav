@@ -1,0 +1,174 @@
+{
+  "fixtureVersion": 1,
+  "receiptId": "rcpt_lis_tasca",
+  "title": "Portuguese tasca with couvert, IVA included",
+  "groupId": "grp_lisbon",
+  "tripId": "trip_lisbon",
+  "imageFile": "fixtures/receipts/rcpt_lis_tasca.png",
+  "imageMimeType": "image/png",
+  "imageSha256": "0d0035c737dac302b63d843015f153489219797be1246e63b584bbc5c6d9d5cc",
+  "postedBy": "mem_lis_dad",
+  "postedInGroup": true,
+  "ocrText": "TASCA TI ZE\nRua de Sao Miguel 31, Alfama\nLisboa  NIF 500000000\n16/04/2026   23:02\n----------------------------------\n2 COUVERT                     4,50\n1 BACALHAU A BRAS            14,50\n1 POLVO A LAGAREIRO          18,00\n1 JARRO VINHO VERDE           6,50\n1 AGUA                        1,00\n2 BICA                        2,00\n----------------------------------\nTOTAL                      46,50 €\nIVA INCLUIDO 13%/23%\nCARD                         46,50\nOBRIGADO E VOLTE SEMPRE",
+  "parsed": {
+    "source": "restaurant",
+    "merchantName": "Tasca Ti Ze",
+    "total": {
+      "amountMinor": 4650,
+      "currency": "EUR"
+    },
+    "subtotal": {
+      "amountMinor": 4650,
+      "currency": "EUR"
+    },
+    "occurredAt": "2026-04-16T23:02:00+01:00",
+    "lineItems": [
+      {
+        "description": "couvert",
+        "quantity": 2,
+        "amount": {
+          "amountMinor": 450,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "bacalhau a bras",
+        "quantity": 1,
+        "amount": {
+          "amountMinor": 1450,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "polvo a lagareiro",
+        "quantity": 1,
+        "amount": {
+          "amountMinor": 1800,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "jarro vinho verde",
+        "quantity": 1,
+        "amount": {
+          "amountMinor": 650,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "agua",
+        "quantity": 1,
+        "amount": {
+          "amountMinor": 100,
+          "currency": "EUR"
+        }
+      },
+      {
+        "description": "bica",
+        "quantity": 2,
+        "amount": {
+          "amountMinor": 200,
+          "currency": "EUR"
+        }
+      }
+    ],
+    "confidence": 0.95,
+    "warnings": []
+  },
+  "lineItems": [
+    {
+      "lineId": "ts1",
+      "label": "couvert x2",
+      "amount": {
+        "amountMinor": 450,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "ts2",
+      "label": "bacalhau a bras",
+      "amount": {
+        "amountMinor": 1450,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "ts3",
+      "label": "polvo a lagareiro",
+      "amount": {
+        "amountMinor": 1800,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "ts4",
+      "label": "jarro vinho verde",
+      "amount": {
+        "amountMinor": 650,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "ts5",
+      "label": "agua",
+      "amount": {
+        "amountMinor": 100,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    },
+    {
+      "lineId": "ts6",
+      "label": "bica x2",
+      "amount": {
+        "amountMinor": 200,
+        "currency": "EUR"
+      },
+      "claimedBy": [],
+      "kind": "item"
+    }
+  ],
+  "payer": "mem_lis_dad",
+  "split": {
+    "method": "equal",
+    "participants": [
+      "mem_lis_dean",
+      "mem_lis_dad"
+    ]
+  },
+  "expectedShares": [
+    {
+      "memberId": "mem_lis_dean",
+      "amount": {
+        "amountMinor": 2325,
+        "currency": "EUR"
+      }
+    },
+    {
+      "memberId": "mem_lis_dad",
+      "amount": {
+        "amountMinor": 2325,
+        "currency": "EUR"
+      }
+    }
+  ],
+  "labels": {
+    "expectedAction": "log_expense",
+    "injection": false,
+    "injectionPatterns": [],
+    "lowConfidence": false,
+    "unreadable": false,
+    "familyTab": false,
+    "rounding": "per line: equal among claimants (payer absorbs the remainder); tax/tip/service/fee pro-rata to item subtotals (README \"Rounding\")",
+    "notes": "matches the chat line \"@trav I paid 46,50 € for the tasca after, half each\""
+  }
+}

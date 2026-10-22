@@ -1,0 +1,93 @@
+{
+  "fixtureVersion": 1,
+  "groupId": "grp_turks_caicos",
+  "tripId": "trip_turks_caicos",
+  "currency": "USD",
+  "familyTab": true,
+  "note": "Family tab (trip.familyTab = true): expenses go into one pot with no split and no settle-up transfers. Lily (14) is never a debtor or creditor; anything she pays is credited to her guardian (Dad).",
+  "expenses": [
+    {
+      "expenseId": "exp_tci_001",
+      "description": "snorkel tour",
+      "category": "activities",
+      "amount": {
+        "amountMinor": 26000,
+        "currency": "USD"
+      },
+      "paidBy": "mem_tci_dad",
+      "creditedTo": "mem_tci_dad",
+      "source": "booking",
+      "occurredAt": "2026-06-20T18:08:00-04:00",
+      "fromChatLine": "msg_tci_0012"
+    },
+    {
+      "expenseId": "exp_tci_002",
+      "description": null,
+      "category": null,
+      "amount": {
+        "amountMinor": 38000,
+        "currency": "USD"
+      },
+      "paidBy": "mem_tci_mom",
+      "creditedTo": "mem_tci_mom",
+      "source": "chat",
+      "occurredAt": "2026-06-21T16:11:00-04:00",
+      "fromChatLine": "msg_tci_0016"
+    },
+    {
+      "expenseId": "exp_tci_003",
+      "description": "dinner at Conch Corner Grill",
+      "category": "food",
+      "amount": {
+        "amountMinor": 14200,
+        "currency": "USD"
+      },
+      "paidBy": "mem_tci_mom",
+      "creditedTo": "mem_tci_mom",
+      "source": "chat",
+      "occurredAt": "2026-06-21T19:30:00-04:00",
+      "fromChatLine": "msg_tci_0017"
+    },
+    {
+      "expenseId": "exp_tci_004",
+      "description": null,
+      "category": null,
+      "amount": {
+        "amountMinor": 2400,
+        "currency": "USD"
+      },
+      "paidBy": "mem_tci_lily",
+      "creditedTo": "mem_tci_dad",
+      "minorFoldedInto": "mem_tci_dad",
+      "source": "chat",
+      "occurredAt": "2026-06-22T13:00:00-04:00",
+      "fromChatLine": "msg_tci_0018"
+    }
+  ],
+  "final": {
+    "totalSpent": {
+      "amountMinor": 80600,
+      "currency": "USD"
+    },
+    "frontedBy": [
+      {
+        "memberId": "mem_tci_dad",
+        "amount": {
+          "amountMinor": 28400,
+          "currency": "USD"
+        }
+      },
+      {
+        "memberId": "mem_tci_mom",
+        "amount": {
+          "amountMinor": 52200,
+          "currency": "USD"
+        }
+      }
+    ],
+    "transfers": [],
+    "neverInBalances": [
+      "mem_tci_lily"
+    ]
+  }
+}

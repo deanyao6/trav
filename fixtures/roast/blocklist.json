@@ -1,0 +1,107 @@
+{
+  "fixtureVersion": 1,
+  "note": "Deterministic roast blocklist (SAFETY §2.8 gate 2). Match case-insensitively on word boundaries; any hit suppresses the roast line (roast.suppressed{topic_blocked}). Slurs are intentionally not written into this repo; add them as sha256 hashes under `hashedTerms` if needed. Allowed material (amounts, counts, times, tab patterns) is never on this list.",
+  "categories": {
+    "appearance": [
+      "outfit",
+      "dressed",
+      "clothes",
+      "fat",
+      "skinny",
+      "ugly",
+      "weight",
+      "bald",
+      "acne",
+      "body",
+      "looks like",
+      "haircut",
+      "sunburn"
+    ],
+    "romance": [
+      "hookup",
+      "hooked up",
+      "went home with",
+      "going home with",
+      "girlfriend",
+      "boyfriend",
+      "ex",
+      "crush",
+      "dating",
+      "date",
+      "kissed",
+      "makeout",
+      "tinder",
+      "that girl",
+      "that guy"
+    ],
+    "outsider": [
+      "the host",
+      "the driver",
+      "the waiter",
+      "the bartender",
+      "the bouncer",
+      "his mom",
+      "her mom",
+      "their parents"
+    ],
+    "traits": [
+      "accent",
+      "religion",
+      "gay",
+      "straight",
+      "race",
+      "nationality",
+      "where he is from",
+      "where she is from",
+      "disabled",
+      "gender"
+    ],
+    "health": [
+      "sick",
+      "ill",
+      "hungover",
+      "hangover",
+      "meds",
+      "pharmacy",
+      "advil",
+      "throwing up",
+      "threw up",
+      "fever",
+      "anxiety",
+      "depressed"
+    ],
+    "intoxication": [
+      "drunk",
+      "wasted",
+      "blackout",
+      "blacked out",
+      "high",
+      "stoned",
+      "tipsy"
+    ],
+    "hardship": [
+      "broke",
+      "poor",
+      "cheap",
+      "can't afford",
+      "cant afford",
+      "money is tight",
+      "money's tight",
+      "debt",
+      "loan"
+    ],
+    "legal": [
+      "arrested",
+      "police",
+      "cops",
+      "jail",
+      "fined"
+    ]
+  },
+  "hashedTerms": [],
+  "alwaysBlocked": {
+    "minors": "any line naming or targeting a member for whom safety.isMinor() is true",
+    "optedOut": "any line naming a member with consent.roast === false",
+    "leftChat": "any line naming an inactive member"
+  }
+}

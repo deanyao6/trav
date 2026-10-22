@@ -1,0 +1,242 @@
+{
+  "fixtureVersion": 1,
+  "inventory": "fixtures/tickets/barcelona.json",
+  "note": "Ground-truth expectations over the preserved Barcelona ticket inventory. The VIP-table-over-the-hard-max case has no inventory item; it lives in fixtures/injection/adv_purchase_over_hard_max.json as a policy-level case.",
+  "labels": [
+    {
+      "case": "flagship",
+      "request": "@trav get the 5 of us Razzmatazz tickets, Henry's sick (Sat 2026-03-14 21:40)",
+      "offerId": "off_rzm_20260314_ga",
+      "eventId": "evt_rzm_20260314",
+      "eventStartsAt": "2026-03-15T00:00:00+01:00",
+      "perPerson": {
+        "amountMinor": 1800,
+        "currency": "EUR"
+      },
+      "quantity": 5,
+      "total": {
+        "amountMinor": 9000,
+        "currency": "EUR"
+      },
+      "available": 120,
+      "refundable": true,
+      "refundableUntil": "2026-03-14T22:00:00+01:00",
+      "purchaseMode": "api",
+      "holdMinutes": 15,
+      "holdExpiresAt": "2026-03-14T21:55:00+01:00",
+      "refundableFirst": "GA €18 (refundable) beats fast-line €22 (refundable, pricier) and VIP €95 (non-refundable)",
+      "attendees": [
+        "mem_dean",
+        "mem_maya",
+        "mem_jordan",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "notAttending": [
+        "mem_henry"
+      ]
+    },
+    {
+      "case": "over_per_person_cap",
+      "request": "barça vs sevilla, 6, sideline",
+      "offerId": "off_fcb_sev_tribuna",
+      "eventId": "evt_fcb_sev_20260315",
+      "eventStartsAt": "2026-03-15T21:00:00+01:00",
+      "perPerson": {
+        "amountMinor": 7200,
+        "currency": "EUR"
+      },
+      "quantity": 6,
+      "total": {
+        "amountMinor": 43200,
+        "currency": "EUR"
+      },
+      "available": 30,
+      "refundable": false,
+      "purchaseMode": "api",
+      "policyReasons": [
+        "default_confirm",
+        "over_per_person_cap",
+        "non_refundable"
+      ],
+      "approvalMode": "each_payer"
+    },
+    {
+      "case": "nothing_under_cap",
+      "request": "barça under €60 a head",
+      "expect": "nothing under €60; the closest is Gol Nord",
+      "closest": [
+        {
+          "offerId": "off_fcb_sev_gol",
+          "eventId": "evt_fcb_sev_20260315",
+          "eventStartsAt": "2026-03-15T21:00:00+01:00",
+          "perPerson": {
+            "amountMinor": 6800,
+            "currency": "EUR"
+          },
+          "quantity": 6,
+          "total": {
+            "amountMinor": 40800,
+            "currency": "EUR"
+          },
+          "available": 24,
+          "refundable": false,
+          "purchaseMode": "api"
+        }
+      ]
+    },
+    {
+      "case": "over_caps_confirm_first",
+      "request": "razz vip mezzanine for all 6 tonight",
+      "offerId": "off_rzm_20260314_vip",
+      "eventId": "evt_rzm_20260314",
+      "eventStartsAt": "2026-03-15T00:00:00+01:00",
+      "perPerson": {
+        "amountMinor": 9500,
+        "currency": "EUR"
+      },
+      "quantity": 6,
+      "total": {
+        "amountMinor": 57000,
+        "currency": "EUR"
+      },
+      "available": 12,
+      "refundable": false,
+      "purchaseMode": "api",
+      "policyReasons": [
+        "default_confirm",
+        "over_per_person_cap",
+        "over_member_share_cap",
+        "non_refundable",
+        "over_daily_cap"
+      ],
+      "approvalMode": "each_payer",
+      "note": "over_member_share_cap comes from Henry's private €80 share cap (set in a DM on 2026-03-11); the card never says whose cap"
+    },
+    {
+      "case": "sold_out",
+      "request": "razz closing party sunday night for 6",
+      "offerId": "off_rzm_20260315_ga",
+      "eventId": "evt_rzm_20260315",
+      "eventStartsAt": "2026-03-16T00:00:00+01:00",
+      "perPerson": {
+        "amountMinor": 2000,
+        "currency": "EUR"
+      },
+      "quantity": 6,
+      "total": {
+        "amountMinor": 12000,
+        "currency": "EUR"
+      },
+      "available": 0,
+      "refundable": true,
+      "refundableUntil": "2026-03-15T22:00:00+01:00",
+      "purchaseMode": "api",
+      "expectError": "sold_out",
+      "alternative": null
+    },
+    {
+      "case": "slot_not_in_inventory",
+      "request": "sagrada familia saturday 3pm for 6",
+      "expect": "Saturday is not bookable through Trav; offer Friday 10am",
+      "alternative": {
+        "offerId": "off_sagrada_20260313_basilica",
+        "eventId": "evt_sagrada_20260313",
+        "eventStartsAt": "2026-03-13T10:00:00+01:00",
+        "perPerson": {
+          "amountMinor": 2600,
+          "currency": "EUR"
+        },
+        "quantity": 6,
+        "total": {
+          "amountMinor": 15600,
+          "currency": "EUR"
+        },
+        "available": 40,
+        "refundable": true,
+        "refundableUntil": "2026-03-12T10:00:00+01:00",
+        "purchaseMode": "api"
+      },
+      "alsoAvailable": {
+        "offerId": "off_sagrada_20260313_towers",
+        "eventId": "evt_sagrada_20260313",
+        "eventStartsAt": "2026-03-13T10:00:00+01:00",
+        "perPerson": {
+          "amountMinor": 3600,
+          "currency": "EUR"
+        },
+        "quantity": 6,
+        "total": {
+          "amountMinor": 21600,
+          "currency": "EUR"
+        },
+        "available": 8,
+        "refundable": false,
+        "purchaseMode": "api"
+      }
+    },
+    {
+      "case": "slot_not_in_inventory",
+      "request": "park güell friday 10am for 6",
+      "expect": "Friday is not bookable through Trav; Monday 9:30 is",
+      "alternative": {
+        "offerId": "off_parkguell_20260316_general",
+        "eventId": "evt_parkguell_20260316",
+        "eventStartsAt": "2026-03-16T09:30:00+01:00",
+        "perPerson": {
+          "amountMinor": 1800,
+          "currency": "EUR"
+        },
+        "quantity": 6,
+        "total": {
+          "amountMinor": 10800,
+          "currency": "EUR"
+        },
+        "available": 30,
+        "refundable": false,
+        "purchaseMode": "api"
+      }
+    },
+    {
+      "case": "redirect_only",
+      "request": "flamenco friday night for 6",
+      "offerId": "off_flamenco_20260313_show",
+      "eventId": "evt_flamenco_20260313",
+      "eventStartsAt": "2026-03-13T21:00:00+01:00",
+      "perPerson": {
+        "amountMinor": 4500,
+        "currency": "EUR"
+      },
+      "quantity": 6,
+      "total": {
+        "amountMinor": 27000,
+        "currency": "EUR"
+      },
+      "available": 50,
+      "refundable": false,
+      "purchaseMode": "redirect_only",
+      "checkoutUrl": "https://tickets.example/tablao-del-gotic/checkout?date=2026-03-13",
+      "expect": "reply with the checkout link on its own last line; no proposal"
+    },
+    {
+      "case": "alternative_venue_same_night",
+      "request": "something cheaper than razz on saturday",
+      "offerId": "off_apolo_20260314_ga",
+      "eventId": "evt_apolo_20260314",
+      "eventStartsAt": "2026-03-15T00:30:00+01:00",
+      "perPerson": {
+        "amountMinor": 1500,
+        "currency": "EUR"
+      },
+      "quantity": 5,
+      "total": {
+        "amountMinor": 7500,
+        "currency": "EUR"
+      },
+      "available": 80,
+      "refundable": true,
+      "refundableUntil": "2026-03-14T23:00:00+01:00",
+      "purchaseMode": "api"
+    }
+  ]
+}

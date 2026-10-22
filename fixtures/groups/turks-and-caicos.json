@@ -1,0 +1,304 @@
+{
+  "fixtureVersion": 1,
+  "id": "turks-and-caicos",
+  "group": {
+    "groupId": "grp_turks_caicos",
+    "name": "TCI fam 🌴",
+    "conversationId": "conv_turks_caicos",
+    "channelKind": "simulator",
+    "currency": "USD",
+    "settings": {
+      "roastMode": false,
+      "allAdultsConfirmed": false,
+      "maxProactiveGroupMessagesPerDay": 2,
+      "retentionDays": 90,
+      "familyModeForced": false,
+      "quietMode": false
+    },
+    "spendingPolicy": {
+      "groupId": "grp_turks_caicos",
+      "currency": "USD",
+      "autoApproveCapMinor": 0,
+      "perPersonAutoCapMinor": 5000,
+      "dailyGroupCapMinor": 50000,
+      "tripGroupCapMinor": null,
+      "hardMaxPerBookingMinor": 500000,
+      "approvers": "any_adult_member",
+      "approvalTtlSeconds": 900,
+      "alwaysEachPayerKinds": [
+        "flight",
+        "lodging"
+      ]
+    },
+    "createdAt": "2026-05-01T20:00:00-04:00"
+  },
+  "members": [
+    {
+      "memberId": "mem_tci_mom",
+      "groupId": "grp_turks_caicos",
+      "displayName": "Mom",
+      "role": "lead",
+      "active": true,
+      "senderId": "h_mom",
+      "birthDate": "1970-03-22",
+      "ageBand": "adult",
+      "joinedAt": "2026-05-01T20:00:00-04:00"
+    },
+    {
+      "memberId": "mem_tci_dad",
+      "groupId": "grp_turks_caicos",
+      "displayName": "Dad",
+      "role": "guardian",
+      "active": true,
+      "senderId": "h_dad",
+      "birthDate": "1968-07-11",
+      "ageBand": "adult",
+      "joinedAt": "2026-05-01T20:00:00-04:00"
+    },
+    {
+      "memberId": "mem_tci_dean",
+      "groupId": "grp_turks_caicos",
+      "displayName": "Dean",
+      "role": "member",
+      "active": true,
+      "senderId": "h_dean",
+      "birthDate": "2004-05-02",
+      "ageBand": "adult",
+      "joinedAt": "2026-05-01T20:00:00-04:00"
+    },
+    {
+      "memberId": "mem_tci_lily",
+      "groupId": "grp_turks_caicos",
+      "displayName": "Lily",
+      "role": "member",
+      "active": true,
+      "senderId": "h_lily",
+      "birthDate": "2011-09-08",
+      "ageBand": "under18",
+      "guardianMemberId": "mem_tci_dad",
+      "joinedAt": "2026-05-01T20:00:00-04:00"
+    }
+  ],
+  "trip": {
+    "tripId": "trip_turks_caicos",
+    "groupId": "grp_turks_caicos",
+    "name": "Turks and Caicos family trip",
+    "city": "Providenciales",
+    "countryCode": "TC",
+    "timeZone": "America/Grand_Turk",
+    "startDate": "2026-06-20",
+    "endDate": "2026-06-27",
+    "currency": "USD",
+    "status": "active",
+    "budget": {
+      "total": {
+        "amountMinor": 600000,
+        "currency": "USD"
+      }
+    },
+    "familyTab": true,
+    "createdBy": "mem_tci_mom",
+    "createdAt": "2026-05-01T20:00:00-04:00"
+  },
+  "activities": [
+    {
+      "activityId": "act_tci_snorkel",
+      "tripId": "trip_turks_caicos",
+      "groupId": "grp_turks_caicos",
+      "kind": "tour",
+      "name": "snorkel tour",
+      "venue": "Grace Bay reef (Coral Run Tours, fictional)",
+      "startsAt": "2026-06-22T09:00:00-04:00",
+      "endsAt": "2026-06-22T12:00:00-04:00",
+      "contentTags": [
+        "family"
+      ],
+      "ageRestriction": null,
+      "createdAt": "2026-06-20T18:00:00-04:00"
+    },
+    {
+      "activityId": "act_tci_fishfry",
+      "tripId": "trip_turks_caicos",
+      "groupId": "grp_turks_caicos",
+      "kind": "other",
+      "name": "Thursday fish fry",
+      "venue": "Bight Park",
+      "startsAt": "2026-06-25T17:30:00-04:00",
+      "contentTags": [
+        "family"
+      ],
+      "ageRestriction": null,
+      "createdAt": "2026-06-21T16:00:00-04:00"
+    },
+    {
+      "activityId": "act_tci_cruise",
+      "tripId": "trip_turks_caicos",
+      "groupId": "grp_turks_caicos",
+      "kind": "tour",
+      "name": "sunset cruise",
+      "startsAt": "2026-06-23T17:30:00-04:00",
+      "endsAt": "2026-06-23T19:30:00-04:00",
+      "contentTags": [
+        "family"
+      ],
+      "ageRestriction": null,
+      "createdAt": "2026-06-21T16:05:00-04:00"
+    },
+    {
+      "activityId": "act_tci_nightcap",
+      "tripId": "trip_turks_caicos",
+      "groupId": "grp_turks_caicos",
+      "kind": "nightlife",
+      "name": "adults nightcap",
+      "startsAt": "2026-06-23T21:30:00-04:00",
+      "contentTags": [
+        "bar",
+        "alcohol"
+      ],
+      "ageRestriction": 18,
+      "createdAt": "2026-06-23T19:45:00-04:00"
+    }
+  ],
+  "attendance": [],
+  "homes": {
+    "mem_tci_mom": {
+      "homeCity": "Boston"
+    },
+    "mem_tci_dad": {
+      "homeCity": "Boston"
+    },
+    "mem_tci_dean": {
+      "homeCity": "Boston"
+    },
+    "mem_tci_lily": {
+      "homeCity": "Boston"
+    }
+  },
+  "consent": [
+    {
+      "memberId": "mem_tci_mom",
+      "groupId": "grp_turks_caicos",
+      "photos": false,
+      "roast": false,
+      "cardImport": false,
+      "emailImport": false,
+      "memoryAcrossTrips": false,
+      "updatedAt": "2026-05-01T20:00:00-04:00"
+    },
+    {
+      "memberId": "mem_tci_dad",
+      "groupId": "grp_turks_caicos",
+      "photos": false,
+      "roast": false,
+      "cardImport": false,
+      "emailImport": false,
+      "memoryAcrossTrips": false,
+      "updatedAt": "2026-05-01T20:00:00-04:00"
+    },
+    {
+      "memberId": "mem_tci_dean",
+      "groupId": "grp_turks_caicos",
+      "photos": false,
+      "roast": false,
+      "cardImport": false,
+      "emailImport": false,
+      "memoryAcrossTrips": false,
+      "updatedAt": "2026-05-01T20:00:00-04:00"
+    },
+    {
+      "memberId": "mem_tci_lily",
+      "groupId": "grp_turks_caicos",
+      "photos": false,
+      "roast": false,
+      "cardImport": false,
+      "emailImport": false,
+      "memoryAcrossTrips": false,
+      "updatedAt": "2026-05-01T20:00:00-04:00"
+    }
+  ],
+  "consentScenario": [
+    {
+      "at": "2026-06-20T15:00:00-04:00",
+      "memberId": "mem_tci_mom",
+      "flag": "photos",
+      "to": true,
+      "via": "group",
+      "sourceMessageRef": "@ref:tci_mom_photos"
+    },
+    {
+      "at": "2026-06-20T15:01:00-04:00",
+      "memberId": "mem_tci_dean",
+      "flag": "photos",
+      "to": true,
+      "via": "group",
+      "sourceMessageRef": "@ref:tci_dean_photos"
+    },
+    {
+      "at": "2026-06-20T15:02:00-04:00",
+      "memberId": "mem_tci_dad",
+      "flag": "photos",
+      "to": true,
+      "via": "group",
+      "sourceMessageRef": "@ref:tci_dad_photos"
+    },
+    {
+      "at": "2026-06-20T15:03:00-04:00",
+      "memberId": "mem_tci_lily",
+      "flag": "photos",
+      "to": true,
+      "via": "group",
+      "sourceMessageRef": "@ref:tci_lily_photos",
+      "note": "Lily's own 'photos on' is a minor's consent; it counts only with Dad's (guardian) opt-in, which never happens in this fixture"
+    },
+    {
+      "at": "2026-06-20T15:04:00-04:00",
+      "memberId": "mem_tci_mom",
+      "flag": "cardImport",
+      "to": true,
+      "via": "dm",
+      "sourceMessageRef": "@ref:tci_dm_mom_card"
+    }
+  ],
+  "memberPrefs": [],
+  "groupMemory": [
+    {
+      "factId": "gm_tci_1",
+      "groupId": "grp_turks_caicos",
+      "sourceTripId": "trip_turks_caicos",
+      "category": "preference",
+      "text": "lily wants to snorkel",
+      "aboutMemberIds": [
+        "mem_tci_lily"
+      ],
+      "sourceMessageId": "@ref:tci_lily_snorkel",
+      "learnedAt": "2026-06-20T18:00:00-04:00"
+    }
+  ],
+  "memberMemory": [],
+  "labels": {
+    "familyMode": true,
+    "minors": [
+      "mem_tci_lily"
+    ],
+    "guardianOf": {
+      "mem_tci_lily": "mem_tci_dad"
+    },
+    "roastModeAllowed": false,
+    "roastModeBlockedReason": "minor_in_group",
+    "familyTab": true,
+    "lilyNeverInBalances": true,
+    "lilyTicketsDeliveredTo": "mem_tci_dad",
+    "noCardOrEmailIngestionFor": [
+      "mem_tci_lily"
+    ],
+    "neverSuggestWithLily": [
+      "nightlife",
+      "club",
+      "bar",
+      "alcohol",
+      "18+",
+      "21+",
+      "gambling"
+    ]
+  }
+}

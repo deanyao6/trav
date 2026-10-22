@@ -1,0 +1,394 @@
+{
+  "fixtureVersion": 1,
+  "id": "lisbon",
+  "group": {
+    "groupId": "grp_lisbon",
+    "name": "lisbon w dad",
+    "conversationId": "conv_lisbon",
+    "channelKind": "simulator",
+    "currency": "EUR",
+    "settings": {
+      "roastMode": false,
+      "allAdultsConfirmed": false,
+      "maxProactiveGroupMessagesPerDay": 2,
+      "retentionDays": 90,
+      "familyModeForced": false,
+      "quietMode": false
+    },
+    "spendingPolicy": {
+      "groupId": "grp_lisbon",
+      "currency": "EUR",
+      "autoApproveCapMinor": 0,
+      "perPersonAutoCapMinor": 5000,
+      "dailyGroupCapMinor": 50000,
+      "tripGroupCapMinor": null,
+      "hardMaxPerBookingMinor": 500000,
+      "approvers": "any_adult_member",
+      "approvalTtlSeconds": 900,
+      "alwaysEachPayerKinds": [
+        "flight",
+        "lodging"
+      ]
+    },
+    "createdAt": "2026-03-20T19:00:00-04:00"
+  },
+  "members": [
+    {
+      "memberId": "mem_lis_dean",
+      "groupId": "grp_lisbon",
+      "displayName": "Dean",
+      "role": "lead",
+      "active": true,
+      "senderId": "h_dean",
+      "birthDate": "2004-05-02",
+      "ageBand": "adult",
+      "homeAirport": "BOS",
+      "joinedAt": "2026-03-20T19:00:00-04:00"
+    },
+    {
+      "memberId": "mem_lis_dad",
+      "groupId": "grp_lisbon",
+      "displayName": "Dad",
+      "role": "member",
+      "active": true,
+      "senderId": "h_dad",
+      "birthDate": "1968-07-11",
+      "ageBand": "adult",
+      "homeAirport": "BOS",
+      "joinedAt": "2026-03-20T19:00:00-04:00"
+    }
+  ],
+  "trip": {
+    "tripId": "trip_lisbon",
+    "groupId": "grp_lisbon",
+    "name": "Lisbon: Dean + Dad",
+    "city": "Lisbon",
+    "countryCode": "PT",
+    "timeZone": "Europe/Lisbon",
+    "startDate": "2026-04-15",
+    "endDate": "2026-04-20",
+    "currency": "EUR",
+    "status": "active",
+    "budget": {
+      "perDay": {
+        "amountMinor": 25000,
+        "currency": "EUR"
+      }
+    },
+    "familyTab": false,
+    "createdBy": "mem_lis_dean",
+    "createdAt": "2026-03-20T19:00:00-04:00"
+  },
+  "activities": [
+    {
+      "activityId": "act_lis_conference_thu",
+      "tripId": "trip_lisbon",
+      "groupId": "grp_lisbon",
+      "kind": "other",
+      "name": "Dad's conference (busy)",
+      "startsAt": "2026-04-16T09:00:00+01:00",
+      "endsAt": "2026-04-16T17:00:00+01:00",
+      "contentTags": [],
+      "ageRestriction": null,
+      "createdAt": "2026-03-20T19:00:00-04:00"
+    },
+    {
+      "activityId": "act_lis_conference_fri",
+      "tripId": "trip_lisbon",
+      "groupId": "grp_lisbon",
+      "kind": "other",
+      "name": "Dad's conference (busy)",
+      "startsAt": "2026-04-17T09:00:00+01:00",
+      "endsAt": "2026-04-17T13:00:00+01:00",
+      "contentTags": [],
+      "ageRestriction": null,
+      "createdAt": "2026-03-20T19:00:00-04:00"
+    },
+    {
+      "activityId": "act_lis_tiles",
+      "tripId": "trip_lisbon",
+      "groupId": "grp_lisbon",
+      "kind": "tour",
+      "name": "azulejo tile-painting workshop",
+      "venue": "Oficina do Azulejo (fictional)",
+      "startsAt": "2026-04-16T10:30:00+01:00",
+      "endsAt": "2026-04-16T13:00:00+01:00",
+      "contentTags": [
+        "family"
+      ],
+      "ageRestriction": null,
+      "createdAt": "2026-04-15T21:00:00+01:00"
+    },
+    {
+      "activityId": "act_lis_fado",
+      "tripId": "trip_lisbon",
+      "groupId": "grp_lisbon",
+      "kind": "dinner",
+      "name": "fado night",
+      "venue": "Tasca da Saudade (fictional)",
+      "startsAt": "2026-04-16T20:30:00+01:00",
+      "contentTags": [
+        "bar",
+        "alcohol"
+      ],
+      "ageRestriction": null,
+      "createdAt": "2026-04-16T17:30:00+01:00"
+    },
+    {
+      "activityId": "act_lis_sintra",
+      "tripId": "trip_lisbon",
+      "groupId": "grp_lisbon",
+      "kind": "tour",
+      "name": "Sintra day with a driver",
+      "startsAt": "2026-04-17T14:00:00+01:00",
+      "endsAt": "2026-04-17T20:00:00+01:00",
+      "contentTags": [
+        "family"
+      ],
+      "ageRestriction": null,
+      "createdAt": "2026-04-15T22:00:00+01:00"
+    },
+    {
+      "activityId": "act_lis_benfica",
+      "tripId": "trip_lisbon",
+      "groupId": "grp_lisbon",
+      "kind": "sports",
+      "name": "Benfica vs FC Porto",
+      "venue": "Estádio da Luz",
+      "startsAt": "2026-04-18T20:30:00+01:00",
+      "endsAt": "2026-04-18T22:30:00+01:00",
+      "contentTags": [],
+      "ageRestriction": null,
+      "createdAt": "2026-03-20T19:10:00-04:00"
+    }
+  ],
+  "attendance": [
+    {
+      "activityId": "act_lis_conference_thu",
+      "memberId": "mem_lis_dad",
+      "status": "in",
+      "updatedAt": "2026-03-20T19:00:00-04:00",
+      "sourceMessageId": "@ref:lis_conference",
+      "setBy": "mem_lis_dad"
+    },
+    {
+      "activityId": "act_lis_conference_thu",
+      "memberId": "mem_lis_dean",
+      "status": "out",
+      "updatedAt": "2026-03-20T19:00:00-04:00",
+      "sourceMessageId": "@ref:lis_conference",
+      "setBy": "mem_lis_dad"
+    },
+    {
+      "activityId": "act_lis_conference_fri",
+      "memberId": "mem_lis_dad",
+      "status": "in",
+      "updatedAt": "2026-03-20T19:00:00-04:00",
+      "sourceMessageId": "@ref:lis_conference",
+      "setBy": "mem_lis_dad"
+    },
+    {
+      "activityId": "act_lis_conference_fri",
+      "memberId": "mem_lis_dean",
+      "status": "out",
+      "updatedAt": "2026-03-20T19:00:00-04:00",
+      "sourceMessageId": "@ref:lis_conference",
+      "setBy": "mem_lis_dad"
+    },
+    {
+      "activityId": "act_lis_benfica",
+      "memberId": "mem_lis_dean",
+      "status": "in",
+      "updatedAt": "2026-03-20T19:10:00-04:00",
+      "sourceMessageId": "@ref:lis_benfica_request",
+      "setBy": "mem_lis_dean"
+    },
+    {
+      "activityId": "act_lis_benfica",
+      "memberId": "mem_lis_dad",
+      "status": "in",
+      "updatedAt": "2026-03-20T19:10:00-04:00",
+      "sourceMessageId": "@ref:lis_benfica_request",
+      "setBy": "mem_lis_dean"
+    }
+  ],
+  "homes": {
+    "mem_lis_dean": {
+      "homeCity": "Boston"
+    },
+    "mem_lis_dad": {
+      "homeCity": "Boston"
+    }
+  },
+  "consent": [
+    {
+      "memberId": "mem_lis_dean",
+      "groupId": "grp_lisbon",
+      "photos": false,
+      "roast": false,
+      "cardImport": false,
+      "emailImport": false,
+      "memoryAcrossTrips": false,
+      "updatedAt": "2026-03-20T19:00:00-04:00"
+    },
+    {
+      "memberId": "mem_lis_dad",
+      "groupId": "grp_lisbon",
+      "photos": false,
+      "roast": false,
+      "cardImport": false,
+      "emailImport": false,
+      "memoryAcrossTrips": false,
+      "updatedAt": "2026-03-20T19:00:00-04:00"
+    }
+  ],
+  "consentScenario": [
+    {
+      "at": "2026-04-15T12:00:00+01:00",
+      "memberId": "mem_lis_dean",
+      "flag": "photos",
+      "to": true,
+      "via": "group",
+      "sourceMessageRef": "@ref:lis_dean_photos"
+    },
+    {
+      "at": "2026-04-15T12:01:00+01:00",
+      "memberId": "mem_lis_dad",
+      "flag": "photos",
+      "to": true,
+      "via": "group",
+      "sourceMessageRef": "@ref:lis_dad_photos"
+    },
+    {
+      "at": "2026-04-15T12:02:00+01:00",
+      "memberId": "mem_lis_dad",
+      "flag": "cardImport",
+      "to": true,
+      "via": "dm",
+      "sourceMessageRef": "@ref:lis_dm_dad_card"
+    },
+    {
+      "at": "2026-04-15T12:03:00+01:00",
+      "memberId": "mem_lis_dean",
+      "flag": "cardImport",
+      "to": true,
+      "via": "dm",
+      "sourceMessageRef": "@ref:lis_dm_dean_card"
+    }
+  ],
+  "calendarBlocks": [
+    {
+      "memberId": "mem_lis_dad",
+      "title": "conference",
+      "start": "2026-04-16T09:00:00+01:00",
+      "end": "2026-04-16T17:00:00+01:00",
+      "timeZone": "Europe/Lisbon",
+      "busy": true,
+      "private": false
+    },
+    {
+      "memberId": "mem_lis_dad",
+      "title": "conference",
+      "start": "2026-04-17T09:00:00+01:00",
+      "end": "2026-04-17T13:00:00+01:00",
+      "timeZone": "Europe/Lisbon",
+      "busy": true,
+      "private": false
+    }
+  ],
+  "memberPrefs": [
+    {
+      "memberId": "mem_lis_dad",
+      "perBookingShareCapMinor": null,
+      "dailyShareCapMinor": 10000
+    }
+  ],
+  "groupMemory": [
+    {
+      "factId": "gm_lis_1",
+      "groupId": "grp_lisbon",
+      "sourceTripId": "trip_lisbon",
+      "category": "taste",
+      "text": "both are huge soccer fans: sporting, benfica or porto",
+      "aboutMemberIds": [
+        "mem_lis_dean",
+        "mem_lis_dad"
+      ],
+      "sourceMessageId": "@ref:lis_kickoff",
+      "learnedAt": "2026-03-20T19:05:00-04:00"
+    },
+    {
+      "factId": "gm_lis_2",
+      "groupId": "grp_lisbon",
+      "sourceTripId": "trip_lisbon",
+      "category": "taste",
+      "text": "dad likes remote, scenic places and history",
+      "aboutMemberIds": [
+        "mem_lis_dad"
+      ],
+      "sourceMessageId": "@ref:lis_dad_scenic",
+      "learnedAt": "2026-03-20T19:06:00-04:00"
+    },
+    {
+      "factId": "gm_lis_3",
+      "groupId": "grp_lisbon",
+      "sourceTripId": "trip_lisbon",
+      "category": "constraint",
+      "text": "no clubbing; chill bars are fine",
+      "aboutMemberIds": [],
+      "sourceMessageId": "@ref:lis_no_clubs",
+      "learnedAt": "2026-03-20T19:07:00-04:00"
+    },
+    {
+      "factId": "gm_lis_4",
+      "groupId": "grp_lisbon",
+      "sourceTripId": "trip_lisbon",
+      "category": "taste",
+      "text": "dean wants things you can't find anywhere else",
+      "aboutMemberIds": [
+        "mem_lis_dean"
+      ],
+      "sourceMessageId": "@ref:lis_dean_unique",
+      "learnedAt": "2026-03-20T19:08:00-04:00"
+    },
+    {
+      "factId": "gm_lis_5",
+      "groupId": "grp_lisbon",
+      "sourceTripId": "trip_lisbon",
+      "category": "logistics",
+      "text": "lodging: safe and central, no luxury needed",
+      "aboutMemberIds": [],
+      "sourceMessageId": "@ref:lis_lodging_pref",
+      "learnedAt": "2026-03-20T19:09:00-04:00"
+    }
+  ],
+  "memberMemory": [
+    {
+      "factId": "mm_lis_dad_1",
+      "ownerMemberId": "mem_lis_dad",
+      "groupId": "grp_lisbon",
+      "sourceTripId": "trip_lisbon",
+      "category": "budget",
+      "text": "dad wants to stay under €100 a day of his own spending",
+      "sourceLane": "private",
+      "sourceMessageId": "@ref:lis_dm_dad_budget",
+      "learnedAt": "2026-04-16T08:00:00+01:00"
+    }
+  ],
+  "labels": {
+    "familyMode": false,
+    "minors": [],
+    "roastModeAllowed": true,
+    "dadConferenceBlocks": [
+      "2026-04-16 09:00–17:00",
+      "2026-04-17 09:00–13:00"
+    ],
+    "deanOnlySuggestionsDuringBlocks": true,
+    "neverSuggest": [
+      "clubs (nightlife/club tags)"
+    ],
+    "privateFactsNeverInGroup": [
+      "€100 a day"
+    ]
+  }
+}

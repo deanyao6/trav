@@ -1,0 +1,541 @@
+{
+  "fixtureVersion": 1,
+  "groupId": "grp_barcelona",
+  "tripId": "trip_barcelona",
+  "renderAt": "2026-03-18T10:00:00+01:00",
+  "wrappedFacts": {
+    "totalSpent": {
+      "amountMinor": 309364,
+      "currency": "EUR"
+    },
+    "people": 6,
+    "perPersonAverage": {
+      "amountMinor": 51561,
+      "currency": "EUR"
+    },
+    "byCategory": [
+      {
+        "category": "lodging",
+        "amount": {
+          "amountMinor": 138000,
+          "currency": "EUR"
+        }
+      },
+      {
+        "category": "tickets",
+        "amount": {
+          "amountMinor": 87600,
+          "currency": "EUR"
+        }
+      },
+      {
+        "category": "food",
+        "amount": {
+          "amountMinor": 57810,
+          "currency": "EUR"
+        }
+      },
+      {
+        "category": "groceries",
+        "amount": {
+          "amountMinor": 9460,
+          "currency": "EUR"
+        }
+      },
+      {
+        "category": "transport",
+        "amount": {
+          "amountMinor": 7400,
+          "currency": "EUR"
+        }
+      },
+      {
+        "category": "drinks",
+        "amount": {
+          "amountMinor": 5800,
+          "currency": "EUR"
+        }
+      },
+      {
+        "category": "other",
+        "amount": {
+          "amountMinor": 3294,
+          "currency": "EUR"
+        }
+      }
+    ],
+    "expenseCount": 20,
+    "bookingCount": 3,
+    "biggestExpense": {
+      "expenseId": "exp_bcn_001",
+      "description": "Eixample 3br apartment",
+      "amount": {
+        "amountMinor": 138000,
+        "currency": "EUR"
+      }
+    },
+    "mostFronted": {
+      "memberId": "mem_dean",
+      "paid": {
+        "amountMinor": 206520,
+        "currency": "EUR"
+      },
+      "basis": "ledger"
+    },
+    "latestNightExpense": {
+      "expenseId": "exp_bcn_015",
+      "description": "late-night kebabs",
+      "occurredAt": "2026-03-15T02:07:00+01:00"
+    }
+  },
+  "awards": [
+    {
+      "award": "MVP Spender",
+      "basis": "total fronted for the group on the ledger (paidBy), minor units; an honor, never a roast",
+      "stats": [
+        {
+          "memberId": "mem_dean",
+          "value": 206520
+        },
+        {
+          "memberId": "mem_henry",
+          "value": 1320
+        },
+        {
+          "memberId": "mem_maya",
+          "value": 29490
+        },
+        {
+          "memberId": "mem_jordan",
+          "value": 48000
+        },
+        {
+          "memberId": "mem_priya",
+          "value": 9894
+        },
+        {
+          "memberId": "mem_sam",
+          "value": 14140
+        }
+      ],
+      "topHolders": [
+        "mem_dean"
+      ],
+      "referenceWinner": "mem_dean",
+      "runnerUpBecauseTopAlreadyAwarded": false,
+      "repeatWinner": false,
+      "acceptableWinners": [
+        "mem_dean"
+      ]
+    },
+    {
+      "award": "The Planner",
+      "basis": "completed bookings whose proposal this member requested in the group chat",
+      "stats": [
+        {
+          "memberId": "mem_dean",
+          "value": 4
+        },
+        {
+          "memberId": "mem_henry",
+          "value": 0
+        },
+        {
+          "memberId": "mem_maya",
+          "value": 0
+        },
+        {
+          "memberId": "mem_jordan",
+          "value": 0
+        },
+        {
+          "memberId": "mem_priya",
+          "value": 0
+        },
+        {
+          "memberId": "mem_sam",
+          "value": 0
+        }
+      ],
+      "topHolders": [
+        "mem_dean"
+      ],
+      "referenceWinner": "mem_dean",
+      "runnerUpBecauseTopAlreadyAwarded": false,
+      "repeatWinner": true,
+      "acceptableWinners": [
+        "mem_dean"
+      ]
+    },
+    {
+      "award": "Uber Captain",
+      "basis": "ride expenses (uber/lyft/taxi/cab) this member fronted on the group ledger; tie-break: larger ride total, then member order",
+      "stats": [
+        {
+          "memberId": "mem_dean",
+          "value": 1
+        },
+        {
+          "memberId": "mem_henry",
+          "value": 0
+        },
+        {
+          "memberId": "mem_maya",
+          "value": 0
+        },
+        {
+          "memberId": "mem_jordan",
+          "value": 0
+        },
+        {
+          "memberId": "mem_priya",
+          "value": 1
+        },
+        {
+          "memberId": "mem_sam",
+          "value": 1
+        }
+      ],
+      "topHolders": [
+        "mem_dean",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "referenceWinner": "mem_sam",
+      "runnerUpBecauseTopAlreadyAwarded": false,
+      "repeatWinner": false,
+      "acceptableWinners": [
+        "mem_dean",
+        "mem_sam",
+        "mem_priya"
+      ]
+    },
+    {
+      "award": "Night Owl",
+      "basis": "nights (18:00–06:00) on which this member fronted the latest expense",
+      "stats": [
+        {
+          "memberId": "mem_dean",
+          "value": 0
+        },
+        {
+          "memberId": "mem_henry",
+          "value": 0
+        },
+        {
+          "memberId": "mem_maya",
+          "value": 0
+        },
+        {
+          "memberId": "mem_jordan",
+          "value": 1
+        },
+        {
+          "memberId": "mem_priya",
+          "value": 1
+        },
+        {
+          "memberId": "mem_sam",
+          "value": 1
+        }
+      ],
+      "topHolders": [
+        "mem_jordan",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "referenceWinner": "mem_jordan",
+      "runnerUpBecauseTopAlreadyAwarded": false,
+      "repeatWinner": false,
+      "acceptableWinners": [
+        "mem_jordan",
+        "mem_priya",
+        "mem_sam"
+      ]
+    },
+    {
+      "award": "Early Bird",
+      "basis": "trip days on which this member fronted the first expense between 06:00 and 14:00",
+      "stats": [
+        {
+          "memberId": "mem_dean",
+          "value": 2
+        },
+        {
+          "memberId": "mem_henry",
+          "value": 1
+        },
+        {
+          "memberId": "mem_maya",
+          "value": 1
+        },
+        {
+          "memberId": "mem_jordan",
+          "value": 0
+        },
+        {
+          "memberId": "mem_priya",
+          "value": 0
+        },
+        {
+          "memberId": "mem_sam",
+          "value": 0
+        }
+      ],
+      "topHolders": [
+        "mem_dean"
+      ],
+      "referenceWinner": "mem_henry",
+      "runnerUpBecauseTopAlreadyAwarded": true,
+      "repeatWinner": false,
+      "acceptableWinners": [
+        "mem_dean",
+        "mem_henry"
+      ]
+    },
+    {
+      "award": "The Photographer",
+      "basis": "album photos/videos still visible with final consent (screenshots and receipts excluded)",
+      "stats": [
+        {
+          "memberId": "mem_dean",
+          "value": 10
+        },
+        {
+          "memberId": "mem_maya",
+          "value": 4
+        },
+        {
+          "memberId": "mem_sam",
+          "value": 10
+        }
+      ],
+      "topHolders": [
+        "mem_dean",
+        "mem_sam"
+      ],
+      "referenceWinner": "mem_maya",
+      "runnerUpBecauseTopAlreadyAwarded": true,
+      "repeatWinner": false,
+      "acceptableWinners": [
+        "mem_dean",
+        "mem_sam",
+        "mem_maya"
+      ]
+    },
+    {
+      "award": "Always In",
+      "basis": "activities on which this member is \"in\" on the final roster (groups/barcelona.json labels.expectedFinalRosters)",
+      "stats": [
+        {
+          "memberId": "mem_dean",
+          "value": 10
+        },
+        {
+          "memberId": "mem_henry",
+          "value": 6
+        },
+        {
+          "memberId": "mem_maya",
+          "value": 10
+        },
+        {
+          "memberId": "mem_jordan",
+          "value": 9
+        },
+        {
+          "memberId": "mem_priya",
+          "value": 10
+        },
+        {
+          "memberId": "mem_sam",
+          "value": 10
+        }
+      ],
+      "topHolders": [
+        "mem_dean",
+        "mem_maya",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "referenceWinner": "mem_priya",
+      "runnerUpBecauseTopAlreadyAwarded": false,
+      "repeatWinner": false,
+      "acceptableWinners": [
+        "mem_dean",
+        "mem_maya",
+        "mem_priya",
+        "mem_sam"
+      ]
+    }
+  ],
+  "groupAwards": {
+    "bigNight": {
+      "night": "2026-03-14",
+      "spent": {
+        "amountMinor": 28740,
+        "currency": "EUR"
+      },
+      "basis": "night (18:00–06:00) with the highest group-ledger total"
+    },
+    "bestValueNight": {
+      "night": "2026-03-12",
+      "spent": {
+        "amountMinor": 12600,
+        "currency": "EUR"
+      },
+      "groupMessages": 9,
+      "messagesPerTenEuro": 0.714,
+      "basis": "IDEAS says reactions per euro; v0 has no reaction counts, so this uses group chat messages per €10 spent that night",
+      "allNights": [
+        {
+          "night": "2026-03-12",
+          "spent": {
+            "amountMinor": 12600,
+            "currency": "EUR"
+          },
+          "groupMessages": 9,
+          "messagesPerTenEuro": 0.714
+        },
+        {
+          "night": "2026-03-13",
+          "spent": {
+            "amountMinor": 20260,
+            "currency": "EUR"
+          },
+          "groupMessages": 12,
+          "messagesPerTenEuro": 0.592
+        },
+        {
+          "night": "2026-03-14",
+          "spent": {
+            "amountMinor": 28740,
+            "currency": "EUR"
+          },
+          "groupMessages": 12,
+          "messagesPerTenEuro": 0.418
+        }
+      ]
+    }
+  },
+  "nightOwlDetail": {
+    "2026-03-12": {
+      "t": 23.833333333333332,
+      "memberId": "mem_jordan",
+      "expenseId": "exp_bcn_008",
+      "at": "2026-03-12T23:50:00+01:00"
+    },
+    "2026-03-13": {
+      "t": 25.866666666666667,
+      "memberId": "mem_priya",
+      "expenseId": "exp_bcn_011",
+      "at": "2026-03-14T01:52:00+01:00"
+    },
+    "2026-03-14": {
+      "t": 26.233333333333334,
+      "memberId": "mem_sam",
+      "expenseId": "exp_bcn_016",
+      "at": "2026-03-15T02:14:00+01:00"
+    }
+  },
+  "earlyBirdDetail": {
+    "2026-03-12": {
+      "at": "2026-03-12T11:02:00+01:00",
+      "memberId": "mem_dean",
+      "expenseId": "exp_bcn_006"
+    },
+    "2026-03-15": {
+      "at": "2026-03-15T13:45:00+01:00",
+      "memberId": "mem_henry",
+      "expenseId": "exp_bcn_017"
+    },
+    "2026-03-16": {
+      "at": "2026-03-16T13:52:00+01:00",
+      "memberId": "mem_maya",
+      "expenseId": "exp_bcn_018"
+    },
+    "2026-03-13": {
+      "at": "2026-03-13T11:40:00+01:00",
+      "memberId": "mem_dean",
+      "expenseId": "exp_bcn_020"
+    }
+  },
+  "photos": {
+    "onlyFromOwners": [
+      "mem_dean",
+      "mem_maya",
+      "mem_sam"
+    ],
+    "highlightCandidates": [
+      "photo_bcn_004",
+      "photo_bcn_010",
+      "photo_bcn_018",
+      "photo_bcn_020",
+      "photo_bcn_021",
+      "photo_bcn_023",
+      "photo_bcn_026",
+      "photo_bcn_027",
+      "photo_bcn_029",
+      "photo_bcn_035",
+      "photo_bcn_038",
+      "photo_bcn_041",
+      "photo_bcn_044",
+      "photo_bcn_048",
+      "photo_bcn_050"
+    ],
+    "neverShow": [
+      "photo_bcn_001",
+      "photo_bcn_002",
+      "photo_bcn_003",
+      "photo_bcn_006",
+      "photo_bcn_007",
+      "photo_bcn_009",
+      "photo_bcn_011",
+      "photo_bcn_012",
+      "photo_bcn_013",
+      "photo_bcn_016",
+      "photo_bcn_017",
+      "photo_bcn_019",
+      "photo_bcn_022",
+      "photo_bcn_024",
+      "photo_bcn_028",
+      "photo_bcn_030",
+      "photo_bcn_031",
+      "photo_bcn_033",
+      "photo_bcn_034",
+      "photo_bcn_036",
+      "photo_bcn_037",
+      "photo_bcn_040",
+      "photo_bcn_042",
+      "photo_bcn_043",
+      "photo_bcn_049",
+      "photo_bcn_051",
+      "photo_bcn_052",
+      "photo_bcn_053"
+    ]
+  },
+  "recapModes": {
+    "2026-03-12": "silent",
+    "2026-03-13": "full",
+    "2026-03-14": "full",
+    "2026-03-15": "full",
+    "2026-03-16": "quiet",
+    "2026-03-17": "full"
+  },
+  "rules": [
+    "one award per person where possible (referenceWinner applies that greedily in the order listed; acceptableWinners = everyone tied at the top)",
+    "no award or stat references drinking volume, health, bodies, romance or anyone outside the chat",
+    "stats come only from group-visible data: never from unconfirmed card or email items",
+    "photos only from members whose photos consent is on at render time (Dean, Maya, Sam); Priya revoked on 2026-03-16"
+  ],
+  "mustNotContain": [
+    "sick",
+    "hungover",
+    "broke",
+    "girl",
+    "pharmacy",
+    "9.80",
+    "vegetarian",
+    "80 a day"
+  ]
+}
