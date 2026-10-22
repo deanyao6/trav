@@ -17,7 +17,8 @@
  *   "i" is lowercase everywhere.
  * - too_many_lines / too_long: per template (VOICE §3.1).
  * - raw_money: money appears only in `formatMoney` shapes (`€84`, `€16.80`,
- *   `€2,340`, `-€12`, `CHF 12`): no `84€`, `€84.00`, `€2340`, `EUR 84`, `84 euros`.
+ *   `€2,340`, `-€12`, `CHF 12`): no `84€`, `€84.00`, `€2340`, `EUR 84`, `eur 84`,
+ *   `84 euros`, `€-12`, `€12k`.
  */
 import { blankQuoted, normalizeText, termRegex } from './text.js';
 
@@ -45,7 +46,10 @@ export const BANNED_PHRASES: readonly string[] = [
   "i'm not able to",
   'great deal',
   'click here',
+  // VOICE §2 silence rules: never a message whose only content is that Trav exists.
   'just checking in',
+  'reminder',
+  'did you see this',
 ];
 
 /** VOICE §1 rule 4 set, plus 🏆 (used by the Wrapped awards line, VOICE §4.8). */
@@ -205,7 +209,18 @@ const WORD_CURRENCY_RE = new RegExp(
   `(?<![\\p{L}\\p{N}.,])\\d+(?:,\\d+)*(?:\\.\\d+)?[ \\u00A0]?(?:${SYMBOL_CODES.join('|')}|euros?|dollars?|bucks|pounds|quid|cents)(?![\\p{L}])`,
   'giu',
 );
-const CODE_PREFIX_RE = new RegExp(`(?<![\\p{L}])(?:${SYMBOL_CODES.join('|')})[ \\u00A0]?\\d`, 'gu');
+/** `EUR 84`, `eur 84`, `Eur84`: formatMoney writes the symbol for these currencies. */
+const CODE_PREFIX_RE = new RegExp(
+  `(?<![\\p{L}])(?:${SYMBOL_CODES.join('|')})[ \\u00A0]?\\d`,
+  'giu',
+);
+/** `€-12` / `€−12`: the sign goes before the symbol (`-€12`). */
+const SYMBOL_THEN_SIGN_RE = new RegExp(`(?:${SYMBOL_ALT})[ \\u00A0]?[-−–][ \\u00A0]?\\d`, 'gu');
+/** `€12k`, `$1.5m`: abbreviated magnitudes are never a formatMoney shape. */
+const ABBREVIATED_RE = new RegExp(
+  `(?:${SYMBOL_ALT})[ \\u00A0]?\\d+(?:[.,]\\d+)?[ \\u00A0]?[kKmMbB](?![\\p{L}\\p{N}])`,
+  'gu',
+);
 
 function validAmount(num: string, symbol: string): boolean {
   if (ZERO_DECIMAL_SYMBOLS.has(symbol)) return /^(0|[1-9]\d{0,2}(,\d{3})*)$/.test(num);
@@ -222,7 +237,13 @@ function moneyViolations(text: string): LintViolation[] {
       out.push({ rule: 'raw_money', detail: `"${whole}" is not a formatMoney shape` });
     }
   }
-  for (const re of [SUFFIX_SYMBOL_RE, WORD_CURRENCY_RE, CODE_PREFIX_RE]) {
+  for (const re of [
+    SUFFIX_SYMBOL_RE,
+    WORD_CURRENCY_RE,
+    CODE_PREFIX_RE,
+    SYMBOL_THEN_SIGN_RE,
+    ABBREVIATED_RE,
+  ]) {
     for (const m of text.matchAll(re)) {
       out.push({ rule: 'raw_money', detail: `"${m[0]}" is not a formatMoney shape` });
     }

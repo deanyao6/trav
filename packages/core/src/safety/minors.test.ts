@@ -166,6 +166,17 @@ describe('restricted content', () => {
     expect(isRestrictedText('snorkel tour at 9')).toBe(false);
   });
 
+  it('flaw 10: more phrasings tagged, more benign club phrases ignored', () => {
+    expect(detectContentTags('drinks at the pool at 6')).toEqual(['alcohol']);
+    expect(detectContentTags('drinks by the marina after')).toEqual(['alcohol']);
+    expect(detectContentTags('the dance floor opens at 11')).toEqual(['nightlife']);
+    expect(detectContentTags('boat party saturday, $60')).toEqual(['nightlife']);
+    expect(detectContentTags('a party boat leaves at 9pm')).toEqual(['nightlife']);
+    expect(detectContentTags('the book club meets in the lobby at 5')).toEqual([]);
+    expect(detectContentTags('Sporting fan club tour at 2')).toEqual([]);
+    expect(detectContentTags('the kids drink lemonade by the pool')).toEqual([]);
+  });
+
   it('allowed outside family mode', () => {
     expect(
       restrictedContentAllowed({ group: group(), members: [dean, dad], now: NOW, tags: ['club'] }),

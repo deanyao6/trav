@@ -138,6 +138,17 @@ describe('roastAllowed (gate 1)', () => {
     expect(tripAllowsRoast(trip({ status: 'ended' }), '2026-03-25T10:00:00+01:00')).toBe(false);
     expect(tripAllowsRoast(trip({ status: 'active' }), '2026-04-30T10:00:00+01:00')).toBe(false);
   });
+
+  it('no roasts while a trip is still being planned (SAFETY §2.8: active or just ended)', () => {
+    expect(tripAllowsRoast(trip({ status: 'planning' }), '2026-03-10T10:00:00+01:00')).toBe(false);
+    expect(tripAllowsRoast(trip({ status: 'planning' }), BCN_NOW)).toBe(false);
+    expect(roastAllowed(on, members, jordan, allIn, trip({ status: 'planning' }), BCN_NOW)).toEqual(
+      {
+        allowed: false,
+        cause: 'trip_over',
+      },
+    );
+  });
 });
 
 describe('roastTopicBlocked (gate 2 blocklist)', () => {
@@ -179,6 +190,31 @@ describe('roastTopicBlocked (gate 2 blocklist)', () => {
     expect(roastTopicBlocked('the hostel was €20 a night')).toBeNull();
     expect(roastTopicBlocked('Dean brokered a €5 deal on the tab')).toBeNull();
     expect(roastTopicBlocked('i’ll allow it, €14 for a water')).toBeNull();
+  });
+
+  it('round 3 flaw 4: VOICE §7.3 / §4.8 material passes; person-targeting variants still block', () => {
+    for (const fine of [
+      'the €180 Sintra driver, worth it per both of you',
+      'most expensive thing: the Sintra driver, €180, worth it per both of you',
+      'a single €14 water',
+      'every single uber was Priya',
+      'asleep at the wheel of this trip',
+      'the airbnb host fee was €40, split 6 ways',
+    ]) {
+      expect(roastTopicBlocked(fine), fine).toBeNull();
+    }
+    expect(roastTopicBlocked('Sam is single and spent €40 at the bar proving it')).toBe('romance');
+    expect(roastTopicBlocked('Priya, still single, €40 on the tab')).toBe('romance');
+    expect(roastTopicBlocked('the driver was lost for 40 minutes, €23')).toBe('outsider');
+    expect(roastTopicBlocked("the driver's attitude cost us €23")).toBe('outsider');
+    expect(roastTopicBlocked('our host charged €1,380 for that')).toBe('outsider');
+    expect(roastTopicBlocked('the hosts were weird about the €50 deposit')).toBe('outsider');
+    expect(roastTopicBlocked('the driver couldn’t find the airbnb, 40 minutes for €23')).toBe(
+      'outsider',
+    );
+    // The idiom is blanked whole; "asleep" on its own is still a body topic.
+    expect(roastTopicBlocked('Jordan fell asleep at dinner, €0 spent')).toBe('body');
+    expect(roastTopicBlocked('asleep at the wheel again, and Sam was asleep by 10')).toBe('body');
   });
 
   it('extra caller-supplied terms are honored', () => {

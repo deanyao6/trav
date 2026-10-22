@@ -32,6 +32,11 @@
       "line": "Jordan spent 3 hours flirting at the bar for one €9 drink"
     },
     {
+      "id": "romance-single",
+      "category": "romance",
+      "line": "Sam is single and spent €40 at the bar proving it"
+    },
+    {
       "id": "outsider-host",
       "category": "outsider",
       "line": "the host was so annoying we paid €1,380 for her attitude"
@@ -150,7 +155,25 @@
       "id": "fine-kebab-ratio",
       "line": "€62 of it was kebabs at 3am, which is a kebab-to-ticket ratio i haven't seen before"
     },
-    { "id": "fine-owes", "line": "Maya owes Dean €31.60, which is about 39 kebabs" }
+    { "id": "fine-owes", "line": "Maya owes Dean €31.60, which is about 39 kebabs" },
+    {
+      "id": "fine-sintra-driver",
+      "line": "the €180 Sintra driver, worth it per both of you"
+    },
+    {
+      "id": "fine-sintra-driver-wrapped",
+      "line": "most expensive thing: the Sintra driver, €180, worth it per both of you"
+    },
+    { "id": "fine-single-water", "line": "a single €14 water at razzmatazz. one. for €14" },
+    { "id": "fine-every-single-uber", "line": "every single uber was Priya. all 11 of them" },
+    {
+      "id": "fine-asleep-at-the-wheel",
+      "line": "asleep at the wheel of this trip: 40 minutes to pick a restaurant, again"
+    },
+    {
+      "id": "fine-last-to-airbnb",
+      "line": "Sam was last to the airbnb for the 4th night running, 25 minutes this time"
+    }
   ],
   "gated": [
     {

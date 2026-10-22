@@ -122,6 +122,14 @@
       "audience": ["tc_dean", "tc_mom", "tc_dad", "tc_lily"]
     },
     {
+      "id": "bad-explicit-lily-named-in-plan",
+      "expect": "suppressed",
+      "cause": "minor_alcohol",
+      "text": "for Dad and Lily: the bar at Bugaloos is on the water, open till midnight",
+      "explicitAdultRequest": true,
+      "audience": ["tc_dad", "tc_dean"]
+    },
+    {
       "id": "bad-explicit-audience-not-named",
       "expect": "suppressed",
       "cause": "adult_audience_not_named",

@@ -8,7 +8,7 @@ import { defaultSpendingPolicy } from '../domain/approval.js';
 import type { ConsentFlags, ConsentLookup } from '../domain/consent.js';
 import { defaultConsent } from '../domain/consent.js';
 import type { Trip } from '../domain/trip.js';
-import type { OutboundMessage, RecapCard } from '../cards.js';
+import type { OutboundMessage, RecapCard, WrappedCard } from '../cards.js';
 
 /** `<repo>/fixtures/safety/<name>` read as JSON (this file lives in packages/core/src/safety). */
 export function loadSafetyFixture<T>(name: string): T {
@@ -117,6 +117,42 @@ export const BCN_NOW = '2026-03-15T10:00:00+01:00';
 
 export function groupMessage(text: string, over: Partial<OutboundMessage> = {}): OutboundMessage {
   return { id: 'msg_1', groupId: 'g1', to: { kind: 'group' }, text, ...over };
+}
+
+/** Barcelona Wrapped (VOICE §4.8 A) with the given awards and stats; `text` is the rendered message. */
+export function wrappedCard(
+  text: string,
+  awards: WrappedCard['awards'],
+  stats: WrappedCard['stats'] = [],
+): WrappedCard {
+  return {
+    cardId: 'card_wrapped_1',
+    type: 'wrapped',
+    title: 'barcelona wrapped',
+    fallbackText: text,
+    trip: { name: 'Barcelona', days: 6, people: 6, currency: 'EUR' },
+    totals: {
+      spent: { amountMinor: 234000, currency: 'EUR' },
+      perPerson: { amountMinor: 39000, currency: 'EUR' },
+      byCategory: [{ category: 'transport', amount: { amountMinor: 41200, currency: 'EUR' } }],
+    },
+    stats,
+    awards,
+    photos: [],
+    finalSettle: {
+      cardId: 'card_settle_final',
+      type: 'settle_up',
+      title: 'final settle',
+      fallbackText: '',
+      mode: 'final',
+      asOf: '2026-03-18T10:00:00+01:00',
+      currency: 'EUR',
+      balances: [],
+      transfers: [],
+      totalSpent: { amountMinor: 234000, currency: 'EUR' },
+    },
+    shareable: true,
+  };
 }
 
 export function recapCard(text: string, roastLines: readonly string[]): RecapCard {

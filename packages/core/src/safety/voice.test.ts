@@ -198,4 +198,19 @@ describe('lintVoice rules', () => {
     expect(rules('~$35 a head · ≈€21.60 · €60/person')).toEqual([]);
     expect(rules('Dean BOS 7:10am → BCN 9:40pm')).toEqual([]);
   });
+
+  it('flaw 7: sign after the symbol, lowercase codes and abbreviated magnitudes are raw money', () => {
+    for (const bad of ['€-12', '€−12', 'eur 84', 'Eur84', '€12k', '$1.5m', '€ 12k']) {
+      expect(rules(`dinner was ${bad} on Dean`)).toContain('raw_money');
+    }
+    expect(rules('Maya → Dean -€12 after the refund')).toEqual([]);
+    expect(rules('the 12k run was free')).toEqual([]);
+  });
+
+  it('VOICE §2 silence rules: "reminder" and "did you see this" are banned', () => {
+    expect(rules('reminder: dinner is at 8')).toContain('banned_phrase');
+    expect(rules('did you see this? razzmatazz tickets')).toContain('banned_phrase');
+    expect(rules('a few reminders in the card')).toContain('banned_phrase');
+    expect(rules('reminded Dean to pay')).not.toContain('banned_phrase');
+  });
 });

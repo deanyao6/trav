@@ -33,6 +33,7 @@ export type { RestrictedContentInput } from './minors.js';
 export {
   DEFAULT_ROAST_BLOCKLIST,
   ROAST_GRACE_DAYS,
+  ROAST_IDIOMS,
   groupRoastBlock,
   roastAllowed,
   roastTopicBlocked,
@@ -45,8 +46,32 @@ export type {
   RoastTopicCategory,
 } from './roast.js';
 
-export { MAX_ROAST_LINES_PER_MESSAGE, cardTexts, screenOutbound } from './screen.js';
-export type { ScreenContext, ScreenResult, Suppression, SuppressionCause } from './screen.js';
+export {
+  CONTENT_AUDIT_CAUSES,
+  MAX_ROAST_LINES_PER_MESSAGE,
+  ROAST_AUDIT_CAUSES,
+  cardTexts,
+  screenOutbound,
+} from './screen.js';
+export type {
+  ContentSuppressedAuditCause,
+  RoastSuppressedAuditCause,
+  ScreenContext,
+  ScreenResult,
+  Suppression,
+  SuppressionCause,
+} from './screen.js';
+
+export {
+  MINOR_REFERENT_TERMS,
+  findNormalized,
+  mentionsName,
+  minorReferentIncluded,
+  nameTokens,
+  namedAsIncluded,
+  normalizeText,
+} from './text.js';
+export type { TextSpan } from './text.js';
 
 export {
   ALLOWED_EMOJI,

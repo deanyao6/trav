@@ -36,17 +36,20 @@ function dayNumber(isoDate: string): number | undefined {
   return Math.floor(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) / 86_400_000);
 }
 
-/** "tripIsActiveOrJustEnded" (SAFETY §2.8). No trip ⇒ nothing to roast. */
+/**
+ * "tripIsActiveOrJustEnded" (SAFETY §2.8). No trip ⇒ nothing to roast.
+ * `planning` is deliberately NOT allowed: SAFETY says active or just ended, and
+ * every roast surface (Morning After, Wrapped, the post-expense aside) is about
+ * spend that happens on the trip. `ended` gets ROAST_GRACE_DAYS so Wrapped,
+ * which lands the day after the last departure, can still carry its lines.
+ */
 export function tripAllowsRoast(trip: Trip | null, now: IsoDateTime): boolean {
   if (trip === null) return false;
-  if (trip.status === 'closed') return false;
+  if (trip.status !== 'active' && trip.status !== 'ended') return false;
   const today = dayNumber(now);
   const end = dayNumber(trip.endDate);
   if (today === undefined || end === undefined) return false;
-  if (trip.status === 'planning' || trip.status === 'active' || trip.status === 'ended') {
-    return today <= end + ROAST_GRACE_DAYS;
-  }
-  return false;
+  return today <= end + ROAST_GRACE_DAYS;
 }
 
 /** Group-level part of gate 1: everything that does not depend on the target. */
@@ -115,6 +118,62 @@ export interface RoastBlocklistEntry {
   readonly category: RoastTopicCategory;
 }
 
+/**
+ * "host"/"driver" only when the line is about the person, not the purchase:
+ * VOICE §7.3 allows "the €180 Sintra driver, worth it per both of you" (and
+ * §4.8 B "the Sintra driver, €180"), while "the driver couldn't find the
+ * airbnb" and "the host was so annoying" are about someone outside the chat.
+ */
+function personTargeting(noun: string): string[] {
+  const after = [
+    'was',
+    'is',
+    'were',
+    'are',
+    "wasn't",
+    "isn't",
+    "couldn't",
+    'could not',
+    "didn't",
+    'did not',
+    "wouldn't",
+    'would not',
+    "won't",
+    'never',
+    'got',
+    'had',
+    'kept',
+    'took',
+    'said',
+    'asked',
+    'charged',
+    'forgot',
+    'lost',
+    'made',
+    'showed',
+    'looked',
+    'seemed',
+    'smelled',
+    'who',
+    'that',
+  ];
+  const before = ['our', 'your', 'his', 'her', 'their', 'annoying', 'rude', 'creepy', 'weird'];
+  return [
+    `${noun}'s`,
+    ...after.map((w) => `${noun} ${w}`),
+    ...after.map((w) => `${noun}s ${w}`),
+    ...before.map((w) => `${w} ${noun}`),
+    ...before.map((w) => `${w} ${noun}s`),
+  ];
+}
+
+/**
+ * Idioms that contain a blocklisted word but are not about the topic. Blanked
+ * before matching so "asleep at the wheel of this trip" (VOICE §7.3 group
+ * indecision) is not a sleep/body roast.
+ */
+export const ROAST_IDIOMS: readonly string[] = ['asleep at the wheel', 'face value'];
+
 const BLOCKLIST_TERMS: Readonly<Record<RoastTopicCategory, readonly string[]>> = {
   body: [
     'body',
@@ -176,12 +235,23 @@ const BLOCKLIST_TERMS: Readonly<Record<RoastTopicCategory, readonly string[]>> =
     'romance',
     'romantic',
     'sex',
-    'single',
+    // "single" only as a relationship status: "a single €14 water" and
+    // "every single uber" are spending material (VOICE §7.3).
+    'is single',
+    'was single',
+    'still single',
+    'single and',
+    'single again',
+    'newly single',
+    'being single',
+    'single now',
+    "he's single",
+    "she's single",
     'talking to',
   ],
   outsider: [
-    'host',
-    'driver',
+    ...personTargeting('host'),
+    ...personTargeting('driver'),
     'waiter',
     'waitress',
     'bartender',
@@ -368,12 +438,15 @@ function compile(
   return compiled;
 }
 
+const COMPILED_IDIOMS = ROAST_IDIOMS.map((p) => new RegExp(termRegex(p).source, 'giu'));
+
 /** Deterministic blocklist over a draft roast line. Returns the first matching category, or null. */
 export function roastTopicBlocked(
   line: string,
   blocklist: readonly RoastBlocklistEntry[] = DEFAULT_ROAST_BLOCKLIST,
 ): RoastTopicCategory | null {
-  const text = normalizeText(line);
+  let text = normalizeText(line);
+  for (const re of COMPILED_IDIOMS) text = text.replace(re, ' ');
   for (const c of compile(blocklist)) {
     if (c.re.test(text)) return c.category;
   }
