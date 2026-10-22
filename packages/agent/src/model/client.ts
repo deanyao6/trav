@@ -17,23 +17,111 @@
  * Invariant (both modes): a request whose prompt contains an `<untrusted`
  * block AND has `tools.length > 0` throws `TravError('untrusted_with_tools')`.
  */
+import { join } from 'node:path';
 import type { Clock, IsoDateTime } from '@trav/core';
-import { notImplemented } from '@trav/core';
+import { TravError } from '@trav/core';
+import { createLiveModelClient, createSdkTransport } from './live.js';
+import type { LiveTransport } from './live.js';
+import { createOfflineModelClient } from './offline/client.js';
+import { defaultFallbacks } from './offline/fallbacks.js';
+import { loadScriptStore } from './offline/scripts.js';
+import { defaultScriptsDir, defaultStateDir } from './paths.js';
+import { createFileSpendGuard, DEFAULT_LIVE_BUDGET_USD, DEFAULT_MODEL_PRICING } from './spend.js';
+
+export {
+  createFileSpendGuard,
+  DEFAULT_LIVE_BUDGET_USD,
+  DEFAULT_MODEL_PRICING,
+  estimateCostUsd,
+} from './spend.js';
+export {
+  createScriptStore,
+  deriveScriptKey,
+  lastUserText,
+  loadScriptStore,
+  normalizeScriptText,
+  scriptFor,
+  scriptKeyParts,
+  validateScriptEntry,
+} from './offline/scripts.js';
+export type { ScriptKeyParts } from './offline/scripts.js';
+export {
+  bookingIntentResponder,
+  createReceiptFixtureResponder,
+  createRoastGuardResponder,
+  defaultFallbacks,
+  extractBookingIntent,
+  looksSharedHeuristicResponder,
+  mentionRuleResponder,
+  toolResultAckResponder,
+} from './offline/fallbacks.js';
+export type { BookingIntent } from './offline/fallbacks.js';
+export { OFFLINE_MISS_LABEL_PREFERENCE, OFFLINE_NOT_SURE_TEXT } from './offline/client.js';
+export { createLiveModelClient, createSdkTransport } from './live.js';
+export type { LiveTransport } from './live.js';
+export {
+  assertClassifyUntrustedRules,
+  assertNoUntrustedWithTools,
+  assertUntrustedRules,
+  containsUntrustedTag,
+  hasUntrustedBlock,
+  messagesHaveUntrusted,
+} from './invariants.js';
+export { defaultScriptsDir, defaultStateDir, repoRoot } from './paths.js';
 
 export type ModelRole = 'main' | 'fast' | 'grader';
 
 export interface ModelEnv {
+  /** True when TRAV_OFFLINE is set OR no key is present: the client is then offline. */
   readonly offline: boolean;
+  /**
+   * Non-enumerable when produced by `readModelEnv`, so `JSON.stringify(env)` /
+   * `console.log(env)` never show it. Consequence: `{ ...env }` drops the key
+   * (the copy is offline, the safe direction); derive a new env via `readModelEnv`.
+   */
   readonly apiKey?: string;
   readonly models: Readonly<Record<ModelRole, string>>;
   readonly liveBudgetUsd: number;
-  /** Directory for spend.json and offline-misses.jsonl; default `.trav/`. */
+  /** Directory for spend.json and offline-misses.jsonl; default `<repo>/.trav/`. */
   readonly stateDir: string;
 }
 
-/** Reads TRAV_OFFLINE, TRAV_ANTHROPIC_API_KEY, TRAV_MODEL, TRAV_FAST_MODEL, TRAV_GRADER_MODEL, TRAV_LIVE_BUDGET_USD. Never logs values. */
+export const DEFAULT_MODELS: Readonly<Record<ModelRole, string>> = {
+  main: 'claude-sonnet-5-5',
+  fast: 'claude-haiku-5-5',
+  grader: 'claude-opus-5-5',
+};
+
+function nonEmpty(v: string | undefined): string | undefined {
+  const t = v?.trim();
+  return t === undefined || t.length === 0 ? undefined : t;
+}
+
+/**
+ * Reads TRAV_OFFLINE, TRAV_ANTHROPIC_API_KEY (never ANTHROPIC_API_KEY),
+ * TRAV_MODEL, TRAV_FAST_MODEL, TRAV_GRADER_MODEL, TRAV_LIVE_BUDGET_USD and the
+ * optional TRAV_STATE_DIR. Never logs values. An invalid budget falls back to 45.
+ */
 export function readModelEnv(env: Readonly<Record<string, string | undefined>>): ModelEnv {
-  return notImplemented(`readModelEnv(${Object.keys(env).length})`);
+  const apiKey = nonEmpty(env['TRAV_ANTHROPIC_API_KEY']);
+  const flag = (nonEmpty(env['TRAV_OFFLINE']) ?? '').toLowerCase();
+  const offlineFlag = flag === '1' || flag === 'true' || flag === 'yes';
+  const budgetRaw = Number(nonEmpty(env['TRAV_LIVE_BUDGET_USD']) ?? Number.NaN);
+  const result: ModelEnv = {
+    offline: offlineFlag || apiKey === undefined,
+    models: {
+      main: nonEmpty(env['TRAV_MODEL']) ?? DEFAULT_MODELS.main,
+      fast: nonEmpty(env['TRAV_FAST_MODEL']) ?? DEFAULT_MODELS.fast,
+      grader: nonEmpty(env['TRAV_GRADER_MODEL']) ?? DEFAULT_MODELS.grader,
+    },
+    liveBudgetUsd:
+      Number.isFinite(budgetRaw) && budgetRaw >= 0 ? budgetRaw : DEFAULT_LIVE_BUDGET_USD,
+    stateDir: nonEmpty(env['TRAV_STATE_DIR']) ?? defaultStateDir(),
+  };
+  if (apiKey !== undefined) {
+    Object.defineProperty(result, 'apiKey', { value: apiKey, enumerable: false, writable: false });
+  }
+  return result;
 }
 
 export type JsonSchema = Readonly<Record<string, unknown>>;
@@ -164,15 +252,6 @@ export interface SpendGuard {
   current(): SpendRecord;
 }
 
-export function createFileSpendGuard(opts: {
-  readonly filePath: string;
-  readonly budgetUsd: number;
-  readonly pricing: ModelPricing;
-  readonly clock: Clock;
-}): SpendGuard {
-  return notImplemented(`createFileSpendGuard(${opts.filePath})`);
-}
-
 // ---------- offline scripts ----------
 
 export interface ScriptedResponse {
@@ -203,21 +282,6 @@ export interface ScriptStore {
   size(): number;
 }
 
-/** Loads every `*.json` under `fixtures/scripts/` (each an array of ScriptedResponse). */
-export function loadScriptStore(dir: string): ScriptStore {
-  return notImplemented(`loadScriptStore(${dir})`);
-}
-
-/**
- * sha256 of `model \n systemPromptId \n normalize(lastUserText) \n sortedToolNames.join(',')`
- * where normalize = lowercase, trim, collapse whitespace, strip `<untrusted ... id="...">` ids.
- * Images contribute their sha256 instead of text. Classify requests use
- * `classifierId` as the systemPromptId and `input` as the text.
- */
-export function deriveScriptKey(req: CompletionRequest | ClassifyRequest<string>): string {
-  return notImplemented(`deriveScriptKey(${req.systemPromptId})`);
-}
-
 /** Rule-based responders consulted in order on a script miss. Return undefined to pass. */
 export interface FallbackResponder {
   readonly id: string;
@@ -228,18 +292,45 @@ export interface FallbackResponder {
 export interface ModelClientOptions {
   readonly env: ModelEnv;
   readonly clock: Clock;
+  /** Offline: defaults to `loadScriptStore(<repo>/fixtures/scripts)`. */
   readonly scripts?: ScriptStore;
+  /** Offline: defaults to `defaultFallbacks()`. */
   readonly fallbacks?: readonly FallbackResponder[];
+  /** Live: defaults to a file guard on `<stateDir>/spend.json` with `env.liveBudgetUsd`. */
   readonly spendGuard?: SpendGuard;
   readonly pricing?: ModelPricing;
+  /** Live: the network seam. Tests MUST inject one; the real SDK transport is refused under vitest. */
+  readonly transport?: LiveTransport;
 }
 
 /** Live when `!env.offline && env.apiKey`, otherwise offline. Tests must never construct a live client. */
 export function createModelClient(opts: ModelClientOptions): ModelClient {
-  return notImplemented(`createModelClient(${opts.env.offline})`);
-}
-
-/** True if any message text contains `<untrusted` (used by the D2 invariant). */
-export function hasUntrustedBlock(req: CompletionRequest): boolean {
-  return notImplemented(`hasUntrustedBlock(${req.systemPromptId})`);
+  const { env, clock } = opts;
+  if (!env.offline && env.apiKey !== undefined && env.apiKey.length > 0) {
+    let transport = opts.transport;
+    if (transport === undefined) {
+      if (process.env['VITEST'] !== undefined) {
+        throw new TravError(
+          'invariant_violation',
+          'refusing to build a real network transport under vitest; inject `transport` or use offline mode',
+        );
+      }
+      transport = createSdkTransport({ apiKey: env.apiKey });
+    }
+    const spendGuard =
+      opts.spendGuard ??
+      createFileSpendGuard({
+        filePath: join(env.stateDir, 'spend.json'),
+        budgetUsd: env.liveBudgetUsd,
+        pricing: opts.pricing ?? DEFAULT_MODEL_PRICING,
+        clock,
+      });
+    return createLiveModelClient({ env, spendGuard, transport });
+  }
+  return createOfflineModelClient({
+    scripts: opts.scripts ?? loadScriptStore(defaultScriptsDir()),
+    fallbacks: opts.fallbacks ?? defaultFallbacks(),
+    missLogPath: join(env.stateDir, 'offline-misses.jsonl'),
+    clock,
+  });
 }

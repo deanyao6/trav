@@ -18,7 +18,7 @@ import type {
   Stores,
   TripId,
 } from '@trav/core';
-import { notImplemented } from '@trav/core';
+import { TravError } from '@trav/core';
 import type { JsonSchema, ToolSpec } from '../model/client.js';
 
 export interface ToolContext {
@@ -53,10 +53,24 @@ export interface ToolRegistry {
   /** What the model sees. */
   specs(lane: 'group' | 'dm'): readonly ToolSpec[];
   names(): readonly string[];
+  /**
+   * Validate and run one tool call: unknown name ⇒ `not_found`; a `dmOnly`
+   * tool on the group lane ⇒ `not_authorized`; bad input ⇒ whatever `parse`
+   * throws (`invalid_argument`).
+   */
+  run(name: string, rawInput: unknown, ctx: ToolContext): Promise<unknown>;
+}
+
+export interface ToolRegistryOptions {
+  /**
+   * Names that may be registered. Defaults to `V0_TOOL_NAMES`, so a new tool
+   * must be added to that list (and its test) before it can reach the model.
+   */
+  readonly allowedNames?: readonly string[];
 }
 
 export const FORBIDDEN_TOOL_NAME_PATTERN =
-  /purchase|buy|charge|pay(?!er)|refund|execute|delete_ledger|transfer|send_money/i;
+  /purchase|buy|charge|pay(?!er)|refund|execute|delete|transfer|send_money|approve|grant|confirm|remove|undo|checkout|order/i;
 
 /** The v0 tool set. Keep this list in sync with the registry test. */
 export const V0_TOOL_NAMES = [
@@ -79,7 +93,84 @@ export const V0_TOOL_NAMES = [
 
 export type V0ToolName = (typeof V0_TOOL_NAMES)[number];
 
-/** Throws `invalid_argument` if a registered name matches `FORBIDDEN_TOOL_NAME_PATTERN`. */
-export function createToolRegistry(): ToolRegistry {
-  return notImplemented('createToolRegistry');
+const TOOL_NAME_SHAPE = /^[a-z][a-z0-9_]{0,63}$/;
+
+/** True if `name` may never be a model tool (SAFETY §2.1 A2). */
+export function isForbiddenToolName(name: string): boolean {
+  return FORBIDDEN_TOOL_NAME_PATTERN.test(name);
+}
+
+/**
+ * Throws `invalid_argument` if a registered name matches
+ * `FORBIDDEN_TOOL_NAME_PATTERN`, is not snake_case, is not in the allowed list
+ * (default `V0_TOOL_NAMES`), or has no description/object schema; throws
+ * `duplicate` on a second registration of the same name.
+ */
+export function createToolRegistry(opts: ToolRegistryOptions = {}): ToolRegistry {
+  const allowed = new Set<string>(opts.allowedNames ?? V0_TOOL_NAMES);
+  for (const n of allowed) {
+    if (isForbiddenToolName(n)) {
+      throw new TravError(
+        'invalid_argument',
+        `allowed tool name "${n}" matches the forbidden pattern`,
+      );
+    }
+  }
+  const tools = new Map<string, ToolDefinition>();
+
+  const list = (lane: 'group' | 'dm'): readonly ToolDefinition[] =>
+    [...tools.values()].filter((t) => lane === 'dm' || t.dmOnly !== true);
+
+  return {
+    register<I, O>(tool: ToolDefinition<I, O>): void {
+      const { name } = tool;
+      if (isForbiddenToolName(name)) {
+        throw new TravError(
+          'invalid_argument',
+          `tool "${name}" is forbidden: the model may not purchase, charge, pay, refund, execute, transfer or delete ledger rows`,
+        );
+      }
+      if (!TOOL_NAME_SHAPE.test(name)) {
+        throw new TravError('invalid_argument', `tool name "${name}" must be snake_case`);
+      }
+      if (!allowed.has(name)) {
+        throw new TravError(
+          'invalid_argument',
+          `tool "${name}" is not in the allowed tool list (V0_TOOL_NAMES)`,
+        );
+      }
+      if (tools.has(name)) throw new TravError('duplicate', `tool "${name}" is already registered`);
+      if (tool.description.trim().length === 0) {
+        throw new TravError('invalid_argument', `tool "${name}" needs a description`);
+      }
+      if (tool.inputSchema['type'] !== 'object') {
+        throw new TravError(
+          'invalid_argument',
+          `tool "${name}" input schema must be an object schema`,
+        );
+      }
+      tools.set(name, tool as unknown as ToolDefinition);
+    },
+    get: (name) => tools.get(name),
+    list,
+    specs: (lane) =>
+      list(lane).map((t) => ({
+        name: t.name,
+        description: t.description,
+        inputSchema: t.inputSchema,
+      })),
+    names: () => [...tools.keys()],
+    async run(name: string, rawInput: unknown, ctx: ToolContext): Promise<unknown> {
+      const tool = tools.get(name);
+      if (tool === undefined) throw new TravError('not_found', `no tool named "${name}"`);
+      if (tool.dmOnly === true && ctx.lane !== 'dm') {
+        throw new TravError(
+          'not_authorized',
+          `tool "${name}" is only available in a private thread`,
+        );
+      }
+      const input = tool.parse(rawInput);
+      return tool.handler(input, ctx);
+    },
+  };
 }

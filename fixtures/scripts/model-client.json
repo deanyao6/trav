@@ -1,0 +1,16 @@
+[
+  {
+    "key": "d0633031c41258b9523af9b4db636b359bd87396027e88b79c2e981ffaed4f2c",
+    "model": "fast",
+    "systemPromptId": "mention_v1",
+    "lastUserText": "trav booked it already lol",
+    "toolNames": [],
+    "response": {
+      "kind": "classify",
+      "label": "not_mention",
+      "score": 0.95,
+      "reason": "talks about trav mid-sentence; not addressed to trav"
+    },
+    "note": "T-007-a: canonical negative for the mention classifier; also proves the repo scripts directory loads and replays (source 'script')."
+  }
+]
