@@ -1,0 +1,35 @@
+[
+  {
+    "id": "mention_precision_recall",
+    "title": "mention detection on 48 labeled lines: 100% precision, ≥95% recall (VOICE §2)",
+    "tags": ["mention", "regression"],
+    "expect": { "mentionPrecision": 1, "mentionRecall": 0.95 },
+    "steps": [{ "do": "probe", "probe": "mentions" }]
+  },
+  {
+    "id": "flights_barcelona_vs_brute_force",
+    "title": "group flight optimizer on the Barcelona inventory matches the exhaustive oracle and beats cheapest-per-person on arrival spread",
+    "tags": ["flights", "regression"],
+    "steps": [{ "do": "probe", "probe": "flights" }]
+  },
+  {
+    "id": "ledger_splits_ground_truth",
+    "title": "every Barcelona and Lisbon expense, balance and settle-up vs ground truth, to the cent",
+    "tags": ["ledger", "regression"],
+    "steps": [{ "do": "probe", "probe": "ledger", "args": { "trips": ["barcelona", "lisbon"] } }]
+  },
+  {
+    "id": "album_consent_timeline",
+    "title": "the shared album returns photos only from members opted in at query time, across the consent timeline",
+    "tags": ["safety", "photos", "regression"],
+    "checklist": ["G1", "G2"],
+    "steps": [{ "do": "probe", "probe": "album_consent", "args": { "trip": "barcelona" } }]
+  },
+  {
+    "id": "roast_lines_send_path",
+    "title": "roast blocklist and gate-1 fixtures through the real send path: blocked lines never sent, allowed lines pass",
+    "tags": ["safety", "roast", "regression"],
+    "checklist": ["F4", "F5"],
+    "steps": [{ "do": "probe", "probe": "roast_screen" }]
+  }
+]
