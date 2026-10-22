@@ -52,7 +52,10 @@ export function fixtureJsonExists(dir: readonly string[], name: string): boolean
 export function readFixtureJson(dir: readonly string[], name: string): unknown {
   const file = `${fixturePath([...dir, name])}.json`;
   if (!existsSync(file)) {
-    throw new TravError('not_found', `fixture not found: fixtures/${[...dir, name].join('/')}.json`);
+    throw new TravError(
+      'not_found',
+      `fixture not found: fixtures/${[...dir, name].join('/')}.json`,
+    );
   }
   return JSON.parse(readFileSync(file, 'utf8')) as unknown;
 }
@@ -77,7 +80,8 @@ export function fixtureFail(where: string, msg: string): never {
 }
 
 export function asObj(v: unknown, where: string): Obj {
-  if (typeof v !== 'object' || v === null || Array.isArray(v)) fixtureFail(where, 'expected an object');
+  if (typeof v !== 'object' || v === null || Array.isArray(v))
+    fixtureFail(where, 'expected an object');
   return v as Obj;
 }
 
@@ -88,7 +92,8 @@ export function asArr(v: unknown, where: string): readonly unknown[] {
 
 export function str(o: Obj, key: string, where: string): string {
   const v = o[key];
-  if (typeof v !== 'string' || v === '') fixtureFail(`${where}.${key}`, 'expected a non-empty string');
+  if (typeof v !== 'string' || v === '')
+    fixtureFail(`${where}.${key}`, 'expected a non-empty string');
   return v;
 }
 
@@ -102,7 +107,8 @@ export function optStr(o: Obj, key: string, where: string): string | undefined {
 export function optNum(o: Obj, key: string, where: string): number | undefined {
   const v = o[key];
   if (v === undefined || v === null) return undefined;
-  if (typeof v !== 'number' || !Number.isFinite(v)) fixtureFail(`${where}.${key}`, 'expected a number');
+  if (typeof v !== 'number' || !Number.isFinite(v))
+    fixtureFail(`${where}.${key}`, 'expected a number');
   return v;
 }
 

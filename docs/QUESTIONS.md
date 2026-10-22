@@ -4,7 +4,8 @@ Things the overnight run could not decide or was blocked on. Ranked by importanc
 
 ## Blocked / needs a decision
 
-(none yet)
+- **Simulator could not be run in a browser inside the sandbox (T-019-a, 2026-10-22 10:15).** Two sandbox limits: local port binding (`listen EPERM: operation not permitted 127.0.0.1:5179`) and the Playwright Chromium download (`cdn.playwright.dev` and `storage.googleapis.com` are blocked by the network allowlist). The server, API, scripted backend and UI are covered by 77 unit/integration tests (request handler exercised directly, server-rendered UI), and `vite build` is clean, but nothing has been clicked in a real browser yet. To verify yourself: `pnpm install`, then `pnpm sim` and open `http://127.0.0.1:5179`; for the headless smoke test run `cd apps/simulator && PLAYWRIGHT_BROWSERS_PATH=$PWD/../../.cache/ms-playwright pnpm exec playwright install chromium` then `pnpm --filter @trav/simulator qa`. If you want the overnight loop to do this next time, allow `sandbox.network.allowLocalBinding: true` and the two download hosts.
+- **DM handles are global per channel (T-019-a):** the simulator channel keys DM threads by handle across all chats, and the fixtures reuse `h_dean`/`h_dad` across trips, so the simulator gives Lisbon and Turks and Caicos trip-scoped handles (`h_lis_dean`, `h_tci_mom`). Decide whether handles should be per-channel-identity (real iMessage: one number per person, so DMs are shared across groups anyway) or per-group. T-021 seeding must follow the same convention.
 
 ## Noted, not blocking
 

@@ -18,7 +18,7 @@
  * time from the injected `Clock`.
  */
 import { createHash } from 'node:crypto';
-import { TravError, parseIso, sanitizeDisplayText } from '@trav/core';
+import { TravError, parseIso } from '@trav/core';
 import type { Clock, ConsentLookup, GroupId, IdGenerator, MemberId } from '@trav/core';
 import type {
   AddPhotoInput,
@@ -28,7 +28,7 @@ import type {
 } from '../../interfaces/album.js';
 import type { AdapterError, AdapterInfo } from '../../interfaces/common.js';
 import { deepFreeze } from '../transactions/fixtureFiles.js';
-import { loadAlbumFixtures } from './fixture.js';
+import { cleanCaption, loadAlbumFixtures } from './fixture.js';
 import type { AlbumFixture } from './fixture.js';
 
 export interface MockAlbumOptions {
@@ -51,7 +51,6 @@ export interface MockAlbumAdapter extends AlbumAdapter {
 }
 
 const MAX_LIMIT = 1000;
-const MAX_CAPTION = 120;
 const MIME_RE = /^(?:image|video)\/[a-z0-9.+-]+$/;
 
 function err(code: AdapterError['code'], message: string): { ok: false; error: AdapterError } {
@@ -166,8 +165,7 @@ export function createMockAlbum(options: MockAlbumOptions): MockAlbumAdapter {
       }
       const photoId = nextId();
       const ext = extensionFor(mimeType);
-      const caption =
-        input.caption === undefined ? '' : sanitizeDisplayText(input.caption).slice(0, MAX_CAPTION);
+      const caption = cleanCaption(input.caption);
       const base: Photo = {
         photoId,
         groupId,
@@ -180,7 +178,7 @@ export function createMockAlbum(options: MockAlbumOptions): MockAlbumAdapter {
         url: `${baseUrl}/${encodeURIComponent(groupId)}/${photoId}.${ext}`,
         thumbnailUrl: `${baseUrl}/${encodeURIComponent(groupId)}/thumb/${photoId}.jpg`,
         ...(input.takenAt === undefined ? {} : { takenAt: input.takenAt }),
-        ...(caption === '' ? {} : { caption }),
+        ...(caption === undefined ? {} : { caption }),
         addedAt: clock.now(),
         hidden: false,
       };

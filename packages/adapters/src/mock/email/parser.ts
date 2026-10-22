@@ -52,11 +52,14 @@ export const EMAIL_WARNINGS = {
   mixedCurrency: 'more than one currency on the receipt',
   dateAfterReceipt: 'receipt date is after the email arrived',
   unknownMerchant: 'merchant name not found',
+  itemsTruncated: 'too many line items; only the first ones are listed',
 } as const;
 
 const INJECTION_CONFIDENCE_CAP = 0.4;
 const DOUBT_CONFIDENCE_CAP = 0.5;
 const MAX_LINE_ITEMS = 50;
+/** Aggregate budget for all line-item descriptions in one result. */
+const MAX_ITEM_TEXT = 1200;
 const MAX_ITEM_DESCRIPTION = 80;
 const MAX_PLACE = 60;
 const MAX_MERCHANT = 60;
@@ -303,20 +306,33 @@ function claimsToBeTrav(from: string): boolean {
 const SENDER_NOISE =
   /\s+(?:ride\s+)?(?:receipts?|rides?|orders?|registration|bookings?|billing|no-?reply|notifications?)$/i;
 
-function merchantFrom(email: InboundEmail): string {
+interface MerchantGuess {
+  readonly name: string;
+  /**
+   * Text that became `name` without already being scanned (the subject and
+   * display name are scanned elsewhere): the domain label, with `-_.` read as
+   * spaces, when the label fallback is used. Empty otherwise.
+   */
+  readonly unscanned: string;
+}
+
+function merchantFrom(email: InboundEmail): MerchantGuess {
   const subject = stripInvisible(email.subject);
   const fromSubject = /\b(?:receipt|check|bill|invoice|order) from\s+(.{2,80}?)\s*$/i.exec(subject);
   if (fromSubject?.[1] !== undefined) {
     const name = capped(fromSubject[1], MAX_MERCHANT);
-    if (name !== '') return name;
+    if (name !== '') return { name, unscanned: '' };
   }
-  const { name, domain } = displayName(email.from);
+  const { name, domain } = displayName(email.from.slice(0, MAX_RAW_CHARS));
   let n = stripInvisible(name);
   for (let i = 0; i < 3 && SENDER_NOISE.test(n); i += 1) n = n.replace(SENDER_NOISE, '');
   const cleaned = capped(n, MAX_MERCHANT);
-  if (cleaned !== '') return cleaned;
+  if (cleaned !== '') return { name: cleaned, unscanned: '' };
   const label = domain.split('.')[0] ?? '';
-  return capped(label.charAt(0).toUpperCase() + label.slice(1), MAX_MERCHANT);
+  return {
+    name: capped(label.charAt(0).toUpperCase() + label.slice(1), MAX_MERCHANT),
+    unscanned: label.replace(/[-_.]+/g, ' '),
+  };
 }
 
 function kindOf(text: string, merchant: string): ReceiptSourceKind {
@@ -412,12 +428,29 @@ const RECEIPT_SENDER =
   /^(?:receipts?|rides?|orders?|billing|bookings|registration|noreply|no-reply)@/i;
 
 /** Text views of the email: visible text for amounts, everything for the injection scan. */
-function bodies(email: InboundEmail): { visible: string; hidden: string } {
+function bodies(email: InboundEmail): { visible: string; hidden: string; links: string } {
   const text = email.textBody === undefined ? '' : stripInvisible(email.textBody);
   const html =
     email.htmlBody === undefined ? undefined : htmlToText(stripInvisible(email.htmlBody));
   // Prefer the text part; hidden HTML parts are flagged either way.
-  return { visible: text.trim() !== '' ? text : (html?.visible ?? ''), hidden: html?.hidden ?? '' };
+  return {
+    visible: text.trim() !== '' ? text : (html?.visible ?? ''),
+    hidden: html?.hidden ?? '',
+    links: html?.links ?? '',
+  };
+}
+
+/**
+ * The sender's display name: free text that becomes `merchantName`, so it is
+ * scanned like the subject. The address itself is a routing token (no spaces,
+ * so no pattern but `@trav` could match it, and that one would fire on every
+ * legitimate `@trav…` domain); it is checked by `claimsToBeTrav` instead.
+ */
+function senderText(email: InboundEmail): string {
+  // Plus the domain label when it had to stand in for the merchant name.
+  return [displayName(email.from.slice(0, MAX_RAW_CHARS)).name, merchantFrom(email).unscanned].join(
+    '\n',
+  );
 }
 
 /**
@@ -429,10 +462,12 @@ export function scanEmailForInjection(email: InboundEmail): readonly string[] {
   const rawHtml = email.htmlBody?.slice(0, MAX_RAW_CHARS);
   const html = rawHtml === undefined ? undefined : htmlToText(stripInvisible(rawHtml));
   const parts = [
+    senderText(email),
     email.subject.slice(0, MAX_RAW_CHARS),
     (email.textBody ?? '').slice(0, MAX_RAW_CHARS),
     html?.visible ?? '',
     html?.hidden ?? '',
+    html?.links ?? '',
   ];
   return detectInjectionPatterns(parts.join('\n'));
 }
@@ -461,7 +496,7 @@ function parseEmail(email: InboundEmail): Result<ParsedEmailReceipt> {
   ) {
     return invalid('not a receipt: email too large');
   }
-  const { visible, hidden } = bodies(email);
+  const { visible, hidden, links } = bodies(email);
   if (visible.trim() === '') return invalid('not a receipt: empty body');
   if (visible.length > MAX_BODY_CHARS) return invalid('not a receipt: body too long');
 
@@ -491,7 +526,10 @@ function parseEmail(email: InboundEmail): Result<ParsedEmailReceipt> {
     else if (kind === 'base') bases.push(ml.amount);
     else items.push(ml);
   }
-  const total = totals[totals.length - 1];
+  // The last NON-zero total: "Total due €0.00" after a paid total is a balance
+  // line. Only zero totals (promo credit, cancelled order) means nothing to share.
+  const nonZeroTotals = totals.filter((t) => t.amountMinor !== 0);
+  const total = nonZeroTotals[nonZeroTotals.length - 1];
   if (total === undefined) return invalid('not a receipt: no total found');
 
   const warnings: string[] = [];
@@ -504,7 +542,7 @@ function parseEmail(email: InboundEmail): Result<ParsedEmailReceipt> {
   const currency = total.currency;
   if (currencies.size > 1) doubt(EMAIL_WARNINGS.mixedCurrency, DOUBT_CONFIDENCE_CAP);
   const same = (list: readonly Money[]): Money[] => list.filter((m) => m.currency === currency);
-  if (totals.some((t) => t.currency !== currency || t.amountMinor !== total.amountMinor)) {
+  if (nonZeroTotals.some((t) => t.currency !== currency || t.amountMinor !== total.amountMinor)) {
     doubt(EMAIL_WARNINGS.totalsDisagree, DOUBT_CONFIDENCE_CAP);
   }
 
@@ -520,13 +558,23 @@ function parseEmail(email: InboundEmail): Result<ParsedEmailReceipt> {
   );
 
   // A single priced line equal to the total is the description, not an itemization.
-  const lineItems =
+  const candidates =
     itemLines.length >= 2
       ? itemLines
-          .slice(0, MAX_LINE_ITEMS)
           .map((i) => lineItemFrom(i.label, i.amount))
           .filter((i): i is ParsedLineItem => i !== undefined)
       : [];
+  // Budget: at most MAX_LINE_ITEMS items and MAX_ITEM_TEXT description chars in total.
+  const lineItems: ParsedLineItem[] = [];
+  let itemText = 0;
+  for (const item of candidates) {
+    if (lineItems.length >= MAX_LINE_ITEMS || itemText + item.description.length > MAX_ITEM_TEXT)
+      break;
+    lineItems.push(item);
+    itemText += item.description.length;
+  }
+  if (lineItems.length < candidates.length)
+    doubt(EMAIL_WARNINGS.itemsTruncated, DOUBT_CONFIDENCE_CAP);
   const derivedSubtotal =
     subtotal ??
     (lineItems.length >= 2 && itemsSum !== undefined && itemsSum.amountMinor !== total.amountMinor
@@ -541,7 +589,7 @@ function parseEmail(email: InboundEmail): Result<ParsedEmailReceipt> {
     if (sum !== total.amountMinor) doubt(EMAIL_WARNINGS.doesNotAddUp, DOUBT_CONFIDENCE_CAP);
   }
 
-  const merchantName = merchantFrom(email);
+  const merchantName = merchantFrom(email).name;
   if (merchantName === '') doubt(EMAIL_WARNINGS.unknownMerchant, DOUBT_CONFIDENCE_CAP);
   const source = kindOf(visible, merchantName);
   const ride = source === 'rideshare' || source === 'taxi' ? rideFacts(lines) : undefined;
@@ -564,7 +612,9 @@ function parseEmail(email: InboundEmail): Result<ParsedEmailReceipt> {
       doubt(EMAIL_WARNINGS.dateAfterReceipt, DOUBT_CONFIDENCE_CAP);
   }
   // Injection heuristic over visible and hidden text separately.
-  const visiblePatterns = detectInjectionPatterns(`${email.subject}\n${visible}`);
+  const visiblePatterns = detectInjectionPatterns(
+    [senderText(email), email.subject, visible, links].join('\n'),
+  );
   const hiddenPatterns = hidden.trim() === '' ? [] : detectInjectionPatterns(hidden);
   if (isInstructionLike(visiblePatterns)) doubt(EMAIL_WARNINGS.injection, INJECTION_CONFIDENCE_CAP);
   if (isInstructionLike(hiddenPatterns))

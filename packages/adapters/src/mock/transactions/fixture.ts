@@ -88,7 +88,12 @@ const CONFIDENCE = new Set(['VERY_HIGH', 'HIGH', 'MEDIUM', 'LOW', 'UNKNOWN']);
 
 // ---------- accounts ----------
 
-function parseAccount(raw: unknown, owner: MemberId, institution: string | undefined, where: string): LinkedAccount {
+function parseAccount(
+  raw: unknown,
+  owner: MemberId,
+  institution: string | undefined,
+  where: string,
+): LinkedAccount {
   const o = asObj(raw, where);
   const wire = 'account_id' in o;
   const accountId = str(o, wire ? 'account_id' : 'accountId', where);
@@ -99,7 +104,8 @@ function parseAccount(raw: unknown, owner: MemberId, institution: string | undef
   const mask = str(o, 'mask', where);
   if (!MASK_RE.test(mask)) fixtureFail(`${where}.mask`, 'must be 2-4 digits (never a card number)');
   const type = str(o, 'type', where);
-  if (type !== 'credit' && type !== 'depository') fixtureFail(`${where}.type`, `unsupported "${type}"`);
+  if (type !== 'credit' && type !== 'depository')
+    fixtureFail(`${where}.type`, `unsupported "${type}"`);
   const institutionName =
     optStr(o, wire ? 'institution_name' : 'institutionName', where) ?? institution;
   if (institutionName === undefined || institutionName === '') {
@@ -155,14 +161,16 @@ function checkDate(v: string | undefined, where: string): void {
 }
 
 function checkDateTime(v: string | undefined, where: string): void {
-  if (v !== undefined && !DATETIME_RE.test(v)) fixtureFail(where, `expected ISO date-time with offset, got "${v}"`);
+  if (v !== undefined && !DATETIME_RE.test(v))
+    fixtureFail(where, `expected ISO date-time with offset, got "${v}"`);
 }
 
 function parsePfc(v: unknown, wire: boolean, where: string): PersonalFinanceCategory | undefined {
   if (v === undefined || v === null) return undefined;
   const o = asObj(v, where);
   const level = optStr(o, wire ? 'confidence_level' : 'confidenceLevel', where);
-  if (level !== undefined && !CONFIDENCE.has(level)) fixtureFail(where, `bad confidence "${level}"`);
+  if (level !== undefined && !CONFIDENCE.has(level))
+    fixtureFail(where, `bad confidence "${level}"`);
   return {
     primary: str(o, 'primary', where),
     detailed: str(o, 'detailed', where),
@@ -194,7 +202,11 @@ function parseLocation(v: unknown, wire: boolean, where: string): TransactionLoc
   return Object.keys(loc).length === 0 ? undefined : (loc as TransactionLocation);
 }
 
-function parseCounterparties(v: unknown, wire: boolean, where: string): readonly Counterparty[] | undefined {
+function parseCounterparties(
+  v: unknown,
+  wire: boolean,
+  where: string,
+): readonly Counterparty[] | undefined {
   if (v === undefined || v === null) return undefined;
   return asArr(v, where).map((c, i) => {
     const w = `${where}[${i}]`;
@@ -246,16 +258,25 @@ function parseRow(raw: unknown, owner: MemberId, where: string): ProviderTransac
   const datetime = optStr(o, 'datetime', where);
   checkDateTime(datetime, `${where}.datetime`);
   const paymentChannel = str(o, k('paymentChannel', 'payment_channel'), where);
-  if (!PAYMENT_CHANNELS.has(paymentChannel)) fixtureFail(where, `bad payment channel "${paymentChannel}"`);
+  if (!PAYMENT_CHANNELS.has(paymentChannel))
+    fixtureFail(where, `bad payment channel "${paymentChannel}"`);
   const pending = bool(o, 'pending', where);
-  const pendingTransactionId = optStr(o, k('pendingTransactionId', 'pending_transaction_id'), where);
+  const pendingTransactionId = optStr(
+    o,
+    k('pendingTransactionId', 'pending_transaction_id'),
+    where,
+  );
   if (pending && pendingTransactionId !== undefined) {
     fixtureFail(where, 'a pending row cannot replace another pending row');
   }
   const merchantName = optStr(o, k('merchantName', 'merchant_name'), where);
   const merchantEntityId = optStr(o, k('merchantEntityId', 'merchant_entity_id'), where);
   const logoUrl = optStr(o, k('logoUrl', 'logo_url'), where);
-  const pfc = parsePfc(o[k('personalFinanceCategory', 'personal_finance_category')], wire, `${where}.pfc`);
+  const pfc = parsePfc(
+    o[k('personalFinanceCategory', 'personal_finance_category')],
+    wire,
+    `${where}.pfc`,
+  );
   const location = parseLocation(o['location'], wire, `${where}.location`);
   const counterparties = parseCounterparties(o['counterparties'], wire, `${where}.counterparties`);
 
@@ -302,7 +323,8 @@ export class TransactionsLedgerBuilder {
     this.accounts = deepFreeze([...accounts]);
     const ids = new Set<string>();
     for (const a of accounts) {
-      if (a.ownerMemberId !== ownerMemberId) fixtureFail('accounts', `account ${a.accountId} has another owner`);
+      if (a.ownerMemberId !== ownerMemberId)
+        fixtureFail('accounts', `account ${a.accountId} has another owner`);
       if (ids.has(a.accountId)) fixtureFail('accounts', `duplicate account ${a.accountId}`);
       ids.add(a.accountId);
     }
@@ -317,7 +339,9 @@ export class TransactionsLedgerBuilder {
   addPage(raw: RawTransactionsPage, where = `page ${this.pagesInternal.length}`): TransactionsPage {
     const owner = this.ownerMemberId;
     const added = (raw.added ?? []).map((r, i) => parseRow(r, owner, `${where}.added[${i}]`));
-    const modified = (raw.modified ?? []).map((r, i) => parseRow(r, owner, `${where}.modified[${i}]`));
+    const modified = (raw.modified ?? []).map((r, i) =>
+      parseRow(r, owner, `${where}.modified[${i}]`),
+    );
     const removed = (raw.removed ?? []).map((r, i) => {
       const w = `${where}.removed[${i}]`;
       const o = asObj(r, w);
@@ -334,13 +358,17 @@ export class TransactionsLedgerBuilder {
 
     for (const [i, tx] of added.entries()) {
       const w = `${where}.added[${i}] (${tx.transactionId})`;
-      if (!this.accountIds.has(tx.accountId)) fixtureFail(w, `unknown account ${tx.accountId} for ${owner}`);
+      if (!this.accountIds.has(tx.accountId))
+        fixtureFail(w, `unknown account ${tx.accountId} for ${owner}`);
       if (everAdded.has(tx.transactionId)) fixtureFail(w, 'duplicate transaction id');
       if (tx.pendingTransactionId !== undefined) {
         const prior = everAdded.get(tx.pendingTransactionId);
-        if (prior === undefined) fixtureFail(w, `replaces unknown pending ${tx.pendingTransactionId}`);
-        if (!prior.pending) fixtureFail(w, `replaces ${tx.pendingTransactionId}, which is not pending`);
-        if (prior.accountId !== tx.accountId) fixtureFail(w, 'replaces a pending row on another account');
+        if (prior === undefined)
+          fixtureFail(w, `replaces unknown pending ${tx.pendingTransactionId}`);
+        if (!prior.pending)
+          fixtureFail(w, `replaces ${tx.pendingTransactionId}, which is not pending`);
+        if (prior.accountId !== tx.accountId)
+          fixtureFail(w, 'replaces a pending row on another account');
         if (!removed.some((r) => r.transactionId === tx.pendingTransactionId)) {
           removed.push({ transactionId: tx.pendingTransactionId, accountId: tx.accountId });
         }
@@ -351,14 +379,16 @@ export class TransactionsLedgerBuilder {
     for (const [i, tx] of modified.entries()) {
       const w = `${where}.modified[${i}] (${tx.transactionId})`;
       const prior = everAdded.get(tx.transactionId);
-      if (prior === undefined || !live.has(tx.transactionId)) fixtureFail(w, 'modifies an unknown or removed row');
+      if (prior === undefined || !live.has(tx.transactionId))
+        fixtureFail(w, 'modifies an unknown or removed row');
       if (prior.accountId !== tx.accountId) fixtureFail(w, 'cannot move a row to another account');
       everAdded.set(tx.transactionId, tx);
     }
     for (const [i, r] of removed.entries()) {
       const w = `${where}.removed[${i}] (${r.transactionId})`;
       const prior = everAdded.get(r.transactionId);
-      if (prior === undefined || !live.has(r.transactionId)) fixtureFail(w, 'removes an unknown or already removed row');
+      if (prior === undefined || !live.has(r.transactionId))
+        fixtureFail(w, 'removes an unknown or already removed row');
       if (prior.accountId !== r.accountId) fixtureFail(w, 'account does not match the removed row');
       live.delete(r.transactionId);
     }
@@ -372,7 +402,11 @@ export class TransactionsLedgerBuilder {
   }
 
   build(): MemberTransactionsFixture {
-    return { ownerMemberId: this.ownerMemberId, accounts: this.accounts, pages: [...this.pagesInternal] };
+    return {
+      ownerMemberId: this.ownerMemberId,
+      accounts: this.accounts,
+      pages: [...this.pagesInternal],
+    };
   }
 }
 
@@ -390,7 +424,8 @@ export function parseTransactionsFixture(
   if (expectedOwner !== undefined && owner !== expectedOwner) {
     fixtureFail('transactions', `file for ${expectedOwner} declares owner ${owner}`);
   }
-  const institution = optStr(o, 'institution_name', 'transactions') ?? optStr(o, 'institutionName', 'transactions');
+  const institution =
+    optStr(o, 'institution_name', 'transactions') ?? optStr(o, 'institutionName', 'transactions');
   const accounts = asArr(o['accounts'], 'transactions.accounts').map((a, i) =>
     parseAccount(a, owner, institution, `transactions.accounts[${i}]`),
   );
@@ -399,12 +434,15 @@ export function parseTransactionsFixture(
   if (o['pages'] !== undefined) {
     asArr(o['pages'], 'transactions.pages').forEach((p, i) => {
       const po = asObj(p, `transactions.pages[${i}]`);
-      const body = po['result'] === undefined ? po : asObj(po['result'], `transactions.pages[${i}].result`);
+      const body =
+        po['result'] === undefined ? po : asObj(po['result'], `transactions.pages[${i}].result`);
       builder.addPage(
         {
           added: body['added'] === undefined ? [] : asArr(body['added'], `pages[${i}].added`),
-          modified: body['modified'] === undefined ? [] : asArr(body['modified'], `pages[${i}].modified`),
-          removed: body['removed'] === undefined ? [] : asArr(body['removed'], `pages[${i}].removed`),
+          modified:
+            body['modified'] === undefined ? [] : asArr(body['modified'], `pages[${i}].modified`),
+          removed:
+            body['removed'] === undefined ? [] : asArr(body['removed'], `pages[${i}].removed`),
         },
         `transactions.pages[${i}]`,
       );

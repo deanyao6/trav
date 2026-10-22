@@ -54,6 +54,8 @@ export interface MockEmailReceiptSource extends EmailReceiptSource {
   deliver(to: string, email: InboundDelivery): Promise<Result<InboundEmail>>;
   /** Test hook: number of emails stored (fixtures + deliveries). */
   size(): number;
+  /** Test hook: `onEmail` handlers that threw or rejected (they are isolated; delivery still succeeds). */
+  handlerFailureCount(): number;
 }
 
 const MEMBER_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/;
@@ -81,6 +83,7 @@ export function createMockEmailReceiptSource(
   const generation = new Map<MemberId, number>();
   const emails = new Map<string, InboundEmail>();
   const handlers: ((email: InboundEmail) => void | Promise<void>)[] = [];
+  let handlerFailures = 0;
 
   function assign(member: MemberId, address: string): void {
     const prev = addressOf.get(member);
@@ -204,8 +207,19 @@ export function createMockEmailReceiptSource(
       if (emails.has(email.emailId)) return err('duplicate', 'email already delivered');
       const stored = deepFreeze(email);
       emails.set(stored.emailId, stored);
-      for (const h of [...handlers]) await h(stored);
+      // A failing handler never blocks the others or the delivery result.
+      for (const h of [...handlers]) {
+        try {
+          await h(stored);
+        } catch {
+          handlerFailures += 1;
+        }
+      }
       return { ok: true, value: stored };
+    },
+
+    handlerFailureCount() {
+      return handlerFailures;
     },
 
     size() {

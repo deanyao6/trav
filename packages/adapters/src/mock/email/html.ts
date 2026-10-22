@@ -11,6 +11,26 @@ export interface HtmlText {
   readonly visible: string;
   /** Text from hidden elements and comments, newline-joined. Empty if none. */
   readonly hidden: string;
+  /**
+   * Attribute targets (`href`, `src`, `action`, `formaction`, `background`)
+   * from anywhere in the HTML, newline-joined. Tag stripping drops them from
+   * `visible`/`hidden`, so they are kept here for the injection scan.
+   */
+  readonly links: string;
+}
+
+const LINK_ATTR =
+  /\b(?:href|src|action|formaction|background)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/gi;
+const MAX_LINKS = 200;
+
+function collectLinks(html: string): string {
+  const out: string[] = [];
+  for (const m of html.matchAll(LINK_ATTR)) {
+    const value = (m[1] ?? m[2] ?? m[3] ?? '').trim();
+    if (value !== '') out.push(decodeEntities(value));
+    if (out.length >= MAX_LINKS) break;
+  }
+  return out.join('\n');
 }
 
 /** Inline styles that hide text from a human reader. */
@@ -136,5 +156,6 @@ export function htmlToText(html: string): HtmlText {
   return {
     visible: tidy(tagsToLines(rest)),
     hidden: tidy(hidden.map(tagsToLines).join('\n')),
+    links: collectLinks(html),
   };
 }

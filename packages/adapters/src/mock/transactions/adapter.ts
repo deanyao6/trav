@@ -29,7 +29,11 @@ import type {
   TransactionsSyncResult,
 } from '../../interfaces/transactions.js';
 import { TransactionsLedgerBuilder, loadTransactionsFixture } from './fixture.js';
-import type { MemberTransactionsFixture, RawTransactionsPage, TransactionsPage } from './fixture.js';
+import type {
+  MemberTransactionsFixture,
+  RawTransactionsPage,
+  TransactionsPage,
+} from './fixture.js';
 import { isSafeFixtureSegment } from './fixtureFiles.js';
 
 export interface MockTransactionsOptions {
@@ -81,7 +85,9 @@ interface ItemState {
   connected: boolean;
 }
 
-export function createMockTransactions(options: MockTransactionsOptions = {}): MockTransactionsAdapter {
+export function createMockTransactions(
+  options: MockTransactionsOptions = {},
+): MockTransactionsAdapter {
   const info: AdapterInfo = { provider: 'mock-transactions', mode: 'mock' };
   const dir = options.fixtureDir ?? ['transactions'];
   const provided = new Map<MemberId, MemberTransactionsFixture>();
@@ -100,7 +106,8 @@ export function createMockTransactions(options: MockTransactionsOptions = {}): M
       items.set(member, null);
       return undefined;
     }
-    const fixture = options.fixtures !== undefined ? provided.get(member) : loadTransactionsFixture(member, dir);
+    const fixture =
+      options.fixtures !== undefined ? provided.get(member) : loadTransactionsFixture(member, dir);
     if (fixture === undefined || fixture.ownerMemberId !== member) {
       items.set(member, null);
       return undefined;
@@ -119,7 +126,11 @@ export function createMockTransactions(options: MockTransactionsOptions = {}): M
   }
 
   /** Defense in depth: a page must only ever carry the requester's rows. */
-  function assertScoped(member: MemberId, page: TransactionsPage, accounts: readonly LinkedAccount[]): void {
+  function assertScoped(
+    member: MemberId,
+    page: TransactionsPage,
+    accounts: readonly LinkedAccount[],
+  ): void {
     const ids = new Set(accounts.map((a) => a.accountId));
     const rows: readonly ProviderTransaction[] = [...page.added, ...page.modified];
     for (const tx of rows) {
@@ -154,14 +165,16 @@ export function createMockTransactions(options: MockTransactionsOptions = {}): M
       let index = 0;
       if (cursor !== undefined && cursor !== '') {
         const parsed = parseCursor(cursor);
-        if (parsed === undefined) return Promise.resolve(err('invalid_request', 'malformed cursor'));
+        if (parsed === undefined)
+          return Promise.resolve(err('invalid_request', 'malformed cursor'));
         if (parsed.itemId !== s.itemId) {
           return Promise.resolve(err('invalid_request', 'cursor does not belong to this member'));
         }
         index = parsed.index;
       }
       const pages = s.builder.pages;
-      if (index > pages.length) return Promise.resolve(err('invalid_request', 'cursor is ahead of the item'));
+      if (index > pages.length)
+        return Promise.resolve(err('invalid_request', 'cursor is ahead of the item'));
       syncs += 1;
       if (index === pages.length) {
         const empty: TransactionsSyncResult = {
@@ -174,7 +187,8 @@ export function createMockTransactions(options: MockTransactionsOptions = {}): M
         return Promise.resolve({ ok: true, value: empty });
       }
       const page = pages[index];
-      if (page === undefined) return Promise.resolve(err('invalid_request', 'cursor is ahead of the item'));
+      if (page === undefined)
+        return Promise.resolve(err('invalid_request', 'cursor is ahead of the item'));
       assertScoped(ownerMemberId, page, s.builder.accounts);
       const value: TransactionsSyncResult = {
         added: page.added,

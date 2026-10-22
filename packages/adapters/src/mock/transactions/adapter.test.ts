@@ -3,7 +3,11 @@ import { describe, expect, it } from 'vitest';
 import type { ProviderTransaction, TransactionsSyncResult } from '../../interfaces/transactions.js';
 import { createMockTransactions } from './adapter.js';
 import type { MockTransactionsAdapter } from './adapter.js';
-import { loadTransactionsFixture, parseTransactionsFixture, plaidAmountToMoney } from './fixture.js';
+import {
+  loadTransactionsFixture,
+  parseTransactionsFixture,
+  plaidAmountToMoney,
+} from './fixture.js';
 import { listFixtureJson } from './fixtureFiles.js';
 
 /** Private copy of the generator output, so fixed-value tests survive regeneration. */
@@ -96,7 +100,9 @@ describe('mock transactions: Plaid-shaped sync over pinned fixtures', () => {
     expect(pageOfPending).toBeGreaterThanOrEqual(0);
     expect(pageOfPosted).toBeGreaterThanOrEqual(pageOfPending);
 
-    const pending = pages[pageOfPending]?.added.find((t) => t.transactionId === 'txn_sam_uber_0315_p');
+    const pending = pages[pageOfPending]?.added.find(
+      (t) => t.transactionId === 'txn_sam_uber_0315_p',
+    );
     const posted = pages[pageOfPosted]?.added.find((t) => t.transactionId === 'txn_sam_uber_0315');
     expect(pending?.pending).toBe(true);
     expect(pending?.amount).toEqual({ amountMinor: 1980, currency: 'EUR' });
@@ -160,7 +166,8 @@ describe('mock transactions: strict per-member scoping', () => {
         expect(t.ownerMemberId).toBe(m);
         expect(accountIds.has(t.accountId)).toBe(true);
       }
-      for (const r of pages.flatMap((p) => p.removed)) expect(accountIds.has(r.accountId)).toBe(true);
+      for (const r of pages.flatMap((p) => p.removed))
+        expect(accountIds.has(r.accountId)).toBe(true);
       idsByMember.set(m, new Set(rowsOf(pages).map((t) => t.transactionId)));
     }
     for (const [a, ida] of idsByMember) {
@@ -188,7 +195,12 @@ describe('mock transactions: strict per-member scoping', () => {
   });
 
   it('rejects malformed and out-of-range cursors', async () => {
-    for (const bad of ['cur_sam_1', 'txcur.v1.item_mem_sam', 'txcur.v1.item_mem_sam.-1', 'txcur.v1.item_mem_sam.99']) {
+    for (const bad of [
+      'cur_sam_1',
+      'txcur.v1.item_mem_sam',
+      'txcur.v1.item_mem_sam.-1',
+      'txcur.v1.item_mem_sam.99',
+    ]) {
       const r = await adapter.sync('mem_sam', bad);
       expect(r.ok ? 'ok' : r.error.code).toBe('invalid_request');
     }
@@ -241,7 +253,9 @@ describe('mock transactions: pushUpdate and validation', () => {
 
     // Fixture omits `removed`; the mock adds it like Plaid does.
     const pushed = adapter.pushUpdate('mem_t', {
-      added: [row('t_1', { amount: { amountMinor: 2340, currency: 'EUR' }, pendingTransactionId: 't_p' })],
+      added: [
+        row('t_1', { amount: { amountMinor: 2340, currency: 'EUR' }, pendingTransactionId: 't_p' }),
+      ],
     });
     expect(pushed).toEqual({ ok: true, value: undefined });
     const next = await adapter.sync('mem_t', cursor);
@@ -284,45 +298,86 @@ describe('mock transactions: pushUpdate and validation', () => {
 
   it('fixture validation: owner, mask, file name, duplicate fixtures', () => {
     expect(() =>
-      parseTransactionsFixture({ ownerMemberId: 'mem_t', accounts: [{ ...ACCOUNT, mask: '4111111111111111' }], pages: [] }),
+      parseTransactionsFixture({
+        ownerMemberId: 'mem_t',
+        accounts: [{ ...ACCOUNT, mask: '4111111111111111' }],
+        pages: [],
+      }),
     ).toThrow(/mask/);
     expect(() =>
-      parseTransactionsFixture({ ownerMemberId: 'mem_t', accounts: [{ ...ACCOUNT, ownerMemberId: 'mem_x' }], pages: [] }),
+      parseTransactionsFixture({
+        ownerMemberId: 'mem_t',
+        accounts: [{ ...ACCOUNT, ownerMemberId: 'mem_x' }],
+        pages: [],
+      }),
     ).toThrow(/belongs to mem_x/);
     expect(() =>
-      parseTransactionsFixture({ ownerMemberId: 'mem_t', accounts: [ACCOUNT], pages: [] }, 'mem_other'),
+      parseTransactionsFixture(
+        { ownerMemberId: 'mem_t', accounts: [ACCOUNT], pages: [] },
+        'mem_other',
+      ),
     ).toThrow(/declares owner/);
     expect(() =>
-      parseTransactionsFixture({ ownerMemberId: 'mem_t', accounts: [ACCOUNT], pages: [{ added: [row('a', { ownerMemberId: 'mem_x' })] }] }),
+      parseTransactionsFixture({
+        ownerMemberId: 'mem_t',
+        accounts: [ACCOUNT],
+        pages: [{ added: [row('a', { ownerMemberId: 'mem_x' })] }],
+      }),
     ).toThrow(/belongs to mem_x/);
     const f = parseTransactionsFixture({ ownerMemberId: 'mem_t', accounts: [ACCOUNT], pages: [] });
     expect(() => createMockTransactions({ fixtures: [f, f] })).toThrow(/two transaction fixtures/);
   });
 
   it('empty history: one empty page-less item syncs to an empty, final update', async () => {
-    const f = parseTransactionsFixture({ ownerMemberId: 'mem_t', accounts: [ACCOUNT], transactions: [] });
+    const f = parseTransactionsFixture({
+      ownerMemberId: 'mem_t',
+      accounts: [ACCOUNT],
+      transactions: [],
+    });
     const adapter = createMockTransactions({ fixtures: [f] });
     const r = await adapter.sync('mem_t');
     expect(r).toEqual({
       ok: true,
-      value: { added: [], modified: [], removed: [], nextCursor: 'txcur.v1.item_mem_t.0', hasMore: false },
+      value: {
+        added: [],
+        modified: [],
+        removed: [],
+        nextCursor: 'txcur.v1.item_mem_t.0',
+        hasMore: false,
+      },
     });
   });
 });
 
 describe('mock transactions: Plaid wire shape at the adapter edge', () => {
   it('converts doubles to integer minor units; negative amounts are credits (refunds)', () => {
-    expect(plaidAmountToMoney(23.4, 'EUR')).toEqual({ amount: { amountMinor: 2340, currency: 'EUR' }, direction: 'debit' });
-    expect(plaidAmountToMoney(-35, 'EUR')).toEqual({ amount: { amountMinor: 3500, currency: 'EUR' }, direction: 'credit' });
-    expect(plaidAmountToMoney(0.1 + 0.2, 'USD')).toEqual({ amount: { amountMinor: 30, currency: 'USD' }, direction: 'debit' });
-    expect(plaidAmountToMoney(1200, 'JPY')).toEqual({ amount: { amountMinor: 1200, currency: 'JPY' }, direction: 'debit' });
+    expect(plaidAmountToMoney(23.4, 'EUR')).toEqual({
+      amount: { amountMinor: 2340, currency: 'EUR' },
+      direction: 'debit',
+    });
+    expect(plaidAmountToMoney(-35, 'EUR')).toEqual({
+      amount: { amountMinor: 3500, currency: 'EUR' },
+      direction: 'credit',
+    });
+    expect(plaidAmountToMoney(0.1 + 0.2, 'USD')).toEqual({
+      amount: { amountMinor: 30, currency: 'USD' },
+      direction: 'debit',
+    });
+    expect(plaidAmountToMoney(1200, 'JPY')).toEqual({
+      amount: { amountMinor: 1200, currency: 'JPY' },
+      direction: 'debit',
+    });
     expect(plaidAmountToMoney(0, 'EUR').amount.amountMinor).toBe(0);
     expect(() => plaidAmountToMoney(12.345, 'EUR')).toThrow();
     expect(() => plaidAmountToMoney(Number.NaN, 'EUR')).toThrow();
   });
 
   it('maps snake_case wire rows, paging a flat list', async () => {
-    const wireRow = (id: string, amount: number, extra: Record<string, unknown> = {}): Record<string, unknown> => ({
+    const wireRow = (
+      id: string,
+      amount: number,
+      extra: Record<string, unknown> = {},
+    ): Record<string, unknown> => ({
       transaction_id: id,
       account_id: 'acc_w',
       amount,
@@ -333,7 +388,11 @@ describe('mock transactions: Plaid wire shape at the adapter edge', () => {
       merchant_name: 'Optica Sol',
       pending: false,
       payment_channel: 'in store',
-      personal_finance_category: { primary: 'GENERAL_MERCHANDISE', detailed: 'GENERAL_MERCHANDISE_CLOTHING_AND_ACCESSORIES', confidence_level: 'HIGH' },
+      personal_finance_category: {
+        primary: 'GENERAL_MERCHANDISE',
+        detailed: 'GENERAL_MERCHANDISE_CLOTHING_AND_ACCESSORIES',
+        confidence_level: 'HIGH',
+      },
       location: { city: 'Barcelona', country: 'ES', postal_code: '08001' },
       counterparties: [{ name: 'Optica Sol', type: 'merchant', entity_id: 'ent_x' }],
       ...extra,
@@ -374,7 +433,10 @@ describe('mock transactions: Plaid wire shape at the adapter edge', () => {
       personalFinanceCategory: { confidenceLevel: 'HIGH' },
       counterparties: [{ name: 'Optica Sol', type: 'merchant', entityId: 'ent_x' }],
     });
-    expect(rows.find((t) => t.transactionId === 'w2')).toMatchObject({ direction: 'credit', amount: { amountMinor: 3500 } });
+    expect(rows.find((t) => t.transactionId === 'w2')).toMatchObject({
+      direction: 'credit',
+      amount: { amountMinor: 3500 },
+    });
     expect(pages[0]?.removed).toEqual([{ transactionId: 'w1_p', accountId: 'acc_w' }]);
   });
 });
@@ -397,11 +459,15 @@ describe('mock transactions: shared fixture files (value-agnostic)', () => {
       ...listFixtureJson(PINNED).map((m) => `transactions/pinned/${m}`),
     ];
     for (const f of files) {
-      const text = readFileSync(new URL(`../../../../../fixtures/${f}.json`, import.meta.url), 'utf8');
+      const text = readFileSync(
+        new URL(`../../../../../fixtures/${f}.json`, import.meta.url),
+        'utf8',
+      );
       expect(text).not.toMatch(/\d{12,19}/);
       expect(text).not.toMatch(/\d{4}[ -]\d{4}[ -]\d{4}[ -]\d{1,4}/);
       if (f.includes('/pinned/')) {
-        const domains = text.match(/\b[a-z0-9-]+(\.[a-z0-9-]+)*\.(com|net|org|io|co|es|pt)\b/gi) ?? [];
+        const domains =
+          text.match(/\b[a-z0-9-]+(\.[a-z0-9-]+)*\.(com|net|org|io|co|es|pt)\b/gi) ?? [];
         expect(domains).toEqual([]);
       }
     }

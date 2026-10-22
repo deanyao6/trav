@@ -11,7 +11,7 @@
  * place name, highlight ground truth) and `consentTimeline` are eval ground
  * truth; the mock reads only `photos`. Captions are untrusted text.
  */
-import { parseIso } from '@trav/core';
+import { parseIso, sanitizeDisplayText } from '@trav/core';
 import type { Photo } from '../../interfaces/album.js';
 import type { GeoPoint } from '../../interfaces/common.js';
 import {
@@ -76,6 +76,20 @@ function parseGeo(v: unknown, where: string): GeoPoint | undefined {
   return { lat, lon };
 }
 
+/** Longest caption the album stores. */
+export const MAX_CAPTION = 120;
+
+/**
+ * Captions are untrusted text (SAFETY §2.4): control/zero-width/bidi chars and
+ * angle brackets removed, whitespace collapsed, capped. One rule for fixture
+ * photos and `addPhoto`. Returns undefined when nothing usable is left.
+ */
+export function cleanCaption(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  const clean = sanitizeDisplayText(raw).slice(0, MAX_CAPTION).trimEnd();
+  return clean === '' ? undefined : clean;
+}
+
 export function parsePhoto(raw: unknown, groupId: string, tripId: string, where: string): Photo {
   const o = asObj(raw, where);
   const photoGroup = str(o, 'groupId', where);
@@ -88,7 +102,7 @@ export function parsePhoto(raw: unknown, groupId: string, tripId: string, where:
   if (qualityTag !== undefined && !QUALITY_TAGS.has(qualityTag))
     fixtureFail(`${where}.qualityTag`, `unknown "${qualityTag}"`);
   const takenAt = iso(o, 'takenAt', where, false);
-  const caption = optStr(o, 'caption', where);
+  const caption = cleanCaption(optStr(o, 'caption', where));
   const location = parseGeo(o['location'], `${where}.location`);
   return {
     photoId: str(o, 'photoId', where),
