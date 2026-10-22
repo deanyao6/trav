@@ -27,7 +27,7 @@ import type { Group, Member } from './domain/group.js';
 import type { Activity, Roster, Trip } from './domain/trip.js';
 import type { Booking, BookingProposal } from './domain/booking.js';
 import type { GroupMemoryFact } from './domain/memory.js';
-import { notImplemented } from './errors.js';
+import { TravError } from './errors.js';
 
 declare const PRIVATE: unique symbol;
 
@@ -241,12 +241,19 @@ export interface OwnerConfirmation {
 
 export interface PromoteContext {
   readonly expenseId: ExpenseId;
+  /** The group the expense is logged into; must equal `item.groupId`. */
+  readonly groupId: GroupId;
   readonly tripId: TripId;
   readonly tripCurrency: CurrencyCode;
   /** The owner's channel identity, from GroupStore.members; compared to `confirmation.senderId`. */
   readonly ownerSenderId: SenderId;
   readonly now: IsoDateTime;
   readonly defaultSplit: SplitSpec;
+  /**
+   * Required when the item's currency differs from `tripCurrency` (T-031 computes
+   * it); the expense is logged in trip currency with the item amount in `original`.
+   */
+  readonly converted?: { readonly amount: Money; readonly rate: string; readonly rateDate: string };
 }
 
 /**
@@ -255,18 +262,235 @@ export interface PromoteContext {
  * item.ownerMemberId`. The returned Expense contains none of `STRIPPED_FIELDS`
  * (test: `Object.keys(expense)` ∩ STRIPPED_FIELDS = ∅) and has
  * `sourceRef: { kind: 'private_item', id: item.id }`.
+ *
+ * Splits: the expense's `split` is `confirmation.split` when given, else
+ * `ctx.defaultSplit`. `parsed.lineItems` on the item are NOT copied
+ * automatically; an itemized share is expressed by the owner's confirm flow as
+ * `confirmation.split = { method: 'itemized', participants, lineItems }` (T-012),
+ * which passes through unchanged.
+ *
+ * Merchant text (`merchantDisplay`, `parsed.merchantName`, the override) came
+ * from untrusted sources, so it is sanitised before it becomes `description`:
+ * control, zero-width and bidi characters are removed, whitespace collapsed,
+ * and the result truncated to `MAX_DESCRIPTION_LENGTH` (SAFETY §2.4 step 2).
+ *
+ * Throws `invalid_argument` when the item belongs to another group or trip,
+ * has nothing parsed, is a card credit, or `ctx.converted.amount` is not a
+ * positive amount for a non-zero item.
  */
 export function promote(
   item: PrivateItem,
   confirmation: OwnerConfirmation,
   ctx: PromoteContext,
 ): Expense {
-  return notImplemented(`promote(${item.id}, ${confirmation.memberId}, ${ctx.expenseId})`);
+  // Identity: the channel-assigned sender must be the owner's sender, and the
+  // confirmation must name the owner. Display names are never consulted.
+  if (confirmation.senderId !== ctx.ownerSenderId || confirmation.memberId !== item.ownerMemberId) {
+    throw new TravError('not_owner', 'only the owner can share a private item', {
+      itemId: item.id,
+      expenseId: ctx.expenseId,
+    });
+  }
+  if (item.groupId !== ctx.groupId) {
+    throw new TravError('invalid_argument', 'private item belongs to a different group', {
+      itemId: item.id,
+      itemGroupId: item.groupId,
+      groupId: ctx.groupId,
+    });
+  }
+  if (item.tripId !== null && item.tripId !== ctx.tripId) {
+    throw new TravError('invalid_argument', 'private item belongs to a different trip', {
+      itemId: item.id,
+      itemTripId: item.tripId,
+      tripId: ctx.tripId,
+    });
+  }
+
+  const facts = extractPromotableFacts(item);
+  const override = sanitizeDisplayText(confirmation.merchantDisplayOverride ?? '');
+  const merchantDisplay = override !== '' ? override : sanitizeDisplayText(facts.merchantDisplay);
+  if (merchantDisplay === '') {
+    throw new TravError('invalid_argument', 'private item has no usable merchant name', {
+      itemId: item.id,
+    });
+  }
+
+  let amount: Money;
+  let original: Expense['original'] | undefined;
+  if (facts.amount.currency === ctx.tripCurrency) {
+    amount = facts.amount;
+  } else {
+    if (ctx.converted === undefined || ctx.converted.amount.currency !== ctx.tripCurrency) {
+      throw new TravError(
+        'currency_mismatch',
+        'private item is not in trip currency and no conversion was given',
+        {
+          itemId: item.id,
+          itemCurrency: facts.amount.currency,
+          tripCurrency: ctx.tripCurrency,
+        },
+      );
+    }
+    const converted = ctx.converted.amount.amountMinor;
+    if (
+      !Number.isSafeInteger(converted) ||
+      converted < 0 ||
+      (facts.amount.amountMinor !== 0 && converted === 0)
+    ) {
+      throw new TravError('invalid_argument', 'converted amount must be a positive integer', {
+        itemId: item.id,
+        convertedMinor: converted,
+      });
+    }
+    amount = ctx.converted.amount;
+    original = { amount: facts.amount, rate: ctx.converted.rate, rateDate: ctx.converted.rateDate };
+  }
+
+  // Built field by field; the item is never spread, so nothing in
+  // STRIPPED_FIELDS can leak through a future type change.
+  const expense: Expense = {
+    expenseId: ctx.expenseId,
+    groupId: item.groupId,
+    tripId: ctx.tripId,
+    description: merchantDisplay,
+    merchantDisplay,
+    category: facts.category,
+    amount,
+    ...(original === undefined ? {} : { original }),
+    paidBy: [{ memberId: item.ownerMemberId, amount }],
+    split: confirmation.split ?? ctx.defaultSplit,
+    source: facts.source,
+    sourceRef: { kind: 'private_item', id: item.id },
+    occurredAt: facts.occurredAt,
+    createdAt: ctx.now,
+    createdBy: item.ownerMemberId,
+    status: 'logged',
+  };
+
+  const leaked = Object.keys(expense).filter((key) =>
+    (STRIPPED_FIELDS as readonly string[]).includes(key),
+  );
+  if (leaked.length > 0) {
+    throw new TravError('invariant_violation', 'promoted expense would carry stripped fields', {
+      fields: leaked,
+    });
+  }
+  return expense;
+}
+
+/** Longest `Expense.description` a promoted item may carry. */
+export const MAX_DESCRIPTION_LENGTH = 120;
+
+// Code point ranges removed from untrusted display text: ASCII controls (incl.
+// DEL), C1 controls, soft hyphen, zero-width/joiner chars, line/paragraph
+// separators and bidi overrides/isolates, BOM, and `<`/`>` (so a merchant name
+// can never open or close an `<untrusted>` wrapper in a prompt). Built from
+// code points rather than written as escapes so the source stays ASCII.
+const UNSAFE_CODE_POINT_RANGES: readonly (readonly [number, number])[] = [
+  [0x0000, 0x001f],
+  [0x007f, 0x009f],
+  [0x00ad, 0x00ad],
+  [0x200b, 0x200f],
+  [0x2028, 0x202e],
+  [0x2060, 0x2064],
+  [0x2066, 0x2069],
+  [0xfeff, 0xfeff],
+  [0x003c, 0x003c], // <
+  [0x003e, 0x003e], // >
+];
+
+const UNSAFE_TEXT_RE = new RegExp(
+  `[${UNSAFE_CODE_POINT_RANGES.map(
+    ([from, to]) => `${String.fromCodePoint(from)}-${String.fromCodePoint(to)}`,
+  ).join('')}]`,
+  'g',
+);
+
+/**
+ * Make untrusted display text safe for the group lane (SAFETY §2.4 step 2):
+ * turn every whitespace run (tabs, newlines, line/paragraph separators) into
+ * one space, drop control/zero-width/bidi characters and angle brackets,
+ * collapse again, trim, and cap the length at `MAX_DESCRIPTION_LENGTH`.
+ */
+export function sanitizeDisplayText(text: string): string {
+  const cleaned = text.replace(/\s+/g, ' ').replace(UNSAFE_TEXT_RE, '').replace(/\s+/g, ' ').trim();
+  return cleaned.length > MAX_DESCRIPTION_LENGTH
+    ? cleaned.slice(0, MAX_DESCRIPTION_LENGTH).trimEnd()
+    : cleaned;
 }
 
 /** Fields the caller must write to `private.item_promoted.strippedFields`. */
 export function strippedFieldsFor(item: PrivateItem): readonly StrippedField[] {
-  return notImplemented(`strippedFieldsFor(${item.id})`);
+  return STRIPPED_FIELDS.filter((field) => field in item);
+}
+
+// ---------- promotion internals ----------
+
+interface PromotableFacts {
+  readonly amount: Money;
+  readonly occurredAt: IsoDateTime;
+  readonly merchantDisplay: string;
+  readonly category: ExpenseCategory;
+  readonly source: Expense['source'];
+}
+
+function isCardTransaction(item: PrivateItem): item is CardTransaction {
+  return 'providerTransactionId' in item;
+}
+
+function isEmailReceipt(item: PrivateItem): item is EmailReceipt {
+  return 'emailId' in item;
+}
+
+function isReceiptScan(item: PrivateItem): item is ReceiptScan {
+  return 'imageRef' in item;
+}
+
+const RECEIPT_SOURCE_CATEGORY: Readonly<Record<ReceiptSourceKind, ExpenseCategory>> = {
+  rideshare: 'transport',
+  taxi: 'transport',
+  restaurant: 'food',
+  bar: 'drinks',
+  grocery: 'groceries',
+  airline: 'flights',
+  lodging: 'lodging',
+  tickets: 'tickets',
+  other: 'other',
+};
+
+/** Reads only the fields SAFETY §2.3 lists as "keeps"; never raw text. */
+function extractPromotableFacts(item: PrivateItem): PromotableFacts {
+  const itemId = item.id;
+  if (isCardTransaction(item)) {
+    if (item.direction !== 'debit') {
+      throw new TravError('invalid_argument', 'only debit card transactions can be shared', {
+        itemId: item.id,
+      });
+    }
+    return {
+      amount: item.amount,
+      occurredAt: item.postedAt,
+      merchantDisplay: item.merchantDisplay,
+      category: item.category ?? 'other',
+      source: 'card_transaction',
+    };
+  }
+  if (isEmailReceipt(item) || isReceiptScan(item)) {
+    const parsed = item.parsed;
+    if (parsed === null) {
+      throw new TravError('invalid_argument', 'private item has no parsed receipt to share', {
+        itemId: item.id,
+      });
+    }
+    return {
+      amount: parsed.total,
+      occurredAt: parsed.occurredAt,
+      merchantDisplay: parsed.merchantName,
+      category: RECEIPT_SOURCE_CATEGORY[parsed.source] ?? 'other',
+      source: isEmailReceipt(item) ? 'email_receipt' : 'receipt_photo',
+    };
+  }
+  throw new TravError('invalid_argument', 'unknown private item shape', { itemId });
 }
 
 // ---------- group context (the only shape the group prompt is rendered from) ----------

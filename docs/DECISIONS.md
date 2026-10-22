@@ -75,7 +75,7 @@ One entry per significant decision. Format: context, decision, alternatives, con
 ## D-011: Ids from an injected `IdGenerator`, ulid-like, prefixed (2026-10-22, architect)
 
 - **Context:** Deterministic tests and fixtures; no new dependency.
-- **Decision:** `core/ids.ts`: `IdGenerator.next(prefix)` returns `<prefix>_<26 chars>`; `createDeterministicIdGenerator(seed)` (counter per prefix) for tests/fixtures, `createUlidIdGenerator(clock)` (time from the injected clock + `node:crypto` randomness) at runtime. Prefix table in `ID_PREFIXES`.
+- **Decision:** `core/ids.ts`: `IdGenerator.next(prefix)` returns `<prefix>_<body>` where the ulid body is 26 Crockford chars and the deterministic body is `<seed><6-digit counter>` (e.g. `mem_bcn000001`, readable in fixtures); `createDeterministicIdGenerator(seed)` (counter per prefix) for tests/fixtures, `createUlidIdGenerator(clock)` (time from the injected clock + `node:crypto` randomness) at runtime. Prefix table in `ID_PREFIXES`.
 - **Alternatives:** the `ulid` npm package (one more dependency for 20 lines); `crypto.randomUUID()` inline (non-deterministic tests, unprefixed ids).
 - **Consequences:** Snapshot tests are stable; ids are greppable by kind.
 
