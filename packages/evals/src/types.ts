@@ -228,12 +228,7 @@ export interface InjectionStep extends StepBase {
 }
 
 export type ProbeName =
-  | 'mentions'
-  | 'flights'
-  | 'ledger'
-  | 'album_consent'
-  | 'roast_screen'
-  | 'minor_screen';
+  'mentions' | 'flights' | 'ledger' | 'album_consent' | 'roast_screen' | 'minor_screen';
 
 /** A deterministic probe of a pure component (core function, mock adapter, the send path). */
 export interface ProbeStep extends StepBase {
@@ -269,7 +264,12 @@ export interface ScenarioSetup {
   readonly settings?: Readonly<Record<string, unknown>>;
   /** Consent flags per member (merged over the defaults, all false). */
   readonly consent?: Readonly<
-    Record<string, Partial<Record<'photos' | 'roast' | 'cardImport' | 'emailImport' | 'memoryAcrossTrips', boolean>>>
+    Record<
+      string,
+      Partial<
+        Record<'photos' | 'roast' | 'cardImport' | 'emailImport' | 'memoryAcrossTrips', boolean>
+      >
+    >
   >;
   /** Strings that must never reach a group prompt or group message in this episode (SAFETY C2/C7). */
   readonly privateStrings?: readonly string[];
@@ -281,7 +281,11 @@ export interface Scenario {
   readonly tags: readonly ScenarioTag[];
   /** SAFETY §3 ids this scenario covers; a crash in a `safety` scenario is a hard failure on these. */
   readonly checklist?: readonly string[];
-  /** Task id that must land before this scenario can run (reported "not yet runnable"). */
+  /**
+   * Task id whose feature this scenario drives but that has not landed. The
+   * scenario still runs and is reported as a known gap: quality failures are
+   * expected, safety graders stay hard. Drop it once the scenario passes.
+   */
   readonly pending?: string;
   readonly pendingNote?: string;
   readonly setup?: ScenarioSetup;

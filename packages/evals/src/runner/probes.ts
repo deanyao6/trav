@@ -335,7 +335,9 @@ function consentLookup(groupId: string, state: Readonly<Record<string, boolean>>
       : { ...defaultConsent(memberId, groupId, at), photos: state[memberId] === true };
 }
 
-export async function probeAlbumConsent(trip: TripName): Promise<{ checkpoints: AlbumCheckpoint[] }> {
+export async function probeAlbumConsent(
+  trip: TripName,
+): Promise<{ checkpoints: AlbumCheckpoint[] }> {
   const file = loadFixture<AlbumFile>(`album/${trip}.json`);
   const clock = createSimulatedClock('2026-01-01T00:00:00Z');
   // Every `fixtures/album/*.json` file; `listPhotos` scopes to the group.
@@ -450,8 +452,7 @@ function miniSendEnv(
       },
     ],
   });
-  const consent: ConsentLookup = (memberId) =>
-    stores.private.getConsent(memberId, f.group.groupId);
+  const consent: ConsentLookup = (memberId) => stores.private.getConsent(memberId, f.group.groupId);
   return {
     clock,
     async send(draft, options) {
@@ -509,10 +510,28 @@ const ROAST_AT = '2026-03-15T10:00:00+01:00';
 export async function probeRoastScreen(): Promise<{ cases: ScreenCase[] }> {
   const fx = loadFixture<RoastCases>('safety/roast-blocklist-cases.json');
   const cases: ScreenCase[] = [];
-  const all: { id: string; line: string; expected: 'sent' | 'suppressed'; category?: string; cause?: string; target?: string }[] = [
-    ...fx.blocked.map((b) => ({ id: b.id, line: b.line, expected: 'suppressed' as const, category: b.category })),
+  const all: {
+    id: string;
+    line: string;
+    expected: 'sent' | 'suppressed';
+    category?: string;
+    cause?: string;
+    target?: string;
+  }[] = [
+    ...fx.blocked.map((b) => ({
+      id: b.id,
+      line: b.line,
+      expected: 'suppressed' as const,
+      category: b.category,
+    })),
     ...fx.allowed.map((a) => ({ id: a.id, line: a.line, expected: 'sent' as const })),
-    ...fx.gated.map((g) => ({ id: g.id, line: g.line, expected: 'suppressed' as const, cause: g.cause, target: g.target })),
+    ...fx.gated.map((g) => ({
+      id: g.id,
+      line: g.line,
+      expected: 'suppressed' as const,
+      cause: g.cause,
+      target: g.target,
+    })),
   ];
   for (const c of all) {
     const env = miniSendEnv('barcelona', ROAST_AT, {
@@ -593,13 +612,17 @@ export async function probeMinorScreen(): Promise<{ cases: ScreenCase[] }> {
     const r = await env.send(draft, {
       ...(c.contentTags !== undefined ? { contentTags: c.contentTags as ContentTag[] } : {}),
       ...(c.audience !== undefined ? { audience: c.audience.map(mapId) } : {}),
-      ...(c.explicitAdultRequest !== undefined ? { explicitAdultRequest: c.explicitAdultRequest } : {}),
+      ...(c.explicitAdultRequest !== undefined
+        ? { explicitAdultRequest: c.explicitAdultRequest }
+        : {}),
     });
     cases.push({
       id: c.id,
       expected: c.expect,
       ...(c.cause !== undefined ? { expectedCause: c.cause } : {}),
-      ...(c.explicitAdultRequest !== undefined ? { explicitAdultRequest: c.explicitAdultRequest } : {}),
+      ...(c.explicitAdultRequest !== undefined
+        ? { explicitAdultRequest: c.explicitAdultRequest }
+        : {}),
       sent: r.sent,
       ...(r.sentText !== undefined ? { sentText: r.sentText } : {}),
       causes: r.causes,
@@ -624,9 +647,7 @@ export async function runProbe(
     case 'flights':
       return probeFlights();
     case 'ledger':
-      return probeLedger(
-        (args?.['trips'] as TripName[] | undefined) ?? ['barcelona', 'lisbon'],
-      );
+      return probeLedger((args?.['trips'] as TripName[] | undefined) ?? ['barcelona', 'lisbon']);
     case 'album_consent':
       return probeAlbumConsent((args?.['trip'] as TripName | undefined) ?? 'barcelona');
     case 'roast_screen':

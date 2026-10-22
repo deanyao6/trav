@@ -41,7 +41,10 @@ export const turnExpectations: Grader = {
       const texts = (turn?.outbound ?? []).map((m) => m.text);
       if (e.note !== undefined) {
         const notes = typeof e.note === 'string' ? [e.note] : e.note;
-        checks.push({ ok: turn !== undefined && notes.includes(turn.note), what: `${w}: note ${turn?.note ?? 'none'}, expected ${notes.join(' | ')}` });
+        checks.push({
+          ok: turn !== undefined && notes.includes(turn.note),
+          what: `${w}: note ${turn?.note ?? 'none'}, expected ${notes.join(' | ')}`,
+        });
       }
       if (e.toolCalls !== undefined) {
         const got = turn?.toolCalls ?? [];
@@ -64,10 +67,16 @@ export const turnExpectations: Grader = {
         checks.push({ ok: containsCi(laneText, s), what: `${w}: missing "${s}"` });
       }
       for (const s of e.mustNotContain ?? []) {
-        checks.push({ ok: !texts.some((t) => containsCi(t, s)), what: `${w}: must not say "${s}"` });
+        checks.push({
+          ok: !texts.some((t) => containsCi(t, s)),
+          what: `${w}: must not say "${s}"`,
+        });
       }
       if (e.text !== undefined) {
-        checks.push({ ok: texts[0] === e.text, what: `${w}: text "${texts[0] ?? ''}", expected "${e.text}"` });
+        checks.push({
+          ok: texts[0] === e.text,
+          what: `${w}: text "${texts[0] ?? ''}", expected "${e.text}"`,
+        });
       }
       for (const t of e.audit ?? []) {
         checks.push({ ok: step.auditTypes.includes(t), what: `${w}: audit ${t} not written` });
@@ -81,7 +90,8 @@ export const turnExpectations: Grader = {
 
 export const messageBudget: Grader = {
   id: 'message_budget',
-  title: 'message budget: silence when not addressed, ≤1 group message per turn, ≤N proactive per day',
+  title:
+    'message budget: silence when not addressed, ≤1 group message per turn, ≤N proactive per day',
   kind: 'deterministic',
   weight: 1,
   grade(ep) {
@@ -94,7 +104,10 @@ export const messageBudget: Grader = {
       if (turn === undefined) continue;
       const w = where(step);
       const group = groupMessages(step);
-      checks.push({ ok: group.length <= 1, what: `${w}: ${String(group.length)} group messages in one turn (VOICE §3.7)` });
+      checks.push({
+        ok: group.length <= 1,
+        what: `${w}: ${String(group.length)} group messages in one turn (VOICE §3.7)`,
+      });
       if (step.expect?.silent === true) {
         checks.push({
           ok: turn.outbound.length === 0 && turn.reactions.length === 0,
@@ -107,7 +120,10 @@ export const messageBudget: Grader = {
       }
     }
     for (const [day, n] of perDay) {
-      checks.push({ ok: n <= cap, what: `${day}: ${String(n)} unsolicited group messages (cap ${String(cap)})` });
+      checks.push({
+        ok: n <= cap,
+        what: `${day}: ${String(n)} unsolicited group messages (cap ${String(cap)})`,
+      });
     }
     return [fromChecks(this.id, checks, { nothing: 'Trav took no turns' })];
   },
@@ -125,12 +141,19 @@ export const voiceLint: Grader = {
     const members: readonly Member[] = ep.snapshot.members;
     const trip = ep.snapshot.trip ?? null;
     const reported = new Map<string, string[]>();
-    for (const l of ep.lint) reported.set(l.messageId, [...(reported.get(l.messageId) ?? []), ...l.violations]);
+    for (const l of ep.lint)
+      reported.set(l.messageId, [...(reported.get(l.messageId) ?? []), ...l.violations]);
     const seen = new Set<string>();
     for (const { step, msg } of allMessages(ep)) {
       seen.add(msg.id);
-      const v = new Set([...voiceViolations(msg as OutboundMessage, members, trip), ...(reported.get(msg.id) ?? [])]);
-      checks.push({ ok: v.size === 0, what: `${where(step)}: ${[...v].join('; ')} in "${msg.text.slice(0, 80)}"` });
+      const v = new Set([
+        ...voiceViolations(msg as OutboundMessage, members, trip),
+        ...(reported.get(msg.id) ?? []),
+      ]);
+      checks.push({
+        ok: v.size === 0,
+        what: `${where(step)}: ${[...v].join('; ')} in "${msg.text.slice(0, 80)}"`,
+      });
     }
     // Lint findings on drafts that never reached a turn summary (suppressed or dropped).
     for (const [id, v] of reported) {
@@ -189,7 +212,10 @@ export const flightOptimizer: Grader = {
       const key = (ids: readonly string[]) => ids.join('|');
       const top = f.fast[0];
       const best = f.oracle[0];
-      checks.push({ ok: f.missing.length === 0, what: `members with no offer: ${f.missing.join(',')}` });
+      checks.push({
+        ok: f.missing.length === 0,
+        what: `members with no offer: ${f.missing.join(',')}`,
+      });
       checks.push({
         ok: top !== undefined && best !== undefined && key(top.offerIds) === key(best.offerIds),
         what: `top pick ${key(top?.offerIds ?? [])} ≠ oracle ${key(best?.offerIds ?? [])}`,
@@ -199,7 +225,9 @@ export const flightOptimizer: Grader = {
         what: `top score ${String(top?.score)} vs oracle ${String(best?.score)}`,
       });
       checks.push({
-        ok: f.fast.map((i) => key(i.offerIds)).join(' / ') === f.oracle.map((i) => key(i.offerIds)).join(' / '),
+        ok:
+          f.fast.map((i) => key(i.offerIds)).join(' / ') ===
+          f.oracle.map((i) => key(i.offerIds)).join(' / '),
         what: 'ranked list differs from the oracle',
       });
       checks.push({
@@ -247,7 +275,9 @@ function rowKey(rows: readonly { memberId: string; amountMinor: number }[]): str
 
 interface LedgerTruth {
   readonly currency: string;
-  readonly final: { readonly balances: readonly { memberId: string; net: { amountMinor: number } }[] };
+  readonly final: {
+    readonly balances: readonly { memberId: string; net: { amountMinor: number } }[];
+  };
 }
 
 export const ledgerGroundTruth: Grader = {
@@ -271,12 +301,18 @@ export const ledgerGroundTruth: Grader = {
             what: `${t.trip} balance ${m}: ${String(t.gotBalances[m])} ≠ expected ${String(net)}`,
           });
         }
-        checks.push({ ok: t.gotTotalMinor === t.expectedTotalMinor, what: `${t.trip}: total ${String(t.gotTotalMinor)} ≠ ${String(t.expectedTotalMinor)}` });
+        checks.push({
+          ok: t.gotTotalMinor === t.expectedTotalMinor,
+          what: `${t.trip}: total ${String(t.gotTotalMinor)} ≠ ${String(t.expectedTotalMinor)}`,
+        });
         checks.push({
           ok: t.transfers.length <= Math.min(t.maxTransfers, t.memberOrder.length - 1),
           what: `${t.trip}: ${String(t.transfers.length)} transfers (max ${String(t.maxTransfers)})`,
         });
-        checks.push({ ok: clears(t), what: `${t.trip}: settle-up transfers do not clear every balance to the cent` });
+        checks.push({
+          ok: clears(t),
+          what: `${t.trip}: settle-up transfers do not clear every balance to the cent`,
+        });
       }
     }
     // Per-step ledger writes (chat expense, receipt, booking) against the step's expected split.
@@ -289,23 +325,40 @@ export const ledgerGroundTruth: Grader = {
         checks.push({ ok: false, what: `${w}: expected a ledger expense, none was written` });
         continue;
       }
-      checks.push({ ok: exp.amount.amountMinor === want.amountMinor, what: `${w}: amount ${String(exp.amount.amountMinor)} ≠ ${String(want.amountMinor)}` });
+      checks.push({
+        ok: exp.amount.amountMinor === want.amountMinor,
+        what: `${w}: amount ${String(exp.amount.amountMinor)} ≠ ${String(want.amountMinor)}`,
+      });
       const payer = exp.paidBy.map((p) => p.memberId).join(',');
-      checks.push({ ok: payer === want.paidBy, what: `${w}: paid by ${payer}, expected ${want.paidBy}` });
+      checks.push({
+        ok: payer === want.paidBy,
+        what: `${w}: paid by ${payer}, expected ${want.paidBy}`,
+      });
       const owes = ep.snapshot.entries
-        .filter((x) => x.expenseId === exp.expenseId && x.kind === 'owes' && x.amount.amountMinor !== 0)
+        .filter(
+          (x) => x.expenseId === exp.expenseId && x.kind === 'owes' && x.amount.amountMinor !== 0,
+        )
         .map((x) => ({ memberId: x.memberId, amountMinor: x.amount.amountMinor }));
-      checks.push({ ok: rowKey(owes) === rowKey(want.shares), what: `${w}: shares ${rowKey(owes)} ≠ expected ${rowKey(want.shares)}` });
+      checks.push({
+        ok: rowKey(owes) === rowKey(want.shares),
+        what: `${w}: shares ${rowKey(owes)} ≠ expected ${rowKey(want.shares)}`,
+      });
     }
     // The agent's own ledger (chat/receipt/booking ingestion) against the trip's ground truth.
     const truthName = ep.expect.ledgerGroundTruth;
     if (truthName !== undefined) {
       const truth = loadFixture<LedgerTruth>(`ledger/${truthName}.json`);
       const order = ep.snapshot.members.map((m) => m.memberId);
-      const got = order.length === 0 ? [] : ledger.computeBalances(ep.snapshot.entries, truth.currency, order);
+      const got =
+        order.length === 0
+          ? []
+          : ledger.computeBalances(ep.snapshot.entries, truth.currency, order);
       for (const b of truth.final.balances) {
         const g = got.find((x) => x.memberId === b.memberId)?.net.amountMinor ?? 0;
-        checks.push({ ok: g === b.net.amountMinor, what: `agent ledger balance ${b.memberId}: ${String(g)} ≠ expected ${String(b.net.amountMinor)}` });
+        checks.push({
+          ok: g === b.net.amountMinor,
+          what: `agent ledger balance ${b.memberId}: ${String(g)} ≠ expected ${String(b.net.amountMinor)}`,
+        });
       }
     }
     return [fromChecks(this.id, checks, { nothing: 'no ledger to grade' })];
@@ -324,7 +377,10 @@ export const DEFAULT_RUBRIC: readonly string[] = [
 export function transcriptText(ep: Episode): string {
   return ep.transcript
     .filter((t) => t.type === 'message')
-    .map((t) => `${t.direction === 'outbound' ? 'trav' : t.fromName}${t.lane === 'dm' ? ' (dm)' : ''}: ${'text' in t ? t.text : ''}`)
+    .map(
+      (t) =>
+        `${t.direction === 'outbound' ? 'trav' : t.fromName}${t.lane === 'dm' ? ' (dm)' : ''}: ${'text' in t ? t.text : ''}`,
+    )
     .join('\n');
 }
 
@@ -335,18 +391,33 @@ export const rubric: Grader = {
   weight: 1,
   async grade(ep, scenario, ctx) {
     if (ctx.mode !== 'live' || ctx.rubric === undefined) {
-      return [{ graderId: this.id, score: 1, pass: true, evidence: [], skipped: 'rubric graders run live only' }];
+      return [
+        {
+          graderId: this.id,
+          score: 1,
+          pass: true,
+          evidence: [],
+          skipped: 'rubric graders run live only',
+        },
+      ];
     }
     const transcript = transcriptText(ep);
     if (!ep.transcript.some((t) => t.direction === 'outbound')) {
-      return [{ graderId: this.id, score: 1, pass: true, evidence: [], skipped: 'Trav sent nothing' }];
+      return [
+        { graderId: this.id, score: 1, pass: true, evidence: [], skipped: 'Trav sent nothing' },
+      ];
     }
     const out: GraderResult[] = [];
     for (const criterion of scenario.rubric ?? DEFAULT_RUBRIC) {
       try {
         const r = await ctx.rubric.judge({ criterion, transcript });
         const score = Math.max(0, Math.min(1, r.score));
-        out.push({ graderId: this.id, score, pass: score >= 0.6, evidence: [`${criterion} → ${score.toFixed(2)}: ${r.rationale}`] });
+        out.push({
+          graderId: this.id,
+          score,
+          pass: score >= 0.6,
+          evidence: [`${criterion} → ${score.toFixed(2)}: ${r.rationale}`],
+        });
       } catch (e) {
         out.push({
           graderId: this.id,

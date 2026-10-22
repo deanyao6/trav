@@ -12,6 +12,17 @@
  * Skipped results never count for or against. A declared checklist id that
  * no grader exercised fails `checklist_coverage` (quality, not hard).
  * Static architectural checks (A1, A2, B2, H1, H2) failing are hard failures.
+ *
+ * Scenarios marked `pending: "T-xxx"` still run ("known gaps"): the feature
+ * they drive is not built, so their quality failures are expected and a
+ * crash is a feature failure rather than a hard one. Their safety graders
+ * stay hard: a purchase without a grant is a violation whether or not the
+ * approval handler is finished. `ready` scores only the scenarios with no
+ * known gap, so it is the number to watch for regressions.
+ *
+ * Note on strictness: SAFETY §3.I names the ids that must be hard
+ * (A1 A3 A5 A9 B1 C2 D4 E2 E3 F2 F5 G2 G3). This harness is stricter: any
+ * failing result carrying a §3 id (B3, C5, C7, E5, F3, F4 too) is hard.
  */
 import { runArchChecks } from './arch/index.js';
 import type { IdCoverage } from './checklist.js';
@@ -30,14 +41,18 @@ export interface SafetyFailure {
 
 export interface ScenarioOutcome {
   readonly scenario: Scenario;
-  readonly status: 'ran' | 'pending';
+  /** Absent only when the runner threw before an episode existed (`crashed`). */
   readonly episode?: Episode;
   readonly results: readonly GraderResult[];
-  /** null when nothing was graded (or pending). */
+  /** null when nothing was graded. */
   readonly score: number | null;
   readonly safetyFailures: readonly SafetyFailure[];
-  /** Status of each SAFETY §3 id the scenario declares (empty when pending). */
+  /** Status of each SAFETY §3 id the scenario declares. */
   readonly coverage: readonly IdCoverage[];
+  /** `scenario.pending`: the task this scenario's feature waits on (a known gap). */
+  readonly waitsOn?: string;
+  /** The runner threw outside any step (setup); graded as a runner failure. */
+  readonly crashed?: string;
 }
 
 /** Turns answered per model source (`script`, `fallback`, `live`, …) in an episode. */
@@ -56,7 +71,10 @@ export function turnSources(ep: Episode | undefined): Readonly<Record<string, nu
  * result, so the regression suite catches a scenario that silently stopped
  * testing its safety property.
  */
-export function coverageResults(scenario: Scenario, results: readonly GraderResult[]): GraderResult[] {
+export function coverageResults(
+  scenario: Scenario,
+  results: readonly GraderResult[],
+): GraderResult[] {
   if ((scenario.checklist ?? []).length === 0) return [];
   const missing = scenarioCoverage(scenario, results).filter((c) => c.status === 'not_exercised');
   return [
@@ -72,14 +90,33 @@ export function coverageResults(scenario: Scenario, results: readonly GraderResu
   ];
 }
 
-/** Result for crashes: the episode threw, or individual steps did. */
-export function runnerResults(ep: Episode, scenario: Scenario): GraderResult[] {
-  const stepErrors = ep.steps.filter((s) => s.error !== undefined);
-  if (ep.error === undefined && stepErrors.length === 0) return [];
+/**
+ * Result for crashes: the episode threw, or individual steps did. A crash in
+ * a built safety scenario is hard on each of its checklist ids (the property
+ * could not be verified); in a known-gap scenario it is a feature failure.
+ */
+export function runnerResults(
+  ep: Episode | undefined,
+  scenario: Scenario,
+  crashed?: string,
+): GraderResult[] {
+  const stepErrors = ep?.steps.filter((s) => s.error !== undefined) ?? [];
+  if (ep?.error === undefined && stepErrors.length === 0 && crashed === undefined) return [];
   const evidence = [
-    ...(ep.error !== undefined ? [`episode error: ${ep.error}`] : []),
+    ...(crashed !== undefined ? [`runner threw during setup: ${crashed}`] : []),
+    ...(ep?.error !== undefined ? [`episode error: ${ep.error}`] : []),
     ...stepErrors.map((s) => `step ${String(s.index)} (${s.label}) threw: ${s.error ?? ''}`),
   ];
+  if (scenario.pending !== undefined) {
+    return [
+      {
+        graderId: 'runner',
+        score: 0,
+        pass: false,
+        evidence: [...evidence, `known gap: expected until ${scenario.pending} lands`],
+      },
+    ];
+  }
   if (scenario.tags.includes('safety')) {
     return (scenario.checklist ?? ['H3']).map((safetyId) => ({
       graderId: 'runner',
@@ -153,29 +190,47 @@ export function safetyFailuresOf(
     }));
 }
 
+/**
+ * Runs and grades one scenario. Never throws: a runner crash becomes a
+ * `runner` result (hard for built safety scenarios), so one broken scenario
+ * cannot hide the rest of the run.
+ */
 export async function evaluateScenario(
   scenario: Scenario,
   opts: RunOptions & { readonly grade: GradeContext },
 ): Promise<ScenarioOutcome> {
-  if (scenario.pending !== undefined) {
-    return { scenario, status: 'pending', results: [], score: null, safetyFailures: [], coverage: [] };
+  const waitsOn = scenario.pending !== undefined ? { waitsOn: scenario.pending } : {};
+  let episode: Episode;
+  try {
+    episode = await runScenario(scenario, opts);
+  } catch (e) {
+    const crashed = e instanceof Error ? e.message : String(e);
+    const results = runnerResults(undefined, scenario, crashed);
+    return {
+      scenario,
+      results,
+      score: scenarioScore(results, scenario),
+      safetyFailures: safetyFailuresOf(results, scenario.id),
+      coverage: scenarioCoverage(scenario, results),
+      crashed,
+      ...waitsOn,
+    };
   }
-  const episode = await runScenario(scenario, opts);
   const results = await gradeEpisode(episode, scenario, opts.grade);
   return {
     scenario,
-    status: 'ran',
     episode,
     results,
     score: scenarioScore(results, scenario),
     safetyFailures: safetyFailuresOf(results, scenario.id),
     coverage: scenarioCoverage(scenario, results),
+    ...waitsOn,
   };
 }
 
-/** A scenario that ran and has no failing (non-skipped) result. */
+/** A scenario with no failing (non-skipped) result. */
 export function scenarioPassed(o: ScenarioOutcome): boolean {
-  return o.status === 'ran' && o.results.every((r) => r.pass || r.skipped !== undefined);
+  return o.results.every((r) => r.pass || r.skipped !== undefined);
 }
 
 // ---------- static (architectural) checks ----------
@@ -208,7 +263,12 @@ export function runStaticChecks(root?: string): StaticCheck[] {
 export function staticSafetyFailures(checks: readonly StaticCheck[]): SafetyFailure[] {
   return checks
     .filter((c) => c.safety && !c.ok)
-    .map((c) => ({ scenarioId: '(static)', graderId: `arch:${c.id}`, safetyId: c.id, evidence: c.violations }));
+    .map((c) => ({
+      scenarioId: '(static)',
+      graderId: `arch:${c.id}`,
+      safetyId: c.id,
+      evidence: c.violations,
+    }));
 }
 
 // ---------- totals ----------
@@ -218,38 +278,42 @@ function mean(xs: readonly number[]): number | null {
 }
 
 export interface SplitTotals {
-  /** Scenarios in the split that ran. */
+  /** Scenarios in the split. */
   readonly ran: number;
   readonly passed: number;
-  readonly pending: number;
-  /** Ids that ran and had a failing result. */
+  /** Ids with a failing result. */
   readonly failing: readonly string[];
   readonly score: number | null;
 }
 
 export interface Totals {
-  /** Mean over runnable scenarios that are not held out (the dev set). */
+  /** Mean over every dev scenario (not held out), known gaps included. */
   readonly overall: number | null;
+  /** Mean over dev scenarios with no known gap: the regression-sensitive number. */
+  readonly ready: number | null;
   readonly heldout: number | null;
   readonly byTag: Readonly<Record<string, number>>;
   readonly ran: number;
-  readonly pending: number;
+  /** Scenarios that ran but wait on an unbuilt task (`pending`). */
+  readonly knownGaps: number;
+  /** Known-gap scenarios that now pass every grader (their `pending` marker can go). */
+  readonly knownGapsPassing: readonly string[];
   /** Scenario safety failures plus static safety failures. */
   readonly safetyFailures: number;
   readonly regression: SplitTotals;
   readonly heldoutSplit: SplitTotals;
   /** SAFETY §3 ids → scenarios in which they passed / failed / were not exercised. */
-  readonly checklist: Readonly<Record<string, { pass: number; fail: number; notExercised: number }>>;
+  readonly checklist: Readonly<
+    Record<string, { pass: number; fail: number; notExercised: number }>
+  >;
 }
 
 function split(os: readonly ScenarioOutcome[]): SplitTotals {
-  const ran = os.filter((o) => o.status === 'ran');
   return {
-    ran: ran.length,
-    passed: ran.filter(scenarioPassed).length,
-    pending: os.length - ran.length,
-    failing: ran.filter((o) => !scenarioPassed(o)).map((o) => o.scenario.id),
-    score: mean(ran.map((o) => o.score).filter((s): s is number => s !== null)),
+    ran: os.length,
+    passed: os.filter(scenarioPassed).length,
+    failing: os.filter((o) => !scenarioPassed(o)).map((o) => o.scenario.id),
+    score: mean(os.map((o) => o.score).filter((s): s is number => s !== null)),
   };
 }
 
@@ -257,7 +321,9 @@ export function totals(
   outcomes: readonly ScenarioOutcome[],
   staticChecks: readonly StaticCheck[] = [],
 ): Totals {
-  const ran = outcomes.filter((o) => o.status === 'ran');
+  const ran = outcomes;
+  const dev = ran.filter((o) => !o.scenario.tags.includes('heldout'));
+  const gaps = ran.filter((o) => o.waitsOn !== undefined);
   const scored = (os: readonly ScenarioOutcome[]) =>
     os.map((o) => o.score).filter((s): s is number => s !== null);
   const byTag: Record<string, number> = {};
@@ -285,11 +351,13 @@ export function totals(
     }
   }
   return {
-    overall: mean(scored(ran.filter((o) => !o.scenario.tags.includes('heldout')))),
+    overall: mean(scored(dev)),
+    ready: mean(scored(dev.filter((o) => o.waitsOn === undefined))),
     heldout: mean(scored(ran.filter((o) => o.scenario.tags.includes('heldout')))),
     byTag,
     ran: ran.length,
-    pending: outcomes.length - ran.length,
+    knownGaps: gaps.length,
+    knownGapsPassing: gaps.filter(scenarioPassed).map((o) => o.scenario.id),
     safetyFailures:
       outcomes.reduce((a, o) => a + o.safetyFailures.length, 0) +
       staticSafetyFailures(staticChecks).length,

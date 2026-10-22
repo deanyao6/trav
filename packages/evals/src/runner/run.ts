@@ -115,7 +115,11 @@ function messagesText(req: CompletionRequest): string {
 }
 
 /** Records every request; delegates to `inner`. */
-function recordingModel(inner: ModelClient, prompts: PromptRecord[], stepIndex: () => number): ModelClient {
+function recordingModel(
+  inner: ModelClient,
+  prompts: PromptRecord[],
+  stepIndex: () => number,
+): ModelClient {
   return {
     mode: inner.mode,
     async complete(req) {
@@ -178,7 +182,10 @@ function stepLabel(step: Step): string {
   const cut = (s: string) => (s.length > 70 ? `${s.slice(0, 67)}...` : s);
   switch (step.do) {
     case 'say':
-      return `${step.from}${step.lane === 'dm' ? ' (dm)' : ''}: ${cut(step.text.replace(/\s+/g, ' '))}`;
+      // Labels reach grader evidence and reports; a DM's text is private.
+      return step.lane === 'dm'
+        ? `${step.from} (dm): [private message]`
+        : `${step.from}: ${cut(step.text.replace(/\s+/g, ' '))}`;
     case 'react':
       return `${step.from} reacts ${step.reaction} on ${step.target}`;
     case 'tap':
@@ -233,7 +240,9 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
   const { steps, skipped } = expandSteps(scenario.steps);
   const start = scenario.setup?.startAt ?? firstAt(steps) ?? DEFAULT_START[trip];
   const clock = createSimulatedClock(start);
-  const ids = createDeterministicIdGenerator(scenario.id.replace(/[^a-z0-9]/gi, '').slice(0, 12) || 'eval');
+  const ids = createDeterministicIdGenerator(
+    scenario.id.replace(/[^a-z0-9]/gi, '').slice(0, 12) || 'eval',
+  );
   const stores = createMemoryStores({ clock, ids });
   const fixture = loadGroupFixture(trip);
   seedGroup(stores, trip, {
@@ -243,14 +252,18 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
   const groupId = fixture.group.groupId;
   const tripId = fixture.trip.tripId;
   for (const [memberId, flags] of Object.entries(scenario.setup?.consent ?? {})) {
-    const base = stores.private.getConsent(memberId, groupId) ?? defaultConsent(memberId, groupId, start);
+    const base =
+      stores.private.getConsent(memberId, groupId) ?? defaultConsent(memberId, groupId, start);
     stores.private.putConsent(memberId, { ...base, ...flags, updatedAt: start });
   }
 
   const channel: SimulatorChannel = createSimulatorChannel({
     clock,
     conversations: [
-      { conversationId: fixture.group.conversationId, participants: participants(fixture.members, steps) },
+      {
+        conversationId: fixture.group.conversationId,
+        participants: participants(fixture.members, steps),
+      },
     ],
   });
   const tickets = createMockTickets({ clock, ids, inventory: loadTicketInventory('barcelona') });
@@ -289,7 +302,9 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
     tickets.purchaseCount() + flightsMock.purchaseCount() + lodging.bookingCount();
   const auditAll = (): readonly AuditEvent[] => stores.group.audit.listByGroup(groupId);
   const expenseIds = (): Set<string> =>
-    new Set(stores.group.expenses.listByTrip(tripId, { includeUndone: true }).map((e) => e.expenseId));
+    new Set(
+      stores.group.expenses.listByTrip(tripId, { includeUndone: true }).map((e) => e.expenseId),
+    );
   const consentNow = (): Record<string, ConsentFlags | undefined> =>
     Object.fromEntries(
       stores.group.members
@@ -304,7 +319,8 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
   let episodeError: string | undefined;
 
   const resolveTarget = (target: string): string | undefined => {
-    if (target.startsWith(CARD_REF_PREFIX)) return cardRefs.get(target.slice(CARD_REF_PREFIX.length));
+    if (target.startsWith(CARD_REF_PREFIX))
+      return cardRefs.get(target.slice(CARD_REF_PREFIX.length));
     const out = byStepId.get(target);
     return (out?.find((m) => m.card !== undefined) ?? out?.[0])?.id;
   };
@@ -324,7 +340,8 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
       const at = clock.now();
       const baseRecord = {
         ...(step.id !== undefined ? { stepId: step.id } : {}),
-        kind: step.source !== undefined && step.do !== 'intake' ? ('replay_line' as const) : step.do,
+        kind:
+          step.source !== undefined && step.do !== 'intake' ? ('replay_line' as const) : step.do,
         label: stepLabel(step),
         ...(step.source !== undefined ? { source: step.source } : {}),
         ...(step.expect !== undefined ? { expect: step.expect } : {}),
@@ -342,7 +359,8 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
           extra.turn?.outbound.some(
             (m) =>
               (m.images?.length ?? 0) > 0 ||
-              ((m.card?.type === 'recap' || m.card?.type === 'wrapped') && m.card.photos.length > 0),
+              ((m.card?.type === 'recap' || m.card?.type === 'wrapped') &&
+                m.card.photos.length > 0),
           ) === true;
         const record: StepRecord = {
           index: idx,
@@ -412,14 +430,26 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
             const target = resolveTarget(step.target);
             if (target === undefined) {
               records.push(
-                finish({ lane: 'group', from: step.from, skipped: `target ${step.target} was never sent` }),
+                finish({
+                  lane: 'group',
+                  from: step.from,
+                  skipped: `target ${step.target} was never sent`,
+                }),
               );
               break;
             }
             const event =
               step.do === 'react'
-                ? await channel.injectReaction({ from: step.from, targetMessageId: target, reaction: step.reaction })
-                : await channel.injectButtonTap({ from: step.from, cardMessageId: target, actionId: step.actionId });
+                ? await channel.injectReaction({
+                    from: step.from,
+                    targetMessageId: target,
+                    reaction: step.reaction,
+                  })
+                : await channel.injectButtonTap({
+                    from: step.from,
+                    cardMessageId: target,
+                    actionId: step.actionId,
+                  });
             const turn = summarizeTurn(await runtime.agent.handleInbound(event));
             records.push(finish({ lane: 'group', from: step.from, turn }));
             break;
@@ -498,7 +528,8 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
       }
 
       const last = records[records.length - 1];
-      if (step.id !== undefined && last?.turn !== undefined) byStepId.set(step.id, last.turn.outbound);
+      if (step.id !== undefined && last?.turn !== undefined)
+        byStepId.set(step.id, last.turn.outbound);
       if (step.cardRef !== undefined) {
         const card = last?.turn?.outbound.find((m) => m.card !== undefined);
         if (card !== undefined) cardRefs.set(step.cardRef, card.id);
@@ -528,7 +559,9 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
 
   const privateStrings = [
     ...(scenario.setup?.privateStrings ?? []),
-    ...(scenario.setup?.fixtureExtras === true ? (fixture.labels.privateFactsNeverInGroup ?? []) : []),
+    ...(scenario.setup?.fixtureExtras === true
+      ? (fixture.labels.privateFactsNeverInGroup ?? [])
+      : []),
   ];
 
   const episode: Episode = {

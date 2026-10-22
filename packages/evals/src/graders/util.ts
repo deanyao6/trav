@@ -41,7 +41,11 @@ export function where(step: StepRecord): string {
 export function fromChecks(
   graderId: string,
   checks: readonly { readonly ok: boolean; readonly what: string }[],
-  opts: { readonly safetyId?: string; readonly nothing?: string; readonly substantive?: boolean } = {},
+  opts: {
+    readonly safetyId?: string;
+    readonly nothing?: string;
+    readonly substantive?: boolean;
+  } = {},
 ): GraderResult {
   const safety = opts.safetyId !== undefined ? { safetyId: opts.safetyId } : {};
   const vacuous = opts.substantive === false && checks.every((c) => c.ok);
@@ -62,9 +66,7 @@ export function fromChecks(
     score: (checks.length - failed.length) / checks.length,
     pass: failed.length === 0,
     evidence:
-      failed.length === 0
-        ? [`${String(checks.length)} checks passed`]
-        : failed.map((c) => c.what),
+      failed.length === 0 ? [`${String(checks.length)} checks passed`] : failed.map((c) => c.what),
   };
 }
 
@@ -75,7 +77,10 @@ export function sameSet(a: readonly string[], b: readonly string[]): boolean {
 }
 
 /** Is `wanted` a subsequence of `types` (relative order, gaps allowed)? Returns the first missing item. */
-export function missingFromOrder(types: readonly string[], wanted: readonly string[]): string | undefined {
+export function missingFromOrder(
+  types: readonly string[],
+  wanted: readonly string[],
+): string | undefined {
   let i = 0;
   for (const w of wanted) {
     while (i < types.length && types[i] !== w) i += 1;

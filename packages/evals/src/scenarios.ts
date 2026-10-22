@@ -53,7 +53,10 @@ export function validateScenario(raw: unknown, where: string): Scenario {
   }
   const checklist = s['checklist'];
   if (checklist !== undefined) {
-    if (!Array.isArray(checklist) || !checklist.every((c) => typeof c === 'string' && SAFETY_ID.test(c))) {
+    if (
+      !Array.isArray(checklist) ||
+      !checklist.every((c) => typeof c === 'string' && SAFETY_ID.test(c))
+    ) {
       fail(at, 'checklist must list SAFETY §3 ids like "A9"');
     }
   }
@@ -64,6 +67,12 @@ export function validateScenario(raw: unknown, where: string): Scenario {
   if (pending !== undefined && (typeof pending !== 'string' || !TASK_ID.test(pending))) {
     fail(at, `pending must be a task id like T-030, got ${String(pending)}`);
   }
+  if (pending !== undefined && tags.includes('regression')) {
+    fail(
+      at,
+      'a pending (known-gap) scenario cannot be in the regression suite; drop pending once it passes',
+    );
+  }
   const setup = s['setup'] as Record<string, unknown> | undefined;
   if (setup?.['group'] !== undefined && !TRIP_NAMES.includes(setup['group'] as never)) {
     fail(at, `unknown group ${String(setup['group'])}`);
@@ -72,7 +81,8 @@ export function validateScenario(raw: unknown, where: string): Scenario {
   if (!Array.isArray(steps) || steps.length === 0) fail(at, 'steps must be a non-empty array');
   steps.forEach((step: unknown, i) => {
     const kind = (step as { do?: unknown } | null)?.do;
-    if (!STEP_KINDS.has(kind as Step['do'])) fail(at, `step ${String(i)}: unknown kind ${String(kind)}`);
+    if (!STEP_KINDS.has(kind as Step['do']))
+      fail(at, `step ${String(i)}: unknown kind ${String(kind)}`);
   });
   return raw as Scenario;
 }
@@ -80,7 +90,9 @@ export function validateScenario(raw: unknown, where: string): Scenario {
 /** Every scenario under `dir` (default `packages/evals/scenarios`), sorted by id; ids must be unique. */
 export function loadScenarios(dir = scenariosDir()): Scenario[] {
   const out: Scenario[] = [];
-  for (const file of readdirSync(dir).filter((f) => f.endsWith('.json')).sort()) {
+  for (const file of readdirSync(dir)
+    .filter((f) => f.endsWith('.json'))
+    .sort()) {
     const raw: unknown = JSON.parse(readFileSync(join(dir, file), 'utf8'));
     const list = Array.isArray(raw) ? raw : [raw];
     list.forEach((r: unknown, i) => out.push(validateScenario(r, `${file}[${String(i)}]`)));

@@ -43,8 +43,10 @@ function selectLines(
     return found;
   }
   const start = opts.fromId === undefined ? 0 : lines.findIndex((l) => l.id === opts.fromId);
-  const endIdx = opts.toId === undefined ? lines.length - 1 : lines.findIndex((l) => l.id === opts.toId);
-  if (start < 0 || endIdx < 0) throw new Error(`replay: range ${opts.fromId}..${opts.toId} not found`);
+  const endIdx =
+    opts.toId === undefined ? lines.length - 1 : lines.findIndex((l) => l.id === opts.toId);
+  if (start < 0 || endIdx < 0)
+    throw new Error(`replay: range ${opts.fromId}..${opts.toId} not found`);
   return lines.slice(start, endIdx + 1);
 }
 
@@ -173,7 +175,9 @@ export function injectionSteps(f: InjectionFixture): Step[] {
   }
   const source = DOCUMENT_SOURCE[f.vector];
   if (source === undefined || f.text === undefined) {
-    throw new Error(`injection fixture ${f.id}: no chat message and unknown document vector ${f.vector}`);
+    throw new Error(
+      `injection fixture ${f.id}: no chat message and unknown document vector ${f.vector}`,
+    );
   }
   const isExpense = EXPENSE_SOURCES.has(source);
   steps.push({
@@ -195,7 +199,11 @@ export function injectionSteps(f: InjectionFixture): Step[] {
     expect: {
       toolCalls: [],
       mustNotContain,
-      injection: { patterns: f.expect.matchedPatterns, document: true, expectPendingItem: isExpense },
+      injection: {
+        patterns: f.expect.matchedPatterns,
+        document: true,
+        expectPendingItem: isExpense,
+      },
     },
   });
   return steps;

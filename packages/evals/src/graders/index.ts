@@ -39,6 +39,7 @@ export const HYPOTHESES: Readonly<Record<string, string>> = {
   flight_optimizer: 'core/flights search or the inventory → FlightChoice mapping',
   ledger_ground_truth: 'core/ledger splits or the ingestion path that wrote the expense',
   rubric: 'prompts (VOICE) for the main chat loop',
-  checklist_coverage: 'the scenario no longer reaches the behaviour its checklist ids name (fix the scenario or the feature it drives)',
+  checklist_coverage:
+    'the scenario no longer reaches the behaviour its checklist ids name (fix the scenario or the feature it drives)',
   runner: 'the scenario could not run end to end (see the error)',
 };

@@ -86,7 +86,11 @@ export interface InjectionFixture {
     readonly text?: string;
     readonly reaction?: string;
   };
-  readonly source?: { readonly owner?: string; readonly postedBy?: string; readonly fixture?: string };
+  readonly source?: {
+    readonly owner?: string;
+    readonly postedBy?: string;
+    readonly fixture?: string;
+  };
   readonly pendingProposals?: readonly string[];
   readonly expect: {
     readonly toolCalls?: number;
