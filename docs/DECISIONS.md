@@ -92,3 +92,10 @@ One entry per significant decision. Format: context, decision, alternatives, con
 - **Decision:** Consent is stored once in `PrivateStore.consent`; `AlbumAdapter.listPhotos(query, consentLookup)` filters at query time with the lookup passed in (so opt-out hides photos from re-rendered recaps), and `hidePhoto()` implements "drop that one" for any member. `ApprovalProof` stays an adapter-side opaque shape produced only by `toApprovalProof(grant, decision, proposal, grantedAuditEventId)` in the executor (`approvalId = grantId`).
 - **Alternatives:** Adapter-owned consent (two sources of truth); passing the core grant to adapters (adapters would import policy types).
 - **Consequences:** Album tests inject a consent lookup; provider mocks validate proofs without knowing the policy.
+
+## D-014: Storage is a subpath export, `@trav/core/storage` (2026-10-22, Orchestrator)
+
+- **Context:** T-005 implemented the repositories under `packages/core/src/storage/` using `node:sqlite`. The simulator's browser UI imports `@trav/core` for types and pure functions; `node:sqlite` cannot be bundled for the browser.
+- **Decision:** `packages/core/package.json` exports `./storage` → `src/storage/index.ts` separately. Node entry points (agent runtime, CLI, evals, simulator server) import `@trav/core/storage`; the root `@trav/core` export stays free of Node-only modules.
+- **Alternatives:** export storage from the root index (breaks Vite bundling of the UI); a separate package (more boilerplate).
+- **Consequences:** `createMemoryStores`/`createSqliteStores` are imported from `@trav/core/storage`.
