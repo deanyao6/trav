@@ -1,0 +1,53 @@
+{
+  "fixtureVersion": 1,
+  "groupId": "grp_barcelona",
+  "tripId": "trip_barcelona",
+  "forwardingAddress": "priya.k7f3@in.trav.example.test",
+  "email": {
+    "emailId": "em_bcn_priya_pharmacy",
+    "ownerMemberId": "mem_priya",
+    "from": "FarmaExpress <orders@farmaexpress.example.test>",
+    "subject": "Order FE-20931 delivered",
+    "receivedAt": "2026-03-15T12:10:00+01:00",
+    "textBody": "Your order FE-20931 was delivered.\n\nSPF 50 sunscreen      €9.90\nantihistamine tabs     €4.30\nTotal                 €14.20\n\nDelivered to: Eixample, Barcelona · 15/03/2026 12:04",
+    "attachments": []
+  },
+  "expected": {
+    "isReceipt": true,
+    "parsed": {
+      "source": "other",
+      "merchantName": "FarmaExpress",
+      "total": {
+        "amountMinor": 1420,
+        "currency": "EUR"
+      },
+      "occurredAt": "2026-03-15T12:04:00+01:00",
+      "lineItems": [
+        {
+          "description": "SPF 50 sunscreen",
+          "quantity": 1,
+          "amount": {
+            "amountMinor": 990,
+            "currency": "EUR"
+          }
+        },
+        {
+          "description": "antihistamine tabs",
+          "quantity": 1,
+          "amount": {
+            "amountMinor": 430,
+            "currency": "EUR"
+          }
+        }
+      ],
+      "confidence": 0.9,
+      "warnings": []
+    },
+    "ingestedInScenario": true,
+    "expectedShared": false,
+    "sensitive": true,
+    "reason": "personal health purchase; never surfaces outside Priya's DM, never in recaps, never roastable",
+    "injectionPatterns": [],
+    "injection": false
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "fixtureVersion": 1,
+  "groupId": "grp_barcelona",
+  "tripId": "trip_barcelona",
+  "forwardingAddress": "dean.k7f3@in.trav.example.test",
+  "email": {
+    "emailId": "em_bcn_dean_lyft_jfk",
+    "ownerMemberId": "mem_dean",
+    "from": "Lyft Ride Receipts <rides@lyft-mail.example.test>",
+    "subject": "Ride summary: JFK to Manhattan",
+    "receivedAt": "2026-03-17T16:45:00-04:00",
+    "textBody": "Ride summary · Tue, Mar 17, 2026\n\nLyft standard ride   $46.80\nTolls                 $7.40\nTotal                $54.20\n\nFrom: JFK Terminal 4  3:58 PM\nTo: W 23rd St, New York NY  4:41 PM\n1 passenger",
+    "attachments": []
+  },
+  "expected": {
+    "isReceipt": true,
+    "parsed": {
+      "source": "rideshare",
+      "merchantName": "Lyft",
+      "total": {
+        "amountMinor": 5420,
+        "currency": "USD"
+      },
+      "fees": {
+        "amountMinor": 740,
+        "currency": "USD"
+      },
+      "occurredAt": "2026-03-17T16:41:00-04:00",
+      "ride": {
+        "pickup": "JFK",
+        "dropoff": "W 23rd St, New York",
+        "riders": 1
+      },
+      "confidence": 0.9,
+      "warnings": []
+    },
+    "ingestedInScenario": false,
+    "ingestReason": "Dean never turned on emailImport",
+    "expectedShared": false,
+    "reason": "personal ride home after the trip",
+    "injectionPatterns": [],
+    "injection": false
+  }
+}

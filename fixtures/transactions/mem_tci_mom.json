@@ -1,0 +1,502 @@
+{
+  "fixtureVersion": 1,
+  "ownerMemberId": "mem_tci_mom",
+  "groupId": "grp_turks_caicos",
+  "tripId": "trip_turks_caicos",
+  "consentInScenario": {
+    "cardImport": true,
+    "from": "2026-06-20T15:04:00-04:00"
+  },
+  "accounts": [
+    {
+      "accountId": "acc_tci_mom_hf",
+      "ownerMemberId": "mem_tci_mom",
+      "institutionName": "Harbor Family Visa (fictional)",
+      "mask": "5531",
+      "type": "credit",
+      "subtype": "credit card"
+    }
+  ],
+  "cardCurrency": "USD",
+  "pages": [
+    {
+      "requestCursor": null,
+      "result": {
+        "added": [
+          {
+            "transactionId": "txn_tci_mom_home_03",
+            "accountId": "acc_tci_mom_hf",
+            "ownerMemberId": "mem_tci_mom",
+            "amount": {
+              "amountMinor": 592,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-06-01",
+            "authorizedDate": "2026-06-01",
+            "datetime": "2026-06-01T09:36:00-04:00",
+            "merchantName": "Bean Theory Coffee",
+            "merchantEntityId": "ent_bean_theory_coffee",
+            "rawName": "BEAN THEORY 815",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_COFFEE",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Bean Theory Coffee",
+                "type": "merchant",
+                "entityId": "ent_bean_theory_coffee"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_tci_mom_home_04",
+            "accountId": "acc_tci_mom_hf",
+            "ownerMemberId": "mem_tci_mom",
+            "amount": {
+              "amountMinor": 519,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-06-03",
+            "authorizedDate": "2026-06-03",
+            "datetime": "2026-06-03T11:48:00-04:00",
+            "merchantName": "Bean Theory Coffee",
+            "merchantEntityId": "ent_bean_theory_coffee",
+            "rawName": "BEAN THEORY 736",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_COFFEE",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Bean Theory Coffee",
+                "type": "merchant",
+                "entityId": "ent_bean_theory_coffee"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_tci_mom_home_01",
+            "accountId": "acc_tci_mom_hf",
+            "ownerMemberId": "mem_tci_mom",
+            "amount": {
+              "amountMinor": 6478,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-06-05",
+            "authorizedDate": "2026-06-05",
+            "datetime": "2026-06-05T19:59:00-04:00",
+            "merchantName": "CampusBooks",
+            "merchantEntityId": "ent_campusbooks",
+            "rawName": "CAMPUSBOOKS #854",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "GENERAL_MERCHANDISE",
+              "detailed": "GENERAL_MERCHANDISE_BOOKSTORES_AND_NEWSSTANDS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "CampusBooks",
+                "type": "merchant",
+                "entityId": "ent_campusbooks"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_tci_mom_home_05",
+            "accountId": "acc_tci_mom_hf",
+            "ownerMemberId": "mem_tci_mom",
+            "amount": {
+              "amountMinor": 1305,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-06-09",
+            "authorizedDate": "2026-06-09",
+            "datetime": "2026-06-09T19:24:00-04:00",
+            "merchantName": "Corner Slice Pizza",
+            "merchantEntityId": "ent_corner_slice_pizza",
+            "rawName": "CORNER SLICE 310",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_RESTAURANT",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Corner Slice Pizza",
+                "type": "merchant",
+                "entityId": "ent_corner_slice_pizza"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_tci_mom_home_02",
+            "accountId": "acc_tci_mom_hf",
+            "ownerMemberId": "mem_tci_mom",
+            "amount": {
+              "amountMinor": 4454,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-06-16",
+            "authorizedDate": "2026-06-16",
+            "datetime": "2026-06-16T12:08:00-04:00",
+            "merchantName": "Greenway Market",
+            "merchantEntityId": "ent_greenway_market",
+            "rawName": "GREENWAY MKT #698",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_GROCERIES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Greenway Market",
+                "type": "merchant",
+                "entityId": "ent_greenway_market"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_tci_mom_taxi_0620",
+            "accountId": "acc_tci_mom_hf",
+            "ownerMemberId": "mem_tci_mom",
+            "amount": {
+              "amountMinor": 4500,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-06-20",
+            "authorizedDate": "2026-06-20",
+            "datetime": "2026-06-20T14:20:00-04:00",
+            "merchantName": "Provo Taxi",
+            "merchantEntityId": "ent_provo_taxi",
+            "rawName": "PROVO TAXI ASSOC",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "TRANSPORTATION",
+              "detailed": "TRANSPORTATION_TAXIS_AND_RIDE_SHARES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Providenciales",
+              "country": "TC"
+            },
+            "counterparties": [
+              {
+                "name": "Provo Taxi",
+                "type": "merchant",
+                "entityId": "ent_provo_taxi"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_tci_mom_groceries_0620",
+            "accountId": "acc_tci_mom_hf",
+            "ownerMemberId": "mem_tci_mom",
+            "amount": {
+              "amountMinor": 18640,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-06-20",
+            "authorizedDate": "2026-06-20",
+            "datetime": "2026-06-20T17:10:00-04:00",
+            "merchantName": "Grace Bay Market",
+            "merchantEntityId": "ent_grace_bay_market",
+            "rawName": "GRACE BAY MARKET",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_GROCERIES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Providenciales",
+              "country": "TC"
+            },
+            "counterparties": [
+              {
+                "name": "Grace Bay Market",
+                "type": "merchant",
+                "entityId": "ent_grace_bay_market"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_tci_mom_cruise_0621",
+            "accountId": "acc_tci_mom_hf",
+            "ownerMemberId": "mem_tci_mom",
+            "amount": {
+              "amountMinor": 38000,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-06-21",
+            "authorizedDate": "2026-06-21",
+            "datetime": "2026-06-21T16:11:00-04:00",
+            "merchantName": "Leeward Sails",
+            "merchantEntityId": "ent_leeward_sails",
+            "rawName": "LEEWARD SAILS*FAMILY",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "ENTERTAINMENT",
+              "detailed": "ENTERTAINMENT_SPORTING_EVENTS_AMUSEMENT_PARKS_AND_MUSEUMS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Providenciales",
+              "country": "TC"
+            },
+            "counterparties": [
+              {
+                "name": "Leeward Sails",
+                "type": "merchant",
+                "entityId": "ent_leeward_sails"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_tci_mom_dinner_0621",
+            "accountId": "acc_tci_mom_hf",
+            "ownerMemberId": "mem_tci_mom",
+            "amount": {
+              "amountMinor": 14200,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-06-21",
+            "authorizedDate": "2026-06-21",
+            "datetime": "2026-06-21T19:31:00-04:00",
+            "merchantName": "Conch Corner Grill",
+            "merchantEntityId": "ent_conch_corner_grill",
+            "rawName": "CONCH CORNER GRILL",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_RESTAURANT",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Providenciales",
+              "country": "TC"
+            },
+            "counterparties": [
+              {
+                "name": "Conch Corner Grill",
+                "type": "merchant",
+                "entityId": "ent_conch_corner_grill"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_tci_mom_spa_0624",
+            "accountId": "acc_tci_mom_hf",
+            "ownerMemberId": "mem_tci_mom",
+            "amount": {
+              "amountMinor": 16000,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-06-24",
+            "authorizedDate": "2026-06-24",
+            "datetime": "2026-06-24T11:00:00-04:00",
+            "merchantName": "Palms Spa (fictional)",
+            "merchantEntityId": "ent_palms_spa_fictional_",
+            "rawName": "PALMS SPA PROVO",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "PERSONAL_CARE",
+              "detailed": "PERSONAL_CARE_HAIR_AND_BEAUTY",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Providenciales",
+              "country": "TC"
+            },
+            "counterparties": [
+              {
+                "name": "Palms Spa (fictional)",
+                "type": "merchant",
+                "entityId": "ent_palms_spa_fictional_"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_tci_mom_home_06",
+            "accountId": "acc_tci_mom_hf",
+            "ownerMemberId": "mem_tci_mom",
+            "amount": {
+              "amountMinor": 1803,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-06-29",
+            "authorizedDate": "2026-06-29",
+            "datetime": "2026-06-29T18:39:00-04:00",
+            "merchantName": "Lyft",
+            "merchantEntityId": "ent_lyft",
+            "rawName": "LYFT *RIDE",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "TRANSPORTATION",
+              "detailed": "TRANSPORTATION_TAXIS_AND_RIDE_SHARES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Lyft",
+                "type": "merchant",
+                "entityId": "ent_lyft"
+              }
+            ]
+          }
+        ],
+        "modified": [],
+        "removed": [],
+        "nextCursor": "cur_tci_mom_1",
+        "hasMore": false
+      }
+    }
+  ],
+  "labels": {
+    "txn_tci_mom_home_01": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "CampusBooks at home (Boston), outside the trip"
+    },
+    "txn_tci_mom_home_02": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Greenway Market at home (Boston), outside the trip"
+    },
+    "txn_tci_mom_home_03": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Bean Theory Coffee at home (Boston), outside the trip"
+    },
+    "txn_tci_mom_home_04": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Bean Theory Coffee at home (Boston), outside the trip"
+    },
+    "txn_tci_mom_home_05": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Corner Slice Pizza at home (Boston), outside the trip"
+    },
+    "txn_tci_mom_home_06": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Lyft at home (Boston), outside the trip"
+    },
+    "txn_tci_mom_taxi_0620": {
+      "expectedShared": true,
+      "expectedPrompt": true,
+      "kind": "trip_shared",
+      "tripId": "trip_turks_caicos",
+      "familyTab": true,
+      "reason": "airport taxi for the family: goes on the family tab"
+    },
+    "txn_tci_mom_groceries_0620": {
+      "expectedShared": true,
+      "expectedPrompt": true,
+      "kind": "trip_shared",
+      "tripId": "trip_turks_caicos",
+      "familyTab": true,
+      "reason": "groceries for the villa"
+    },
+    "txn_tci_mom_cruise_0621": {
+      "expectedShared": true,
+      "expectedPrompt": false,
+      "kind": "trav_booking_charge",
+      "tripId": "trip_turks_caicos",
+      "duplicateOf": "booking: off_tci_cruise_0623"
+    },
+    "txn_tci_mom_dinner_0621": {
+      "expectedShared": true,
+      "expectedPrompt": false,
+      "kind": "trip_shared_duplicate",
+      "tripId": "trip_turks_caicos",
+      "duplicateOf": "chat: \"@trav add $142 dinner at conch corner last night\""
+    },
+    "txn_tci_mom_spa_0624": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "trip_personal",
+      "tripId": "trip_turks_caicos",
+      "reason": "personal treat"
+    }
+  },
+  "summary": {
+    "transactions": 11,
+    "posted": 11,
+    "expectedShared": 4,
+    "expectedPrompt": 2,
+    "note": "precision/recall for the \"looks shared\" classifier is computed over posted rows (kind != pending): positive = expectedShared. expectedPrompt additionally excludes items already on the ledger (duplicates of chat/booking/receipt/email expenses)."
+  }
+}

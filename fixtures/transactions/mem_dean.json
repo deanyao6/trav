@@ -1,0 +1,1034 @@
+{
+  "fixtureVersion": 1,
+  "ownerMemberId": "mem_dean",
+  "groupId": "grp_barcelona",
+  "tripId": "trip_barcelona",
+  "consentInScenario": {
+    "cardImport": true,
+    "from": "2026-03-12T16:08:00+01:00"
+  },
+  "accounts": [
+    {
+      "accountId": "acc_dean_nb",
+      "ownerMemberId": "mem_dean",
+      "institutionName": "Northbank Travel Visa (fictional)",
+      "mask": "7710",
+      "type": "credit",
+      "subtype": "credit card"
+    }
+  ],
+  "cardCurrency": "EUR",
+  "pages": [
+    {
+      "requestCursor": null,
+      "result": {
+        "added": [
+          {
+            "transactionId": "txn_dean_airbnb_0203",
+            "accountId": "acc_dean_nb",
+            "ownerMemberId": "mem_dean",
+            "amount": {
+              "amountMinor": 138000,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-02-03",
+            "authorizedDate": "2026-02-03",
+            "datetime": "2026-02-03T20:41:00-05:00",
+            "merchantName": "StayFinder",
+            "merchantEntityId": "ent_stayfinder",
+            "rawName": "STAYFINDER*EIXAMPLE 3BR",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "TRAVEL",
+              "detailed": "TRAVEL_LODGING",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "StayFinder",
+                "type": "merchant",
+                "entityId": "ent_stayfinder"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_dean_barca_0210",
+            "accountId": "acc_dean_nb",
+            "ownerMemberId": "mem_dean",
+            "amount": {
+              "amountMinor": 43200,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-02-10",
+            "authorizedDate": "2026-02-10",
+            "datetime": "2026-02-10T19:45:00-05:00",
+            "merchantName": "FC Barcelona Tickets",
+            "merchantEntityId": "ent_fc_barcelona_tickets",
+            "rawName": "FCB TICKETS*SEVILLA 15MAR",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "ENTERTAINMENT",
+              "detailed": "ENTERTAINMENT_SPORTING_EVENTS_AMUSEMENT_PARKS_AND_MUSEUMS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "FC Barcelona Tickets",
+                "type": "merchant",
+                "entityId": "ent_fc_barcelona_tickets"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_dean_home_07",
+            "accountId": "acc_dean_nb",
+            "ownerMemberId": "mem_dean",
+            "amount": {
+              "amountMinor": 3610,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-15",
+            "authorizedDate": "2026-02-15",
+            "datetime": "2026-02-15T17:07:00-05:00",
+            "merchantName": "CampusBooks",
+            "merchantEntityId": "ent_campusbooks",
+            "rawName": "CAMPUSBOOKS #136",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "GENERAL_MERCHANDISE",
+              "detailed": "GENERAL_MERCHANDISE_BOOKSTORES_AND_NEWSSTANDS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "CampusBooks",
+                "type": "merchant",
+                "entityId": "ent_campusbooks"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_dean_home_04",
+            "accountId": "acc_dean_nb",
+            "ownerMemberId": "mem_dean",
+            "amount": {
+              "amountMinor": 2236,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-17",
+            "authorizedDate": "2026-02-17",
+            "datetime": "2026-02-17T19:16:00-05:00",
+            "merchantName": "Greenway Market",
+            "merchantEntityId": "ent_greenway_market",
+            "rawName": "GREENWAY MKT #682",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_GROCERIES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Greenway Market",
+                "type": "merchant",
+                "entityId": "ent_greenway_market"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_dean_home_05",
+            "accountId": "acc_dean_nb",
+            "ownerMemberId": "mem_dean",
+            "amount": {
+              "amountMinor": 8423,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-23",
+            "authorizedDate": "2026-02-23",
+            "datetime": "2026-02-23T08:26:00-05:00",
+            "merchantName": "Greenway Market",
+            "merchantEntityId": "ent_greenway_market",
+            "rawName": "GREENWAY MKT #491",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_GROCERIES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Greenway Market",
+                "type": "merchant",
+                "entityId": "ent_greenway_market"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_dean_home_01",
+            "accountId": "acc_dean_nb",
+            "ownerMemberId": "mem_dean",
+            "amount": {
+              "amountMinor": 577,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-25",
+            "authorizedDate": "2026-02-25",
+            "datetime": "2026-02-25T16:38:00-05:00",
+            "merchantName": "Bean Theory Coffee",
+            "merchantEntityId": "ent_bean_theory_coffee",
+            "rawName": "BEAN THEORY 724",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_COFFEE",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Bean Theory Coffee",
+                "type": "merchant",
+                "entityId": "ent_bean_theory_coffee"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_dean_home_03",
+            "accountId": "acc_dean_nb",
+            "ownerMemberId": "mem_dean",
+            "amount": {
+              "amountMinor": 1946,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-27",
+            "authorizedDate": "2026-02-27",
+            "datetime": "2026-02-27T15:06:00-05:00",
+            "merchantName": "DashDinner",
+            "merchantEntityId": "ent_dashdinner",
+            "rawName": "DASHDINNER*ORDER 475",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_FAST_FOOD",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "DashDinner",
+                "type": "merchant",
+                "entityId": "ent_dashdinner"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_dean_home_06",
+            "accountId": "acc_dean_nb",
+            "ownerMemberId": "mem_dean",
+            "amount": {
+              "amountMinor": 1338,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-27",
+            "authorizedDate": "2026-02-27",
+            "datetime": "2026-02-27T17:04:00-05:00",
+            "merchantName": "Lyft",
+            "merchantEntityId": "ent_lyft",
+            "rawName": "LYFT *RIDE",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "TRANSPORTATION",
+              "detailed": "TRANSPORTATION_TAXIS_AND_RIDE_SHARES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Lyft",
+                "type": "merchant",
+                "entityId": "ent_lyft"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_dean_home_02",
+            "accountId": "acc_dean_nb",
+            "ownerMemberId": "mem_dean",
+            "amount": {
+              "amountMinor": 3964,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-28",
+            "authorizedDate": "2026-02-28",
+            "datetime": "2026-02-28T11:04:00-05:00",
+            "merchantName": "FuelUp",
+            "merchantEntityId": "ent_fuelup",
+            "rawName": "FUELUP 814",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "TRANSPORTATION",
+              "detailed": "TRANSPORTATION_GAS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "FuelUp",
+                "type": "merchant",
+                "entityId": "ent_fuelup"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_dean_taxi_0312",
+            "accountId": "acc_dean_nb",
+            "ownerMemberId": "mem_dean",
+            "amount": {
+              "amountMinor": 3200,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-03-12",
+            "authorizedDate": "2026-03-12",
+            "datetime": "2026-03-12T11:00:00+01:00",
+            "merchantName": "Taxi Barcelona",
+            "merchantEntityId": "ent_taxi_barcelona",
+            "rawName": "TAXI BCN AEROPORT T1 0193",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "TRANSPORTATION",
+              "detailed": "TRANSPORTATION_TAXIS_AND_RIDE_SHARES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "Taxi Barcelona",
+                "type": "merchant",
+                "entityId": "ent_taxi_barcelona"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_dean_groceries_0313",
+            "accountId": "acc_dean_nb",
+            "ownerMemberId": "mem_dean",
+            "amount": {
+              "amountMinor": 4720,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-03-13",
+            "authorizedDate": "2026-03-13",
+            "datetime": "2026-03-13T11:40:00+01:00",
+            "merchantName": "Supermercat Fictici",
+            "merchantEntityId": "ent_supermercat_fictici",
+            "rawName": "SUPERMERCAT FICTICI 0423",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_GROCERIES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "Supermercat Fictici",
+                "type": "merchant",
+                "entityId": "ent_supermercat_fictici"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_dean_bicing_0314",
+            "accountId": "acc_dean_nb",
+            "ownerMemberId": "mem_dean",
+            "amount": {
+              "amountMinor": 1200,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-03-14",
+            "authorizedDate": "2026-03-14",
+            "datetime": "2026-03-14T14:05:00+01:00",
+            "merchantName": "Bicing",
+            "merchantEntityId": "ent_bicing",
+            "rawName": "BICING BARCELONA",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "TRANSPORTATION",
+              "detailed": "TRANSPORTATION_BIKES_AND_SCOOTERS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "Bicing",
+                "type": "merchant",
+                "entityId": "ent_bicing"
+              }
+            ]
+          }
+        ],
+        "modified": [],
+        "removed": [],
+        "nextCursor": "cur_dean_1",
+        "hasMore": true
+      }
+    },
+    {
+      "requestCursor": "cur_dean_1",
+      "result": {
+        "added": [
+          {
+            "transactionId": "txn_dean_dinner_0314_p",
+            "accountId": "acc_dean_nb",
+            "ownerMemberId": "mem_dean",
+            "amount": {
+              "amountMinor": 8400,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-03-14",
+            "authorizedDate": "2026-03-14",
+            "datetime": "2026-03-14T21:30:00+01:00",
+            "merchantName": "Bodega Lluna",
+            "merchantEntityId": "ent_bodega_lluna",
+            "rawName": "BODEGA LLUNA BCN",
+            "pending": true,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_RESTAURANT",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "Bodega Lluna",
+                "type": "merchant",
+                "entityId": "ent_bodega_lluna"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_dean_razz_0314_p",
+            "accountId": "acc_dean_nb",
+            "ownerMemberId": "mem_dean",
+            "amount": {
+              "amountMinor": 9000,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-03-14",
+            "authorizedDate": "2026-03-14",
+            "datetime": "2026-03-14T21:41:00+01:00",
+            "merchantName": "Razzmatazz",
+            "merchantEntityId": "ent_razzmatazz",
+            "rawName": "RAZZMATAZZ*TICKETS",
+            "pending": true,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "ENTERTAINMENT",
+              "detailed": "ENTERTAINMENT_MUSIC_AND_AUDIO",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "Razzmatazz",
+                "type": "merchant",
+                "entityId": "ent_razzmatazz"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_dean_coffee_0315",
+            "accountId": "acc_dean_nb",
+            "ownerMemberId": "mem_dean",
+            "amount": {
+              "amountMinor": 320,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-03-15",
+            "authorizedDate": "2026-03-15",
+            "datetime": "2026-03-15T09:15:00+01:00",
+            "merchantName": "Cafe",
+            "merchantEntityId": "ent_cafe",
+            "rawName": "CAFE 0021 BCN",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_COFFEE",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "Cafe",
+                "type": "merchant",
+                "entityId": "ent_cafe"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_dean_dinner_0314",
+            "accountId": "acc_dean_nb",
+            "ownerMemberId": "mem_dean",
+            "amount": {
+              "amountMinor": 8400,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-03-14",
+            "authorizedDate": "2026-03-14",
+            "datetime": "2026-03-14T21:30:00+01:00",
+            "merchantName": "Bodega Lluna",
+            "merchantEntityId": "ent_bodega_lluna",
+            "rawName": "BODEGA LLUNA BCN",
+            "pending": false,
+            "pendingTransactionId": "txn_dean_dinner_0314_p",
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_RESTAURANT",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "Bodega Lluna",
+                "type": "merchant",
+                "entityId": "ent_bodega_lluna"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_dean_razz_0314",
+            "accountId": "acc_dean_nb",
+            "ownerMemberId": "mem_dean",
+            "amount": {
+              "amountMinor": 9000,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-03-14",
+            "authorizedDate": "2026-03-14",
+            "datetime": "2026-03-14T21:41:00+01:00",
+            "merchantName": "Razzmatazz",
+            "merchantEntityId": "ent_razzmatazz",
+            "rawName": "RAZZMATAZZ*TICKETS",
+            "pending": false,
+            "pendingTransactionId": "txn_dean_razz_0314_p",
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "ENTERTAINMENT",
+              "detailed": "ENTERTAINMENT_MUSIC_AND_AUDIO",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "Razzmatazz",
+                "type": "merchant",
+                "entityId": "ent_razzmatazz"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_dean_souvenir_0316",
+            "accountId": "acc_dean_nb",
+            "ownerMemberId": "mem_dean",
+            "amount": {
+              "amountMinor": 2200,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-03-16",
+            "authorizedDate": "2026-03-16",
+            "datetime": "2026-03-16T12:30:00+01:00",
+            "merchantName": "Botiga Records Rambla",
+            "merchantEntityId": "ent_botiga_records_rambla",
+            "rawName": "BOTIGA RECORDS RAMBLA",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "GENERAL_MERCHANDISE",
+              "detailed": "GENERAL_MERCHANDISE_GIFTS_AND_NOVELTIES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "Botiga Records Rambla",
+                "type": "merchant",
+                "entityId": "ent_botiga_records_rambla"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_dean_lyft_0317",
+            "accountId": "acc_dean_nb",
+            "ownerMemberId": "mem_dean",
+            "amount": {
+              "amountMinor": 5420,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-03-17",
+            "authorizedDate": "2026-03-17",
+            "datetime": "2026-03-17T16:41:00-04:00",
+            "merchantName": "Lyft",
+            "merchantEntityId": "ent_lyft",
+            "rawName": "LYFT *RIDE TUE 4PM",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "TRANSPORTATION",
+              "detailed": "TRANSPORTATION_TAXIS_AND_RIDE_SHARES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "New York",
+              "region": "NY",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Lyft",
+                "type": "merchant",
+                "entityId": "ent_lyft"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_dean_home_08",
+            "accountId": "acc_dean_nb",
+            "ownerMemberId": "mem_dean",
+            "amount": {
+              "amountMinor": 1671,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-03-21",
+            "authorizedDate": "2026-03-21",
+            "datetime": "2026-03-21T10:46:00-04:00",
+            "merchantName": "Corner Slice Pizza",
+            "merchantEntityId": "ent_corner_slice_pizza",
+            "rawName": "CORNER SLICE 777",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_RESTAURANT",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "New York",
+              "region": "NY",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Corner Slice Pizza",
+                "type": "merchant",
+                "entityId": "ent_corner_slice_pizza"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_dean_home_10",
+            "accountId": "acc_dean_nb",
+            "ownerMemberId": "mem_dean",
+            "amount": {
+              "amountMinor": 1367,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-03-21",
+            "authorizedDate": "2026-03-21",
+            "datetime": "2026-03-21T13:45:00-04:00",
+            "merchantName": "Corner Slice Pizza",
+            "merchantEntityId": "ent_corner_slice_pizza",
+            "rawName": "CORNER SLICE 848",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_RESTAURANT",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "New York",
+              "region": "NY",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Corner Slice Pizza",
+                "type": "merchant",
+                "entityId": "ent_corner_slice_pizza"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_dean_home_09",
+            "accountId": "acc_dean_nb",
+            "ownerMemberId": "mem_dean",
+            "amount": {
+              "amountMinor": 1199,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-03-21",
+            "authorizedDate": "2026-03-21",
+            "datetime": "2026-03-21T21:08:00-04:00",
+            "merchantName": "Streamly",
+            "merchantEntityId": "ent_streamly",
+            "rawName": "STREAMLY.EXAMPLE SUBSCR",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "ENTERTAINMENT",
+              "detailed": "ENTERTAINMENT_TV_AND_MOVIES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "New York",
+              "region": "NY",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Streamly",
+                "type": "merchant",
+                "entityId": "ent_streamly"
+              }
+            ]
+          }
+        ],
+        "modified": [
+          {
+            "transactionId": "txn_dean_coffee_0315",
+            "accountId": "acc_dean_nb",
+            "ownerMemberId": "mem_dean",
+            "amount": {
+              "amountMinor": 320,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-03-15",
+            "authorizedDate": "2026-03-15",
+            "datetime": "2026-03-15T09:15:00+01:00",
+            "merchantName": "Cafè Fictici",
+            "merchantEntityId": "ent_cafe",
+            "rawName": "CAFE FICTICI BCN",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_COFFEE",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "Cafe",
+                "type": "merchant",
+                "entityId": "ent_cafe"
+              }
+            ]
+          }
+        ],
+        "removed": [
+          {
+            "transactionId": "txn_dean_dinner_0314_p",
+            "accountId": "acc_dean_nb"
+          },
+          {
+            "transactionId": "txn_dean_razz_0314_p",
+            "accountId": "acc_dean_nb"
+          }
+        ],
+        "nextCursor": "cur_dean_2",
+        "hasMore": false
+      }
+    }
+  ],
+  "labels": {
+    "txn_dean_home_01": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Bean Theory Coffee at home (Boston), outside the trip"
+    },
+    "txn_dean_home_02": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "FuelUp at home (Boston), outside the trip"
+    },
+    "txn_dean_home_03": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "DashDinner at home (Boston), outside the trip"
+    },
+    "txn_dean_home_04": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Greenway Market at home (Boston), outside the trip"
+    },
+    "txn_dean_home_05": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Greenway Market at home (Boston), outside the trip"
+    },
+    "txn_dean_home_06": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Lyft at home (Boston), outside the trip"
+    },
+    "txn_dean_home_07": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "CampusBooks at home (Boston), outside the trip"
+    },
+    "txn_dean_home_08": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Corner Slice Pizza at home (New York), outside the trip"
+    },
+    "txn_dean_home_09": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Streamly at home (New York), outside the trip"
+    },
+    "txn_dean_home_10": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Corner Slice Pizza at home (New York), outside the trip"
+    },
+    "txn_dean_airbnb_0203": {
+      "expectedShared": true,
+      "expectedPrompt": false,
+      "kind": "trav_booking_charge",
+      "tripId": "trip_barcelona",
+      "duplicateOf": "booking: rate_bcn_eixample_3br_flex",
+      "reason": "charged by a Trav booking; already on the ledger via the booking expense"
+    },
+    "txn_dean_barca_0210": {
+      "expectedShared": true,
+      "expectedPrompt": false,
+      "kind": "trav_booking_charge",
+      "tripId": "trip_barcelona",
+      "duplicateOf": "booking: off_bcn_barca_upper_corner",
+      "reason": "charged by a Trav booking; already on the ledger via the booking expense"
+    },
+    "txn_dean_taxi_0312": {
+      "expectedShared": true,
+      "expectedPrompt": false,
+      "kind": "trip_shared_duplicate",
+      "tripId": "trip_barcelona",
+      "duplicateOf": "chat: \"@trav i paid €32 for the taxi from the airport…\"",
+      "reason": "airport taxi already logged from chat"
+    },
+    "txn_dean_groceries_0313": {
+      "expectedShared": true,
+      "expectedPrompt": true,
+      "kind": "trip_shared",
+      "tripId": "trip_barcelona",
+      "suggestedParticipants": [
+        "mem_dean",
+        "mem_henry",
+        "mem_maya",
+        "mem_jordan",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "reason": "groceries for the apartment in trip hours (VOICE §4.5 B item 1)"
+    },
+    "txn_dean_bicing_0314": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "trip_personal",
+      "tripId": "trip_barcelona",
+      "reason": "city bike for one person (VOICE §4.5 B: probably just you)"
+    },
+    "txn_dean_dinner_0314_p": {
+      "expectedShared": null,
+      "expectedPrompt": false,
+      "kind": "pending",
+      "supersededBy": "txn_dean_dinner_0314"
+    },
+    "txn_dean_dinner_0314": {
+      "expectedShared": true,
+      "expectedPrompt": false,
+      "kind": "trip_shared_duplicate",
+      "tripId": "trip_barcelona",
+      "duplicateOf": "chat: \"@trav i paid €84 for dinner, split with everyone but Henry\"",
+      "reason": "dinner already logged from chat"
+    },
+    "txn_dean_razz_0314_p": {
+      "expectedShared": null,
+      "expectedPrompt": false,
+      "kind": "pending",
+      "supersededBy": "txn_dean_razz_0314"
+    },
+    "txn_dean_razz_0314": {
+      "expectedShared": true,
+      "expectedPrompt": false,
+      "kind": "trav_booking_charge",
+      "tripId": "trip_barcelona",
+      "duplicateOf": "booking: off_bcn_razz_0314_ga (the flagship)",
+      "reason": "charged by a Trav booking; already on the ledger via the booking expense"
+    },
+    "txn_dean_coffee_0315": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "trip_personal",
+      "tripId": "trip_barcelona",
+      "reason": "one coffee"
+    },
+    "txn_dean_souvenir_0316": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "trip_personal",
+      "tripId": "trip_barcelona",
+      "reason": "souvenir"
+    },
+    "txn_dean_lyft_0317": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "trip_personal",
+      "tripId": null,
+      "reason": "ride home from JFK after the trip (VOICE §4.5 B item 3)"
+    }
+  },
+  "summary": {
+    "transactions": 22,
+    "posted": 20,
+    "expectedShared": 6,
+    "expectedPrompt": 1,
+    "note": "precision/recall for the \"looks shared\" classifier is computed over posted rows (kind != pending): positive = expectedShared. expectedPrompt additionally excludes items already on the ledger (duplicates of chat/booking/receipt/email expenses)."
+  }
+}

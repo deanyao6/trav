@@ -1,0 +1,514 @@
+{
+  "fixtureVersion": 1,
+  "ownerMemberId": "mem_lis_dad",
+  "groupId": "grp_lisbon",
+  "tripId": "trip_lisbon",
+  "consentInScenario": {
+    "cardImport": true,
+    "from": "2026-04-15T12:02:00+01:00"
+  },
+  "accounts": [
+    {
+      "accountId": "acc_lis_dad_hb",
+      "ownerMemberId": "mem_lis_dad",
+      "institutionName": "Harbor Business Amex (fictional)",
+      "mask": "2009",
+      "type": "credit",
+      "subtype": "credit card"
+    }
+  ],
+  "cardCurrency": "EUR",
+  "pages": [
+    {
+      "requestCursor": null,
+      "result": {
+        "added": [
+          {
+            "transactionId": "txn_lis_dad_conference_0302",
+            "accountId": "acc_lis_dad_hb",
+            "ownerMemberId": "mem_lis_dad",
+            "amount": {
+              "amountMinor": 45000,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-03-02",
+            "authorizedDate": "2026-03-02",
+            "datetime": "2026-03-02T09:00:00-05:00",
+            "merchantName": "Iberian Logistics Summit",
+            "merchantEntityId": "ent_iberian_logistics_summit",
+            "rawName": "ILS SUMMIT REGISTRATION",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "GENERAL_SERVICES",
+              "detailed": "GENERAL_SERVICES_CONSULTING_AND_LEGAL",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Lisbon",
+              "region": "Lisboa",
+              "country": "PT"
+            },
+            "counterparties": [
+              {
+                "name": "Iberian Logistics Summit",
+                "type": "merchant",
+                "entityId": "ent_iberian_logistics_summit"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_lis_dad_home_05",
+            "accountId": "acc_lis_dad_hb",
+            "ownerMemberId": "mem_lis_dad",
+            "amount": {
+              "amountMinor": 2229,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-04-02",
+            "authorizedDate": "2026-04-02",
+            "datetime": "2026-04-02T21:49:00-04:00",
+            "merchantName": "Uber",
+            "merchantEntityId": "ent_uber",
+            "rawName": "UBER *TRIP HELP.RIDES.EXAMPLE.TEST",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "TRANSPORTATION",
+              "detailed": "TRANSPORTATION_TAXIS_AND_RIDE_SHARES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Uber",
+                "type": "merchant",
+                "entityId": "ent_uber"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_lis_dad_home_04",
+            "accountId": "acc_lis_dad_hb",
+            "ownerMemberId": "mem_lis_dad",
+            "amount": {
+              "amountMinor": 2900,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-04-03",
+            "authorizedDate": "2026-04-03",
+            "datetime": "2026-04-03T19:05:00-04:00",
+            "merchantName": "PulseFit",
+            "merchantEntityId": "ent_pulsefit",
+            "rawName": "PULSEFIT GYM MONTHLY",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "PERSONAL_CARE",
+              "detailed": "PERSONAL_CARE_GYMS_AND_FITNESS_CENTERS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "PulseFit",
+                "type": "merchant",
+                "entityId": "ent_pulsefit"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_lis_dad_home_02",
+            "accountId": "acc_lis_dad_hb",
+            "ownerMemberId": "mem_lis_dad",
+            "amount": {
+              "amountMinor": 3774,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-04-05",
+            "authorizedDate": "2026-04-05",
+            "datetime": "2026-04-05T12:06:00-04:00",
+            "merchantName": "CampusBooks",
+            "merchantEntityId": "ent_campusbooks",
+            "rawName": "CAMPUSBOOKS #701",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "GENERAL_MERCHANDISE",
+              "detailed": "GENERAL_MERCHANDISE_BOOKSTORES_AND_NEWSSTANDS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "CampusBooks",
+                "type": "merchant",
+                "entityId": "ent_campusbooks"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_lis_dad_home_03",
+            "accountId": "acc_lis_dad_hb",
+            "ownerMemberId": "mem_lis_dad",
+            "amount": {
+              "amountMinor": 3293,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-04-09",
+            "authorizedDate": "2026-04-09",
+            "datetime": "2026-04-09T12:30:00-04:00",
+            "merchantName": "FuelUp",
+            "merchantEntityId": "ent_fuelup",
+            "rawName": "FUELUP 948",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "TRANSPORTATION",
+              "detailed": "TRANSPORTATION_GAS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "FuelUp",
+                "type": "merchant",
+                "entityId": "ent_fuelup"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_lis_dad_home_01",
+            "accountId": "acc_lis_dad_hb",
+            "ownerMemberId": "mem_lis_dad",
+            "amount": {
+              "amountMinor": 570,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-04-12",
+            "authorizedDate": "2026-04-12",
+            "datetime": "2026-04-12T11:29:00-04:00",
+            "merchantName": "Bean Theory Coffee",
+            "merchantEntityId": "ent_bean_theory_coffee",
+            "rawName": "BEAN THEORY 366",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_COFFEE",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Bean Theory Coffee",
+                "type": "merchant",
+                "entityId": "ent_bean_theory_coffee"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_lis_dad_taxi_0415",
+            "accountId": "acc_lis_dad_hb",
+            "ownerMemberId": "mem_lis_dad",
+            "amount": {
+              "amountMinor": 1450,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-04-15",
+            "authorizedDate": "2026-04-15",
+            "datetime": "2026-04-15T11:45:00+01:00",
+            "merchantName": "Taxi Lisboa",
+            "merchantEntityId": "ent_taxi_lisboa",
+            "rawName": "TAXI LISBOA 22",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "TRANSPORTATION",
+              "detailed": "TRANSPORTATION_TAXIS_AND_RIDE_SHARES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Lisbon",
+              "region": "Lisboa",
+              "country": "PT"
+            },
+            "counterparties": [
+              {
+                "name": "Taxi Lisboa",
+                "type": "merchant",
+                "entityId": "ent_taxi_lisboa"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_lis_dad_hotel_0415",
+            "accountId": "acc_lis_dad_hb",
+            "ownerMemberId": "mem_lis_dad",
+            "amount": {
+              "amountMinor": 62000,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-04-15",
+            "authorizedDate": "2026-04-15",
+            "datetime": "2026-04-15T13:00:00+01:00",
+            "merchantName": "Hotel Lisboa Central (fictional)",
+            "merchantEntityId": "ent_hotel_lisboa_central_fictional_",
+            "rawName": "HOTEL LISBOA CENTRAL",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "TRAVEL",
+              "detailed": "TRAVEL_LODGING",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Lisbon",
+              "region": "Lisboa",
+              "country": "PT"
+            },
+            "counterparties": [
+              {
+                "name": "Hotel Lisboa Central (fictional)",
+                "type": "merchant",
+                "entityId": "ent_hotel_lisboa_central_fictional_"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_lis_dad_tasca_0416",
+            "accountId": "acc_lis_dad_hb",
+            "ownerMemberId": "mem_lis_dad",
+            "amount": {
+              "amountMinor": 4650,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-04-16",
+            "authorizedDate": "2026-04-16",
+            "datetime": "2026-04-16T23:02:00+01:00",
+            "merchantName": "Tasca Ti Zé",
+            "merchantEntityId": "ent_tasca_ti_z_",
+            "rawName": "TASCA TI ZE ALFAMA",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_RESTAURANT",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Lisbon",
+              "region": "Lisboa",
+              "country": "PT"
+            },
+            "counterparties": [
+              {
+                "name": "Tasca Ti Zé",
+                "type": "merchant",
+                "entityId": "ent_tasca_ti_z_"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_lis_dad_lunch_0417",
+            "accountId": "acc_lis_dad_hb",
+            "ownerMemberId": "mem_lis_dad",
+            "amount": {
+              "amountMinor": 3800,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-04-17",
+            "authorizedDate": "2026-04-17",
+            "datetime": "2026-04-17T12:40:00+01:00",
+            "merchantName": "Café Fictício",
+            "merchantEntityId": "ent_caf_fict_cio",
+            "rawName": "CAFE FICTICIO CHIADO",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_RESTAURANT",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Lisbon",
+              "region": "Lisboa",
+              "country": "PT"
+            },
+            "counterparties": [
+              {
+                "name": "Café Fictício",
+                "type": "merchant",
+                "entityId": "ent_caf_fict_cio"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_lis_dad_home_06",
+            "accountId": "acc_lis_dad_hb",
+            "ownerMemberId": "mem_lis_dad",
+            "amount": {
+              "amountMinor": 487,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-04-25",
+            "authorizedDate": "2026-04-25",
+            "datetime": "2026-04-25T12:58:00-04:00",
+            "merchantName": "Bean Theory Coffee",
+            "merchantEntityId": "ent_bean_theory_coffee",
+            "rawName": "BEAN THEORY 373",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_COFFEE",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Bean Theory Coffee",
+                "type": "merchant",
+                "entityId": "ent_bean_theory_coffee"
+              }
+            ]
+          }
+        ],
+        "modified": [],
+        "removed": [],
+        "nextCursor": "cur_lis_dad_1",
+        "hasMore": false
+      }
+    }
+  ],
+  "labels": {
+    "txn_lis_dad_home_01": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Bean Theory Coffee at home (Boston), outside the trip"
+    },
+    "txn_lis_dad_home_02": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "CampusBooks at home (Boston), outside the trip"
+    },
+    "txn_lis_dad_home_03": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "FuelUp at home (Boston), outside the trip"
+    },
+    "txn_lis_dad_home_04": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "PulseFit at home (Boston), outside the trip"
+    },
+    "txn_lis_dad_home_05": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Uber at home (Boston), outside the trip"
+    },
+    "txn_lis_dad_home_06": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Bean Theory Coffee at home (Boston), outside the trip"
+    },
+    "txn_lis_dad_conference_0302": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "trip_personal",
+      "tripId": "trip_lisbon",
+      "reason": "business registration; never on the tab"
+    },
+    "txn_lis_dad_taxi_0415": {
+      "expectedShared": true,
+      "expectedPrompt": true,
+      "kind": "trip_shared",
+      "tripId": "trip_lisbon",
+      "suggestedParticipants": [
+        "mem_lis_dean",
+        "mem_lis_dad"
+      ],
+      "reason": "airport taxi for both"
+    },
+    "txn_lis_dad_hotel_0415": {
+      "expectedShared": true,
+      "expectedPrompt": true,
+      "kind": "trip_shared",
+      "tripId": "trip_lisbon",
+      "suggestedParticipants": [
+        "mem_lis_dean",
+        "mem_lis_dad"
+      ],
+      "reason": "the hotel for both (paid at check-in, never mentioned in chat)"
+    },
+    "txn_lis_dad_tasca_0416": {
+      "expectedShared": true,
+      "expectedPrompt": false,
+      "kind": "trip_shared_duplicate",
+      "tripId": "trip_lisbon",
+      "duplicateOf": "chat: \"@trav I paid 46,50 € for the tasca after, half each\"",
+      "reason": "already on the ledger"
+    },
+    "txn_lis_dad_lunch_0417": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "trip_personal",
+      "tripId": "trip_lisbon",
+      "reason": "conference lunch: Dad said \"leave it off\""
+    }
+  },
+  "summary": {
+    "transactions": 11,
+    "posted": 11,
+    "expectedShared": 3,
+    "expectedPrompt": 2,
+    "note": "precision/recall for the \"looks shared\" classifier is computed over posted rows (kind != pending): positive = expectedShared. expectedPrompt additionally excludes items already on the ledger (duplicates of chat/booking/receipt/email expenses)."
+  }
+}

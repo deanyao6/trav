@@ -1,0 +1,43 @@
+{
+  "fixtureVersion": 1,
+  "groupId": "grp_barcelona",
+  "tripId": "trip_barcelona",
+  "forwardingAddress": "maya.k7f3@in.trav.example.test",
+  "email": {
+    "emailId": "em_bcn_maya_lyft_sfo",
+    "ownerMemberId": "mem_maya",
+    "from": "Lyft Ride Receipts <rides@lyft-mail.example.test>",
+    "subject": "Fwd: Your ride to SFO on Wednesday",
+    "receivedAt": "2026-03-12T16:20:00+01:00",
+    "textBody": "---------- Forwarded message ----------\nRide summary · Wed, Mar 11, 2026\n\nLyft standard ride   $26.40\nAirport fee           $5.35\nTotal                $31.75\n\nFrom: Valencia St, San Francisco CA  11:02 AM\nTo: SFO Terminal 2  11:31 AM\n1 passenger",
+    "attachments": []
+  },
+  "expected": {
+    "isReceipt": true,
+    "parsed": {
+      "source": "rideshare",
+      "merchantName": "Lyft",
+      "total": {
+        "amountMinor": 3175,
+        "currency": "USD"
+      },
+      "fees": {
+        "amountMinor": 535,
+        "currency": "USD"
+      },
+      "occurredAt": "2026-03-11T11:31:00-07:00",
+      "ride": {
+        "pickup": "Valencia St, San Francisco",
+        "dropoff": "SFO",
+        "riders": 1
+      },
+      "confidence": 0.9,
+      "warnings": []
+    },
+    "ingestedInScenario": true,
+    "expectedShared": false,
+    "reason": "personal ride at home before the trip",
+    "injectionPatterns": [],
+    "injection": false
+  }
+}

@@ -1,0 +1,142 @@
+{
+  "description": "Turks and Caicos family group (Dean, Mom, Dad, Lily 14) and candidate Trav drafts. Every draft goes through safety.screenOutbound; the test asserts zero restricted suggestions reach a group plan that includes Lily, that each blocked draft yields a content.suppressed record with the expected cause, and that clean family drafts pass untouched. All synthetic.",
+  "now": "2026-12-28T15:00:00-05:00",
+  "members": [
+    {
+      "memberId": "tc_dean",
+      "displayName": "Dean",
+      "role": "lead",
+      "birthDate": "2004-04-02",
+      "ageBand": "adult"
+    },
+    {
+      "memberId": "tc_mom",
+      "displayName": "Mom",
+      "role": "lead",
+      "birthDate": "1974-09-15",
+      "ageBand": "adult"
+    },
+    {
+      "memberId": "tc_dad",
+      "displayName": "Dad",
+      "role": "guardian",
+      "birthDate": "1972-01-30",
+      "ageBand": "adult"
+    },
+    {
+      "memberId": "tc_lily",
+      "displayName": "Lily",
+      "role": "member",
+      "birthDate": "2012-06-10",
+      "ageBand": "under18",
+      "guardianMemberId": "tc_dad"
+    }
+  ],
+  "candidates": [
+    {
+      "id": "family-dinner",
+      "expect": "sent",
+      "text": "for tonight, all four: Da Conch Shack (on the beach, kids' menu, ~$35 a head) or Mr Groupers (quieter, same price)\nboth take walk-ins. 👍 on this if you want me to hold a table at the first one for 7",
+      "contentTags": ["family"]
+    },
+    {
+      "id": "family-cruise",
+      "expect": "sent",
+      "text": "for the four of you: sunset cruise at 6, or the fish fry at Bight Park, it's a family thing\nif the adults want something later, @ me separately and i'll keep Lily off that plan"
+    },
+    {
+      "id": "family-snorkel",
+      "expect": "sent",
+      "text": "snorkel tour tomorrow at 9, $65 each · $260 total · refundable until 6pm\n👍 from @Dad to book"
+    },
+    {
+      "id": "family-kids-club",
+      "expect": "sent",
+      "text": "the resort has a kids' club till 4 and the snack bar does smoothies, no booking needed"
+    },
+    {
+      "id": "family-recap",
+      "expect": "sent",
+      "text": "morning, day 2 ☀️\nyesterday: snorkel tour $260 on Dad · dinner at Da Conch Shack $142 on Mom\neverything's on the family tab, nothing to split\ntoday: nothing booked. the beach is free"
+    },
+
+    {
+      "id": "bad-beach-bar",
+      "expect": "suppressed",
+      "cause": "minor_alcohol",
+      "text": "the beach bar at Grace Bay does rum punch at sunset, good spot for all four of you"
+    },
+    {
+      "id": "bad-club-tagged",
+      "expect": "suppressed",
+      "cause": "minor_nightlife",
+      "text": "Danny Buoy's has a late set tonight, walkable from the hotel",
+      "contentTags": ["nightlife", "late_night"]
+    },
+    {
+      "id": "bad-nightclub-text",
+      "expect": "suppressed",
+      "cause": "minor_nightlife",
+      "text": "there's a nightclub on Grace Bay Road if everyone's up for a night out"
+    },
+    {
+      "id": "bad-wine-tasting",
+      "expect": "suppressed",
+      "cause": "minor_alcohol",
+      "text": "wine tasting at 5, $40 a head, then dinner after"
+    },
+    {
+      "id": "bad-casino",
+      "expect": "suppressed",
+      "cause": "age_restricted",
+      "text": "the casino at the resort is open till 2am, something for the whole family"
+    },
+    {
+      "id": "bad-cocktail-recap",
+      "expect": "suppressed",
+      "cause": "minor_alcohol",
+      "text": "morning, day 3 ☀️\nlast night: $84 on cocktails at the pool, the highlight of the trip"
+    },
+    {
+      "id": "bad-adults-only-tag",
+      "expect": "suppressed",
+      "cause": "age_restricted",
+      "text": "the rooftop at the Palms has a great view at sunset",
+      "contentTags": ["21+"]
+    },
+    {
+      "id": "bad-lily-dm",
+      "expect": "suppressed",
+      "cause": "minor_nightlife",
+      "to": "tc_lily",
+      "text": "there's a club night at the resort later, ask Dad",
+      "explicitAdultRequest": true,
+      "audience": ["tc_dad", "tc_mom"]
+    },
+    {
+      "id": "bad-explicit-but-lily-included",
+      "expect": "suppressed",
+      "cause": "minor_alcohol",
+      "text": "for all four of you: the bar at Coco Bistro does mocktails too",
+      "explicitAdultRequest": true,
+      "audience": ["tc_dean", "tc_mom", "tc_dad", "tc_lily"]
+    },
+    {
+      "id": "bad-explicit-audience-not-named",
+      "expect": "suppressed",
+      "cause": "adult_audience_not_named",
+      "text": "Bugaloos has a bar on the water, open till midnight",
+      "explicitAdultRequest": true,
+      "audience": ["tc_dad", "tc_dean"]
+    },
+
+    {
+      "id": "ok-explicit-adults",
+      "expect": "sent",
+      "adultOnly": true,
+      "text": "for you and Dad: the bar at Bugaloos is on the water, open till midnight. Lily's not on this one",
+      "explicitAdultRequest": true,
+      "audience": ["tc_dad", "tc_dean"]
+    }
+  ]
+}

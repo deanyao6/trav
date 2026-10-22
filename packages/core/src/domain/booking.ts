@@ -58,6 +58,8 @@ export interface BookingProposal {
   readonly itemRef: string;
   /** Human text for the chat card. Provider text passes through `wrapUntrusted` before any model sees it. */
   readonly description: string;
+  /** City from provider metadata; `checkProposalConsistency` compares it with the trip city (G-02). */
+  readonly city?: string;
   readonly totalMinor: number;
   readonly currency: CurrencyCode;
   /** The price is locked to this quote. */

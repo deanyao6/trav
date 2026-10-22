@@ -1,0 +1,51 @@
+{
+  "fixtureVersion": 1,
+  "groupId": "grp_turks_caicos",
+  "tripId": "trip_turks_caicos",
+  "forwardingAddress": "tci_mom.k7f3@in.trav.example.test",
+  "email": {
+    "emailId": "em_tci_mom_restaurant",
+    "ownerMemberId": "mem_tci_mom",
+    "from": "Conch Corner Grill <receipts@conchcorner.example.test>",
+    "subject": "Your check from Conch Corner Grill",
+    "receivedAt": "2026-06-21T19:40:00-04:00",
+    "textBody": "Conch Corner Grill · Table 4 · Guests 4\nSun Jun 21 2026 7:31 PM\n\nFood & drink   $110.00\nTax 12%         $13.20\nGratuity 10%    $11.00\nTip              $7.80\nTotal          $142.00",
+    "attachments": []
+  },
+  "expected": {
+    "isReceipt": true,
+    "parsed": {
+      "source": "restaurant",
+      "merchantName": "Conch Corner Grill",
+      "total": {
+        "amountMinor": 14200,
+        "currency": "USD"
+      },
+      "subtotal": {
+        "amountMinor": 11000,
+        "currency": "USD"
+      },
+      "tax": {
+        "amountMinor": 1320,
+        "currency": "USD"
+      },
+      "tip": {
+        "amountMinor": 780,
+        "currency": "USD"
+      },
+      "fees": {
+        "amountMinor": 1100,
+        "currency": "USD"
+      },
+      "occurredAt": "2026-06-21T19:31:00-04:00",
+      "confidence": 0.95,
+      "warnings": []
+    },
+    "ingestedInScenario": false,
+    "ingestReason": "Mom enabled cardImport, not emailImport",
+    "familyTab": true,
+    "duplicateOf": "fixtures/receipts/rcpt_tci_conch_corner.json and the chat line \"@trav add $142 dinner at conch corner last night\"",
+    "injectionPatterns": [],
+    "injection": false
+  }
+}

@@ -1,0 +1,786 @@
+{
+  "fixtureVersion": 1,
+  "ownerMemberId": "mem_maya",
+  "groupId": "grp_barcelona",
+  "tripId": "trip_barcelona",
+  "consentInScenario": {
+    "cardImport": false
+  },
+  "accounts": [
+    {
+      "accountId": "acc_maya_gg",
+      "ownerMemberId": "mem_maya",
+      "institutionName": "Golden Gate Card (fictional)",
+      "mask": "3056",
+      "type": "credit",
+      "subtype": "credit card"
+    }
+  ],
+  "cardCurrency": "EUR",
+  "pages": [
+    {
+      "requestCursor": null,
+      "result": {
+        "added": [
+          {
+            "transactionId": "txn_maya_home_02",
+            "accountId": "acc_maya_gg",
+            "ownerMemberId": "mem_maya",
+            "amount": {
+              "amountMinor": 2797,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-12",
+            "authorizedDate": "2026-02-12",
+            "datetime": "2026-02-12T19:08:00-08:00",
+            "merchantName": "CampusBooks",
+            "merchantEntityId": "ent_campusbooks",
+            "rawName": "CAMPUSBOOKS #176",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "GENERAL_MERCHANDISE",
+              "detailed": "GENERAL_MERCHANDISE_BOOKSTORES_AND_NEWSSTANDS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "San Francisco",
+              "region": "CA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "CampusBooks",
+                "type": "merchant",
+                "entityId": "ent_campusbooks"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_maya_home_07",
+            "accountId": "acc_maya_gg",
+            "ownerMemberId": "mem_maya",
+            "amount": {
+              "amountMinor": 1199,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-13",
+            "authorizedDate": "2026-02-13",
+            "datetime": "2026-02-13T20:40:00-08:00",
+            "merchantName": "Streamly",
+            "merchantEntityId": "ent_streamly",
+            "rawName": "STREAMLY.EXAMPLE SUBSCR",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "ENTERTAINMENT",
+              "detailed": "ENTERTAINMENT_TV_AND_MOVIES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "San Francisco",
+              "region": "CA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Streamly",
+                "type": "merchant",
+                "entityId": "ent_streamly"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_maya_home_05",
+            "accountId": "acc_maya_gg",
+            "ownerMemberId": "mem_maya",
+            "amount": {
+              "amountMinor": 1907,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-14",
+            "authorizedDate": "2026-02-14",
+            "datetime": "2026-02-14T09:56:00-08:00",
+            "merchantName": "DashDinner",
+            "merchantEntityId": "ent_dashdinner",
+            "rawName": "DASHDINNER*ORDER 851",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_FAST_FOOD",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "San Francisco",
+              "region": "CA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "DashDinner",
+                "type": "merchant",
+                "entityId": "ent_dashdinner"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_maya_home_06",
+            "accountId": "acc_maya_gg",
+            "ownerMemberId": "mem_maya",
+            "amount": {
+              "amountMinor": 6218,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-19",
+            "authorizedDate": "2026-02-19",
+            "datetime": "2026-02-19T10:45:00-08:00",
+            "merchantName": "CampusBooks",
+            "merchantEntityId": "ent_campusbooks",
+            "rawName": "CAMPUSBOOKS #171",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "GENERAL_MERCHANDISE",
+              "detailed": "GENERAL_MERCHANDISE_BOOKSTORES_AND_NEWSSTANDS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "San Francisco",
+              "region": "CA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "CampusBooks",
+                "type": "merchant",
+                "entityId": "ent_campusbooks"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_maya_home_03",
+            "accountId": "acc_maya_gg",
+            "ownerMemberId": "mem_maya",
+            "amount": {
+              "amountMinor": 1199,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-20",
+            "authorizedDate": "2026-02-20",
+            "datetime": "2026-02-20T13:03:00-08:00",
+            "merchantName": "Streamly",
+            "merchantEntityId": "ent_streamly",
+            "rawName": "STREAMLY.EXAMPLE SUBSCR",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "ENTERTAINMENT",
+              "detailed": "ENTERTAINMENT_TV_AND_MOVIES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "San Francisco",
+              "region": "CA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Streamly",
+                "type": "merchant",
+                "entityId": "ent_streamly"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_maya_home_04",
+            "accountId": "acc_maya_gg",
+            "ownerMemberId": "mem_maya",
+            "amount": {
+              "amountMinor": 1888,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-21",
+            "authorizedDate": "2026-02-21",
+            "datetime": "2026-02-21T20:37:00-08:00",
+            "merchantName": "Lyft",
+            "merchantEntityId": "ent_lyft",
+            "rawName": "LYFT *RIDE",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "TRANSPORTATION",
+              "detailed": "TRANSPORTATION_TAXIS_AND_RIDE_SHARES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "San Francisco",
+              "region": "CA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Lyft",
+                "type": "merchant",
+                "entityId": "ent_lyft"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_maya_home_01",
+            "accountId": "acc_maya_gg",
+            "ownerMemberId": "mem_maya",
+            "amount": {
+              "amountMinor": 2900,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-27",
+            "authorizedDate": "2026-02-27",
+            "datetime": "2026-02-27T10:53:00-08:00",
+            "merchantName": "PulseFit",
+            "merchantEntityId": "ent_pulsefit",
+            "rawName": "PULSEFIT GYM MONTHLY",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "PERSONAL_CARE",
+              "detailed": "PERSONAL_CARE_GYMS_AND_FITNESS_CENTERS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "San Francisco",
+              "region": "CA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "PulseFit",
+                "type": "merchant",
+                "entityId": "ent_pulsefit"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_maya_sagrada_0310",
+            "accountId": "acc_maya_gg",
+            "ownerMemberId": "mem_maya",
+            "amount": {
+              "amountMinor": 15600,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-03-10",
+            "authorizedDate": "2026-03-10",
+            "datetime": "2026-03-10T12:06:00-04:00",
+            "merchantName": "Sagrada Família",
+            "merchantEntityId": "ent_sagrada_fam_lia",
+            "rawName": "SAGRADA FAMILIA ENTRADES",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "ENTERTAINMENT",
+              "detailed": "ENTERTAINMENT_SPORTING_EVENTS_AMUSEMENT_PARKS_AND_MUSEUMS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "Sagrada Família",
+                "type": "merchant",
+                "entityId": "ent_sagrada_fam_lia"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_maya_cava_0313",
+            "accountId": "acc_maya_gg",
+            "ownerMemberId": "mem_maya",
+            "amount": {
+              "amountMinor": 3000,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-03-13",
+            "authorizedDate": "2026-03-13",
+            "datetime": "2026-03-13T13:55:00+01:00",
+            "merchantName": "Vins i Caves",
+            "merchantEntityId": "ent_vins_i_caves",
+            "rawName": "VINS I CAVES GRACIA",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_BEER_WINE_AND_LIQUOR",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "Vins i Caves",
+                "type": "merchant",
+                "entityId": "ent_vins_i_caves"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_maya_clothes_0315",
+            "accountId": "acc_maya_gg",
+            "ownerMemberId": "mem_maya",
+            "amount": {
+              "amountMinor": 5900,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-03-15",
+            "authorizedDate": "2026-03-15",
+            "datetime": "2026-03-15T16:20:00+01:00",
+            "merchantName": "Moda Rambla",
+            "merchantEntityId": "ent_moda_rambla",
+            "rawName": "MODA RAMBLA 12",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "GENERAL_MERCHANDISE",
+              "detailed": "GENERAL_MERCHANDISE_CLOTHING_AND_ACCESSORIES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "Moda Rambla",
+                "type": "merchant",
+                "entityId": "ent_moda_rambla"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_maya_uber_0315",
+            "accountId": "acc_maya_gg",
+            "ownerMemberId": "mem_maya",
+            "amount": {
+              "amountMinor": 2110,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-03-15",
+            "authorizedDate": "2026-03-15",
+            "datetime": "2026-03-15T18:40:00+01:00",
+            "merchantName": "Uber",
+            "merchantEntityId": "ent_uber",
+            "rawName": "UBER *TRIP HELP.RIDES.EXAMPLE.TEST",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "TRANSPORTATION",
+              "detailed": "TRANSPORTATION_TAXIS_AND_RIDE_SHARES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "Uber",
+                "type": "merchant",
+                "entityId": "ent_uber"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_maya_lunch_0316_p",
+            "accountId": "acc_maya_gg",
+            "ownerMemberId": "mem_maya",
+            "amount": {
+              "amountMinor": 9900,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-03-16",
+            "authorizedDate": "2026-03-16",
+            "datetime": "2026-03-16T13:47:00+01:00",
+            "merchantName": "Xiringuito Mar Blava",
+            "merchantEntityId": "ent_xiringuito_mar_blava",
+            "rawName": "XIRINGUITO MAR BLAVA",
+            "pending": true,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_RESTAURANT",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "Xiringuito Mar Blava",
+                "type": "merchant",
+                "entityId": "ent_xiringuito_mar_blava"
+              }
+            ]
+          }
+        ],
+        "modified": [],
+        "removed": [],
+        "nextCursor": "cur_maya_1",
+        "hasMore": true
+      }
+    },
+    {
+      "requestCursor": "cur_maya_1",
+      "result": {
+        "added": [
+          {
+            "transactionId": "txn_maya_taxi_0317",
+            "accountId": "acc_maya_gg",
+            "ownerMemberId": "mem_maya",
+            "amount": {
+              "amountMinor": 3900,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-03-17",
+            "authorizedDate": "2026-03-17",
+            "datetime": "2026-03-17T07:05:00+01:00",
+            "merchantName": "Taxi Barcelona",
+            "merchantEntityId": "ent_taxi_barcelona",
+            "rawName": "TAXI BARCELONA 0417",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "TRANSPORTATION",
+              "detailed": "TRANSPORTATION_TAXIS_AND_RIDE_SHARES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "Taxi Barcelona",
+                "type": "merchant",
+                "entityId": "ent_taxi_barcelona"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_maya_lunch_0316",
+            "accountId": "acc_maya_gg",
+            "ownerMemberId": "mem_maya",
+            "amount": {
+              "amountMinor": 10890,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-03-16",
+            "authorizedDate": "2026-03-16",
+            "datetime": "2026-03-16T13:47:00+01:00",
+            "merchantName": "Xiringuito Mar Blava",
+            "merchantEntityId": "ent_xiringuito_mar_blava",
+            "rawName": "XIRINGUITO MAR BLAVA",
+            "pending": false,
+            "pendingTransactionId": "txn_maya_lunch_0316_p",
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_RESTAURANT",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "Xiringuito Mar Blava",
+                "type": "merchant",
+                "entityId": "ent_xiringuito_mar_blava"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_maya_home_08",
+            "accountId": "acc_maya_gg",
+            "ownerMemberId": "mem_maya",
+            "amount": {
+              "amountMinor": 1199,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-03-19",
+            "authorizedDate": "2026-03-19",
+            "datetime": "2026-03-19T13:14:00-07:00",
+            "merchantName": "Streamly",
+            "merchantEntityId": "ent_streamly",
+            "rawName": "STREAMLY.EXAMPLE SUBSCR",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "ENTERTAINMENT",
+              "detailed": "ENTERTAINMENT_TV_AND_MOVIES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Los Angeles",
+              "region": "CA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Streamly",
+                "type": "merchant",
+                "entityId": "ent_streamly"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_maya_home_10",
+            "accountId": "acc_maya_gg",
+            "ownerMemberId": "mem_maya",
+            "amount": {
+              "amountMinor": 5063,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-03-21",
+            "authorizedDate": "2026-03-21",
+            "datetime": "2026-03-21T08:15:00-07:00",
+            "merchantName": "CampusBooks",
+            "merchantEntityId": "ent_campusbooks",
+            "rawName": "CAMPUSBOOKS #739",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "GENERAL_MERCHANDISE",
+              "detailed": "GENERAL_MERCHANDISE_BOOKSTORES_AND_NEWSSTANDS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Los Angeles",
+              "region": "CA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "CampusBooks",
+                "type": "merchant",
+                "entityId": "ent_campusbooks"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_maya_home_09",
+            "accountId": "acc_maya_gg",
+            "ownerMemberId": "mem_maya",
+            "amount": {
+              "amountMinor": 5147,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-03-25",
+            "authorizedDate": "2026-03-25",
+            "datetime": "2026-03-25T19:16:00-07:00",
+            "merchantName": "CampusBooks",
+            "merchantEntityId": "ent_campusbooks",
+            "rawName": "CAMPUSBOOKS #482",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "GENERAL_MERCHANDISE",
+              "detailed": "GENERAL_MERCHANDISE_BOOKSTORES_AND_NEWSSTANDS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Los Angeles",
+              "region": "CA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "CampusBooks",
+                "type": "merchant",
+                "entityId": "ent_campusbooks"
+              }
+            ]
+          }
+        ],
+        "modified": [],
+        "removed": [
+          {
+            "transactionId": "txn_maya_lunch_0316_p",
+            "accountId": "acc_maya_gg"
+          }
+        ],
+        "nextCursor": "cur_maya_2",
+        "hasMore": false
+      }
+    }
+  ],
+  "labels": {
+    "txn_maya_home_01": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "PulseFit at home (San Francisco), outside the trip"
+    },
+    "txn_maya_home_02": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "CampusBooks at home (San Francisco), outside the trip"
+    },
+    "txn_maya_home_03": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Streamly at home (San Francisco), outside the trip"
+    },
+    "txn_maya_home_04": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Lyft at home (San Francisco), outside the trip"
+    },
+    "txn_maya_home_05": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "DashDinner at home (San Francisco), outside the trip"
+    },
+    "txn_maya_home_06": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "CampusBooks at home (San Francisco), outside the trip"
+    },
+    "txn_maya_home_07": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Streamly at home (San Francisco), outside the trip"
+    },
+    "txn_maya_home_08": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Streamly at home (Los Angeles), outside the trip"
+    },
+    "txn_maya_home_09": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "CampusBooks at home (Los Angeles), outside the trip"
+    },
+    "txn_maya_home_10": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "CampusBooks at home (Los Angeles), outside the trip"
+    },
+    "txn_maya_sagrada_0310": {
+      "expectedShared": true,
+      "expectedPrompt": false,
+      "kind": "trav_booking_charge",
+      "tripId": "trip_barcelona",
+      "duplicateOf": "booking: off_bcn_sagrada_1500",
+      "reason": "charged by a Trav booking; already on the ledger via the booking expense"
+    },
+    "txn_maya_cava_0313": {
+      "expectedShared": true,
+      "expectedPrompt": false,
+      "kind": "trip_shared_duplicate",
+      "tripId": "trip_barcelona",
+      "duplicateOf": "chat: \"@trav log 30 for the cava\" + \"euros, me priya and jordan\"",
+      "reason": "already logged from chat"
+    },
+    "txn_maya_clothes_0315": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "trip_personal",
+      "tripId": "trip_barcelona",
+      "reason": "clothes"
+    },
+    "txn_maya_uber_0315": {
+      "expectedShared": true,
+      "expectedPrompt": true,
+      "kind": "trip_shared",
+      "tripId": "trip_barcelona",
+      "suggestedParticipants": [
+        "mem_maya",
+        "mem_priya",
+        "mem_henry"
+      ],
+      "reason": "ride to the match with 3 riders; same ride as em_bcn_maya_uber_injection; Maya keeps it private in the chat replay",
+      "sameAs": "em_bcn_maya_uber_injection"
+    },
+    "txn_maya_lunch_0316_p": {
+      "expectedShared": null,
+      "expectedPrompt": false,
+      "kind": "pending",
+      "supersededBy": "txn_maya_lunch_0316"
+    },
+    "txn_maya_lunch_0316": {
+      "expectedShared": true,
+      "expectedPrompt": false,
+      "kind": "trip_shared_duplicate",
+      "tripId": "trip_barcelona",
+      "duplicateOf": "receipt: fixtures/receipts/rcpt_bcn_lunch_service.json",
+      "reason": "pending €99.00 (pre-service) posted as €108.90; already logged from the receipt photo"
+    },
+    "txn_maya_taxi_0317": {
+      "expectedShared": true,
+      "expectedPrompt": true,
+      "kind": "trip_shared",
+      "tripId": "trip_barcelona",
+      "suggestedParticipants": [
+        "mem_maya",
+        "mem_priya",
+        "mem_jordan"
+      ],
+      "reason": "early taxi to the airport with Priya and Jordan (never mentioned in chat)"
+    }
+  },
+  "summary": {
+    "transactions": 17,
+    "posted": 16,
+    "expectedShared": 5,
+    "expectedPrompt": 2,
+    "note": "precision/recall for the \"looks shared\" classifier is computed over posted rows (kind != pending): positive = expectedShared. expectedPrompt additionally excludes items already on the ledger (duplicates of chat/booking/receipt/email expenses)."
+  }
+}

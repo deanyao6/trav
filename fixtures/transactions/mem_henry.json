@@ -1,0 +1,744 @@
+{
+  "fixtureVersion": 1,
+  "ownerMemberId": "mem_henry",
+  "groupId": "grp_barcelona",
+  "tripId": "trip_barcelona",
+  "consentInScenario": {
+    "cardImport": false
+  },
+  "accounts": [
+    {
+      "accountId": "acc_henry_lb",
+      "ownerMemberId": "mem_henry",
+      "institutionName": "Lakeshore Bank Visa (fictional)",
+      "mask": "6402",
+      "type": "credit",
+      "subtype": "credit card"
+    }
+  ],
+  "cardCurrency": "USD",
+  "pages": [
+    {
+      "requestCursor": null,
+      "result": {
+        "added": [
+          {
+            "transactionId": "txn_henry_home_06",
+            "accountId": "acc_henry_lb",
+            "ownerMemberId": "mem_henry",
+            "amount": {
+              "amountMinor": 2900,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-11",
+            "authorizedDate": "2026-02-11",
+            "datetime": "2026-02-11T15:07:00-06:00",
+            "merchantName": "PulseFit",
+            "merchantEntityId": "ent_pulsefit",
+            "rawName": "PULSEFIT GYM MONTHLY",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "PERSONAL_CARE",
+              "detailed": "PERSONAL_CARE_GYMS_AND_FITNESS_CENTERS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Chicago",
+              "region": "IL",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "PulseFit",
+                "type": "merchant",
+                "entityId": "ent_pulsefit"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_henry_home_04",
+            "accountId": "acc_henry_lb",
+            "ownerMemberId": "mem_henry",
+            "amount": {
+              "amountMinor": 586,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-18",
+            "authorizedDate": "2026-02-18",
+            "datetime": "2026-02-18T18:52:00-06:00",
+            "merchantName": "Bean Theory Coffee",
+            "merchantEntityId": "ent_bean_theory_coffee",
+            "rawName": "BEAN THEORY 535",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_COFFEE",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Chicago",
+              "region": "IL",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Bean Theory Coffee",
+                "type": "merchant",
+                "entityId": "ent_bean_theory_coffee"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_henry_home_01",
+            "accountId": "acc_henry_lb",
+            "ownerMemberId": "mem_henry",
+            "amount": {
+              "amountMinor": 2680,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-19",
+            "authorizedDate": "2026-02-19",
+            "datetime": "2026-02-19T19:59:00-06:00",
+            "merchantName": "Uber",
+            "merchantEntityId": "ent_uber",
+            "rawName": "UBER *TRIP HELP.RIDES.EXAMPLE.TEST",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "TRANSPORTATION",
+              "detailed": "TRANSPORTATION_TAXIS_AND_RIDE_SHARES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Chicago",
+              "region": "IL",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Uber",
+                "type": "merchant",
+                "entityId": "ent_uber"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_henry_home_05",
+            "accountId": "acc_henry_lb",
+            "ownerMemberId": "mem_henry",
+            "amount": {
+              "amountMinor": 1594,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-23",
+            "authorizedDate": "2026-02-23",
+            "datetime": "2026-02-23T12:49:00-06:00",
+            "merchantName": "Corner Slice Pizza",
+            "merchantEntityId": "ent_corner_slice_pizza",
+            "rawName": "CORNER SLICE 758",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_RESTAURANT",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Chicago",
+              "region": "IL",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Corner Slice Pizza",
+                "type": "merchant",
+                "entityId": "ent_corner_slice_pizza"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_henry_home_02",
+            "accountId": "acc_henry_lb",
+            "ownerMemberId": "mem_henry",
+            "amount": {
+              "amountMinor": 2035,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-24",
+            "authorizedDate": "2026-02-24",
+            "datetime": "2026-02-24T15:09:00-06:00",
+            "merchantName": "Uber",
+            "merchantEntityId": "ent_uber",
+            "rawName": "UBER *TRIP HELP.RIDES.EXAMPLE.TEST",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "TRANSPORTATION",
+              "detailed": "TRANSPORTATION_TAXIS_AND_RIDE_SHARES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Chicago",
+              "region": "IL",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Uber",
+                "type": "merchant",
+                "entityId": "ent_uber"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_henry_home_03",
+            "accountId": "acc_henry_lb",
+            "ownerMemberId": "mem_henry",
+            "amount": {
+              "amountMinor": 1583,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-24",
+            "authorizedDate": "2026-02-24",
+            "datetime": "2026-02-24T18:48:00-06:00",
+            "merchantName": "Lyft",
+            "merchantEntityId": "ent_lyft",
+            "rawName": "LYFT *RIDE",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "TRANSPORTATION",
+              "detailed": "TRANSPORTATION_TAXIS_AND_RIDE_SHARES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Chicago",
+              "region": "IL",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Lyft",
+                "type": "merchant",
+                "entityId": "ent_lyft"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_henry_home_07",
+            "accountId": "acc_henry_lb",
+            "ownerMemberId": "mem_henry",
+            "amount": {
+              "amountMinor": 5317,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-26",
+            "authorizedDate": "2026-02-26",
+            "datetime": "2026-02-26T09:29:00-06:00",
+            "merchantName": "CampusBooks",
+            "merchantEntityId": "ent_campusbooks",
+            "rawName": "CAMPUSBOOKS #475",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "GENERAL_MERCHANDISE",
+              "detailed": "GENERAL_MERCHANDISE_BOOKSTORES_AND_NEWSSTANDS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Chicago",
+              "region": "IL",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "CampusBooks",
+                "type": "merchant",
+                "entityId": "ent_campusbooks"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_henry_metro_0312",
+            "accountId": "acc_henry_lb",
+            "ownerMemberId": "mem_henry",
+            "amount": {
+              "amountMinor": 7330,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-03-12",
+            "authorizedDate": "2026-03-12",
+            "datetime": "2026-03-12T12:30:00+01:00",
+            "merchantName": "TMB",
+            "merchantEntityId": "ent_tmb",
+            "rawName": "TMB T-CASUAL X6",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "TRANSPORTATION",
+              "detailed": "TRANSPORTATION_PUBLIC_TRANSIT",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "TMB",
+                "type": "merchant",
+                "entityId": "ent_tmb"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_henry_metro_0312_fee",
+            "accountId": "acc_henry_lb",
+            "ownerMemberId": "mem_henry",
+            "amount": {
+              "amountMinor": 220,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-03-12",
+            "authorizedDate": "2026-03-12",
+            "datetime": "2026-03-12T12:30:00+01:00",
+            "rawName": "FOREIGN TRANSACTION FEE",
+            "pending": false,
+            "paymentChannel": "other",
+            "personalFinanceCategory": {
+              "primary": "BANK_FEES",
+              "detailed": "BANK_FEES_FOREIGN_TRANSACTION_FEES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {}
+          },
+          {
+            "transactionId": "txn_henry_pharmacy_0314",
+            "accountId": "acc_henry_lb",
+            "ownerMemberId": "mem_henry",
+            "amount": {
+              "amountMinor": 1252,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-03-14",
+            "authorizedDate": "2026-03-14",
+            "datetime": "2026-03-14T10:50:00+01:00",
+            "merchantName": "Farmàcia Provença",
+            "merchantEntityId": "ent_farm_cia_proven_a",
+            "rawName": "FARMACIA PROVENCA",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "MEDICAL",
+              "detailed": "MEDICAL_PHARMACIES_AND_SUPPLEMENTS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "Farmàcia Provença",
+                "type": "merchant",
+                "entityId": "ent_farm_cia_proven_a"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_henry_pharmacy_0314_fee",
+            "accountId": "acc_henry_lb",
+            "ownerMemberId": "mem_henry",
+            "amount": {
+              "amountMinor": 38,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-03-14",
+            "authorizedDate": "2026-03-14",
+            "datetime": "2026-03-14T10:50:00+01:00",
+            "rawName": "FOREIGN TRANSACTION FEE",
+            "pending": false,
+            "paymentChannel": "other",
+            "personalFinanceCategory": {
+              "primary": "BANK_FEES",
+              "detailed": "BANK_FEES_FOREIGN_TRANSACTION_FEES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {}
+          },
+          {
+            "transactionId": "txn_henry_soup_0314",
+            "accountId": "acc_henry_lb",
+            "ownerMemberId": "mem_henry",
+            "amount": {
+              "amountMinor": 1182,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-03-14",
+            "authorizedDate": "2026-03-14",
+            "datetime": "2026-03-14T19:30:00+01:00",
+            "merchantName": "Glovo",
+            "merchantEntityId": "ent_glovo",
+            "rawName": "GLOVO*SOPA",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_FAST_FOOD",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "Glovo",
+                "type": "merchant",
+                "entityId": "ent_glovo"
+              }
+            ]
+          }
+        ],
+        "modified": [],
+        "removed": [],
+        "nextCursor": "cur_henry_1",
+        "hasMore": true
+      }
+    },
+    {
+      "requestCursor": "cur_henry_1",
+      "result": {
+        "added": [
+          {
+            "transactionId": "txn_henry_soup_0314_fee",
+            "accountId": "acc_henry_lb",
+            "ownerMemberId": "mem_henry",
+            "amount": {
+              "amountMinor": 35,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-03-14",
+            "authorizedDate": "2026-03-14",
+            "datetime": "2026-03-14T19:30:00+01:00",
+            "rawName": "FOREIGN TRANSACTION FEE",
+            "pending": false,
+            "paymentChannel": "other",
+            "personalFinanceCategory": {
+              "primary": "BANK_FEES",
+              "detailed": "BANK_FEES_FOREIGN_TRANSACTION_FEES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {}
+          },
+          {
+            "transactionId": "txn_henry_scarf_0315",
+            "accountId": "acc_henry_lb",
+            "ownerMemberId": "mem_henry",
+            "amount": {
+              "amountMinor": 2687,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-03-15",
+            "authorizedDate": "2026-03-15",
+            "datetime": "2026-03-15T20:15:00+01:00",
+            "merchantName": "FCB Botiga",
+            "merchantEntityId": "ent_fcb_botiga",
+            "rawName": "FCB BOTIGA CAMP NOU",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "GENERAL_MERCHANDISE",
+              "detailed": "GENERAL_MERCHANDISE_CLOTHING_AND_ACCESSORIES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "FCB Botiga",
+                "type": "merchant",
+                "entityId": "ent_fcb_botiga"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_henry_scarf_0315_fee",
+            "accountId": "acc_henry_lb",
+            "ownerMemberId": "mem_henry",
+            "amount": {
+              "amountMinor": 81,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-03-15",
+            "authorizedDate": "2026-03-15",
+            "datetime": "2026-03-15T20:15:00+01:00",
+            "rawName": "FOREIGN TRANSACTION FEE",
+            "pending": false,
+            "paymentChannel": "other",
+            "personalFinanceCategory": {
+              "primary": "BANK_FEES",
+              "detailed": "BANK_FEES_FOREIGN_TRANSACTION_FEES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {}
+          },
+          {
+            "transactionId": "txn_henry_home_09",
+            "accountId": "acc_henry_lb",
+            "ownerMemberId": "mem_henry",
+            "amount": {
+              "amountMinor": 3397,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-03-21",
+            "authorizedDate": "2026-03-21",
+            "datetime": "2026-03-21T22:57:00-05:00",
+            "merchantName": "PayPeer",
+            "merchantEntityId": "ent_paypeer",
+            "rawName": "PAYPEER *TRANSFER",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "TRANSFER_OUT",
+              "detailed": "TRANSFER_OUT_ACCOUNT_TRANSFER",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Chicago",
+              "region": "IL",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "PayPeer",
+                "type": "merchant",
+                "entityId": "ent_paypeer"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_henry_home_08",
+            "accountId": "acc_henry_lb",
+            "ownerMemberId": "mem_henry",
+            "amount": {
+              "amountMinor": 3226,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-03-24",
+            "authorizedDate": "2026-03-24",
+            "datetime": "2026-03-24T14:43:00-05:00",
+            "merchantName": "Greenway Market",
+            "merchantEntityId": "ent_greenway_market",
+            "rawName": "GREENWAY MKT #311",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_GROCERIES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Chicago",
+              "region": "IL",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Greenway Market",
+                "type": "merchant",
+                "entityId": "ent_greenway_market"
+              }
+            ]
+          }
+        ],
+        "modified": [],
+        "removed": [],
+        "nextCursor": "cur_henry_2",
+        "hasMore": false
+      }
+    }
+  ],
+  "labels": {
+    "txn_henry_home_01": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Uber at home (Chicago), outside the trip"
+    },
+    "txn_henry_home_02": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Uber at home (Chicago), outside the trip"
+    },
+    "txn_henry_home_03": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Lyft at home (Chicago), outside the trip"
+    },
+    "txn_henry_home_04": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Bean Theory Coffee at home (Chicago), outside the trip"
+    },
+    "txn_henry_home_05": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Corner Slice Pizza at home (Chicago), outside the trip"
+    },
+    "txn_henry_home_06": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "PulseFit at home (Chicago), outside the trip"
+    },
+    "txn_henry_home_07": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "CampusBooks at home (Chicago), outside the trip"
+    },
+    "txn_henry_home_08": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Greenway Market at home (Chicago), outside the trip"
+    },
+    "txn_henry_home_09": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "PayPeer at home (Chicago), outside the trip"
+    },
+    "txn_henry_metro_0312": {
+      "expectedShared": true,
+      "expectedPrompt": true,
+      "kind": "trip_shared",
+      "tripId": "trip_barcelona",
+      "suggestedParticipants": [
+        "mem_dean",
+        "mem_henry",
+        "mem_maya",
+        "mem_jordan",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "reason": "six metro cards for the group (never mentioned in chat)",
+      "originalAmount": {
+        "amountMinor": 6810,
+        "currency": "EUR"
+      },
+      "fxRate": "1.0764",
+      "fxAsOf": "2026-03-12"
+    },
+    "txn_henry_metro_0312_fee": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "fee",
+      "reason": "bank fee on a foreign purchase; never split"
+    },
+    "txn_henry_pharmacy_0314": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "trip_personal",
+      "tripId": "trip_barcelona",
+      "reason": "health purchase: never surfaces, never stored as a reason, never roasted",
+      "sensitive": true,
+      "originalAmount": {
+        "amountMinor": 1165,
+        "currency": "EUR"
+      },
+      "fxRate": "1.0749",
+      "fxAsOf": "2026-03-13"
+    },
+    "txn_henry_pharmacy_0314_fee": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "fee",
+      "reason": "bank fee on a foreign purchase; never split"
+    },
+    "txn_henry_soup_0314": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "trip_personal",
+      "tripId": "trip_barcelona",
+      "reason": "dinner in bed while the others went out",
+      "originalAmount": {
+        "amountMinor": 1100,
+        "currency": "EUR"
+      },
+      "fxRate": "1.0749",
+      "fxAsOf": "2026-03-13"
+    },
+    "txn_henry_soup_0314_fee": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "fee",
+      "reason": "bank fee on a foreign purchase; never split"
+    },
+    "txn_henry_scarf_0315": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "trip_personal",
+      "tripId": "trip_barcelona",
+      "reason": "scarf",
+      "originalAmount": {
+        "amountMinor": 2500,
+        "currency": "EUR"
+      },
+      "fxRate": "1.0749",
+      "fxAsOf": "2026-03-13"
+    },
+    "txn_henry_scarf_0315_fee": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "fee",
+      "reason": "bank fee on a foreign purchase; never split"
+    }
+  },
+  "summary": {
+    "transactions": 17,
+    "posted": 17,
+    "expectedShared": 1,
+    "expectedPrompt": 1,
+    "note": "precision/recall for the \"looks shared\" classifier is computed over posted rows (kind != pending): positive = expectedShared. expectedPrompt additionally excludes items already on the ledger (duplicates of chat/booking/receipt/email expenses)."
+  }
+}

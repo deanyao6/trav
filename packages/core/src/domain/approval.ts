@@ -68,6 +68,8 @@ export interface MemberView {
   readonly role: 'member' | 'guest';
   readonly isMinor: boolean;
   readonly active: boolean;
+  /** For minors: the adult who confirms on their behalf under `each_payer` (T-004). */
+  readonly guardianMemberId?: MemberId;
 }
 
 export interface PolicyContext {
@@ -154,4 +156,6 @@ export interface ApprovalGrant {
   readonly status: GrantStatus;
   readonly expiresAt: IsoDateTime;
   readonly invalidatedCause?: GrantInvalidationCause;
+  /** The decline that moved the grant to `rejected` (feeds `approval.rejected`). */
+  readonly rejectedBy?: ApprovalSignature;
 }

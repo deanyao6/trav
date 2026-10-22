@@ -1,0 +1,25 @@
+{
+  "fixtureVersion": 1,
+  "groupId": "grp_barcelona",
+  "tripId": "trip_barcelona",
+  "forwardingAddress": "priya.k7f3@in.trav.example.test",
+  "email": {
+    "emailId": "em_bcn_priya_promo",
+    "ownerMemberId": "mem_priya",
+    "from": "Uber <promos@uber-receipts.example.test>",
+    "subject": "50% off your next 3 rides in Barcelona",
+    "receivedAt": "2026-03-13T09:00:00+01:00",
+    "textBody": "Weekend plans? Take 50% off your next 3 rides with code BCNWEEKEND.\nDetails: https://promo.rides.example.test/bcn",
+    "attachments": []
+  },
+  "expected": {
+    "isReceipt": false,
+    "parserResult": "invalid_request",
+    "ingestedInScenario": false,
+    "injectionPatterns": [
+      "url"
+    ],
+    "notes": "marketing email, not a receipt; a URL alone is benign but still flagged by the heuristic",
+    "injection": false
+  }
+}

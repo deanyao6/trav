@@ -1,0 +1,1556 @@
+{
+  "_meta": {
+    "description": "Mock flight inventory for the Barcelona flagship trip (Thu 2026-03-12 to Tue 2026-03-17). Duffel-like snake_case offers; amounts are decimal strings PER PASSENGER (the mock multiplies by the passenger count on search). Local wall-clock times plus IANA zones, like Duffel.",
+    "fictional": "All carriers, flight numbers and prices are invented. Carrier codes use an X prefix and do not refer to real airlines. Airports are real places only.",
+    "mock_controls": "expires_after_minutes overrides default_offer_ttl_minutes; mock_reprice makes getOffer/createOrder see a new per-passenger total after `after_minutes` of simulated time since the search.",
+    "source": "T-029-a"
+  },
+  "provider": "mock-flights",
+  "currency": "EUR",
+  "default_offer_ttl_minutes": 30,
+  "carriers": [
+    {
+      "iata_code": "XA",
+      "name": "Larkspur Atlantic"
+    },
+    {
+      "iata_code": "XB",
+      "name": "Bluefin Air"
+    },
+    {
+      "iata_code": "XC",
+      "name": "Tidewater Peninsular"
+    },
+    {
+      "iata_code": "XD",
+      "name": "Cobalt Coast Airlines"
+    },
+    {
+      "iata_code": "XE",
+      "name": "Northlight Air"
+    },
+    {
+      "iata_code": "XF",
+      "name": "Meridian Gull"
+    }
+  ],
+  "travelers": [
+    {
+      "member_id": "mem_dean",
+      "name": "Dean",
+      "origin": "BOS",
+      "return_to": "JFK"
+    },
+    {
+      "member_id": "mem_maya",
+      "name": "Maya",
+      "origin": "SFO",
+      "return_to": "LAX"
+    },
+    {
+      "member_id": "mem_jordan",
+      "name": "Jordan",
+      "origin": "ORD",
+      "return_to": "ORD"
+    },
+    {
+      "member_id": "mem_priya",
+      "name": "Priya",
+      "origin": "JFK",
+      "return_to": "IAD"
+    },
+    {
+      "member_id": "mem_sam",
+      "name": "Sam",
+      "origin": "LAX",
+      "return_to": "SEA"
+    },
+    {
+      "member_id": "mem_henry",
+      "name": "Henry",
+      "origin": "MIA",
+      "return_to": "ATL"
+    }
+  ],
+  "outbound_date": "2026-03-12",
+  "return_date": "2026-03-17",
+  "offers": [
+    {
+      "id": "bos-jfk-1",
+      "owner": "XA",
+      "base_amount": "346.00",
+      "tax_amount": "66.00",
+      "total_amount": "412.00",
+      "conditions": {
+        "refund_before_departure": {
+          "allowed": true,
+          "penalty_amount": "75.00"
+        },
+        "change_before_departure": {
+          "allowed": true,
+          "penalty_amount": "0.00"
+        }
+      },
+      "payment_requirements": {
+        "requires_instant_payment": false
+      },
+      "slices": [
+        {
+          "segments": [
+            {
+              "origin": "BOS",
+              "destination": "BCN",
+              "departing_at": "2026-03-12T07:10:00",
+              "departure_time_zone": "America/New_York",
+              "arriving_at": "2026-03-12T19:35:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XA",
+              "operating_carrier": "XA",
+              "flight_number": "XA110"
+            }
+          ]
+        },
+        {
+          "segments": [
+            {
+              "origin": "BCN",
+              "destination": "JFK",
+              "departing_at": "2026-03-17T11:00:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-17T15:00:00",
+              "arrival_time_zone": "America/New_York",
+              "marketing_carrier": "XA",
+              "operating_carrier": "XA",
+              "flight_number": "XA117"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bos-jfk-2",
+      "owner": "XC",
+      "base_amount": "284.00",
+      "tax_amount": "54.00",
+      "total_amount": "338.00",
+      "conditions": {
+        "refund_before_departure": {
+          "allowed": false
+        },
+        "change_before_departure": {
+          "allowed": true,
+          "penalty_amount": "150.00"
+        }
+      },
+      "payment_requirements": {
+        "requires_instant_payment": true
+      },
+      "slices": [
+        {
+          "segments": [
+            {
+              "origin": "BOS",
+              "destination": "LIS",
+              "departing_at": "2026-03-11T18:40:00",
+              "departure_time_zone": "America/New_York",
+              "arriving_at": "2026-03-12T04:55:00",
+              "arrival_time_zone": "Europe/Lisbon",
+              "marketing_carrier": "XC",
+              "operating_carrier": "XC",
+              "flight_number": "XC204"
+            },
+            {
+              "origin": "LIS",
+              "destination": "BCN",
+              "departing_at": "2026-03-12T07:30:00",
+              "departure_time_zone": "Europe/Lisbon",
+              "arriving_at": "2026-03-12T10:30:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XC",
+              "operating_carrier": "XC",
+              "flight_number": "XC1450"
+            }
+          ]
+        },
+        {
+          "segments": [
+            {
+              "origin": "BCN",
+              "destination": "LIS",
+              "departing_at": "2026-03-17T09:15:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-17T10:20:00",
+              "arrival_time_zone": "Europe/Lisbon",
+              "marketing_carrier": "XC",
+              "operating_carrier": "XC",
+              "flight_number": "XC1451"
+            },
+            {
+              "origin": "LIS",
+              "destination": "JFK",
+              "departing_at": "2026-03-17T12:20:00",
+              "departure_time_zone": "Europe/Lisbon",
+              "arriving_at": "2026-03-17T16:10:00",
+              "arrival_time_zone": "America/New_York",
+              "marketing_carrier": "XC",
+              "operating_carrier": "XC",
+              "flight_number": "XC209"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bos-jfk-3",
+      "owner": "XA",
+      "base_amount": "307.00",
+      "tax_amount": "58.00",
+      "total_amount": "365.00",
+      "conditions": {
+        "refund_before_departure": {
+          "allowed": false
+        },
+        "change_before_departure": {
+          "allowed": true,
+          "penalty_amount": "150.00"
+        }
+      },
+      "payment_requirements": {
+        "requires_instant_payment": true
+      },
+      "slices": [
+        {
+          "segments": [
+            {
+              "origin": "BOS",
+              "destination": "BCN",
+              "departing_at": "2026-03-11T19:55:00",
+              "departure_time_zone": "America/New_York",
+              "arriving_at": "2026-03-12T08:20:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XA",
+              "operating_carrier": "XA",
+              "flight_number": "XA112"
+            }
+          ]
+        },
+        {
+          "segments": [
+            {
+              "origin": "BCN",
+              "destination": "JFK",
+              "departing_at": "2026-03-17T17:10:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-17T21:10:00",
+              "arrival_time_zone": "America/New_York",
+              "marketing_carrier": "XA",
+              "operating_carrier": "XA",
+              "flight_number": "XA119"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "bos-jfk-4",
+      "owner": "XA",
+      "base_amount": "318.00",
+      "tax_amount": "61.00",
+      "total_amount": "379.00",
+      "conditions": {
+        "refund_before_departure": {
+          "allowed": false
+        },
+        "change_before_departure": {
+          "allowed": true,
+          "penalty_amount": "150.00"
+        }
+      },
+      "payment_requirements": {
+        "requires_instant_payment": true
+      },
+      "mock_reprice": {
+        "after_minutes": 10,
+        "total_amount": "409.00"
+      },
+      "slices": [
+        {
+          "segments": [
+            {
+              "origin": "BOS",
+              "destination": "BCN",
+              "departing_at": "2026-03-12T07:10:00",
+              "departure_time_zone": "America/New_York",
+              "arriving_at": "2026-03-12T19:35:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XA",
+              "operating_carrier": "XA",
+              "flight_number": "XA110"
+            }
+          ]
+        },
+        {
+          "segments": [
+            {
+              "origin": "BCN",
+              "destination": "JFK",
+              "departing_at": "2026-03-17T11:00:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-17T15:00:00",
+              "arrival_time_zone": "America/New_York",
+              "marketing_carrier": "XA",
+              "operating_carrier": "XA",
+              "flight_number": "XA117"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sfo-lax-1",
+      "owner": "XB",
+      "base_amount": "452.00",
+      "tax_amount": "86.00",
+      "total_amount": "538.00",
+      "conditions": {
+        "refund_before_departure": {
+          "allowed": true,
+          "penalty_amount": "90.00"
+        },
+        "change_before_departure": {
+          "allowed": true,
+          "penalty_amount": "0.00"
+        }
+      },
+      "payment_requirements": {
+        "requires_instant_payment": false
+      },
+      "slices": [
+        {
+          "segments": [
+            {
+              "origin": "SFO",
+              "destination": "JFK",
+              "departing_at": "2026-03-11T22:30:00",
+              "departure_time_zone": "America/Los_Angeles",
+              "arriving_at": "2026-03-12T06:55:00",
+              "arrival_time_zone": "America/New_York",
+              "marketing_carrier": "XB",
+              "operating_carrier": "XB",
+              "flight_number": "XB52"
+            },
+            {
+              "origin": "JFK",
+              "destination": "BCN",
+              "departing_at": "2026-03-12T08:45:00",
+              "departure_time_zone": "America/New_York",
+              "arriving_at": "2026-03-12T21:40:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XB",
+              "operating_carrier": "XB",
+              "flight_number": "XB880"
+            }
+          ]
+        },
+        {
+          "segments": [
+            {
+              "origin": "BCN",
+              "destination": "LHR",
+              "departing_at": "2026-03-17T10:00:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-17T11:05:00",
+              "arrival_time_zone": "Europe/London",
+              "marketing_carrier": "XD",
+              "operating_carrier": "XD",
+              "flight_number": "XD341"
+            },
+            {
+              "origin": "LHR",
+              "destination": "LAX",
+              "departing_at": "2026-03-17T13:20:00",
+              "departure_time_zone": "Europe/London",
+              "arriving_at": "2026-03-17T17:20:00",
+              "arrival_time_zone": "America/Los_Angeles",
+              "marketing_carrier": "XD",
+              "operating_carrier": "XD",
+              "flight_number": "XD95"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sfo-lax-2",
+      "owner": "XD",
+      "base_amount": "396.00",
+      "tax_amount": "75.00",
+      "total_amount": "471.00",
+      "conditions": {
+        "refund_before_departure": {
+          "allowed": false
+        },
+        "change_before_departure": {
+          "allowed": true,
+          "penalty_amount": "150.00"
+        }
+      },
+      "payment_requirements": {
+        "requires_instant_payment": true
+      },
+      "slices": [
+        {
+          "segments": [
+            {
+              "origin": "SFO",
+              "destination": "DUB",
+              "departing_at": "2026-03-11T15:50:00",
+              "departure_time_zone": "America/Los_Angeles",
+              "arriving_at": "2026-03-12T09:10:00",
+              "arrival_time_zone": "Europe/Dublin",
+              "marketing_carrier": "XD",
+              "operating_carrier": "XD",
+              "flight_number": "XD61"
+            },
+            {
+              "origin": "DUB",
+              "destination": "BCN",
+              "departing_at": "2026-03-12T12:40:00",
+              "departure_time_zone": "Europe/Dublin",
+              "arriving_at": "2026-03-12T16:10:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XD",
+              "operating_carrier": "XD",
+              "flight_number": "XD702"
+            }
+          ]
+        },
+        {
+          "segments": [
+            {
+              "origin": "BCN",
+              "destination": "DUB",
+              "departing_at": "2026-03-17T08:05:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-17T09:35:00",
+              "arrival_time_zone": "Europe/Dublin",
+              "marketing_carrier": "XD",
+              "operating_carrier": "XD",
+              "flight_number": "XD703"
+            },
+            {
+              "origin": "DUB",
+              "destination": "LAX",
+              "departing_at": "2026-03-17T11:30:00",
+              "departure_time_zone": "Europe/Dublin",
+              "arriving_at": "2026-03-17T15:30:00",
+              "arrival_time_zone": "America/Los_Angeles",
+              "marketing_carrier": "XD",
+              "operating_carrier": "XD",
+              "flight_number": "XD64"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sfo-lax-3",
+      "owner": "XB",
+      "base_amount": "514.00",
+      "tax_amount": "98.00",
+      "total_amount": "612.00",
+      "conditions": {
+        "refund_before_departure": {
+          "allowed": true,
+          "penalty_amount": "0.00"
+        },
+        "change_before_departure": {
+          "allowed": true,
+          "penalty_amount": "0.00"
+        }
+      },
+      "payment_requirements": {
+        "requires_instant_payment": false
+      },
+      "slices": [
+        {
+          "segments": [
+            {
+              "origin": "SFO",
+              "destination": "BCN",
+              "departing_at": "2026-03-11T16:05:00",
+              "departure_time_zone": "America/Los_Angeles",
+              "arriving_at": "2026-03-12T11:40:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XB",
+              "operating_carrier": "XB",
+              "flight_number": "XB900"
+            }
+          ]
+        },
+        {
+          "segments": [
+            {
+              "origin": "BCN",
+              "destination": "LAX",
+              "departing_at": "2026-03-17T12:30:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-17T16:45:00",
+              "arrival_time_zone": "America/Los_Angeles",
+              "marketing_carrier": "XB",
+              "operating_carrier": "XB",
+              "flight_number": "XB903"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sfo-lax-4",
+      "owner": "XE",
+      "base_amount": "360.00",
+      "tax_amount": "69.00",
+      "total_amount": "429.00",
+      "conditions": {
+        "refund_before_departure": {
+          "allowed": false
+        },
+        "change_before_departure": {
+          "allowed": true,
+          "penalty_amount": "150.00"
+        }
+      },
+      "payment_requirements": {
+        "requires_instant_payment": true
+      },
+      "slices": [
+        {
+          "segments": [
+            {
+              "origin": "SFO",
+              "destination": "KEF",
+              "departing_at": "2026-03-11T14:00:00",
+              "departure_time_zone": "America/Los_Angeles",
+              "arriving_at": "2026-03-12T06:00:00",
+              "arrival_time_zone": "Atlantic/Reykjavik",
+              "marketing_carrier": "XE",
+              "operating_carrier": "XE",
+              "flight_number": "XE680"
+            },
+            {
+              "origin": "KEF",
+              "destination": "BCN",
+              "departing_at": "2026-03-12T13:10:00",
+              "departure_time_zone": "Atlantic/Reykjavik",
+              "arriving_at": "2026-03-12T18:30:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XE",
+              "operating_carrier": "XE",
+              "flight_number": "XE594"
+            }
+          ]
+        },
+        {
+          "segments": [
+            {
+              "origin": "BCN",
+              "destination": "KEF",
+              "departing_at": "2026-03-17T08:30:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-17T12:00:00",
+              "arrival_time_zone": "Atlantic/Reykjavik",
+              "marketing_carrier": "XE",
+              "operating_carrier": "XE",
+              "flight_number": "XE595"
+            },
+            {
+              "origin": "KEF",
+              "destination": "LAX",
+              "departing_at": "2026-03-17T16:45:00",
+              "departure_time_zone": "Atlantic/Reykjavik",
+              "arriving_at": "2026-03-17T19:45:00",
+              "arrival_time_zone": "America/Los_Angeles",
+              "marketing_carrier": "XE",
+              "operating_carrier": "XE",
+              "flight_number": "XE689"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ord-ord-1",
+      "owner": "XB",
+      "base_amount": "411.00",
+      "tax_amount": "78.00",
+      "total_amount": "489.00",
+      "conditions": {
+        "refund_before_departure": {
+          "allowed": false
+        },
+        "change_before_departure": {
+          "allowed": true,
+          "penalty_amount": "150.00"
+        }
+      },
+      "payment_requirements": {
+        "requires_instant_payment": true
+      },
+      "slices": [
+        {
+          "segments": [
+            {
+              "origin": "ORD",
+              "destination": "BCN",
+              "departing_at": "2026-03-11T17:45:00",
+              "departure_time_zone": "America/Chicago",
+              "arriving_at": "2026-03-12T08:50:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XB",
+              "operating_carrier": "XB",
+              "flight_number": "XB240"
+            }
+          ]
+        },
+        {
+          "segments": [
+            {
+              "origin": "BCN",
+              "destination": "ORD",
+              "departing_at": "2026-03-17T12:15:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-17T16:20:00",
+              "arrival_time_zone": "America/Chicago",
+              "marketing_carrier": "XB",
+              "operating_carrier": "XB",
+              "flight_number": "XB241"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ord-ord-2",
+      "owner": "XB",
+      "base_amount": "443.00",
+      "tax_amount": "84.00",
+      "total_amount": "527.00",
+      "conditions": {
+        "refund_before_departure": {
+          "allowed": true,
+          "penalty_amount": "0.00"
+        },
+        "change_before_departure": {
+          "allowed": true,
+          "penalty_amount": "0.00"
+        }
+      },
+      "payment_requirements": {
+        "requires_instant_payment": false
+      },
+      "slices": [
+        {
+          "segments": [
+            {
+              "origin": "ORD",
+              "destination": "BCN",
+              "departing_at": "2026-03-12T05:30:00",
+              "departure_time_zone": "America/Chicago",
+              "arriving_at": "2026-03-12T20:35:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XB",
+              "operating_carrier": "XB",
+              "flight_number": "XB244"
+            }
+          ]
+        },
+        {
+          "segments": [
+            {
+              "origin": "BCN",
+              "destination": "ORD",
+              "departing_at": "2026-03-17T12:15:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-17T16:20:00",
+              "arrival_time_zone": "America/Chicago",
+              "marketing_carrier": "XB",
+              "operating_carrier": "XB",
+              "flight_number": "XB241"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ord-ord-3",
+      "owner": "XD",
+      "base_amount": "370.00",
+      "tax_amount": "71.00",
+      "total_amount": "441.00",
+      "conditions": {
+        "refund_before_departure": {
+          "allowed": false
+        },
+        "change_before_departure": {
+          "allowed": true,
+          "penalty_amount": "150.00"
+        }
+      },
+      "payment_requirements": {
+        "requires_instant_payment": true
+      },
+      "slices": [
+        {
+          "segments": [
+            {
+              "origin": "ORD",
+              "destination": "DUB",
+              "departing_at": "2026-03-12T06:05:00",
+              "departure_time_zone": "America/Chicago",
+              "arriving_at": "2026-03-12T18:35:00",
+              "arrival_time_zone": "Europe/Dublin",
+              "marketing_carrier": "XD",
+              "operating_carrier": "XD",
+              "flight_number": "XD125"
+            },
+            {
+              "origin": "DUB",
+              "destination": "BCN",
+              "departing_at": "2026-03-12T19:40:00",
+              "departure_time_zone": "Europe/Dublin",
+              "arriving_at": "2026-03-12T23:10:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XD",
+              "operating_carrier": "XD",
+              "flight_number": "XD710"
+            }
+          ]
+        },
+        {
+          "segments": [
+            {
+              "origin": "BCN",
+              "destination": "DUB",
+              "departing_at": "2026-03-17T08:05:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-17T09:35:00",
+              "arrival_time_zone": "Europe/Dublin",
+              "marketing_carrier": "XD",
+              "operating_carrier": "XD",
+              "flight_number": "XD703"
+            },
+            {
+              "origin": "DUB",
+              "destination": "ORD",
+              "departing_at": "2026-03-17T11:15:00",
+              "departure_time_zone": "Europe/Dublin",
+              "arriving_at": "2026-03-17T15:10:00",
+              "arrival_time_zone": "America/Chicago",
+              "marketing_carrier": "XD",
+              "operating_carrier": "XD",
+              "flight_number": "XD126"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ord-ord-4",
+      "owner": "XB",
+      "base_amount": "419.00",
+      "tax_amount": "80.00",
+      "total_amount": "499.00",
+      "conditions": {
+        "refund_before_departure": {
+          "allowed": false
+        },
+        "change_before_departure": {
+          "allowed": true,
+          "penalty_amount": "150.00"
+        }
+      },
+      "payment_requirements": {
+        "requires_instant_payment": true
+      },
+      "mock_reprice": {
+        "after_minutes": 15,
+        "total_amount": "545.00"
+      },
+      "slices": [
+        {
+          "segments": [
+            {
+              "origin": "ORD",
+              "destination": "BCN",
+              "departing_at": "2026-03-12T05:30:00",
+              "departure_time_zone": "America/Chicago",
+              "arriving_at": "2026-03-12T20:35:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XB",
+              "operating_carrier": "XB",
+              "flight_number": "XB244"
+            }
+          ]
+        },
+        {
+          "segments": [
+            {
+              "origin": "BCN",
+              "destination": "ORD",
+              "departing_at": "2026-03-17T12:15:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-17T16:20:00",
+              "arrival_time_zone": "America/Chicago",
+              "marketing_carrier": "XB",
+              "operating_carrier": "XB",
+              "flight_number": "XB241"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "jfk-iad-1",
+      "owner": "XA",
+      "base_amount": "375.00",
+      "tax_amount": "71.00",
+      "total_amount": "446.00",
+      "conditions": {
+        "refund_before_departure": {
+          "allowed": true,
+          "penalty_amount": "100.00"
+        },
+        "change_before_departure": {
+          "allowed": true,
+          "penalty_amount": "0.00"
+        }
+      },
+      "payment_requirements": {
+        "requires_instant_payment": false
+      },
+      "slices": [
+        {
+          "segments": [
+            {
+              "origin": "JFK",
+              "destination": "BCN",
+              "departing_at": "2026-03-12T08:25:00",
+              "departure_time_zone": "America/New_York",
+              "arriving_at": "2026-03-12T21:20:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XA",
+              "operating_carrier": "XA",
+              "flight_number": "XA150"
+            }
+          ]
+        },
+        {
+          "segments": [
+            {
+              "origin": "BCN",
+              "destination": "IAD",
+              "departing_at": "2026-03-17T11:40:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-17T16:00:00",
+              "arrival_time_zone": "America/New_York",
+              "marketing_carrier": "XA",
+              "operating_carrier": "XA",
+              "flight_number": "XA171"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "jfk-iad-2",
+      "owner": "XA",
+      "base_amount": "334.00",
+      "tax_amount": "64.00",
+      "total_amount": "398.00",
+      "conditions": {
+        "refund_before_departure": {
+          "allowed": false
+        },
+        "change_before_departure": {
+          "allowed": true,
+          "penalty_amount": "150.00"
+        }
+      },
+      "payment_requirements": {
+        "requires_instant_payment": true
+      },
+      "slices": [
+        {
+          "segments": [
+            {
+              "origin": "JFK",
+              "destination": "BCN",
+              "departing_at": "2026-03-11T18:10:00",
+              "departure_time_zone": "America/New_York",
+              "arriving_at": "2026-03-12T07:05:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XA",
+              "operating_carrier": "XA",
+              "flight_number": "XA152"
+            }
+          ]
+        },
+        {
+          "segments": [
+            {
+              "origin": "BCN",
+              "destination": "IAD",
+              "departing_at": "2026-03-17T11:40:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-17T16:00:00",
+              "arrival_time_zone": "America/New_York",
+              "marketing_carrier": "XA",
+              "operating_carrier": "XA",
+              "flight_number": "XA171"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "jfk-iad-3",
+      "owner": "XC",
+      "base_amount": "304.00",
+      "tax_amount": "58.00",
+      "total_amount": "362.00",
+      "conditions": {
+        "refund_before_departure": {
+          "allowed": false
+        },
+        "change_before_departure": {
+          "allowed": true,
+          "penalty_amount": "150.00"
+        }
+      },
+      "payment_requirements": {
+        "requires_instant_payment": true
+      },
+      "slices": [
+        {
+          "segments": [
+            {
+              "origin": "JFK",
+              "destination": "LIS",
+              "departing_at": "2026-03-11T21:30:00",
+              "departure_time_zone": "America/New_York",
+              "arriving_at": "2026-03-12T08:10:00",
+              "arrival_time_zone": "Europe/Lisbon",
+              "marketing_carrier": "XC",
+              "operating_carrier": "XC",
+              "flight_number": "XC210"
+            },
+            {
+              "origin": "LIS",
+              "destination": "BCN",
+              "departing_at": "2026-03-12T10:00:00",
+              "departure_time_zone": "Europe/Lisbon",
+              "arriving_at": "2026-03-12T13:00:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XC",
+              "operating_carrier": "XC",
+              "flight_number": "XC1454"
+            }
+          ]
+        },
+        {
+          "segments": [
+            {
+              "origin": "BCN",
+              "destination": "LIS",
+              "departing_at": "2026-03-17T09:15:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-17T10:20:00",
+              "arrival_time_zone": "Europe/Lisbon",
+              "marketing_carrier": "XC",
+              "operating_carrier": "XC",
+              "flight_number": "XC1451"
+            },
+            {
+              "origin": "LIS",
+              "destination": "IAD",
+              "departing_at": "2026-03-17T12:35:00",
+              "departure_time_zone": "Europe/Lisbon",
+              "arriving_at": "2026-03-17T17:00:00",
+              "arrival_time_zone": "America/New_York",
+              "marketing_carrier": "XC",
+              "operating_carrier": "XC",
+              "flight_number": "XC215"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "jfk-iad-4",
+      "owner": "XB",
+      "base_amount": "360.00",
+      "tax_amount": "69.00",
+      "total_amount": "429.00",
+      "conditions": {
+        "refund_before_departure": {
+          "allowed": true,
+          "penalty_amount": "60.00"
+        },
+        "change_before_departure": {
+          "allowed": true,
+          "penalty_amount": "0.00"
+        }
+      },
+      "payment_requirements": {
+        "requires_instant_payment": false
+      },
+      "expires_after_minutes": 5,
+      "slices": [
+        {
+          "segments": [
+            {
+              "origin": "JFK",
+              "destination": "BCN",
+              "departing_at": "2026-03-12T09:50:00",
+              "departure_time_zone": "America/New_York",
+              "arriving_at": "2026-03-12T22:45:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XB",
+              "operating_carrier": "XB",
+              "flight_number": "XB884"
+            }
+          ]
+        },
+        {
+          "segments": [
+            {
+              "origin": "BCN",
+              "destination": "IAD",
+              "departing_at": "2026-03-17T13:05:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-17T17:25:00",
+              "arrival_time_zone": "America/New_York",
+              "marketing_carrier": "XB",
+              "operating_carrier": "XB",
+              "flight_number": "XB887"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lax-sea-1",
+      "owner": "XD",
+      "base_amount": "470.00",
+      "tax_amount": "89.00",
+      "total_amount": "559.00",
+      "conditions": {
+        "refund_before_departure": {
+          "allowed": true,
+          "penalty_amount": "120.00"
+        },
+        "change_before_departure": {
+          "allowed": true,
+          "penalty_amount": "0.00"
+        }
+      },
+      "payment_requirements": {
+        "requires_instant_payment": false
+      },
+      "slices": [
+        {
+          "segments": [
+            {
+              "origin": "LAX",
+              "destination": "LHR",
+              "departing_at": "2026-03-11T17:30:00",
+              "departure_time_zone": "America/Los_Angeles",
+              "arriving_at": "2026-03-12T11:00:00",
+              "arrival_time_zone": "Europe/London",
+              "marketing_carrier": "XD",
+              "operating_carrier": "XD",
+              "flight_number": "XD90"
+            },
+            {
+              "origin": "LHR",
+              "destination": "BCN",
+              "departing_at": "2026-03-12T15:20:00",
+              "departure_time_zone": "Europe/London",
+              "arriving_at": "2026-03-12T18:25:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XD",
+              "operating_carrier": "XD",
+              "flight_number": "XD344"
+            }
+          ]
+        },
+        {
+          "segments": [
+            {
+              "origin": "BCN",
+              "destination": "AMS",
+              "departing_at": "2026-03-17T09:40:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-17T11:55:00",
+              "arrival_time_zone": "Europe/Amsterdam",
+              "marketing_carrier": "XF",
+              "operating_carrier": "XF",
+              "flight_number": "XF1302"
+            },
+            {
+              "origin": "AMS",
+              "destination": "SEA",
+              "departing_at": "2026-03-17T13:30:00",
+              "departure_time_zone": "Europe/Amsterdam",
+              "arriving_at": "2026-03-17T15:30:00",
+              "arrival_time_zone": "America/Los_Angeles",
+              "marketing_carrier": "XF",
+              "operating_carrier": "XF",
+              "flight_number": "XF67"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lax-sea-2",
+      "owner": "XB",
+      "base_amount": "424.00",
+      "tax_amount": "81.00",
+      "total_amount": "505.00",
+      "conditions": {
+        "refund_before_departure": {
+          "allowed": false
+        },
+        "change_before_departure": {
+          "allowed": true,
+          "penalty_amount": "150.00"
+        }
+      },
+      "payment_requirements": {
+        "requires_instant_payment": true
+      },
+      "slices": [
+        {
+          "segments": [
+            {
+              "origin": "LAX",
+              "destination": "JFK",
+              "departing_at": "2026-03-11T23:15:00",
+              "departure_time_zone": "America/Los_Angeles",
+              "arriving_at": "2026-03-12T07:35:00",
+              "arrival_time_zone": "America/New_York",
+              "marketing_carrier": "XB",
+              "operating_carrier": "XB",
+              "flight_number": "XB34"
+            },
+            {
+              "origin": "JFK",
+              "destination": "BCN",
+              "departing_at": "2026-03-12T08:25:00",
+              "departure_time_zone": "America/New_York",
+              "arriving_at": "2026-03-12T21:20:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XB",
+              "operating_carrier": "XB",
+              "flight_number": "XB882"
+            }
+          ]
+        },
+        {
+          "segments": [
+            {
+              "origin": "BCN",
+              "destination": "JFK",
+              "departing_at": "2026-03-17T11:00:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-17T15:00:00",
+              "arrival_time_zone": "America/New_York",
+              "marketing_carrier": "XB",
+              "operating_carrier": "XB",
+              "flight_number": "XB883"
+            },
+            {
+              "origin": "JFK",
+              "destination": "SEA",
+              "departing_at": "2026-03-17T16:40:00",
+              "departure_time_zone": "America/New_York",
+              "arriving_at": "2026-03-17T20:10:00",
+              "arrival_time_zone": "America/Los_Angeles",
+              "marketing_carrier": "XB",
+              "operating_carrier": "XB",
+              "flight_number": "XB37"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lax-sea-3",
+      "owner": "XF",
+      "base_amount": "544.00",
+      "tax_amount": "104.00",
+      "total_amount": "648.00",
+      "conditions": {
+        "refund_before_departure": {
+          "allowed": true,
+          "penalty_amount": "0.00"
+        },
+        "change_before_departure": {
+          "allowed": true,
+          "penalty_amount": "0.00"
+        }
+      },
+      "payment_requirements": {
+        "requires_instant_payment": false
+      },
+      "slices": [
+        {
+          "segments": [
+            {
+              "origin": "LAX",
+              "destination": "BCN",
+              "departing_at": "2026-03-11T15:30:00",
+              "departure_time_zone": "America/Los_Angeles",
+              "arriving_at": "2026-03-12T11:15:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XF",
+              "operating_carrier": "XF",
+              "flight_number": "XF8"
+            }
+          ]
+        },
+        {
+          "segments": [
+            {
+              "origin": "BCN",
+              "destination": "AMS",
+              "departing_at": "2026-03-17T09:40:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-17T11:55:00",
+              "arrival_time_zone": "Europe/Amsterdam",
+              "marketing_carrier": "XF",
+              "operating_carrier": "XF",
+              "flight_number": "XF1302"
+            },
+            {
+              "origin": "AMS",
+              "destination": "SEA",
+              "departing_at": "2026-03-17T13:30:00",
+              "departure_time_zone": "Europe/Amsterdam",
+              "arriving_at": "2026-03-17T15:30:00",
+              "arrival_time_zone": "America/Los_Angeles",
+              "marketing_carrier": "XF",
+              "operating_carrier": "XF",
+              "flight_number": "XF67"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lax-sea-4",
+      "owner": "XE",
+      "base_amount": "388.00",
+      "tax_amount": "74.00",
+      "total_amount": "462.00",
+      "conditions": {
+        "refund_before_departure": {
+          "allowed": false
+        },
+        "change_before_departure": {
+          "allowed": true,
+          "penalty_amount": "150.00"
+        }
+      },
+      "payment_requirements": {
+        "requires_instant_payment": true
+      },
+      "slices": [
+        {
+          "segments": [
+            {
+              "origin": "LAX",
+              "destination": "KEF",
+              "departing_at": "2026-03-11T19:00:00",
+              "departure_time_zone": "America/Los_Angeles",
+              "arriving_at": "2026-03-12T11:20:00",
+              "arrival_time_zone": "Atlantic/Reykjavik",
+              "marketing_carrier": "XE",
+              "operating_carrier": "XE",
+              "flight_number": "XE690"
+            },
+            {
+              "origin": "KEF",
+              "destination": "BCN",
+              "departing_at": "2026-03-12T14:00:00",
+              "departure_time_zone": "Atlantic/Reykjavik",
+              "arriving_at": "2026-03-12T19:20:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XE",
+              "operating_carrier": "XE",
+              "flight_number": "XE596"
+            }
+          ]
+        },
+        {
+          "segments": [
+            {
+              "origin": "BCN",
+              "destination": "KEF",
+              "departing_at": "2026-03-17T08:30:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-17T12:00:00",
+              "arrival_time_zone": "Atlantic/Reykjavik",
+              "marketing_carrier": "XE",
+              "operating_carrier": "XE",
+              "flight_number": "XE595"
+            },
+            {
+              "origin": "KEF",
+              "destination": "SEA",
+              "departing_at": "2026-03-17T16:30:00",
+              "departure_time_zone": "Atlantic/Reykjavik",
+              "arriving_at": "2026-03-17T17:20:00",
+              "arrival_time_zone": "America/Los_Angeles",
+              "marketing_carrier": "XE",
+              "operating_carrier": "XE",
+              "flight_number": "XE693"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mia-atl-1",
+      "owner": "XA",
+      "base_amount": "398.00",
+      "tax_amount": "76.00",
+      "total_amount": "474.00",
+      "conditions": {
+        "refund_before_departure": {
+          "allowed": true,
+          "penalty_amount": "80.00"
+        },
+        "change_before_departure": {
+          "allowed": true,
+          "penalty_amount": "0.00"
+        }
+      },
+      "payment_requirements": {
+        "requires_instant_payment": false
+      },
+      "slices": [
+        {
+          "segments": [
+            {
+              "origin": "MIA",
+              "destination": "BCN",
+              "departing_at": "2026-03-12T06:20:00",
+              "departure_time_zone": "America/New_York",
+              "arriving_at": "2026-03-12T20:10:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XA",
+              "operating_carrier": "XA",
+              "flight_number": "XA330"
+            }
+          ]
+        },
+        {
+          "segments": [
+            {
+              "origin": "BCN",
+              "destination": "ATL",
+              "departing_at": "2026-03-17T11:20:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-17T16:30:00",
+              "arrival_time_zone": "America/New_York",
+              "marketing_carrier": "XA",
+              "operating_carrier": "XA",
+              "flight_number": "XA335"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mia-atl-2",
+      "owner": "XA",
+      "base_amount": "351.00",
+      "tax_amount": "67.00",
+      "total_amount": "418.00",
+      "conditions": {
+        "refund_before_departure": {
+          "allowed": false
+        },
+        "change_before_departure": {
+          "allowed": true,
+          "penalty_amount": "150.00"
+        }
+      },
+      "payment_requirements": {
+        "requires_instant_payment": true
+      },
+      "slices": [
+        {
+          "segments": [
+            {
+              "origin": "MIA",
+              "destination": "BCN",
+              "departing_at": "2026-03-11T17:00:00",
+              "departure_time_zone": "America/New_York",
+              "arriving_at": "2026-03-12T06:50:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XA",
+              "operating_carrier": "XA",
+              "flight_number": "XA332"
+            }
+          ]
+        },
+        {
+          "segments": [
+            {
+              "origin": "BCN",
+              "destination": "ATL",
+              "departing_at": "2026-03-17T11:20:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-17T16:30:00",
+              "arrival_time_zone": "America/New_York",
+              "marketing_carrier": "XA",
+              "operating_carrier": "XA",
+              "flight_number": "XA335"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mia-atl-3",
+      "owner": "XF",
+      "base_amount": "329.00",
+      "tax_amount": "63.00",
+      "total_amount": "392.00",
+      "conditions": {
+        "refund_before_departure": {
+          "allowed": false
+        },
+        "change_before_departure": {
+          "allowed": true,
+          "penalty_amount": "150.00"
+        }
+      },
+      "payment_requirements": {
+        "requires_instant_payment": true
+      },
+      "slices": [
+        {
+          "segments": [
+            {
+              "origin": "MIA",
+              "destination": "MAD",
+              "departing_at": "2026-03-11T20:10:00",
+              "departure_time_zone": "America/New_York",
+              "arriving_at": "2026-03-12T09:30:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XF",
+              "operating_carrier": "XF",
+              "flight_number": "XF420"
+            },
+            {
+              "origin": "MAD",
+              "destination": "BCN",
+              "departing_at": "2026-03-12T11:15:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-12T12:35:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XF",
+              "operating_carrier": "XF",
+              "flight_number": "XF1010"
+            }
+          ]
+        },
+        {
+          "segments": [
+            {
+              "origin": "BCN",
+              "destination": "MAD",
+              "departing_at": "2026-03-17T08:00:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-17T09:20:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XF",
+              "operating_carrier": "XF",
+              "flight_number": "XF1011"
+            },
+            {
+              "origin": "MAD",
+              "destination": "ATL",
+              "departing_at": "2026-03-17T10:45:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-17T15:45:00",
+              "arrival_time_zone": "America/New_York",
+              "marketing_carrier": "XF",
+              "operating_carrier": "XF",
+              "flight_number": "XF421"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mia-atl-4",
+      "owner": "XA",
+      "base_amount": "370.00",
+      "tax_amount": "71.00",
+      "total_amount": "441.00",
+      "conditions": {
+        "refund_before_departure": {
+          "allowed": false
+        },
+        "change_before_departure": {
+          "allowed": true,
+          "penalty_amount": "150.00"
+        }
+      },
+      "payment_requirements": {
+        "requires_instant_payment": true
+      },
+      "mock_reprice": {
+        "after_minutes": 10,
+        "total_amount": "468.00"
+      },
+      "slices": [
+        {
+          "segments": [
+            {
+              "origin": "MIA",
+              "destination": "BCN",
+              "departing_at": "2026-03-12T06:20:00",
+              "departure_time_zone": "America/New_York",
+              "arriving_at": "2026-03-12T20:10:00",
+              "arrival_time_zone": "Europe/Madrid",
+              "marketing_carrier": "XA",
+              "operating_carrier": "XA",
+              "flight_number": "XA330"
+            }
+          ]
+        },
+        {
+          "segments": [
+            {
+              "origin": "BCN",
+              "destination": "ATL",
+              "departing_at": "2026-03-17T11:20:00",
+              "departure_time_zone": "Europe/Madrid",
+              "arriving_at": "2026-03-17T16:30:00",
+              "arrival_time_zone": "America/New_York",
+              "marketing_carrier": "XA",
+              "operating_carrier": "XA",
+              "flight_number": "XA335"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

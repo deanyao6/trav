@@ -1,0 +1,381 @@
+/**
+ * Roast guardrails (docs/SAFETY.md §2.8, VOICE §7, CLAUDE.md §2).
+ *
+ * Gate 1 (`roastAllowed`, `groupRoastBlock`): deterministic group/target rules.
+ * Gate 2 (`roastTopicBlocked`): a deterministic term blocklist over the draft
+ * line. It runs regardless of the classifier call in the agent package. The
+ * canonical list lives here as `DEFAULT_ROAST_BLOCKLIST` (core is pure and
+ * cannot read `fixtures/`); callers may pass extra terms.
+ */
+import type { IsoDateTime } from '../primitives.js';
+import type { Group, Member } from '../domain/group.js';
+import type { Trip } from '../domain/trip.js';
+import type { ConsentLookup } from '../domain/consent.js';
+import { groupAgeUnconfirmed, groupHasMinor, isFamilyMode, isMinor } from './minors.js';
+import { termRegex, normalizeText } from './text.js';
+
+export type RoastBlockCause =
+  | 'mode_off'
+  | 'minor_in_group'
+  | 'family_mode'
+  | 'age_unconfirmed'
+  | 'member_opted_out'
+  | 'target_not_member'
+  | 'target_inactive'
+  | 'trip_over';
+
+export type RoastGate =
+  { readonly allowed: true } | { readonly allowed: false; readonly cause: RoastBlockCause };
+
+/** Roasts are allowed this many days after the trip's endDate (Wrapped lands the day after). */
+export const ROAST_GRACE_DAYS = 7;
+
+function dayNumber(isoDate: string): number | undefined {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate);
+  if (!m) return undefined;
+  return Math.floor(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) / 86_400_000);
+}
+
+/** "tripIsActiveOrJustEnded" (SAFETY §2.8). No trip ⇒ nothing to roast. */
+export function tripAllowsRoast(trip: Trip | null, now: IsoDateTime): boolean {
+  if (trip === null) return false;
+  if (trip.status === 'closed') return false;
+  const today = dayNumber(now);
+  const end = dayNumber(trip.endDate);
+  if (today === undefined || end === undefined) return false;
+  if (trip.status === 'planning' || trip.status === 'active' || trip.status === 'ended') {
+    return today <= end + ROAST_GRACE_DAYS;
+  }
+  return false;
+}
+
+/** Group-level part of gate 1: everything that does not depend on the target. */
+export function groupRoastBlock(
+  group: Group,
+  members: readonly Member[],
+  trip: Trip | null,
+  now: IsoDateTime,
+): RoastBlockCause | null {
+  if (group.settings.roastMode !== true) return 'mode_off';
+  if (groupHasMinor(members, now)) return 'minor_in_group';
+  if (isFamilyMode(group, members, now)) return 'family_mode';
+  if (groupAgeUnconfirmed(group, members)) return 'age_unconfirmed';
+  if (!tripAllowsRoast(trip, now)) return 'trip_over';
+  return null;
+}
+
+/**
+ * Gate 1 (SAFETY §2.8): roast mode on, no minor (and not family mode), every
+ * member's age known or confirmed 18+, trip active or just ended, and the target
+ * is a current, non-guest, adult member who opted in (`consent.roast === true`;
+ * consent defaults false, SAFETY §2.6). The target is re-read from `members` by
+ * id so a stale object cannot bypass a leave/opt-out.
+ */
+export function roastAllowed(
+  group: Group,
+  members: readonly Member[],
+  target: Member,
+  consent: ConsentLookup,
+  trip: Trip | null,
+  now: IsoDateTime,
+): RoastGate {
+  const groupBlock = groupRoastBlock(group, members, trip, now);
+  if (groupBlock !== null) return { allowed: false, cause: groupBlock };
+  const current = members.find((m) => m.memberId === target.memberId);
+  if (current === undefined || current.groupId !== group.groupId || current.role === 'guest') {
+    return { allowed: false, cause: 'target_not_member' };
+  }
+  if (isMinor(current, now) || isMinor(target, now))
+    return { allowed: false, cause: 'minor_in_group' };
+  if (!current.active || current.leftAt !== undefined) {
+    return { allowed: false, cause: 'target_inactive' };
+  }
+  const flags = consent(current.memberId);
+  if (flags?.roast !== true) return { allowed: false, cause: 'member_opted_out' };
+  return { allowed: true };
+}
+
+// ---------- gate 2: topic blocklist ----------
+
+export type RoastTopicCategory =
+  | 'body'
+  | 'romance'
+  | 'outsider'
+  | 'protected_trait'
+  | 'health'
+  | 'intoxication'
+  | 'hardship'
+  | 'legal'
+  | 'minor'
+  | 'left_member'
+  | 'private_data';
+
+export interface RoastBlocklistEntry {
+  readonly term: string;
+  readonly category: RoastTopicCategory;
+}
+
+const BLOCKLIST_TERMS: Readonly<Record<RoastTopicCategory, readonly string[]>> = {
+  body: [
+    'body',
+    'fat',
+    'skinny',
+    'weight',
+    'chubby',
+    'ugly',
+    'looks',
+    'face',
+    'hair',
+    'bald',
+    'belly',
+    'gut',
+    'abs',
+    'gym',
+    'outfit',
+    'clothes',
+    'shirt',
+    'shoes',
+    'dressed',
+    'sweaty',
+    'smelly',
+    'hangover',
+    'hungover',
+    'asleep',
+    'sleep',
+    'slept',
+    'nap',
+    'tired',
+  ],
+  romance: [
+    'dating',
+    'date night',
+    'a date',
+    'his date',
+    'her date',
+    'their date',
+    'first date',
+    'tinder',
+    'hinge',
+    'bumble',
+    'hookup',
+    'hook up',
+    'hooked up',
+    'went home with',
+    'go home with',
+    'going home with',
+    'making out',
+    'made out',
+    'flirt',
+    'flirting',
+    'crush',
+    'girlfriend',
+    'boyfriend',
+    'ex',
+    'kiss',
+    'kissed',
+    'romance',
+    'romantic',
+    'sex',
+    'single',
+    'talking to',
+  ],
+  outsider: [
+    'host',
+    'driver',
+    'waiter',
+    'waitress',
+    'bartender',
+    'bouncer',
+    'staff',
+    'cashier',
+    'stranger',
+    'that guy',
+    'that girl',
+    'some guy',
+    'some girl',
+    'the locals',
+    'your mom',
+    'your dad',
+    'his mom',
+    'her mom',
+    'his dad',
+    'her dad',
+    'his wife',
+    'her husband',
+  ],
+  protected_trait: [
+    'racial',
+    'racist',
+    'ethnicity',
+    'ethnic',
+    'nationality',
+    'accent',
+    'immigrant',
+    'foreigner',
+    'gringo',
+    'religion',
+    'religious',
+    'muslim',
+    'jewish',
+    'christian',
+    'hindu',
+    'catholic',
+    'gay',
+    'lesbian',
+    'bisexual',
+    'trans',
+    'queer',
+    'gender',
+    'disabled',
+    'disability',
+    'wheelchair',
+    'autistic',
+    'old man',
+    'boomer',
+    'grandpa',
+    'too old',
+    'where he is from',
+    "where he's from",
+    "where she's from",
+    "where they're from",
+  ],
+  health: [
+    'sick',
+    'ill',
+    'illness',
+    'flu',
+    'fever',
+    'covid',
+    'hospital',
+    'doctor',
+    'injury',
+    'injured',
+    'puked',
+    'puke',
+    'vomit',
+    'vomited',
+    'threw up',
+    'throwing up',
+    'food poisoning',
+    'allergic',
+    'allergy',
+    'meds',
+    'medication',
+    'therapy',
+    'therapist',
+    'depressed',
+    'depression',
+    'anxiety',
+    'anxious',
+    'adhd',
+    'mental health',
+    'panic attack',
+    'diet',
+  ],
+  intoxication: [
+    'drunk',
+    'wasted',
+    'tipsy',
+    'hammered',
+    'blackout',
+    'blacked out',
+    'smashed',
+    'plastered',
+    'stoned',
+    'got high',
+    'was high',
+    'sober',
+    'sobered',
+  ],
+  hardship: [
+    'broke',
+    'poor',
+    "can't afford",
+    'cannot afford',
+    'cant afford',
+    'cheap',
+    'cheapskate',
+    'stingy',
+    'in debt',
+    'debt',
+    'overdraft',
+    'overdrawn',
+    'maxed out',
+    'unemployed',
+    'jobless',
+    'saving money',
+    'paycheck',
+  ],
+  legal: [
+    'arrested',
+    'police',
+    'cops',
+    'jail',
+    'prison',
+    'lawyer',
+    'court',
+    'fined',
+    'warrant',
+    'illegal',
+    'deported',
+    'mugshot',
+  ],
+  minor: [
+    'kid',
+    'child',
+    'children',
+    'teen',
+    'teenager',
+    'underage',
+    'year-old',
+    'year old',
+    'minor',
+  ],
+  left_member: ['left the chat', 'left the group', 'former member'],
+  private_data: [
+    'card statement',
+    'bank statement',
+    'bank account',
+    'your card',
+    'his card',
+    'her card',
+    'their card',
+    'transaction',
+    'inbox',
+    'email',
+    'venmo history',
+  ],
+};
+
+export const DEFAULT_ROAST_BLOCKLIST: readonly RoastBlocklistEntry[] = (
+  Object.keys(BLOCKLIST_TERMS) as RoastTopicCategory[]
+).flatMap((category) => BLOCKLIST_TERMS[category].map((term) => ({ term, category })));
+
+const compiledCache = new WeakMap<
+  readonly RoastBlocklistEntry[],
+  readonly { readonly re: RegExp; readonly category: RoastTopicCategory }[]
+>();
+
+function compile(
+  blocklist: readonly RoastBlocklistEntry[],
+): readonly { readonly re: RegExp; readonly category: RoastTopicCategory }[] {
+  const hit = compiledCache.get(blocklist);
+  if (hit !== undefined) return hit;
+  const compiled = blocklist
+    .filter((e) => e.term.trim().length > 0)
+    .map((e) => ({ re: termRegex(e.term), category: e.category }));
+  compiledCache.set(blocklist, compiled);
+  return compiled;
+}
+
+/** Deterministic blocklist over a draft roast line. Returns the first matching category, or null. */
+export function roastTopicBlocked(
+  line: string,
+  blocklist: readonly RoastBlocklistEntry[] = DEFAULT_ROAST_BLOCKLIST,
+): RoastTopicCategory | null {
+  const text = normalizeText(line);
+  for (const c of compile(blocklist)) {
+    if (c.re.test(text)) return c.category;
+  }
+  return null;
+}

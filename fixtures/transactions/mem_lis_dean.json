@@ -1,0 +1,507 @@
+{
+  "fixtureVersion": 1,
+  "ownerMemberId": "mem_lis_dean",
+  "groupId": "grp_lisbon",
+  "tripId": "trip_lisbon",
+  "consentInScenario": {
+    "cardImport": true,
+    "from": "2026-04-15T12:03:00+01:00"
+  },
+  "accounts": [
+    {
+      "accountId": "acc_lis_dean_nb",
+      "ownerMemberId": "mem_lis_dean",
+      "institutionName": "Northbank Travel Visa (fictional)",
+      "mask": "7710",
+      "type": "credit",
+      "subtype": "credit card"
+    }
+  ],
+  "cardCurrency": "EUR",
+  "pages": [
+    {
+      "requestCursor": null,
+      "result": {
+        "added": [
+          {
+            "transactionId": "txn_lis_dean_benfica_0320",
+            "accountId": "acc_lis_dean_nb",
+            "ownerMemberId": "mem_lis_dean",
+            "amount": {
+              "amountMinor": 11000,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-03-20",
+            "authorizedDate": "2026-03-20",
+            "datetime": "2026-03-20T19:14:00-04:00",
+            "merchantName": "SL Benfica Bilheteira",
+            "merchantEntityId": "ent_sl_benfica_bilheteira",
+            "rawName": "SLB BILHETEIRA ONLINE",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "ENTERTAINMENT",
+              "detailed": "ENTERTAINMENT_SPORTING_EVENTS_AMUSEMENT_PARKS_AND_MUSEUMS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Lisbon",
+              "region": "Lisboa",
+              "country": "PT"
+            },
+            "counterparties": [
+              {
+                "name": "SL Benfica Bilheteira",
+                "type": "merchant",
+                "entityId": "ent_sl_benfica_bilheteira"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_lis_dean_home_03",
+            "accountId": "acc_lis_dean_nb",
+            "ownerMemberId": "mem_lis_dean",
+            "amount": {
+              "amountMinor": 2194,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-04-03",
+            "authorizedDate": "2026-04-03",
+            "datetime": "2026-04-03T09:20:00-04:00",
+            "merchantName": "PayPeer",
+            "merchantEntityId": "ent_paypeer",
+            "rawName": "PAYPEER *TRANSFER",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "TRANSFER_OUT",
+              "detailed": "TRANSFER_OUT_ACCOUNT_TRANSFER",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "PayPeer",
+                "type": "merchant",
+                "entityId": "ent_paypeer"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_lis_dean_home_02",
+            "accountId": "acc_lis_dean_nb",
+            "ownerMemberId": "mem_lis_dean",
+            "amount": {
+              "amountMinor": 3989,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-04-05",
+            "authorizedDate": "2026-04-05",
+            "datetime": "2026-04-05T15:53:00-04:00",
+            "merchantName": "DashDinner",
+            "merchantEntityId": "ent_dashdinner",
+            "rawName": "DASHDINNER*ORDER 849",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_FAST_FOOD",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "DashDinner",
+                "type": "merchant",
+                "entityId": "ent_dashdinner"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_lis_dean_home_04",
+            "accountId": "acc_lis_dean_nb",
+            "ownerMemberId": "mem_lis_dean",
+            "amount": {
+              "amountMinor": 2573,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-04-05",
+            "authorizedDate": "2026-04-05",
+            "datetime": "2026-04-05T19:10:00-04:00",
+            "merchantName": "Uber",
+            "merchantEntityId": "ent_uber",
+            "rawName": "UBER *TRIP HELP.RIDES.EXAMPLE.TEST",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "TRANSPORTATION",
+              "detailed": "TRANSPORTATION_TAXIS_AND_RIDE_SHARES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Uber",
+                "type": "merchant",
+                "entityId": "ent_uber"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_lis_dean_home_05",
+            "accountId": "acc_lis_dean_nb",
+            "ownerMemberId": "mem_lis_dean",
+            "amount": {
+              "amountMinor": 3876,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-04-06",
+            "authorizedDate": "2026-04-06",
+            "datetime": "2026-04-06T10:45:00-04:00",
+            "merchantName": "FuelUp",
+            "merchantEntityId": "ent_fuelup",
+            "rawName": "FUELUP 978",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "TRANSPORTATION",
+              "detailed": "TRANSPORTATION_GAS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "FuelUp",
+                "type": "merchant",
+                "entityId": "ent_fuelup"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_lis_dean_home_01",
+            "accountId": "acc_lis_dean_nb",
+            "ownerMemberId": "mem_lis_dean",
+            "amount": {
+              "amountMinor": 1922,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-04-06",
+            "authorizedDate": "2026-04-06",
+            "datetime": "2026-04-06T13:50:00-04:00",
+            "merchantName": "DashDinner",
+            "merchantEntityId": "ent_dashdinner",
+            "rawName": "DASHDINNER*ORDER 246",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_FAST_FOOD",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "DashDinner",
+                "type": "merchant",
+                "entityId": "ent_dashdinner"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_lis_dean_tram_0416",
+            "accountId": "acc_lis_dean_nb",
+            "ownerMemberId": "mem_lis_dean",
+            "amount": {
+              "amountMinor": 300,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-04-16",
+            "authorizedDate": "2026-04-16",
+            "datetime": "2026-04-16T14:10:00+01:00",
+            "merchantName": "Carris",
+            "merchantEntityId": "ent_carris",
+            "rawName": "CARRIS TRAM 28",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "TRANSPORTATION",
+              "detailed": "TRANSPORTATION_PUBLIC_TRANSIT",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Lisbon",
+              "region": "Lisboa",
+              "country": "PT"
+            },
+            "counterparties": [
+              {
+                "name": "Carris",
+                "type": "merchant",
+                "entityId": "ent_carris"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_lis_dean_pasteis_0416",
+            "accountId": "acc_lis_dean_nb",
+            "ownerMemberId": "mem_lis_dean",
+            "amount": {
+              "amountMinor": 960,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-04-16",
+            "authorizedDate": "2026-04-16",
+            "datetime": "2026-04-16T16:00:00+01:00",
+            "merchantName": "Pastelaria Belém Fictícia",
+            "merchantEntityId": "ent_pastelaria_bel_m_fict_cia",
+            "rawName": "PASTELARIA BELEM FICT",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_COFFEE",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Lisbon",
+              "region": "Lisboa",
+              "country": "PT"
+            },
+            "counterparties": [
+              {
+                "name": "Pastelaria Belém Fictícia",
+                "type": "merchant",
+                "entityId": "ent_pastelaria_bel_m_fict_cia"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_lis_dean_driver_0417",
+            "accountId": "acc_lis_dean_nb",
+            "ownerMemberId": "mem_lis_dean",
+            "amount": {
+              "amountMinor": 18000,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-04-17",
+            "authorizedDate": "2026-04-17",
+            "datetime": "2026-04-17T20:05:00+01:00",
+            "merchantName": "Sintra Day Drivers",
+            "merchantEntityId": "ent_sintra_day_drivers",
+            "rawName": "SINTRA DAY DRIVERS",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "TRANSPORTATION",
+              "detailed": "TRANSPORTATION_TAXIS_AND_RIDE_SHARES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Lisbon",
+              "region": "Lisboa",
+              "country": "PT"
+            },
+            "counterparties": [
+              {
+                "name": "Sintra Day Drivers",
+                "type": "merchant",
+                "entityId": "ent_sintra_day_drivers"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_lis_dean_books_0418",
+            "accountId": "acc_lis_dean_nb",
+            "ownerMemberId": "mem_lis_dean",
+            "amount": {
+              "amountMinor": 2400,
+              "currency": "EUR"
+            },
+            "direction": "debit",
+            "date": "2026-04-18",
+            "authorizedDate": "2026-04-18",
+            "datetime": "2026-04-18T12:00:00+01:00",
+            "merchantName": "LX Livros",
+            "merchantEntityId": "ent_lx_livros",
+            "rawName": "LX LIVROS ALCANTARA",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "GENERAL_MERCHANDISE",
+              "detailed": "GENERAL_MERCHANDISE_BOOKSTORES_AND_NEWSSTANDS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Lisbon",
+              "region": "Lisboa",
+              "country": "PT"
+            },
+            "counterparties": [
+              {
+                "name": "LX Livros",
+                "type": "merchant",
+                "entityId": "ent_lx_livros"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_lis_dean_home_06",
+            "accountId": "acc_lis_dean_nb",
+            "ownerMemberId": "mem_lis_dean",
+            "amount": {
+              "amountMinor": 3658,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-04-24",
+            "authorizedDate": "2026-04-24",
+            "datetime": "2026-04-24T10:12:00-04:00",
+            "merchantName": "DashDinner",
+            "merchantEntityId": "ent_dashdinner",
+            "rawName": "DASHDINNER*ORDER 367",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_FAST_FOOD",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "DashDinner",
+                "type": "merchant",
+                "entityId": "ent_dashdinner"
+              }
+            ]
+          }
+        ],
+        "modified": [],
+        "removed": [],
+        "nextCursor": "cur_lis_dean_1",
+        "hasMore": false
+      }
+    }
+  ],
+  "labels": {
+    "txn_lis_dean_home_01": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "DashDinner at home (Boston), outside the trip"
+    },
+    "txn_lis_dean_home_02": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "DashDinner at home (Boston), outside the trip"
+    },
+    "txn_lis_dean_home_03": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "PayPeer at home (Boston), outside the trip"
+    },
+    "txn_lis_dean_home_04": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Uber at home (Boston), outside the trip"
+    },
+    "txn_lis_dean_home_05": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "FuelUp at home (Boston), outside the trip"
+    },
+    "txn_lis_dean_home_06": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "DashDinner at home (Boston), outside the trip"
+    },
+    "txn_lis_dean_benfica_0320": {
+      "expectedShared": true,
+      "expectedPrompt": false,
+      "kind": "trav_booking_charge",
+      "tripId": "trip_lisbon",
+      "duplicateOf": "booking: off_lis_benfica_porto_std",
+      "reason": "already on the ledger"
+    },
+    "txn_lis_dean_pasteis_0416": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "trip_personal",
+      "tripId": "trip_lisbon",
+      "reason": "Dad was at the conference until 17:00, so this was Dean alone"
+    },
+    "txn_lis_dean_tram_0416": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "trip_personal",
+      "tripId": "trip_lisbon",
+      "reason": "one tram ticket"
+    },
+    "txn_lis_dean_books_0418": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "trip_personal",
+      "tripId": "trip_lisbon",
+      "reason": "bookshop"
+    },
+    "txn_lis_dean_driver_0417": {
+      "expectedShared": true,
+      "expectedPrompt": false,
+      "kind": "trip_shared_duplicate",
+      "tripId": "trip_lisbon",
+      "duplicateOf": "chat: \"the sintra driver is 180 euro…\"",
+      "reason": "already on the ledger"
+    }
+  },
+  "summary": {
+    "transactions": 11,
+    "posted": 11,
+    "expectedShared": 2,
+    "expectedPrompt": 0,
+    "note": "precision/recall for the \"looks shared\" classifier is computed over posted rows (kind != pending): positive = expectedShared. expectedPrompt additionally excludes items already on the ledger (duplicates of chat/booking/receipt/email expenses)."
+  }
+}

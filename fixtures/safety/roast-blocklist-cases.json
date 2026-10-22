@@ -1,0 +1,175 @@
+{
+  "description": "Roast gate-2 fixtures (SAFETY §2.8, F5; VOICE §7.4–7.5). 'blocked' lines must be suppressed by the deterministic blocklist with the given category; 'allowed' lines (VOICE §7.5 'fine' list plus SAFETY allowlist topics) must pass it. 'gated' lines are clean topics whose suppression comes from gate 1 (opted-out member, minor, member who left, mode off, age unknown); see safety tests for the group setup. All synthetic.",
+  "blocked": [
+    {
+      "id": "body-outfit",
+      "category": "body",
+      "line": "Maya's outfit last night cost more than the club tickets"
+    },
+    {
+      "id": "body-weight",
+      "category": "body",
+      "line": "Sam put on some weight this trip, all those kebabs"
+    },
+    {
+      "id": "body-hungover",
+      "category": "body",
+      "line": "Henry was so hungover he missed breakfast, €0 spent"
+    },
+    {
+      "id": "romance-went-home",
+      "category": "romance",
+      "line": "Sam went home with that girl and still expensed the uber"
+    },
+    {
+      "id": "romance-tinder",
+      "category": "romance",
+      "line": "Priya's tinder date ran up a €40 tab"
+    },
+    {
+      "id": "romance-flirting",
+      "category": "romance",
+      "line": "Jordan spent 3 hours flirting at the bar for one €9 drink"
+    },
+    {
+      "id": "outsider-host",
+      "category": "outsider",
+      "line": "the host was so annoying we paid €1,380 for her attitude"
+    },
+    {
+      "id": "outsider-driver",
+      "category": "outsider",
+      "line": "the driver couldn't find the airbnb, 40 minutes for €23"
+    },
+    {
+      "id": "outsider-bartender",
+      "category": "outsider",
+      "line": "the bartender charged Sam €14 for a water and Sam said thanks"
+    },
+    {
+      "id": "trait-accent",
+      "category": "protected_trait",
+      "line": "Priya ordered in that accent and still paid €30"
+    },
+    {
+      "id": "trait-religion",
+      "category": "protected_trait",
+      "line": "Maya skipped the €12 brunch for religious reasons"
+    },
+    {
+      "id": "trait-gay",
+      "category": "protected_trait",
+      "line": "Jordan picked the gay bar, €60 well spent"
+    },
+    {
+      "id": "illness-henry-sick",
+      "category": "health",
+      "line": "Henry's sick, so his share of last night was €0"
+    },
+    {
+      "id": "illness-threw-up",
+      "category": "health",
+      "line": "Dean threw up after the €62 of kebabs"
+    },
+    { "id": "illness-anxiety", "category": "health", "line": "Sam's anxiety cost us a €25 taxi" },
+    {
+      "id": "intox-drunk",
+      "category": "intoxication",
+      "line": "Jordan was so drunk he paid for everyone's kebabs"
+    },
+    {
+      "id": "intox-wasted",
+      "category": "intoxication",
+      "line": "€90 of tickets and Priya was wasted by midnight"
+    },
+    {
+      "id": "hardship-broke",
+      "category": "hardship",
+      "line": "Jordan is broke, that's why he ordered the €3 water"
+    },
+    {
+      "id": "hardship-cant-afford",
+      "category": "hardship",
+      "line": "Sam can't afford the €72 match tickets"
+    },
+    {
+      "id": "hardship-cheap",
+      "category": "hardship",
+      "line": "Maya is so cheap she split a €4 coffee"
+    },
+    {
+      "id": "legal-police",
+      "category": "legal",
+      "line": "Dean almost got arrested and still made the €18 club"
+    },
+    { "id": "legal-fined", "category": "legal", "line": "Sam got fined €200 for the scooter" },
+    { "id": "minor-kid", "category": "minor", "line": "the kid ordered three €8 milkshakes" },
+    {
+      "id": "minor-teen",
+      "category": "minor",
+      "line": "the teenager booked the €260 snorkel tour"
+    },
+    {
+      "id": "left-member",
+      "category": "left_member",
+      "line": "the guy who left the chat still owes €40"
+    },
+    {
+      "id": "private-card",
+      "category": "private_data",
+      "line": "Sam's card statement says €80 at a kebab place"
+    }
+  ],
+  "allowed": [
+    {
+      "id": "fine-kebabs",
+      "line": "Jordan has paid for kebabs 3 nights running. the tab remembers"
+    },
+    {
+      "id": "fine-water",
+      "line": "€14 for a water at razzmatazz. Sam, it was €0.80 at the Mercadona you walked past"
+    },
+    {
+      "id": "fine-ubers",
+      "line": "Priya has booked 11 of 23 ubers. the city has a metro. it's quite good"
+    },
+    {
+      "id": "fine-nonrefundable",
+      "line": "Dean booked the non-refundable airbnb and then asked me what non-refundable means"
+    },
+    {
+      "id": "fine-restaurant",
+      "line": "40 minutes to pick a restaurant, 6 minutes to eat. efficient"
+    },
+    { "id": "fine-uber-spend", "line": "€140 on ubers in one day. the metro is right there" },
+    {
+      "id": "fine-airport",
+      "line": "Sam was last to the airport by 40 minutes and still bought a €9 sandwich"
+    },
+    {
+      "id": "fine-kebab-ratio",
+      "line": "€62 of it was kebabs at 3am, which is a kebab-to-ticket ratio i haven't seen before"
+    },
+    { "id": "fine-owes", "line": "Maya owes Dean €31.60, which is about 39 kebabs" }
+  ],
+  "gated": [
+    {
+      "id": "opted-out",
+      "cause": "roast_member_opted_out",
+      "target": "Sam",
+      "line": "Sam took 19 ubers in 4 days"
+    },
+    {
+      "id": "left-chat",
+      "cause": "roast_target_inactive",
+      "target": "Henry",
+      "line": "Henry booked 4 ubers and then left"
+    },
+    {
+      "id": "guest",
+      "cause": "roast_target_not_member",
+      "target": "Alex",
+      "line": "Alex ordered €40 of tapas for one"
+    }
+  ]
+}

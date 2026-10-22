@@ -1,0 +1,335 @@
+{
+  "fixtureVersion": 1,
+  "ownerMemberId": "mem_tci_dad",
+  "groupId": "grp_turks_caicos",
+  "tripId": "trip_turks_caicos",
+  "consentInScenario": {
+    "cardImport": false
+  },
+  "accounts": [
+    {
+      "accountId": "acc_tci_dad_hb",
+      "ownerMemberId": "mem_tci_dad",
+      "institutionName": "Harbor Business Amex (fictional)",
+      "mask": "2009",
+      "type": "credit",
+      "subtype": "credit card"
+    }
+  ],
+  "cardCurrency": "USD",
+  "pages": [
+    {
+      "requestCursor": null,
+      "result": {
+        "added": [
+          {
+            "transactionId": "txn_tci_dad_home_03",
+            "accountId": "acc_tci_dad_hb",
+            "ownerMemberId": "mem_tci_dad",
+            "amount": {
+              "amountMinor": 2000,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-06-02",
+            "authorizedDate": "2026-06-02",
+            "datetime": "2026-06-02T18:44:00-04:00",
+            "merchantName": "Corner Slice Pizza",
+            "merchantEntityId": "ent_corner_slice_pizza",
+            "rawName": "CORNER SLICE 891",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_RESTAURANT",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Corner Slice Pizza",
+                "type": "merchant",
+                "entityId": "ent_corner_slice_pizza"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_tci_dad_home_04",
+            "accountId": "acc_tci_dad_hb",
+            "ownerMemberId": "mem_tci_dad",
+            "amount": {
+              "amountMinor": 2059,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-06-04",
+            "authorizedDate": "2026-06-04",
+            "datetime": "2026-06-04T13:46:00-04:00",
+            "merchantName": "DashDinner",
+            "merchantEntityId": "ent_dashdinner",
+            "rawName": "DASHDINNER*ORDER 339",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_FAST_FOOD",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "DashDinner",
+                "type": "merchant",
+                "entityId": "ent_dashdinner"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_tci_dad_home_02",
+            "accountId": "acc_tci_dad_hb",
+            "ownerMemberId": "mem_tci_dad",
+            "amount": {
+              "amountMinor": 2953,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-06-17",
+            "authorizedDate": "2026-06-17",
+            "datetime": "2026-06-17T21:47:00-04:00",
+            "merchantName": "DashDinner",
+            "merchantEntityId": "ent_dashdinner",
+            "rawName": "DASHDINNER*ORDER 580",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_FAST_FOOD",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "DashDinner",
+                "type": "merchant",
+                "entityId": "ent_dashdinner"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_tci_dad_home_01",
+            "accountId": "acc_tci_dad_hb",
+            "ownerMemberId": "mem_tci_dad",
+            "amount": {
+              "amountMinor": 2008,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-06-18",
+            "authorizedDate": "2026-06-18",
+            "datetime": "2026-06-18T11:09:00-04:00",
+            "merchantName": "PayPeer",
+            "merchantEntityId": "ent_paypeer",
+            "rawName": "PAYPEER *TRANSFER",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "TRANSFER_OUT",
+              "detailed": "TRANSFER_OUT_ACCOUNT_TRANSFER",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "PayPeer",
+                "type": "merchant",
+                "entityId": "ent_paypeer"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_tci_dad_snorkel_0620",
+            "accountId": "acc_tci_dad_hb",
+            "ownerMemberId": "mem_tci_dad",
+            "amount": {
+              "amountMinor": 26000,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-06-20",
+            "authorizedDate": "2026-06-20",
+            "datetime": "2026-06-20T18:08:00-04:00",
+            "merchantName": "Coral Run Tours",
+            "merchantEntityId": "ent_coral_run_tours",
+            "rawName": "CORAL RUN TOURS",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "ENTERTAINMENT",
+              "detailed": "ENTERTAINMENT_SPORTING_EVENTS_AMUSEMENT_PARKS_AND_MUSEUMS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Providenciales",
+              "country": "TC"
+            },
+            "counterparties": [
+              {
+                "name": "Coral Run Tours",
+                "type": "merchant",
+                "entityId": "ent_coral_run_tours"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_tci_dad_ice_cream_0623",
+            "accountId": "acc_tci_dad_hb",
+            "ownerMemberId": "mem_tci_dad",
+            "amount": {
+              "amountMinor": 2600,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-06-23",
+            "authorizedDate": "2026-06-23",
+            "datetime": "2026-06-23T15:00:00-04:00",
+            "merchantName": "Sweet T Ice Cream (fictional)",
+            "merchantEntityId": "ent_sweet_t_ice_cream_fictional_",
+            "rawName": "SWEET T PROVO",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_RESTAURANT",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Providenciales",
+              "country": "TC"
+            },
+            "counterparties": [
+              {
+                "name": "Sweet T Ice Cream (fictional)",
+                "type": "merchant",
+                "entityId": "ent_sweet_t_ice_cream_fictional_"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_tci_dad_home_05",
+            "accountId": "acc_tci_dad_hb",
+            "ownerMemberId": "mem_tci_dad",
+            "amount": {
+              "amountMinor": 1800,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-06-28",
+            "authorizedDate": "2026-06-28",
+            "datetime": "2026-06-28T09:55:00-04:00",
+            "merchantName": "Corner Slice Pizza",
+            "merchantEntityId": "ent_corner_slice_pizza",
+            "rawName": "CORNER SLICE 260",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_RESTAURANT",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Boston",
+              "region": "MA",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Corner Slice Pizza",
+                "type": "merchant",
+                "entityId": "ent_corner_slice_pizza"
+              }
+            ]
+          }
+        ],
+        "modified": [],
+        "removed": [],
+        "nextCursor": "cur_tci_dad_1",
+        "hasMore": false
+      }
+    }
+  ],
+  "labels": {
+    "txn_tci_dad_home_01": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "PayPeer at home (Boston), outside the trip"
+    },
+    "txn_tci_dad_home_02": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "DashDinner at home (Boston), outside the trip"
+    },
+    "txn_tci_dad_home_03": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Corner Slice Pizza at home (Boston), outside the trip"
+    },
+    "txn_tci_dad_home_04": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "DashDinner at home (Boston), outside the trip"
+    },
+    "txn_tci_dad_home_05": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Corner Slice Pizza at home (Boston), outside the trip"
+    },
+    "txn_tci_dad_snorkel_0620": {
+      "expectedShared": true,
+      "expectedPrompt": false,
+      "kind": "trav_booking_charge",
+      "tripId": "trip_turks_caicos",
+      "duplicateOf": "booking: off_tci_snorkel_0622"
+    },
+    "txn_tci_dad_ice_cream_0623": {
+      "expectedShared": true,
+      "expectedPrompt": true,
+      "kind": "trip_shared",
+      "tripId": "trip_turks_caicos",
+      "familyTab": true,
+      "reason": "ice cream for all four"
+    }
+  },
+  "summary": {
+    "transactions": 7,
+    "posted": 7,
+    "expectedShared": 2,
+    "expectedPrompt": 1,
+    "note": "precision/recall for the \"looks shared\" classifier is computed over posted rows (kind != pending): positive = expectedShared. expectedPrompt additionally excludes items already on the ledger (duplicates of chat/booking/receipt/email expenses)."
+  }
+}

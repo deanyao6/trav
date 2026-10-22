@@ -1,0 +1,313 @@
+{
+  "description": "Every Trav message example from docs/VOICE.md §4 (plus the §1 tone samples and the §8 family-mode example), verbatim. Each must pass safety.lintVoice for its kind. Options cards (§4.10 C) lint as 'proposal'; private DMs lint as 'dm'.",
+  "properNouns": [
+    "Dean",
+    "Henry",
+    "Maya",
+    "Jordan",
+    "Priya",
+    "Sam",
+    "Dad",
+    "Mom",
+    "Lily",
+    "Razzmatazz",
+    "Eixample",
+    "Poblenou",
+    "Bar del Pla",
+    "Sagrada Família",
+    "Apolo",
+    "Espanyol",
+    "Getafe",
+    "Sporting",
+    "Benfica",
+    "Sintra",
+    "Mercadona",
+    "Bicing",
+    "Carrer dels Almogàvers",
+    "Da Conch Shack",
+    "Mr Groupers",
+    "Bight Park",
+    "Barcelona",
+    "Lisbon",
+    "Turks and Caicos"
+  ],
+  "examples": [
+    {
+      "id": "1-tone-a",
+      "section": "1",
+      "kind": "reply",
+      "text": "razzmatazz tonight, 5 tickets. €18 each. 👍 to book"
+    },
+    {
+      "id": "1-tone-b",
+      "section": "1",
+      "kind": "expense",
+      "text": "got it, €84 dinner on Dean, €16.80 each for the five of you"
+    },
+    {
+      "id": "1-tone-c",
+      "section": "1",
+      "kind": "error",
+      "text": "ticket site's down. no charge went through, i'll retry in a few"
+    },
+    {
+      "id": "1-tone-d",
+      "section": "1",
+      "kind": "reply",
+      "text": "day 4 and the uber count is 19. the metro is right there"
+    },
+
+    {
+      "id": "4.1-a",
+      "section": "4.1",
+      "kind": "proposal",
+      "text": "razzmatazz tonight, 5 tickets\nDean, Maya, Jordan, Priya, Sam (not Henry)\n€18 each · €90 total · refundable until 10pm\ncharged to Dean's card, split 5 ways on the tab\n👍 to book. price held for 15 min"
+    },
+    {
+      "id": "4.1-b",
+      "section": "4.1",
+      "kind": "proposal",
+      "text": "barça vs sevilla, sunday 9pm, 6 tickets\nDean, Henry, Maya, Jordan, Priya, Sam\n€72 each · €432 total · non-refundable\nthat's over the €60/person cap, so @Dean has to ok it\n👍 from Dean to book, or anyone can say \"not me\" first"
+    },
+    {
+      "id": "4.1-c",
+      "section": "4.1",
+      "kind": "proposal",
+      "text": "found the 6-bed: 3br in Eixample, walkable to everything, 4.9 stars\n€1,380 for 5 nights · €230 each · free cancel until mar 7\nthere's a €1,190 one in Poblenou but it's non-refundable, so i'd go with this\n👍 from @Dean to book"
+    },
+
+    {
+      "id": "4.2-a",
+      "section": "4.2",
+      "kind": "receipt",
+      "text": "booked ✅ razzmatazz, 5 tickets, €90\norder RZ-48213 · refundable until 10pm\nQR codes are in your dms, one each\ntab: Maya, Jordan, Priya, Sam → Dean €18"
+    },
+    {
+      "id": "4.2-b",
+      "section": "4.2",
+      "kind": "receipt",
+      "text": "flights booked ✅ everyone lands within 90 min of each other thursday\nDean BOS 7:10am → BCN 9:40pm · €412\nMaya SFO 6:00am → BCN 10:15pm · €538\n+4 more in the card\n€2,870 total, each on your own card, nothing to split"
+    },
+    {
+      "id": "4.2-c",
+      "section": "4.2",
+      "kind": "receipt",
+      "text": "airbnb booked ✅ Eixample 3br, mar 12–17\n€1,380 on Dean's card · €230 each on the tab\ncheck-in 3pm, host sends the door code the morning of. i'll post it here when it lands"
+    },
+
+    {
+      "id": "4.3-a",
+      "section": "4.3",
+      "kind": "dm",
+      "text": "your razzmatazz ticket for tonight 🎟️\ndoors 12am · Carrer dels Almogàvers 122\nthis one's yours only, don't forward it. everyone got their own"
+    },
+    {
+      "id": "4.3-b",
+      "section": "4.3",
+      "kind": "dm",
+      "text": "barça vs sevilla, sunday 9pm 🎟️\ngate 14 · sector 234 · row 8 · seat 11\nyou're next to Dean. show this at the gate, screenshot works"
+    },
+    {
+      "id": "4.3-c",
+      "section": "4.3",
+      "kind": "dm",
+      "text": "Lily's snorkel tour ticket for tomorrow 🎟️ (yours is in the next message)\n9am pickup at the hotel lobby. both tickets are under your name"
+    },
+
+    {
+      "id": "4.4-a",
+      "section": "4.4",
+      "kind": "expense",
+      "text": "logged: €84 dinner on Dean, 5 ways (not Henry) → €16.80 each\n👎 to undo or tell me what to change"
+    },
+    {
+      "id": "4.4-b",
+      "section": "4.4",
+      "kind": "expense",
+      "text": "logged: €32 taxi on Maya · Sam €20 · Maya €12\n👎 to undo"
+    },
+    {
+      "id": "4.4-c",
+      "section": "4.4",
+      "kind": "expense",
+      "text": "read it: Bar del Pla, €184 on Jordan\ndrinks (€58) split 5 ways without Priya, food + tax + tip 6 ways\nPriya €21 · everyone else €32.60\n👎 to undo, or send fixes (\"the wine was mine\")"
+    },
+
+    {
+      "id": "4.5-a",
+      "section": "4.5",
+      "kind": "dm",
+      "text": "saw €23.40 from Uber at 2:14am, that the ride back from razzmatazz?\nlooks shared. 👍 to split with the 5 who went, 👎 to keep it off the tab"
+    },
+    {
+      "id": "4.5-b",
+      "section": "4.5",
+      "kind": "dm",
+      "text": "3 charges that look shared, 👍 each one you want on the tab:\n1. €47.20 · Mercadona · 11:40am · groceries for the airbnb?\n2. €12 · Bicing · 2:05pm · probably just you\n3. $38.90 · Lyft · back at BOS · probably just you\nanything you skip stays private"
+    },
+    {
+      "id": "4.5-c",
+      "section": "4.5",
+      "kind": "dm",
+      "text": "uber receipt from last night: €18.60, Eixample → Poblenou, 4 riders\nsplit with Dean, Jordan, Sam? 👍 yes · 👎 just me"
+    },
+
+    {
+      "id": "4.6-a",
+      "section": "4.6",
+      "kind": "settle_up",
+      "text": "running tab, day 3\nDean is owed €61.20 · Jordan is owed €12\nMaya owes €31.60 · Priya owes €22.80 · Sam owes €18.80\nno rush, i'll do one clean settle at the end. \"@trav settle now\" if you'd rather square up today"
+    },
+    {
+      "id": "4.6-b",
+      "section": "4.6",
+      "kind": "settle_up",
+      "text": "final settle, 4 transfers and everyone's square\nMaya → Dean €31.60\nPriya → Dean €22.80\nSam → Dean €6.80\nSam → Jordan €12\n👍 on this message when you've paid, i'll tick you off"
+    },
+    {
+      "id": "4.6-c",
+      "section": "4.6",
+      "kind": "reply",
+      "text": "nobody owes anybody. rare. enjoy it"
+    },
+
+    {
+      "id": "4.7-a",
+      "section": "4.7",
+      "kind": "recap",
+      "text": "morning after, day 3 ☀️\nlast night: razzmatazz (5 of you) · €90 tickets · €47 in ubers · €62 at the 3am kebab place\n€199 total, €39.80 each\ntab: Maya → Dean €31.60 is the big one, full list in the card\ntoday: Sagrada Família at 3pm, tickets in your dms since tuesday"
+    },
+    {
+      "id": "4.7-b",
+      "section": "4.7",
+      "kind": "recap",
+      "text": "morning after, day 3 ☀️\nrazzmatazz, 5 of you, €199 all in. €62 of it was kebabs at 3am, which is a kebab-to-ticket ratio i haven't seen before\nJordan paid for two of those. Jordan has paid for kebabs 3 nights running. the tab remembers\nMaya → Dean €31.60 · Priya → Dean €22.80 · Sam → Dean €18.80\nSagrada Família at 3pm. it's a church, dress like it"
+    },
+    {
+      "id": "4.7-c",
+      "section": "4.7",
+      "kind": "recap",
+      "text": "morning, day 2 ☀️\nyesterday: snorkel tour $260 on Dad · dinner at Da Conch Shack $142 on Mom\neverything's on the family tab, nothing to split\ntoday: nothing booked. the beach is free"
+    },
+
+    {
+      "id": "4.8-a",
+      "section": "4.8",
+      "kind": "wrapped",
+      "text": "barcelona wrapped 🎉\n6 days · 6 people · €2,340 · €390 each\n23 ubers, €412. Priya booked 11 of them\n4 nights out · latest receipt 4:12am (kebab, obviously)\nbiggest dinner: €184 at Bar del Pla\nawards 🏆 Uber Captain: Priya · Receipt Hoarder: Dean (14 photos) · Most Dinners Paid: Jordan\nfinal settle is in the card, 4 transfers and you're done 💸"
+    },
+    {
+      "id": "4.8-b",
+      "section": "4.8",
+      "kind": "wrapped",
+      "text": "lisbon wrapped 🎉\n5 days · €1,120 · €560 each\nSporting 2–1 Benfica, you were there\nmost expensive thing: the Sintra driver, €180, worth it per both of you\nDad → Dean €46.50 and you're square"
+    },
+    {
+      "id": "4.8-c",
+      "section": "4.8",
+      "kind": "wrapped",
+      "text": "turks and caicos wrapped 🎉\n7 days · $4,180 on the family tab\n3 boat days · 0 rainy ones\nLily's pick: the snorkel tour, requested twice\n6 photos in the card, from everyone who shared"
+    },
+
+    {
+      "id": "4.9-a",
+      "section": "4.9",
+      "kind": "reply",
+      "text": "heads up: €1,620 of the €2,000 trip budget used, 2 days left\nthat's about €95 a day each to land under. just saying"
+    },
+    {
+      "id": "4.9-b",
+      "section": "4.9",
+      "kind": "reply",
+      "text": "these tickets would put the trip €40 over budget\n👍 to go anyway, or i can look for cheaper seats"
+    },
+    {
+      "id": "4.9-c",
+      "section": "4.9",
+      "kind": "dm",
+      "text": "you're at €118 today against your €100 daily. dinner's not in yet\nno action needed, just so you know before you order the second bottle"
+    },
+
+    {
+      "id": "4.10-a",
+      "section": "4.10",
+      "kind": "error",
+      "text": "ticket site's not responding. no charge went through\ni'll retry for 10 min and post here if it lands, otherwise @ me later"
+    },
+    {
+      "id": "4.10-b",
+      "section": "4.10",
+      "kind": "error",
+      "text": "razzmatazz is sold out tonight\nApolo has €15 tickets, same area, doors 12:30. 👍 for 5 of those instead, or drop it"
+    },
+    {
+      "id": "4.10-c",
+      "section": "4.10",
+      "kind": "proposal",
+      "text": "nothing for barça under €60 a head this sunday. closest:\n1. €72 · upper corner · refundable\n2. €68 · behind the goal · non-refundable\n3. €55 · Espanyol vs Getafe, saturday · not barça, but it's a match\nreply 1, 2, or 3, or tell me to drop it"
+    },
+    {
+      "id": "4.10-d",
+      "section": "4.10",
+      "kind": "error",
+      "text": "couldn't read that receipt, too blurry. send another shot or just tell me the total and who's in"
+    },
+
+    {
+      "id": "4.11-a",
+      "section": "4.11",
+      "kind": "reply",
+      "text": "who's in? i've got Dean, Maya, Jordan, Priya, Sam. Henry said he's staying in\n👍 if that's right, or tell me who to swap"
+    },
+    {
+      "id": "4.11-b",
+      "section": "4.11",
+      "kind": "reply",
+      "text": "was that €84 or $84? the receipt says euro, you typed $"
+    },
+    {
+      "id": "4.11-c",
+      "section": "4.11",
+      "kind": "reply",
+      "text": "razzmatazz tonight or saturday? saturday's the big night but it's €25 instead of €18"
+    },
+
+    {
+      "id": "4.12-a",
+      "section": "4.12",
+      "kind": "refusal",
+      "text": "i only roast the receipts. Maya's €14 bottle of water at the club, though. €14"
+    },
+    {
+      "id": "4.12-b",
+      "section": "4.12",
+      "kind": "refusal",
+      "text": "roast mode stays off for this group, someone here is under 18. the tab stays honest either way"
+    },
+    {
+      "id": "4.12-c",
+      "section": "4.12",
+      "kind": "refusal",
+      "text": "for the four of you: sunset cruise at 6, or the fish fry at Bight Park, it's a family thing\nif the adults want something later, @ me separately and i'll keep Lily off that plan"
+    },
+    {
+      "id": "4.12-d",
+      "section": "4.12",
+      "kind": "refusal",
+      "text": "that's Sam's, not mine to share. anything Sam confirms as shared shows up on the tab"
+    },
+    {
+      "id": "4.12-e",
+      "section": "4.12",
+      "kind": "refusal",
+      "text": "i only book for people on this trip. ask one of them to @ me"
+    },
+
+    {
+      "id": "8-family",
+      "section": "8",
+      "kind": "reply",
+      "text": "for tonight, all four: Da Conch Shack (on the beach, kids' menu, ~$35 a head) or Mr Groupers (quieter, same price)\nboth take walk-ins. 👍 on this if you want me to hold a table at the first one for 7"
+    }
+  ]
+}

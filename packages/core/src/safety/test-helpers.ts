@@ -1,0 +1,150 @@
+/**
+ * Builders for safety tests (synthetic data only). Not exported from the package index.
+ */
+import { readFileSync } from 'node:fs';
+import type { AgeBand, Group, GroupSettings, Member, MemberRole } from '../domain/group.js';
+import { DEFAULT_GROUP_SETTINGS } from '../domain/group.js';
+import { defaultSpendingPolicy } from '../domain/approval.js';
+import type { ConsentFlags, ConsentLookup } from '../domain/consent.js';
+import { defaultConsent } from '../domain/consent.js';
+import type { Trip } from '../domain/trip.js';
+import type { OutboundMessage, RecapCard } from '../cards.js';
+
+/** `<repo>/fixtures/safety/<name>` read as JSON (this file lives in packages/core/src/safety). */
+export function loadSafetyFixture<T>(name: string): T {
+  const url = new URL(`../../../../fixtures/safety/${name}`, import.meta.url);
+  return JSON.parse(readFileSync(url, 'utf8')) as T;
+}
+
+export interface MemberSpec {
+  readonly memberId: string;
+  readonly displayName: string;
+  readonly role?: MemberRole;
+  readonly birthDate?: string;
+  readonly ageBand?: AgeBand;
+  readonly guardianMemberId?: string;
+  readonly active?: boolean;
+  readonly leftAt?: string;
+}
+
+export function member(spec: MemberSpec, groupId = 'g1'): Member {
+  return {
+    memberId: spec.memberId,
+    groupId,
+    displayName: spec.displayName,
+    role: spec.role ?? 'member',
+    active: spec.active ?? true,
+    senderId: `sender_${spec.memberId}`,
+    ageBand: spec.ageBand ?? 'unknown',
+    joinedAt: '2026-03-01T10:00:00Z',
+    ...(spec.birthDate !== undefined ? { birthDate: spec.birthDate } : {}),
+    ...(spec.guardianMemberId !== undefined ? { guardianMemberId: spec.guardianMemberId } : {}),
+    ...(spec.leftAt !== undefined ? { leftAt: spec.leftAt } : {}),
+  };
+}
+
+export function group(settings: Partial<GroupSettings> = {}, groupId = 'g1'): Group {
+  return {
+    groupId,
+    name: 'test group',
+    conversationId: `conv_${groupId}`,
+    channelKind: 'simulator',
+    currency: 'EUR',
+    settings: { ...DEFAULT_GROUP_SETTINGS, ...settings },
+    spendingPolicy: defaultSpendingPolicy(groupId, 'EUR'),
+    createdAt: '2026-03-01T10:00:00Z',
+  };
+}
+
+export function trip(over: Partial<Trip> = {}): Trip {
+  return {
+    tripId: 't1',
+    groupId: 'g1',
+    name: 'barcelona',
+    city: 'Barcelona',
+    countryCode: 'ES',
+    timeZone: 'Europe/Madrid',
+    startDate: '2026-03-12',
+    endDate: '2026-03-17',
+    currency: 'EUR',
+    status: 'active',
+    familyTab: false,
+    createdBy: 'dean',
+    createdAt: '2026-03-01T10:00:00Z',
+    ...over,
+  };
+}
+
+/** Consent lookup where the listed members opted into roasts. */
+export function consentWithRoast(optedIn: readonly string[], groupId = 'g1'): ConsentLookup {
+  const map = new Map<string, ConsentFlags>();
+  return (memberId) => {
+    const hit = map.get(memberId);
+    if (hit !== undefined) return hit;
+    const flags = {
+      ...defaultConsent(memberId, groupId, '2026-03-01T10:00:00Z'),
+      roast: optedIn.includes(memberId),
+    };
+    map.set(memberId, flags);
+    return flags;
+  };
+}
+
+/** Barcelona roster: six adults with birthdates (ages 20–22 on the trip). */
+export function barcelonaMembers(): Member[] {
+  return [
+    member({
+      memberId: 'dean',
+      displayName: 'Dean',
+      role: 'lead',
+      birthDate: '2005-02-11',
+      ageBand: 'adult',
+    }),
+    member({ memberId: 'henry', displayName: 'Henry', birthDate: '2004-07-30', ageBand: 'adult' }),
+    member({ memberId: 'maya', displayName: 'Maya', birthDate: '2005-11-02', ageBand: 'adult' }),
+    member({
+      memberId: 'jordan',
+      displayName: 'Jordan',
+      birthDate: '2004-01-19',
+      ageBand: 'adult',
+    }),
+    member({ memberId: 'priya', displayName: 'Priya', birthDate: '2005-05-05', ageBand: 'adult' }),
+    member({ memberId: 'sam', displayName: 'Sam', birthDate: '2006-01-01', ageBand: 'adult' }),
+  ];
+}
+
+export const BCN_NOW = '2026-03-15T10:00:00+01:00';
+
+export function groupMessage(text: string, over: Partial<OutboundMessage> = {}): OutboundMessage {
+  return { id: 'msg_1', groupId: 'g1', to: { kind: 'group' }, text, ...over };
+}
+
+export function recapCard(text: string, roastLines: readonly string[]): RecapCard {
+  return {
+    cardId: 'card_recap_1',
+    type: 'recap',
+    title: 'morning after, day 3',
+    fallbackText: text,
+    kind: 'morning_after',
+    date: '2026-03-15',
+    dayNumber: 3,
+    lastNight: {
+      events: [{ label: 'razzmatazz', attendees: ['dean', 'maya', 'jordan', 'priya', 'sam'] }],
+      total: { amountMinor: 19900, currency: 'EUR' },
+    },
+    roastLines,
+    settle: {
+      cardId: 'card_settle_1',
+      type: 'settle_up',
+      title: 'running tab',
+      fallbackText: '',
+      mode: 'running',
+      asOf: '2026-03-15T10:00:00+01:00',
+      currency: 'EUR',
+      balances: [],
+      transfers: [],
+      totalSpent: { amountMinor: 19900, currency: 'EUR' },
+    },
+    photos: [],
+  };
+}

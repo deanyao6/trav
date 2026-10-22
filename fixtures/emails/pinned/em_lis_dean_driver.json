@@ -1,0 +1,38 @@
+{
+  "fixtureVersion": 1,
+  "groupId": "grp_lisbon",
+  "tripId": "trip_lisbon",
+  "forwardingAddress": "lis_dean.k7f3@in.trav.example.test",
+  "email": {
+    "emailId": "em_lis_dean_driver",
+    "ownerMemberId": "mem_lis_dean",
+    "from": "Sintra Day Drivers <bookings@sintra-drivers.example.test>",
+    "subject": "Receipt: private driver, Friday afternoon",
+    "receivedAt": "2026-04-17T20:15:00+01:00",
+    "textBody": "Obrigado, Dean!\n\nPrivate driver, Lisbon ⇄ Sintra, 6 hours\nPena Palace, Moorish Castle, Cabo da Roca\n\nService        €160.00\nTolls + fuel    €20.00\nTOTAL          €180.00\n\nFri 17 Apr 2026, 14:00–20:00",
+    "attachments": []
+  },
+  "expected": {
+    "isReceipt": true,
+    "parsed": {
+      "source": "other",
+      "merchantName": "Sintra Day Drivers",
+      "total": {
+        "amountMinor": 18000,
+        "currency": "EUR"
+      },
+      "fees": {
+        "amountMinor": 2000,
+        "currency": "EUR"
+      },
+      "occurredAt": "2026-04-17T20:00:00+01:00",
+      "confidence": 0.9,
+      "warnings": []
+    },
+    "ingestedInScenario": false,
+    "expectedShared": true,
+    "duplicateOf": "chat expense \"the sintra driver is 180 euro…\" (msg in fixtures/chats/lisbon.jsonl)",
+    "injectionPatterns": [],
+    "injection": false
+  }
+}

@@ -1,0 +1,730 @@
+{
+  "fixtureVersion": 1,
+  "ownerMemberId": "mem_priya",
+  "groupId": "grp_barcelona",
+  "tripId": "trip_barcelona",
+  "consentInScenario": {
+    "cardImport": false
+  },
+  "accounts": [
+    {
+      "accountId": "acc_priya_cs",
+      "ownerMemberId": "mem_priya",
+      "institutionName": "Capitol Student Visa (fictional)",
+      "mask": "1187",
+      "type": "credit",
+      "subtype": "credit card"
+    }
+  ],
+  "cardCurrency": "USD",
+  "pages": [
+    {
+      "requestCursor": null,
+      "result": {
+        "added": [
+          {
+            "transactionId": "txn_priya_home_07",
+            "accountId": "acc_priya_cs",
+            "ownerMemberId": "mem_priya",
+            "amount": {
+              "amountMinor": 3624,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-12",
+            "authorizedDate": "2026-02-12",
+            "datetime": "2026-02-12T21:47:00-05:00",
+            "merchantName": "FuelUp",
+            "merchantEntityId": "ent_fuelup",
+            "rawName": "FUELUP 989",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "TRANSPORTATION",
+              "detailed": "TRANSPORTATION_GAS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Washington",
+              "region": "DC",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "FuelUp",
+                "type": "merchant",
+                "entityId": "ent_fuelup"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_priya_home_03",
+            "accountId": "acc_priya_cs",
+            "ownerMemberId": "mem_priya",
+            "amount": {
+              "amountMinor": 8289,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-15",
+            "authorizedDate": "2026-02-15",
+            "datetime": "2026-02-15T21:56:00-05:00",
+            "merchantName": "CampusBooks",
+            "merchantEntityId": "ent_campusbooks",
+            "rawName": "CAMPUSBOOKS #986",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "GENERAL_MERCHANDISE",
+              "detailed": "GENERAL_MERCHANDISE_BOOKSTORES_AND_NEWSSTANDS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Washington",
+              "region": "DC",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "CampusBooks",
+                "type": "merchant",
+                "entityId": "ent_campusbooks"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_priya_home_01",
+            "accountId": "acc_priya_cs",
+            "ownerMemberId": "mem_priya",
+            "amount": {
+              "amountMinor": 653,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-15",
+            "authorizedDate": "2026-02-15",
+            "datetime": "2026-02-15T22:45:00-05:00",
+            "merchantName": "Bean Theory Coffee",
+            "merchantEntityId": "ent_bean_theory_coffee",
+            "rawName": "BEAN THEORY 380",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_COFFEE",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Washington",
+              "region": "DC",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Bean Theory Coffee",
+                "type": "merchant",
+                "entityId": "ent_bean_theory_coffee"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_priya_home_06",
+            "accountId": "acc_priya_cs",
+            "ownerMemberId": "mem_priya",
+            "amount": {
+              "amountMinor": 3259,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-16",
+            "authorizedDate": "2026-02-16",
+            "datetime": "2026-02-16T10:02:00-05:00",
+            "merchantName": "DashDinner",
+            "merchantEntityId": "ent_dashdinner",
+            "rawName": "DASHDINNER*ORDER 293",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_FAST_FOOD",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Washington",
+              "region": "DC",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "DashDinner",
+                "type": "merchant",
+                "entityId": "ent_dashdinner"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_priya_home_05",
+            "accountId": "acc_priya_cs",
+            "ownerMemberId": "mem_priya",
+            "amount": {
+              "amountMinor": 731,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-23",
+            "authorizedDate": "2026-02-23",
+            "datetime": "2026-02-23T11:35:00-05:00",
+            "merchantName": "Bean Theory Coffee",
+            "merchantEntityId": "ent_bean_theory_coffee",
+            "rawName": "BEAN THEORY 849",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_COFFEE",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Washington",
+              "region": "DC",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Bean Theory Coffee",
+                "type": "merchant",
+                "entityId": "ent_bean_theory_coffee"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_priya_home_02",
+            "accountId": "acc_priya_cs",
+            "ownerMemberId": "mem_priya",
+            "amount": {
+              "amountMinor": 5579,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-26",
+            "authorizedDate": "2026-02-26",
+            "datetime": "2026-02-26T16:16:00-05:00",
+            "merchantName": "PayPeer",
+            "merchantEntityId": "ent_paypeer",
+            "rawName": "PAYPEER *TRANSFER",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "TRANSFER_OUT",
+              "detailed": "TRANSFER_OUT_ACCOUNT_TRANSFER",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Washington",
+              "region": "DC",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "PayPeer",
+                "type": "merchant",
+                "entityId": "ent_paypeer"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_priya_home_04",
+            "accountId": "acc_priya_cs",
+            "ownerMemberId": "mem_priya",
+            "amount": {
+              "amountMinor": 1257,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-02-27",
+            "authorizedDate": "2026-02-27",
+            "datetime": "2026-02-27T14:44:00-05:00",
+            "merchantName": "Corner Slice Pizza",
+            "merchantEntityId": "ent_corner_slice_pizza",
+            "rawName": "CORNER SLICE 636",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_RESTAURANT",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Washington",
+              "region": "DC",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Corner Slice Pizza",
+                "type": "merchant",
+                "entityId": "ent_corner_slice_pizza"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_priya_groceries_0312",
+            "accountId": "acc_priya_cs",
+            "ownerMemberId": "mem_priya",
+            "amount": {
+              "amountMinor": 5102,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-03-12",
+            "authorizedDate": "2026-03-12",
+            "datetime": "2026-03-12T17:31:00+01:00",
+            "merchantName": "Supermercat Fictici",
+            "merchantEntityId": "ent_supermercat_fictici",
+            "rawName": "SUPERMERCAT FICTICI 0423",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_GROCERIES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "Supermercat Fictici",
+                "type": "merchant",
+                "entityId": "ent_supermercat_fictici"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_priya_uber_0314",
+            "accountId": "acc_priya_cs",
+            "ownerMemberId": "mem_priya",
+            "amount": {
+              "amountMinor": 1999,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-03-14",
+            "authorizedDate": "2026-03-14",
+            "datetime": "2026-03-14T01:52:00+01:00",
+            "merchantName": "Uber",
+            "merchantEntityId": "ent_uber",
+            "rawName": "UBER *TRIP HELP.RIDES.EXAMPLE.TEST",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "TRANSPORTATION",
+              "detailed": "TRANSPORTATION_TAXIS_AND_RIDE_SHARES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "Uber",
+                "type": "merchant",
+                "entityId": "ent_uber"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_priya_gelato_0314",
+            "accountId": "acc_priya_cs",
+            "ownerMemberId": "mem_priya",
+            "amount": {
+              "amountMinor": 484,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-03-14",
+            "authorizedDate": "2026-03-14",
+            "datetime": "2026-03-14T17:00:00+01:00",
+            "merchantName": "Gelateria",
+            "merchantEntityId": "ent_gelateria",
+            "rawName": "GELATERIA BCN 4",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_RESTAURANT",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "Gelateria",
+                "type": "merchant",
+                "entityId": "ent_gelateria"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_priya_pastries_0315",
+            "accountId": "acc_priya_cs",
+            "ownerMemberId": "mem_priya",
+            "amount": {
+              "amountMinor": 1591,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-03-15",
+            "authorizedDate": "2026-03-15",
+            "datetime": "2026-03-15T09:30:00+01:00",
+            "merchantName": "Forn de Pa Sant Josep",
+            "merchantEntityId": "ent_forn_de_pa_sant_josep",
+            "rawName": "FORN DE PA ST JOSEP",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "FOOD_AND_DRINK",
+              "detailed": "FOOD_AND_DRINK_GROCERIES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "Forn de Pa Sant Josep",
+                "type": "merchant",
+                "entityId": "ent_forn_de_pa_sant_josep"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_priya_pharmacy_0315",
+            "accountId": "acc_priya_cs",
+            "ownerMemberId": "mem_priya",
+            "amount": {
+              "amountMinor": 1526,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-03-15",
+            "authorizedDate": "2026-03-15",
+            "datetime": "2026-03-15T12:04:00+01:00",
+            "merchantName": "FarmaExpress",
+            "merchantEntityId": "ent_farmaexpress",
+            "rawName": "FARMAEXPRESS ONLINE",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "MEDICAL",
+              "detailed": "MEDICAL_PHARMACIES_AND_SUPPLEMENTS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "FarmaExpress",
+                "type": "merchant",
+                "entityId": "ent_farmaexpress"
+              }
+            ]
+          }
+        ],
+        "modified": [],
+        "removed": [],
+        "nextCursor": "cur_priya_1",
+        "hasMore": true
+      }
+    },
+    {
+      "requestCursor": "cur_priya_1",
+      "result": {
+        "added": [
+          {
+            "transactionId": "txn_priya_picasso_0316",
+            "accountId": "acc_priya_cs",
+            "ownerMemberId": "mem_priya",
+            "amount": {
+              "amountMinor": 1615,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-03-16",
+            "authorizedDate": "2026-03-16",
+            "datetime": "2026-03-16T11:00:00+01:00",
+            "merchantName": "Museu Picasso",
+            "merchantEntityId": "ent_museu_picasso",
+            "rawName": "MUSEU PICASSO BCN",
+            "pending": false,
+            "paymentChannel": "in store",
+            "personalFinanceCategory": {
+              "primary": "ENTERTAINMENT",
+              "detailed": "ENTERTAINMENT_SPORTING_EVENTS_AMUSEMENT_PARKS_AND_MUSEUMS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Barcelona",
+              "region": "Catalonia",
+              "country": "ES"
+            },
+            "counterparties": [
+              {
+                "name": "Museu Picasso",
+                "type": "merchant",
+                "entityId": "ent_museu_picasso"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_priya_home_09",
+            "accountId": "acc_priya_cs",
+            "ownerMemberId": "mem_priya",
+            "amount": {
+              "amountMinor": 2900,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-03-23",
+            "authorizedDate": "2026-03-23",
+            "datetime": "2026-03-23T16:27:00-04:00",
+            "merchantName": "PulseFit",
+            "merchantEntityId": "ent_pulsefit",
+            "rawName": "PULSEFIT GYM MONTHLY",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "PERSONAL_CARE",
+              "detailed": "PERSONAL_CARE_GYMS_AND_FITNESS_CENTERS",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Washington",
+              "region": "DC",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "PulseFit",
+                "type": "merchant",
+                "entityId": "ent_pulsefit"
+              }
+            ]
+          },
+          {
+            "transactionId": "txn_priya_home_08",
+            "accountId": "acc_priya_cs",
+            "ownerMemberId": "mem_priya",
+            "amount": {
+              "amountMinor": 1199,
+              "currency": "USD"
+            },
+            "direction": "debit",
+            "date": "2026-03-25",
+            "authorizedDate": "2026-03-25",
+            "datetime": "2026-03-25T18:38:00-04:00",
+            "merchantName": "Streamly",
+            "merchantEntityId": "ent_streamly",
+            "rawName": "STREAMLY.EXAMPLE SUBSCR",
+            "pending": false,
+            "paymentChannel": "online",
+            "personalFinanceCategory": {
+              "primary": "ENTERTAINMENT",
+              "detailed": "ENTERTAINMENT_TV_AND_MOVIES",
+              "confidenceLevel": "HIGH"
+            },
+            "location": {
+              "city": "Washington",
+              "region": "DC",
+              "country": "US"
+            },
+            "counterparties": [
+              {
+                "name": "Streamly",
+                "type": "merchant",
+                "entityId": "ent_streamly"
+              }
+            ]
+          }
+        ],
+        "modified": [],
+        "removed": [],
+        "nextCursor": "cur_priya_2",
+        "hasMore": false
+      }
+    }
+  ],
+  "labels": {
+    "txn_priya_home_01": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Bean Theory Coffee at home (Washington), outside the trip"
+    },
+    "txn_priya_home_02": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "PayPeer at home (Washington), outside the trip"
+    },
+    "txn_priya_home_03": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "CampusBooks at home (Washington), outside the trip"
+    },
+    "txn_priya_home_04": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Corner Slice Pizza at home (Washington), outside the trip"
+    },
+    "txn_priya_home_05": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Bean Theory Coffee at home (Washington), outside the trip"
+    },
+    "txn_priya_home_06": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "DashDinner at home (Washington), outside the trip"
+    },
+    "txn_priya_home_07": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "FuelUp at home (Washington), outside the trip"
+    },
+    "txn_priya_home_08": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "Streamly at home (Washington), outside the trip"
+    },
+    "txn_priya_home_09": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "home_noise",
+      "tripId": null,
+      "reason": "PulseFit at home (Washington), outside the trip"
+    },
+    "txn_priya_groceries_0312": {
+      "expectedShared": true,
+      "expectedPrompt": false,
+      "kind": "trip_shared_duplicate",
+      "tripId": "trip_barcelona",
+      "duplicateOf": "chat: \"@trav I covered groceries, €47.40, everyone\"",
+      "reason": "already logged from chat",
+      "originalAmount": {
+        "amountMinor": 4740,
+        "currency": "EUR"
+      },
+      "fxRate": "1.0764",
+      "fxAsOf": "2026-03-12"
+    },
+    "txn_priya_uber_0314": {
+      "expectedShared": true,
+      "expectedPrompt": false,
+      "kind": "trip_shared_duplicate",
+      "tripId": "trip_barcelona",
+      "duplicateOf": "email: em_bcn_priya_uber_0314",
+      "reason": "same ride as the email receipt Priya already shared",
+      "originalAmount": {
+        "amountMinor": 1860,
+        "currency": "EUR"
+      },
+      "fxRate": "1.0749",
+      "fxAsOf": "2026-03-13"
+    },
+    "txn_priya_gelato_0314": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "trip_personal",
+      "tripId": "trip_barcelona",
+      "reason": "one gelato",
+      "originalAmount": {
+        "amountMinor": 450,
+        "currency": "EUR"
+      },
+      "fxRate": "1.0749",
+      "fxAsOf": "2026-03-13"
+    },
+    "txn_priya_pastries_0315": {
+      "expectedShared": true,
+      "expectedPrompt": true,
+      "kind": "trip_shared",
+      "tripId": "trip_barcelona",
+      "suggestedParticipants": [
+        "mem_dean",
+        "mem_henry",
+        "mem_maya",
+        "mem_jordan",
+        "mem_priya",
+        "mem_sam"
+      ],
+      "reason": "pastries for everyone at the apartment (never mentioned in chat)",
+      "originalAmount": {
+        "amountMinor": 1480,
+        "currency": "EUR"
+      },
+      "fxRate": "1.0749",
+      "fxAsOf": "2026-03-13"
+    },
+    "txn_priya_pharmacy_0315": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "trip_personal",
+      "tripId": "trip_barcelona",
+      "reason": "personal pharmacy order (same as em_bcn_priya_pharmacy)",
+      "sensitive": true,
+      "originalAmount": {
+        "amountMinor": 1420,
+        "currency": "EUR"
+      },
+      "fxRate": "1.0749",
+      "fxAsOf": "2026-03-13"
+    },
+    "txn_priya_picasso_0316": {
+      "expectedShared": false,
+      "expectedPrompt": false,
+      "kind": "trip_personal",
+      "tripId": "trip_barcelona",
+      "reason": "went alone",
+      "originalAmount": {
+        "amountMinor": 1500,
+        "currency": "EUR"
+      },
+      "fxRate": "1.0764",
+      "fxAsOf": "2026-03-16"
+    }
+  },
+  "summary": {
+    "transactions": 15,
+    "posted": 15,
+    "expectedShared": 3,
+    "expectedPrompt": 1,
+    "note": "precision/recall for the \"looks shared\" classifier is computed over posted rows (kind != pending): positive = expectedShared. expectedPrompt additionally excludes items already on the ledger (duplicates of chat/booking/receipt/email expenses)."
+  }
+}
