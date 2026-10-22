@@ -99,3 +99,10 @@ One entry per significant decision. Format: context, decision, alternatives, con
 - **Decision:** `packages/core/package.json` exports `./storage` → `src/storage/index.ts` separately. Node entry points (agent runtime, CLI, evals, simulator server) import `@trav/core/storage`; the root `@trav/core` export stays free of Node-only modules.
 - **Alternatives:** export storage from the root index (breaks Vite bundling of the UI); a separate package (more boilerplate).
 - **Consequences:** `createMemoryStores`/`createSqliteStores` are imported from `@trav/core/storage`.
+
+## D-015: TypeScript scripts run with `node --import tsx`, not the `tsx` binary (2026-10-22, Orchestrator)
+
+- **Context:** T-055 found that the `tsx` CLI fails inside the overnight sandbox with `listen EPERM` because it opens an IPC pipe under the temp dir that Seatbelt refuses. `node --import tsx file.ts` loads the same loader in-process and works.
+- **Decision:** Every package script that runs TypeScript directly (`audit:verify`, `demo:barcelona`, `sim` server, `eval`) uses `node --import tsx <file>`. Arguments pass through unchanged.
+- **Alternatives:** compile scripts with `tsc` first (slower loop); `node --experimental-strip-types` (Node 25 supports it, but workspace `.ts` imports via package `exports` and `verbatimModuleSyntax` make tsx the safer choice for now).
+- **Consequences:** Outside the sandbox both forms work; inside, only this one does.
