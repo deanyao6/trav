@@ -110,7 +110,11 @@ export const setAttendanceTool: ToolDefinition<
     const r = asRecord(raw);
     const status = optEnum(r, 'status', ['in', 'out', 'maybe'] as const);
     if (status === undefined) throw new TravError('invalid_argument', 'status is required');
-    return { activityId: reqString(r, 'activityId', 80), member: reqString(r, 'member', 80), status };
+    return {
+      activityId: reqString(r, 'activityId', 80),
+      member: reqString(r, 'member', 80),
+      status,
+    };
   },
   async handler(input, ctx) {
     const me = requireMember(ctx);
@@ -121,7 +125,8 @@ export const setAttendanceTool: ToolDefinition<
     }
     const members = activeMembers(ctx);
     const memberId = resolveMemberRef(members, input.member);
-    if (memberId === undefined) throw new TravError('not_found', `no member "${input.member}" on this trip`);
+    if (memberId === undefined)
+      throw new TravError('not_found', `no member "${input.member}" on this trip`);
     const messageId = messageIdOf(ctx);
     ctx.stores.group.trips.setAttendance({
       activityId: activity.activityId,

@@ -185,7 +185,10 @@ function tripStartIso(trip: Trip): IsoDateTime {
 }
 
 function offerTotal(offer: TicketOffer, quantity: number): Money {
-  return money((offer.unitPrice.amountMinor + offer.unitFees.amountMinor) * quantity, offer.unitPrice.currency);
+  return money(
+    (offer.unitPrice.amountMinor + offer.unitFees.amountMinor) * quantity,
+    offer.unitPrice.currency,
+  );
 }
 
 function rankOffers(offers: readonly TicketOffer[], quantity: number): TicketOffer[] {
@@ -207,7 +210,10 @@ function rankOffers(offers: readonly TicketOffer[], quantity: number): TicketOff
 
 function matchesQuery(event: TicketEvent, query: string | undefined): boolean {
   if (query === undefined) return true;
-  const q = query.toLowerCase().replace(/\btickets?\b/g, '').trim();
+  const q = query
+    .toLowerCase()
+    .replace(/\btickets?\b/g, '')
+    .trim();
   if (q.length === 0) return true;
   const hay = `${event.name} ${event.venue.name}`.toLowerCase();
   return q.split(/\s+/).some((w) => w.length > 2 && hay.includes(w));
@@ -277,7 +283,8 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
     candidates = [...candidates].sort((a, b) => parseIso(a.startsAt) - parseIso(b.startsAt));
     const event = candidates[0];
     if (event === undefined) {
-      const what = input.query === undefined ? 'that' : sanitizeInline(input.query, 40).toLowerCase();
+      const what =
+        input.query === undefined ? 'that' : sanitizeInline(input.query, 40).toLowerCase();
       return {
         kind: 'unavailable',
         reason: 'not_found',
@@ -288,10 +295,14 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
     // ---- 2. who is in ----
     const activity = findActivity(group, trip, event, input.activityId);
     const rosterRows = activity === null ? [] : group.trips.listAttendance(activity.activityId);
-    const markedOut = new Set(
-      rosterRows.filter((r) => r.status !== 'in').map((r) => r.memberId),
-    );
-    const base = rosterRows.length > 0 ? inOrder(rosterRows.filter((r) => r.status === 'in').map((r) => r.memberId), order) : order;
+    const markedOut = new Set(rosterRows.filter((r) => r.status !== 'in').map((r) => r.memberId));
+    const base =
+      rosterRows.length > 0
+        ? inOrder(
+            rosterRows.filter((r) => r.status === 'in').map((r) => r.memberId),
+            order,
+          )
+        : order;
 
     const excluded = new Set<MemberId>(input.excludedMemberIds ?? []);
     for (const raw of input.excludedNames ?? []) {
@@ -322,7 +333,9 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
         return {
           kind: 'clarify',
           question: `who's in? i've got ${names(base, byId)}. 👍 if that's right, or tell me who to swap`,
-          problems: [...new Set(unknown)].map((id) => `attendee_not_member:${sanitizeInline(id, 40)}`),
+          problems: [...new Set(unknown)].map(
+            (id) => `attendee_not_member:${sanitizeInline(id, 40)}`,
+          ),
         };
       }
       // The named subset wins, but a member marked out for the activity stays out (SAFETY §2.5).
@@ -465,7 +478,14 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
       status: 'pending',
     };
 
-    const consistency = approval.checkProposalConsistency(proposal, trip, act, roster, members, now);
+    const consistency = approval.checkProposalConsistency(
+      proposal,
+      trip,
+      act,
+      roster,
+      members,
+      now,
+    );
     if (!consistency.ok) {
       await tickets.releaseHold(hold.holdId);
       return {
@@ -481,7 +501,11 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
       const p = stores.private.getPrefs(id);
       if (p !== undefined) prefs[id] = p;
     }
-    const spentTodayMinor = group.bookings.spentBetween(ctx.groupId, addMinutes(now, -24 * 60), now);
+    const spentTodayMinor = group.bookings.spentBetween(
+      ctx.groupId,
+      addMinutes(now, -24 * 60),
+      now,
+    );
     const spentTripMinor = group.bookings.spentBetween(ctx.groupId, tripStartIso(trip), now);
     const decision = approval.evaluate(proposal, grp.spendingPolicy, {
       now,
@@ -687,7 +711,9 @@ function createActivity(
     kind,
     name: sanitizeInline(event.name, 80),
     venue: sanitizeInline(event.venue.name, 80),
-    ...(event.venue.address !== undefined ? { address: sanitizeInline(event.venue.address, 120) } : {}),
+    ...(event.venue.address !== undefined
+      ? { address: sanitizeInline(event.venue.address, 120) }
+      : {}),
     startsAt: event.startsAt,
     ...(event.endsAt !== undefined ? { endsAt: event.endsAt } : {}),
     contentTags: event.contentFlags,
@@ -707,7 +733,9 @@ function syncRoster(
   ctx: ProposeContext,
   now: IsoDateTime,
 ): void {
-  const current = new Map(group.trips.listAttendance(activity.activityId).map((r) => [r.memberId, r.status]));
+  const current = new Map(
+    group.trips.listAttendance(activity.activityId).map((r) => [r.memberId, r.status]),
+  );
   const changed: { memberId: MemberId; status: 'in' | 'out' }[] = [];
   const write = (memberId: MemberId, status: 'in' | 'out'): void => {
     if (current.get(memberId) === status) return;
@@ -778,7 +806,11 @@ function clarifyFor(
   return `who's in? i've got ${names(attendees, byId)}. 👍 if that's right, or tell me who to swap`;
 }
 
-function denyText(decision: PolicyDecision, proposal: BookingProposal, hardMaxMinor: number): string {
+function denyText(
+  decision: PolicyDecision,
+  proposal: BookingProposal,
+  hardMaxMinor: number,
+): string {
   const r = decision.reasons;
   if (r.includes('over_hard_max')) {
     return `${formatMoney(money(proposal.totalMinor, proposal.currency))} is over this group's ${formatMoney(money(hardMaxMinor, proposal.currency))} per-booking limit, so i won't propose it\na lead can raise the limit if that's really the plan`;
@@ -787,7 +819,7 @@ function denyText(decision: PolicyDecision, proposal: BookingProposal, hardMaxMi
     return "that one's 18+ and someone charged is under 18, so no\ntell me who's actually going";
   }
   if (r.includes('quote_expired')) {
-    return 'the price i had expired before i could post it. @ me again and i\'ll re-quote';
+    return "the price i had expired before i could post it. @ me again and i'll re-quote";
   }
   if (r.includes('requester_is_guest') || r.includes('requester_not_member')) {
     return 'i only book for people on this trip. ask one of them to @ me';
@@ -830,7 +862,9 @@ export function renderProposalText(input: RenderInput): string {
   const byId = new Map(members.map((m) => [m.memberId, m] as const));
   const n = p.attendees.length;
   const lines: string[] = [];
-  lines.push(`${shortEventName(event.name)} ${whenText(event.startsAt, tz, now)}, ${n} ticket${n === 1 ? '' : 's'}`);
+  lines.push(
+    `${shortEventName(event.name)} ${whenText(event.startsAt, tz, now)}, ${n} ticket${n === 1 ? '' : 's'}`,
+  );
   const who = names(p.attendees, byId);
   lines.push(excluded.length > 0 ? `${who} (not ${names(excluded, byId)})` : who);
   const refund = !p.refundable
@@ -838,8 +872,11 @@ export function renderProposalText(input: RenderInput): string {
     : p.refundDeadline === undefined
       ? 'refundable'
       : `refundable until ${localDate(p.refundDeadline, tz) === localDate(now, tz) ? formatClockTime(p.refundDeadline, tz) : whenText(p.refundDeadline, tz, now)}`;
-  lines.push(`${formatMoney(perPerson)} each · ${formatMoney(money(p.totalMinor, p.currency))} total · ${refund}`);
-  const payerName = p.paidBy.kind === 'member_card' ? names([p.paidBy.memberId], byId) : 'each card';
+  lines.push(
+    `${formatMoney(perPerson)} each · ${formatMoney(money(p.totalMinor, p.currency))} total · ${refund}`,
+  );
+  const payerName =
+    p.paidBy.kind === 'member_card' ? names([p.paidBy.memberId], byId) : 'each card';
   lines.push(`charged to ${payerName}'s card, split ${n} ways on the tab`);
 
   const holdEnd = decision.expiresAt ?? p.holdExpiresAt ?? addMinutes(now, 15);

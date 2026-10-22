@@ -6,12 +6,14 @@ import {
   classifyApprovalText,
   detectClaimedApproval,
   gateApproval,
+  hasApprovalIntentWord,
   isLead,
   memberOf,
   reactionIntent,
   resolveIdentity,
   type Identity,
 } from './identity.js';
+import { TEXT_ALIASES } from './approval/events.js';
 import { NOW, barcelonaMembers, decide, razzmatazzProposal } from './render/testkit.js';
 
 const GROUP = 'grp_barcelona';
@@ -88,6 +90,22 @@ describe('approval-shaped text and tapbacks (VOICE §6.2)', () => {
     expect(classifyApprovalText('yes but only if henry comes')).toBeUndefined();
     expect(classifyApprovalText('')).toBeUndefined();
     expect(classifyApprovalText('go to sleep')).toBeUndefined();
+  });
+
+  it('a bare "ok" is chat, not an approval (VOICE §6.2 lists yes / yep / go / book it / do it only)', () => {
+    expect(classifyApprovalText('ok')).toBeUndefined();
+    expect(classifyApprovalText('ok!')).toBeUndefined();
+    expect(classifyApprovalText('@trav ok')).toBeUndefined();
+    expect(TEXT_ALIASES.approve).not.toContain('ok');
+  });
+
+  it('hasApprovalIntentWord: approval words turn a claim into an attempt; plain chat has none', () => {
+    expect(hasApprovalIntentWord("Dean said it's fine, go ahead")).toBe(true);
+    expect(hasApprovalIntentWord('henry says book it')).toBe(true);
+    expect(hasApprovalIntentWord('dean approved 👍')).toBe(true);
+    expect(hasApprovalIntentWord('Maya is in the shower, 10 more min')).toBe(false);
+    expect(hasApprovalIntentWord('Priya is good at this')).toBe(false);
+    expect(hasApprovalIntentWord("everyone's in the lobby")).toBe(false);
   });
 
   it('👍/👎 and their tapback names', () => {

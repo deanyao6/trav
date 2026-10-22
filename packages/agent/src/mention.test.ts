@@ -217,6 +217,62 @@ describe('mention rules', () => {
     expect(detectMentionRules(essay, ctx)).toMatchObject({ addressed: false });
   });
 
+  it('"thanks trav" is a ❤️ only when the whole message is thanks; thanks in front of a request reaches the model', async () => {
+    const clock = createSimulatedClock(NOW);
+    const model = spyModel(offlineModel(clock));
+    for (const t of ['thanks trav!!', 'thank you trav 🙏', 'Thanks, trav', 'ok thanks trav ❤️']) {
+      expect(await detectMention(t, base(), model.client), t).toMatchObject({
+        addressed: true,
+        reason: 'thanks',
+      });
+    }
+    // A request after the thanks is a request: addressed, not `thanks`.
+    for (const t of [
+      'thanks trav, can you also get 2 more apolo tickets',
+      'thanks trav. now @trav log 30 for the cava',
+      'thanks trav! what time are doors',
+    ]) {
+      const res = await detectMention(t, base(), model.client);
+      expect(res.addressed, t).toBe(true);
+      expect(res.reason, t).not.toBe('thanks');
+    }
+    // Praise after the thanks is neither a request nor a bare thanks: the
+    // classifier decides and the offline one stays silent.
+    const praise = await detectMention("thanks trav, you're the best", base(), model.client);
+    expect(praise.addressed).toBe(false);
+    expect(model.classifies.at(-1)?.input).toBe("thanks trav, you're the best");
+  });
+
+  it('a greeting + "trav" followed by a statement goes to the classifier, which stays silent offline', async () => {
+    const clock = createSimulatedClock(NOW);
+    const model = spyModel(offlineModel(clock));
+    for (const t of [
+      'yo trav is so slow lol',
+      'hi trav fans',
+      'ok trav booked it already',
+      "yo trav's broken again",
+    ]) {
+      expect(detectMentionRules(t, base()), t).toBe('ambiguous');
+      expect((await detectMention(t, base(), model.client)).addressed, t).toBe(false);
+    }
+    expect(model.classifies).toHaveLength(4);
+    // A greeting + trav + anything aimed at Trav is still a rule hit, no classifier.
+    for (const t of [
+      'hey trav what time is the match',
+      'yo trav, split it',
+      'hi trav is the match at 9?',
+      'hey trav i paid €40 for the taxi',
+      'hey trav did you get the tickets',
+      'yo trav will you split it',
+    ]) {
+      expect(detectMentionRules(t, base()), t).toMatchObject({
+        addressed: true,
+        reason: 'leading_name',
+      });
+    }
+    expect(model.classifies).toHaveLength(4);
+  });
+
   it('empty text and "travel"/"Travessera" substrings are silence', () => {
     expect(detectMentionRules('', base())).toMatchObject({ addressed: false });
     expect(detectMentionRules('the travel day is brutal', base())).toMatchObject({

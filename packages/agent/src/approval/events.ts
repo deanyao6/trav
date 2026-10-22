@@ -33,8 +33,9 @@ export interface ApprovalEvent {
   readonly value?: string;
 }
 
+/** VOICE §6.2 only: a bare "ok" in unrelated chat must never bind to a pending proposal. */
 export const TEXT_ALIASES: Readonly<Record<'approve' | 'decline' | 'not_me', readonly string[]>> = {
-  approve: ['yes', 'yep', 'go', 'book it', 'do it', 'ok', '👍'],
+  approve: ['yes', 'yep', 'go', 'book it', 'do it', '👍'],
   decline: ['no', 'nah', 'cancel', 'drop it', '👎'],
   not_me: ['not me', "i'm out", 'im out', 'without me'],
 };

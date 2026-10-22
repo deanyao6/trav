@@ -8,6 +8,7 @@ import { safety, TravError } from '@trav/core';
 import type { GroupMemory, MemberMemory } from '../memory/index.js';
 import { MEMORY_CATEGORIES } from '../memory/index.js';
 import { sanitizeInline } from '../context/groupContext.js';
+import { detectInjection } from '../untrusted.js';
 import type { ToolDefinition } from './registry.js';
 import {
   activeMembers,
@@ -23,11 +24,15 @@ import {
   resolveMemberRef,
 } from './shared.js';
 
-export function createGetGroupMemoryTool(
-  groupMemory: GroupMemory,
-): ToolDefinition<
+export function createGetGroupMemoryTool(groupMemory: GroupMemory): ToolDefinition<
   { readonly limit?: number },
-  { readonly facts: readonly { readonly text: string; readonly category: string; readonly about: readonly string[] }[] }
+  {
+    readonly facts: readonly {
+      readonly text: string;
+      readonly category: string;
+      readonly about: readonly string[];
+    }[];
+  }
 > {
   return {
     name: 'get_group_memory',
@@ -79,7 +84,11 @@ export function createRememberTool(
       properties: {
         text: { type: 'string', description: 'one lowercase sentence' },
         category: { type: 'string', enum: [...MEMORY_CATEGORIES] },
-        about: { type: 'array', items: { type: 'string' }, description: 'member ids or names the fact is about' },
+        about: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'member ids or names the fact is about',
+        },
         scope: { type: 'string', enum: ['group', 'me'] },
       },
       required: ['text'],
@@ -105,6 +114,33 @@ export function createRememberTool(
       const category = input.category ?? 'other';
       const tripId = currentTrip(ctx)?.tripId ?? null;
       const messageId = messageIdOf(ctx);
+      // A memory line is rendered into every later prompt, so an instruction
+      // smuggled in as a "fact" would persist (SAFETY §2.4). Screen and refuse.
+      const injected = detectInjection(input.text);
+      if (injected.length > 0) {
+        ctx.stores.group.audit.append({
+          groupId: ctx.groupId,
+          tripId,
+          type: 'injection.detected',
+          actor: { kind: 'system', id: 'trav' },
+          ...(scope === 'group'
+            ? { visibility: 'group' }
+            : { visibility: 'owner', ownerId: me.memberId }),
+          payload: {
+            source: 'memory_text',
+            itemId: messageId,
+            matchedPattern: injected[0]!.pattern,
+            patterns: injected.map((m) => m.pattern),
+            excerpt: injected[0]!.excerpt,
+            scope,
+          },
+        });
+        return {
+          kind: 'refused',
+          scope,
+          text: "that reads like an instruction, not something to remember, so i'm leaving it out",
+        };
+      }
       if (scope === 'group') {
         if (ctx.lane !== 'group') {
           // Group memory holds only what was said in the group thread (SAFETY §2.3).
@@ -132,8 +168,10 @@ export function createRememberTool(
       // SAFETY §2.7 rule 5: for a minor, only preferences stated in the group thread.
       if (safety.isMinor(me, ctx.now)) {
         const allowed =
-          ctx.lane === 'group' && (category === 'preference' || category === 'dietary' || category === 'taste');
-        if (!allowed) return { kind: 'refused', scope, text: "i don't keep private notes for anyone under 18" };
+          ctx.lane === 'group' &&
+          (category === 'preference' || category === 'dietary' || category === 'taste');
+        if (!allowed)
+          return { kind: 'refused', scope, text: "i don't keep private notes for anyone under 18" };
       }
       memberMemory.remember(me.memberId, ctx.groupId, {
         category,

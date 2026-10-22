@@ -79,7 +79,16 @@ const MENTION_NEGATIVE = [
   'ignore',
 ];
 
-/** Addressed to Trav only at the start ("@trav ...", "hey trav ...", "trav, ..."). Anything else is silence. */
+/** After "hey trav", these make Trav the subject of a statement, not the one being asked (mirrors `mention.ts`). */
+const MENTION_STATEMENT_AFTER_NAME =
+  /^\s*(?:'s|is|isn't|was|wasn't|has|hasn't|had|hadn't|did|didn't|does|doesn't|will|won't|would|wouldn't|can't|cant|couldn't|booked|said|says|told|got|went|made|thinks|knows|needs|fans|lol|lmao|haha|literally|already|really|kinda|sorta|probably|def|definitely)\b(?!\s+(?:you|u|we)\b)/i;
+
+/**
+ * Addressed to Trav only at the start ("@trav ...", "hey trav, ...", "trav, ...",
+ * "yo trav can you ..."). A greeting followed by a statement about Trav ("yo
+ * trav is so slow lol", "ok trav booked it already", "hi trav fans") is not a
+ * mention. Anything else is silence.
+ */
 export const mentionRuleResponder: FallbackResponder = {
   id: 'mention_v1',
   classify<L extends string>(req: ClassifyRequest<L>): ClassifyResponse<L> | undefined {
@@ -88,8 +97,16 @@ export const mentionRuleResponder: FallbackResponder = {
     const neg = pickLabel(req.labels, MENTION_NEGATIVE);
     if (pos === undefined || neg === undefined) return undefined;
     const text = unwrap(req.input).trim();
-    if (/^(?:@trav\b|(?:hey|hi|yo|ok|okay),? trav\b|trav[,:])/i.test(text)) {
+    if (/^(?:@trav\b|trav[,:])/i.test(text)) {
       return classifyResult(req, pos, 0.9, 'addressed to trav at the start');
+    }
+    const greeting = /^(?:hey+|hi+|yo+|ok|okay|hello),?\s*trav\b/i.exec(text);
+    if (greeting !== null) {
+      const rest = text.slice(greeting[0].length);
+      if (MENTION_STATEMENT_AFTER_NAME.test(rest) && !/\?\s*$/.test(rest)) {
+        return classifyResult(req, neg, 0.75, 'greeting + trav + statement; biased to silence');
+      }
+      return classifyResult(req, pos, 0.9, 'greeting + trav, addressed');
     }
     return classifyResult(req, neg, 0.7, 'not addressed to trav; biased to silence');
   },

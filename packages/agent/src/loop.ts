@@ -7,18 +7,30 @@
  *     the identity gate and then the approval handler (T-030), never the model
  *  3. guest messages and pasted/forwarded text are untrusted: `detectInjection`
  *     ⇒ `injection.detected`, zero tools, one polite line at most (SAFETY §2.4)
- *  4. mention gate (rules → classifier → silence); "thanks trav" ⇒ ❤️
+ *  4. mention gate (rules → classifier → silence); "thanks trav" ⇒ ❤️. While a
+ *     proposal is pending, "Dean said it's fine" is an invalid approval attempt
+ *     only when the message is for Trav (addressed, or carrying an approval
+ *     word); "Maya is in the shower" is chat and gets nothing, not even audit
  *  5. group context → prompt → model tool loop capped at `maxToolRounds`
  *  6. money results (proposal, logged expense, clarifying question, refusal) are
- *     rendered from the tool result, never from model prose
+ *     rendered from the tool result, never from model prose; model prose is
+ *     clamped to VOICE §3.1 (4 lines, under 280 chars)
  *  7. one group message (+ DMs) through the injected `sendTurn`
  *  8. follow-ups on the scheduler (`proposal_expiry`)
+ *
+ * Turn boundary (ARCHITECTURE §6): nothing thrown inside a turn escapes
+ * `handleInbound` / `runScheduled`. A rejected model call, a tool crash or a
+ * strict-voice throw becomes one audit event and the VOICE §4.10 two-liner
+ * ("no charge went through"); the result carries `note: 'error:<code>'`.
+ * "👎 to undo" on a logged expense is honoured here: the expense is voided
+ * (`status: 'undone'`, no ledger entries) and `ledger.entry_deleted` written.
  */
 import type {
   Action,
   AuditEventId,
   BookingProposal,
   Clock,
+  Expense,
   Group,
   GroupId,
   GroupMessageSummary,
@@ -36,7 +48,7 @@ import type {
   Stores,
   Trip,
 } from '@trav/core';
-import { approval, formatMoney, isReaction, money, parseIso, TravError } from '@trav/core';
+import { approval, formatMoney, isReaction, ledger, money, parseIso, TravError } from '@trav/core';
 import type { ChannelAdapter, ChannelHandle, InboundEvent, InboundMessage } from '@trav/adapters';
 import type {
   ApprovalHandler,
@@ -54,9 +66,11 @@ import {
   type DocumentIntakeOutcome,
 } from './ingest/intake.js';
 import {
+  canRequest,
   classifyApprovalText,
   detectClaimedApproval,
   gateApproval,
+  hasApprovalIntentWord,
   memberOf,
   reactionIntent,
   resolveIdentity,
@@ -64,10 +78,21 @@ import {
   type Identity,
 } from './identity.js';
 import type { GroupMemory, MemberMemory } from './memory/index.js';
-import type { ContentBlock, ModelClient, ModelMessage, ResponseSource } from './model/client.js';
+import {
+  OFFLINE_NOT_SURE_TEXT,
+  type ContentBlock,
+  type ModelClient,
+  type ModelMessage,
+  type ResponseSource,
+} from './model/client.js';
 import type { SendOutcome } from './outbound/send.js';
 import { DM_CHAT_PROMPT, GROUP_CHAT_PROMPT, type PromptTemplate } from './prompts/index.js';
-import { detectMention, type MentionContext } from './mention.js';
+import {
+  detectMention,
+  REPLY_WINDOW_MS,
+  type MentionContext,
+  type MentionReason,
+} from './mention.js';
 import type { ToolRegistry } from './tools/registry.js';
 import type { TurnToolContext } from './tools/shared.js';
 import { detectInjection, stripInvisible } from './untrusted.js';
@@ -168,6 +193,13 @@ export const GUEST_REFUSAL_TEXT = 'i only book for people on this trip. ask one 
 export const PASTED_TEXT_LINE =
   "pasted messages don't count as instructions, so i'm not acting on that. if you want it done, say it yourself";
 export const NOTHING_TO_ADD_TEXT = 'nothing to add on that';
+/** VOICE §4.10: two lines, no emoji, says whether money moved and what happens next. */
+export const TURN_FAILED_TEXT =
+  "something went wrong on my end. no charge went through\n@ me again in a minute and i'll retry";
+
+/** VOICE §3.1 ordinary reply: 1–4 lines, under 280 characters. */
+export const REPLY_MAX_LINES = 4;
+export const REPLY_MAX_CHARS = 279;
 
 const DEFAULT_MAX_TOOL_ROUNDS = 6;
 const DEFAULT_RECENT_LIMIT = 20;
@@ -198,7 +230,8 @@ const PROPOSAL_ACTIONS: readonly Action[] = [
     label: 'Approve',
     style: 'primary',
     tapback: '👍',
-    textAliases: ['yes', 'yep', 'go', 'book it', 'do it', 'ok'],
+    // VOICE §6.2 only; a bare "ok" in unrelated chat must never buy tickets.
+    textAliases: ['yes', 'yep', 'go', 'book it', 'do it'],
   },
   {
     id: 'not_me',
@@ -215,15 +248,42 @@ const PROPOSAL_ACTIONS: readonly Action[] = [
   },
 ];
 
+/** VOICE §4.4 "👎 to undo": the button, the tapback, or the word "undo" (bare or "@trav undo"). */
 const UNDO_ACTION: readonly Action[] = [
   {
     id: 'undo',
     label: 'Undo',
     style: 'secondary',
     tapback: '👎',
-    textAliases: ['undo', 'no', 'wrong'],
+    textAliases: ['undo'],
   },
 ];
+const UNDO_TEXT =
+  /^[\s(]*(?:@trav\s*[,:]?\s*|(?:hey |ok |okay |yeah )?trav\s*[,:]?\s*)?undo[\s!.]*$/i;
+
+/**
+ * Clamps model prose to an ordinary reply (VOICE §3.1): the first 4 lines,
+ * under 280 characters, cut at a sentence boundary when one is in reach.
+ * Tool-rendered text (settle-up, proposal) has its own limits and is not clamped.
+ */
+export function clampReply(text: string): string {
+  const lines = text
+    .split('\n')
+    .map((l) => l.trimEnd())
+    .filter((l, i, arr) => l.length > 0 || (i > 0 && arr[i - 1]!.length > 0));
+  const out = lines.slice(0, REPLY_MAX_LINES).join('\n').trim();
+  if (out.length <= REPLY_MAX_CHARS) return out;
+  const head = out.slice(0, REPLY_MAX_CHARS);
+  const sentence = Math.max(
+    head.lastIndexOf('. '),
+    head.lastIndexOf('! '),
+    head.lastIndexOf('? '),
+    head.lastIndexOf('\n'),
+  );
+  if (sentence >= REPLY_MAX_CHARS / 2) return head.slice(0, sentence + 1).trim();
+  const space = head.lastIndexOf(' ');
+  return (space > 0 ? head.slice(0, space) : head).trim();
+}
 
 // ---------- quoted / forwarded text ----------
 
@@ -329,6 +389,8 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
   const lastQuestionAt = new Map<string, IsoDateTime>();
   const lastQuestionRef = new Map<string, PendingCardRef>();
   const cards = new Map<MessageId, PendingCardRef>();
+  /** Which group each card was sent in: the index never answers across groups. */
+  const cardGroup = new Map<MessageId, GroupId>();
   const guestsTold = new Set<string>();
 
   const remember = (key: string): boolean => {
@@ -352,27 +414,50 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     recent.set(key, list);
   };
 
-  const pendingCards: PendingCardIndex = {
-    byMessageId: (messageId) => cards.get(messageId),
-    pendingProposalsRequestedBy(memberId) {
-      const all: BookingProposal[] = [];
-      for (const g of stores.group.groups.list())
-        all.push(...stores.group.bookings.listPendingProposals(g.groupId));
-      return all
-        .filter((p) => p.requestedBy === memberId)
-        .sort((a, b) => parseIso(b.requestedAt) - parseIso(a.requestedAt));
-    },
-    lastTravQuestion(lane, memberId) {
-      for (const [key, ref] of lastQuestionRef) {
-        const [, l, m] = key.split(':');
-        if (l !== lane) continue;
-        if (lane === 'dm' && m !== memberId) continue;
-        const at = lastQuestionAt.get(key);
-        if (at !== undefined && parseIso(clock.now()) - parseIso(at) <= 2 * 60 * 1000) return ref;
-      }
-      return undefined;
-    },
-  };
+  /**
+   * The card index the approval normalizer sees. Scoped to one group when the
+   * loop builds it for a turn; the public `pendingCards` (no group) scopes by
+   * the member's group when a member is given and otherwise answers only when
+   * exactly one group has a live question, so a card never crosses groups.
+   */
+  function cardIndexFor(groupId: GroupId | undefined): PendingCardIndex {
+    const inGroup = (messageId: MessageId): boolean =>
+      groupId === undefined || cardGroup.get(messageId) === groupId;
+    return {
+      byMessageId(messageId) {
+        const ref = cards.get(messageId);
+        return ref !== undefined && inGroup(messageId) ? ref : undefined;
+      },
+      pendingProposalsRequestedBy(memberId) {
+        const groups =
+          groupId === undefined ? stores.group.groups.list().map((g) => g.groupId) : [groupId];
+        const all: BookingProposal[] = [];
+        for (const g of groups) all.push(...stores.group.bookings.listPendingProposals(g));
+        return all
+          .filter((p) => p.requestedBy === memberId)
+          .sort((a, b) => parseIso(b.requestedAt) - parseIso(a.requestedAt));
+      },
+      lastTravQuestion(lane, memberId) {
+        const scope =
+          groupId ??
+          (memberId === undefined ? undefined : stores.group.members.get(memberId)?.groupId);
+        let found: PendingCardRef | undefined;
+        const groupsSeen = new Set<string>();
+        for (const [key, ref] of lastQuestionRef) {
+          const [g, l, m] = key.split(':');
+          if (l !== lane) continue;
+          if (lane === 'dm' && m !== memberId) continue;
+          if (scope !== undefined && g !== scope) continue;
+          const at = lastQuestionAt.get(key);
+          if (at === undefined || parseIso(clock.now()) - parseIso(at) > REPLY_WINDOW_MS) continue;
+          found ??= ref;
+          if (g !== undefined) groupsSeen.add(g);
+        }
+        return groupsSeen.size === 1 ? found : undefined;
+      },
+    };
+  }
+  const pendingCards = cardIndexFor(undefined);
 
   interface Resolved {
     readonly group: Group;
@@ -493,6 +578,7 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
           sentAt: r.now,
         };
         cards.set(msg.id, ref);
+        cardGroup.set(msg.id, r.group.groupId);
         if (/\?/.test(msg.text)) lastQuestionRef.set(key, ref);
       }
       if (/\?/.test(msg.text)) lastQuestionAt.set(key, r.now);
@@ -556,9 +642,11 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       proposalId?: string,
       extra: Record<string, unknown> = {},
     ): void => {
+      // A guest has no member actor: Trav records the attempt itself, the raw
+      // handle stays in the payload (`senderId`), never in `actor`.
       audit(r, {
         type: 'approval.invalid_attempt',
-        actor: { kind: 'member', id: r.me?.memberId ?? ('sender' in event ? event.sender : '') },
+        actor: r.me === null ? { kind: 'trav', id: 'trav' } : { kind: 'member', id: r.me.memberId },
         visibility: 'group',
         ...(proposalId !== undefined ? { proposalId } : {}),
         payload: {
@@ -625,7 +713,12 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     if (deps.approval === undefined) {
       return finish([], 'approval:handler_not_wired');
     }
-    const normalized = deps.approval.normalize(event, pendingCards, r.me?.memberId ?? null, r.now);
+    const normalized = deps.approval.normalize(
+      event,
+      cardIndexFor(r.group.groupId),
+      r.me?.memberId ?? null,
+      r.now,
+    );
     if (normalized.kind !== 'event') return finish([], `approval:normalize_${normalized.kind}`);
     const ev =
       normalized.event.proposalId === undefined
@@ -638,7 +731,12 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
 
   // ---------- the model loop ----------
 
-  async function modelTurn(r: Resolved, event: InboundMessage, text: string): Promise<TurnResult> {
+  async function modelTurn(
+    r: Resolved,
+    event: InboundMessage,
+    text: string,
+    reason: MentionReason,
+  ): Promise<TurnResult> {
     const before = snapshotAudit(r.group.groupId);
     const me = r.me;
     if (me === null) return silent('model:guest');
@@ -744,6 +842,25 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       messages.push({ role: 'user', content: toolResults });
     }
 
+    // VOICE §2: a reply-window turn is Trav guessing that a short message
+    // answers its question. If the model is unsure (offline fallback, or the
+    // generic clarify line) and called no tool, the guess was wrong: silence.
+    if (
+      terminal === undefined &&
+      reason === 'reply_window' &&
+      toolCalls.length === 0 &&
+      (sources.at(-1) === 'fallback' || modelText.trim() === OFFLINE_NOT_SURE_TEXT)
+    ) {
+      return {
+        outbound: [],
+        toolCalls,
+        auditEventIds: auditIdsSince(r.group.groupId, before),
+        silent: true,
+        modelSources: sources,
+        note: 'reply_window:unsure',
+      };
+    }
+
     const drafts: Outbound[] = [];
     let note = 'model:text';
     if (terminal !== undefined) {
@@ -751,7 +868,7 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       const draft = await renderTerminal(r, terminal.value, me);
       if (draft !== undefined) drafts.push(draft);
     } else {
-      let text = stripMarkdown(modelText);
+      let text = clampReply(stripMarkdown(modelText));
       if (text.length === 0) {
         const fallback = [...results]
           .reverse()
@@ -873,6 +990,21 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       );
     }
 
+    // 1b. "undo" (bare or "@trav undo") from a member: the quoted expense card,
+    // else the latest logged-expense card in this group thread (VOICE §4.4).
+    if (me !== null && UNDO_TEXT.test(rawText)) {
+      const target =
+        boundRef !== undefined && isLoggedExpenseCard(boundRef)
+          ? boundRef
+          : r.lane === 'group'
+            ? latestExpenseCard(r.group.groupId)
+            : undefined;
+      if (target !== undefined) {
+        recordInbound();
+        return undoExpense(r, target, 'text', event.messageId);
+      }
+    }
+
     const mentionCtx: MentionContext = {
       lane: r.lane,
       repliesToTrav:
@@ -989,18 +1121,24 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       }
     }
 
-    // 4. "Dean said it's fine" while something is pending: not Dean's answer (SAFETY §2.5).
+    // 4. mention gate (the claim check below needs it too).
+    const mention = await detectMention(text, mentionCtx, model);
+
+    // 5. "Dean said it's fine, go ahead" while something is pending: not Dean's
+    // answer (SAFETY §2.5), but only when the message is for Trav: addressed
+    // (mention, quote-reply, reply window) or carrying an approval word.
+    // "Maya is in the shower, 10 more min" is chat: no post, no audit.
     const pending = pendingFor(r);
     if (pending.length > 0) {
-      const claim = detectClaimedApproval(text, r.members, me.memberId);
+      const forTrav =
+        (mention.addressed && mention.reason !== 'thanks') || hasApprovalIntentWord(text);
+      const claim = forTrav ? detectClaimedApproval(text, r.members, me.memberId) : undefined;
       if (claim !== undefined) {
         recordInbound();
         return routeApproval(r, event, 'approve', text, 'text', undefined, event.messageId);
       }
     }
 
-    // 5. mention gate.
-    const mention = await detectMention(text, mentionCtx, model);
     recordInbound();
     if (!mention.addressed) return silent(`mention:${mention.reason}`);
     if (mention.reason === 'thanks') {
@@ -1024,7 +1162,7 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     }
 
     // 6. the model.
-    return modelTurn(r, event, text);
+    return modelTurn(r, event, text, mention.reason);
   }
 
   function isTravMessage(messageId: MessageId): boolean {
@@ -1034,13 +1172,139 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     return false;
   }
 
+  // ---------- undo (VOICE §4.4 "👎 to undo") ----------
+
+  /**
+   * Only a chat-logged expense card can be undone here. A "looks shared?" DM
+   * card is also `expense_confirm` but `status: 'pending'`: its 👎 means "keep
+   * private" and belongs to the pending-item flow, never to undo.
+   */
+  function isLoggedExpenseCard(ref: PendingCardRef): boolean {
+    return ref.card.type === 'expense_confirm' && ref.card.status === 'logged';
+  }
+
+  function latestExpenseCard(groupId: GroupId): PendingCardRef | undefined {
+    let best: PendingCardRef | undefined;
+    for (const [id, ref] of cards) {
+      if (!isLoggedExpenseCard(ref) || cardGroup.get(id) !== groupId) continue;
+      if (best === undefined || parseIso(ref.sentAt) > parseIso(best.sentAt)) best = ref;
+    }
+    return best;
+  }
+
+  /**
+   * Voids a chat-logged expense: `status: 'undone'`, no ledger entries (core
+   * `ledger.buildLedgerEntries` yields none for an undone expense), one
+   * `ledger.entry_deleted` event, one line back. Members only; within the
+   * trip the expense belongs to; a second 👎 on the same card does nothing.
+   */
+  async function undoExpense(
+    r: Resolved,
+    ref: PendingCardRef,
+    via: 'button' | 'reaction' | 'text',
+    messageId: MessageId,
+  ): Promise<TurnResult> {
+    if (ref.card.type !== 'expense_confirm' || !isLoggedExpenseCard(ref))
+      return silent('undo:not_expense');
+    if (r.me === null || !canRequest(r.identity)) return silent('undo:guest');
+    if (cardGroup.get(ref.messageId) !== r.group.groupId) return silent('undo:wrong_group');
+    const expense = stores.group.expenses.get(ref.card.expenseId);
+    if (expense === undefined || expense.status !== 'logged') {
+      cards.delete(ref.messageId);
+      cardGroup.delete(ref.messageId);
+      return silent('undo:not_logged');
+    }
+    if (r.trip === null || expense.tripId !== r.trip.tripId) return silent('undo:trip_over');
+
+    const before = snapshotAudit(r.group.groupId);
+    const undone: Expense = { ...expense, status: 'undone' };
+    const order = r.members.map((m) => m.memberId);
+    stores.group.expenses.replace(
+      undone,
+      ledger.buildLedgerEntries(undone, { memberOrder: order, participantsUniverse: order }),
+    );
+    cards.delete(ref.messageId);
+    cardGroup.delete(ref.messageId);
+    audit(r, {
+      type: 'ledger.entry_deleted',
+      actor: { kind: 'member', id: r.me.memberId },
+      visibility: 'group',
+      payload: {
+        expenseId: expense.expenseId,
+        memberId: r.me.memberId,
+        before: { status: 'logged', amountMinor: expense.amount.amountMinor },
+        after: { status: 'undone' },
+        messageId,
+        cardMessageId: ref.messageId,
+        via,
+      },
+    });
+    const payerId = expense.paidBy[0]?.memberId;
+    const payer = r.members.find((m) => m.memberId === payerId);
+    const sent = await send(r, [
+      message(
+        r,
+        `undone: ${formatMoney(expense.amount)} ${sanitizeInline(expense.description, 40).toLowerCase()} on ${sanitizeInline(payer?.displayName ?? 'someone', 40)}, it's off the tab`,
+      ),
+    ]);
+    return {
+      outbound: sent,
+      toolCalls: [],
+      auditEventIds: auditIdsSince(r.group.groupId, before),
+      silent: sent.length === 0,
+      modelSources: [],
+      note: 'undo:done',
+    };
+  }
+
+  // ---------- turn boundary (ARCHITECTURE §6) ----------
+
+  /**
+   * Nothing thrown inside a turn escapes: one audit event (`booking.failed`
+   * with `stage: 'turn'`, ids only; no `agent.turn_failed` type exists in
+   * core yet) and the VOICE §4.10 two-liner. Money never moves on these paths
+   * without the approval handler, so "no charge went through" holds.
+   */
+  async function failTurn(
+    r: Resolved | undefined,
+    e: unknown,
+    messageId: string | undefined,
+  ): Promise<TurnResult> {
+    const code = e instanceof TravError ? e.code : 'failed';
+    if (r === undefined) return silent(`error:${code}`);
+    const auditEventIds: AuditEventId[] = [];
+    try {
+      auditEventIds.push(
+        audit(r, {
+          type: 'booking.failed',
+          actor: { kind: 'trav', id: 'trav' },
+          visibility: 'group',
+          payload: {
+            errorCode: code,
+            retriable: true,
+            stage: 'turn',
+            lane: r.lane,
+            ...(messageId !== undefined ? { messageId } : {}),
+          },
+        }),
+      );
+    } catch {
+      // the audit store failing must not take the turn down with it
+    }
+    const sent = await send(r, [message(r, TURN_FAILED_TEXT)]).catch((): readonly Outbound[] => []);
+    return {
+      outbound: sent,
+      toolCalls: [],
+      auditEventIds,
+      silent: sent.length === 0,
+      modelSources: [],
+      note: `error:${code}`,
+    };
+  }
+
   // ---------- public ----------
 
-  async function handleInbound(event: InboundEvent): Promise<TurnResult> {
-    if (!remember(dedupeKey(event))) return silent('duplicate');
-    const r = resolve(event);
-    if (r === undefined) return silent('unknown_conversation');
-
+  async function dispatch(r: Resolved, event: InboundEvent): Promise<TurnResult> {
     switch (event.type) {
       case 'member_joined':
       case 'member_left':
@@ -1049,12 +1313,16 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
         if (event.removed) return silent('reaction:removed');
         const intent = reactionIntent(event.reaction);
         const ref = cards.get(event.targetMessageId);
+        if (intent === 'decline' && ref !== undefined && isLoggedExpenseCard(ref))
+          return undoExpense(r, ref, 'reaction', event.messageId);
         if (intent === undefined || ref?.proposalId === undefined)
           return silent('reaction:not_approval');
         return routeApproval(r, event, intent, '', 'reaction', ref.proposalId, event.messageId);
       }
       case 'button_tap': {
         const ref = cards.get(event.cardMessageId);
+        if (event.actionId === 'undo' && ref !== undefined && isLoggedExpenseCard(ref))
+          return undoExpense(r, ref, 'button', event.messageId);
         const intent: ApprovalIntent | undefined =
           event.actionId === 'approve' ||
           event.actionId === 'decline' ||
@@ -1070,7 +1338,42 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     }
   }
 
+  async function handleInbound(event: InboundEvent): Promise<TurnResult> {
+    if (!remember(dedupeKey(event))) return silent('duplicate');
+    let r: Resolved | undefined;
+    try {
+      r = resolve(event);
+      if (r === undefined) return silent('unknown_conversation');
+      return await dispatch(r, event);
+    } catch (e) {
+      return failTurn(r, e, 'messageId' in event ? event.messageId : undefined);
+    }
+  }
+
   async function runScheduled(job: ScheduledJob): Promise<TurnResult> {
+    try {
+      return await runScheduledJob(job);
+    } catch (e) {
+      const group = stores.group.groups.get(job.groupId);
+      if (group === undefined) return silent(`error:${e instanceof TravError ? e.code : 'failed'}`);
+      const now = clock.now();
+      return failTurn(
+        {
+          group,
+          members: stores.group.members.listByGroup(group.groupId),
+          trip: stores.group.trips.current(group.groupId, now) ?? null,
+          identity: { kind: 'guest', senderId: 'scheduler' },
+          me: null,
+          lane: 'group',
+          now,
+        },
+        e,
+        job.jobId,
+      );
+    }
+  }
+
+  async function runScheduledJob(job: ScheduledJob): Promise<TurnResult> {
     if (job.kind !== 'proposal_expiry') return silent(`scheduled:${job.kind}:not_handled`);
     const proposalId =
       typeof job.payload['proposalId'] === 'string' ? job.payload['proposalId'] : undefined;
@@ -1096,7 +1399,11 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       payload: { expiresAt: grant?.expiresAt ?? job.runAt },
     });
     await deps.proposals.releaseHold(proposal);
-    for (const [id, ref] of cards) if (ref.proposalId === proposalId) cards.delete(id);
+    for (const [id, ref] of cards) {
+      if (ref.proposalId !== proposalId) continue;
+      cards.delete(id);
+      cardGroup.delete(id);
+    }
     const r: Resolved = {
       group,
       members: stores.group.members.listByGroup(group.groupId),

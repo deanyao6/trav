@@ -39,5 +39,92 @@
       ]
     },
     "note": "T-007-b: the Razzmatazz moment (MOTIVATION.md, CLAUDE.md §8). The group-lane loop prefixes the sender's display name, so the keyed text is \"Dean: ...\" and the tool list is every v0 tool except the DM-only get_my_pending_items. The model names the five members and excludes Henry; booking/proposals.ts stops at a BookingProposal, and the next round is answered by the offline tool_result_ack responder. packages/agent/src/loop.test.ts asserts this key matches deriveScriptKey of the real request."
+  },
+  {
+    "key": "07141094e52ecec98cf6f3ae9efc4ffe4f873482b0f9d531c2bec97d3868f4ee",
+    "model": "main",
+    "systemPromptId": "dm_chat_v1",
+    "lastUserText": "Maya: how much do i owe",
+    "toolNames": [
+      "cancel_proposal",
+      "get_balances",
+      "get_group_memory",
+      "get_my_pending_items",
+      "get_pending_proposals",
+      "get_roster",
+      "get_settings",
+      "log_expense",
+      "propose_booking",
+      "remember",
+      "request_settings_change",
+      "search_events",
+      "search_flights",
+      "search_lodging",
+      "set_attendance"
+    ],
+    "response": {
+      "kind": "completion",
+      "text": "",
+      "toolCalls": [{ "id": "toolu_bcn_dm_owe_maya_1", "name": "get_balances", "input": {} }]
+    },
+    "note": "T-007-b round 2: the DM-lane \"how much do i owe\" (VOICE §3.7). The DM loop prefixes the member's display name and offers every v0 tool including the DM-only get_my_pending_items. The model asks the ledger; the loop posts get_balances' own text (settle-up lines) in the member's private thread. Keyed so the offline demo logs no miss; packages/agent/src/loop.test.ts asserts the key."
+  },
+  {
+    "key": "a3cca808ce07c17ef2e0d186fcb03cf141a0f56c2358e980bf1d88cb22ba1827",
+    "model": "main",
+    "systemPromptId": "dm_chat_v1",
+    "lastUserText": "Dean: how much do i owe",
+    "toolNames": [
+      "cancel_proposal",
+      "get_balances",
+      "get_group_memory",
+      "get_my_pending_items",
+      "get_pending_proposals",
+      "get_roster",
+      "get_settings",
+      "log_expense",
+      "propose_booking",
+      "remember",
+      "request_settings_change",
+      "search_events",
+      "search_flights",
+      "search_lodging",
+      "set_attendance"
+    ],
+    "response": {
+      "kind": "completion",
+      "text": "",
+      "toolCalls": [{ "id": "toolu_bcn_dm_owe_dean_1", "name": "get_balances", "input": {} }]
+    },
+    "note": "T-007-b round 2: same DM ask from Dean (the demo's lead)."
+  },
+  {
+    "key": "6cefceff8cf45a77884e7d9ad6073c7728cdfc152d4fecbb0cde2fe0e2fe0333",
+    "model": "main",
+    "systemPromptId": "dm_chat_v1",
+    "lastUserText": "Sam: how much do i owe",
+    "toolNames": [
+      "cancel_proposal",
+      "get_balances",
+      "get_group_memory",
+      "get_my_pending_items",
+      "get_pending_proposals",
+      "get_roster",
+      "get_settings",
+      "log_expense",
+      "propose_booking",
+      "remember",
+      "request_settings_change",
+      "search_events",
+      "search_flights",
+      "search_lodging",
+      "set_attendance"
+    ],
+    "response": {
+      "kind": "completion",
+      "text": "",
+      "toolCalls": [{ "id": "toolu_bcn_dm_owe_sam_1", "name": "get_balances", "input": {} }]
+    },
+    "note": "T-007-b round 2: same DM ask from Sam (the simulator demo's DM thread; this key was the entry in .trav/offline-misses.jsonl)."
   }
 ]

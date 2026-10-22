@@ -50,8 +50,14 @@ const CATEGORIES: readonly ExpenseCategory[] = [
 export type RawSplit =
   | { readonly method: 'equal'; readonly participants: readonly string[] }
   | { readonly method: 'exclude'; readonly excluded: readonly string[] }
-  | { readonly method: 'weighted'; readonly weights: readonly { readonly member: string; readonly weight: number }[] }
-  | { readonly method: 'exact'; readonly amounts: readonly { readonly member: string; readonly amountMinor: number }[] }
+  | {
+      readonly method: 'weighted';
+      readonly weights: readonly { readonly member: string; readonly weight: number }[];
+    }
+  | {
+      readonly method: 'exact';
+      readonly amounts: readonly { readonly member: string; readonly amountMinor: number }[];
+    }
   | {
       readonly method: 'itemized';
       readonly participants: readonly string[];
@@ -108,7 +114,8 @@ function parseSplit(v: unknown): RawSplit {
         amounts: amounts.map((a) => {
           if (!isRecord(a)) bad('split.amounts entries must be objects');
           const amountMinor = optInt(a, 'amountMinor');
-          if (amountMinor === undefined || amountMinor < 0) bad('amountMinor must be a non-negative integer');
+          if (amountMinor === undefined || amountMinor < 0)
+            bad('amountMinor must be a non-negative integer');
           return { member: reqString(a, 'member', 80), amountMinor };
         }),
       };
@@ -123,7 +130,14 @@ function parseSplit(v: unknown): RawSplit {
           if (!isRecord(li)) bad('split.lineItems entries must be objects');
           const amountMinor = optInt(li, 'amountMinor');
           if (amountMinor === undefined) bad('lineItems.amountMinor must be an integer');
-          const kind = optEnum(li, 'kind', ['item', 'tax', 'tip', 'service', 'fee', 'discount'] as const);
+          const kind = optEnum(li, 'kind', [
+            'item',
+            'tax',
+            'tip',
+            'service',
+            'fee',
+            'discount',
+          ] as const);
           return {
             label: reqString(li, 'label', 80),
             amountMinor,
@@ -141,9 +155,11 @@ function parseSplit(v: unknown): RawSplit {
 export function parseLogExpenseInput(raw: unknown): LogExpenseInput {
   const r = asRecord(raw);
   const amountMinor = optInt(r, 'amountMinor');
-  if (amountMinor === undefined || amountMinor <= 0) bad('amountMinor must be a positive integer (minor units)');
+  if (amountMinor === undefined || amountMinor <= 0)
+    bad('amountMinor must be a positive integer (minor units)');
   const currency = optString(r, 'currency', 3)?.toUpperCase();
-  if (currency === undefined || !/^[A-Z]{3}$/.test(currency)) bad('currency must be an ISO 4217 code');
+  if (currency === undefined || !/^[A-Z]{3}$/.test(currency))
+    bad('currency must be an ISO 4217 code');
   const out: { -readonly [K in keyof LogExpenseInput]: LogExpenseInput[K] } = {
     description: reqString(r, 'description', 80),
     amountMinor,
@@ -164,7 +180,8 @@ export function parseLogExpenseInput(raw: unknown): LogExpenseInput {
 function resolveAll(members: readonly Member[], refs: readonly string[], what: string): MemberId[] {
   return refs.map((ref) => {
     const id = resolveMemberRef(members, ref);
-    if (id === undefined) throw new TravError('not_found', `${what}: no member "${ref}" on this trip`);
+    if (id === undefined)
+      throw new TravError('not_found', `${what}: no member "${ref}" on this trip`);
     return id;
   });
 }
@@ -172,7 +189,10 @@ function resolveAll(members: readonly Member[], refs: readonly string[], what: s
 function toSplit(raw: RawSplit, members: readonly Member[], currency: string): SplitSpec {
   switch (raw.method) {
     case 'equal':
-      return { method: 'equal', participants: resolveAll(members, raw.participants, 'participants') };
+      return {
+        method: 'equal',
+        participants: resolveAll(members, raw.participants, 'participants'),
+      };
     case 'exclude':
       return { method: 'exclude', excluded: resolveAll(members, raw.excluded, 'excluded') };
     case 'weighted':
@@ -213,7 +233,11 @@ export type LogExpenseResult =
       readonly description: string;
       readonly amount: Money;
       readonly paidBy: { readonly memberId: MemberId; readonly name: string };
-      readonly shares: readonly { readonly memberId: MemberId; readonly name: string; readonly amountMinor: number }[];
+      readonly shares: readonly {
+        readonly memberId: MemberId;
+        readonly name: string;
+        readonly amountMinor: number;
+      }[];
       readonly excluded: readonly { readonly memberId: MemberId; readonly name: string }[];
       readonly text: string;
       readonly card: ExpenseConfirmCard;
@@ -240,7 +264,8 @@ export function renderExpenseLoggedText(
   if (nonZero.length === 1 && nonZero[0]!.memberId !== payer.memberId) {
     line1 = `${head} · ${nameOf(members, nonZero[0]!.memberId)} owes ${formatMoney(nonZero[0]!.amount)}`;
   } else if (allEqualish) {
-    const not = excluded.length > 0 ? ` (not ${excluded.map((id) => nameOf(members, id)).join(', ')})` : '';
+    const not =
+      excluded.length > 0 ? ` (not ${excluded.map((id) => nameOf(members, id)).join(', ')})` : '';
     const each = nonZero[0]!.amount;
     line1 = `${head}, ${nonZero.length} ways${not} → ${formatMoney(each)} each`;
   } else {
@@ -292,8 +317,10 @@ export const logExpenseTool: ToolDefinition<LogExpenseInput, LogExpenseResult> =
         question: `was that ${said} or ${tab}? the tab is in ${trip.currency}, so i can only log ${trip.currency} for now`,
       };
     }
-    const payerId = input.paidBy === undefined ? me.memberId : resolveMemberRef(members, input.paidBy);
-    if (payerId === undefined) throw new TravError('not_found', `no member "${input.paidBy ?? ''}" on this trip`);
+    const payerId =
+      input.paidBy === undefined ? me.memberId : resolveMemberRef(members, input.paidBy);
+    if (payerId === undefined)
+      throw new TravError('not_found', `no member "${input.paidBy ?? ''}" on this trip`);
 
     const messageId = messageIdOf(ctx);
     const expenses = ctx.stores.group.expenses;
@@ -368,7 +395,11 @@ export const logExpenseTool: ToolDefinition<LogExpenseInput, LogExpenseResult> =
       paidBy: payerId,
       split: {
         method: split.method,
-        participants: shares.map((s) => ({ memberId: s.memberId, name: nameOf(members, s.memberId), share: s.amount })),
+        participants: shares.map((s) => ({
+          memberId: s.memberId,
+          name: nameOf(members, s.memberId),
+          share: s.amount,
+        })),
         excluded: excluded.map((id) => ({ memberId: id, name: nameOf(members, id) })),
       },
     };
@@ -378,7 +409,11 @@ export const logExpenseTool: ToolDefinition<LogExpenseInput, LogExpenseResult> =
       description: expense.description,
       amount,
       paidBy: { memberId: payerId, name: nameOf(members, payerId) },
-      shares: shares.map((s) => ({ memberId: s.memberId, name: nameOf(members, s.memberId), amountMinor: s.amount.amountMinor })),
+      shares: shares.map((s) => ({
+        memberId: s.memberId,
+        name: nameOf(members, s.memberId),
+        amountMinor: s.amount.amountMinor,
+      })),
       excluded: excluded.map((id) => ({ memberId: id, name: nameOf(members, id) })),
       text,
       card,
@@ -389,8 +424,17 @@ export const logExpenseTool: ToolDefinition<LogExpenseInput, LogExpenseResult> =
 export interface BalancesResult {
   readonly currency: string;
   readonly totalSpentMinor: number;
-  readonly balances: readonly { readonly memberId: MemberId; readonly name: string; readonly netMinor: number }[];
-  readonly transfers: readonly { readonly from: MemberId; readonly to: MemberId; readonly amountMinor: number; readonly text: string }[];
+  readonly balances: readonly {
+    readonly memberId: MemberId;
+    readonly name: string;
+    readonly netMinor: number;
+  }[];
+  readonly transfers: readonly {
+    readonly from: MemberId;
+    readonly to: MemberId;
+    readonly amountMinor: number;
+    readonly text: string;
+  }[];
   readonly text: string;
 }
 
@@ -403,7 +447,9 @@ export function balancesFor(ctx: ToolContext): BalancesResult {
   const balances = ledger.computeBalances(entries, trip.currency, order);
   const transfers = ledger.settle(balances);
   const total = ledger.totalSpent(expenses.listByTrip(trip.tripId), trip.currency);
-  const lines = transfers.map((t) => formatTransfer(nameOf(members, t.from), nameOf(members, t.to), t.amount));
+  const lines = transfers.map((t) =>
+    formatTransfer(nameOf(members, t.from), nameOf(members, t.to), t.amount),
+  );
   const text =
     transfers.length === 0
       ? `${formatMoney(total)} on the tab so far. nobody owes anybody. rare. enjoy it`
@@ -411,8 +457,17 @@ export function balancesFor(ctx: ToolContext): BalancesResult {
   return {
     currency: trip.currency,
     totalSpentMinor: total.amountMinor,
-    balances: balances.map((b) => ({ memberId: b.memberId, name: nameOf(members, b.memberId), netMinor: b.net.amountMinor })),
-    transfers: transfers.map((t, i) => ({ from: t.from, to: t.to, amountMinor: t.amount.amountMinor, text: lines[i]! })),
+    balances: balances.map((b) => ({
+      memberId: b.memberId,
+      name: nameOf(members, b.memberId),
+      netMinor: b.net.amountMinor,
+    })),
+    transfers: transfers.map((t, i) => ({
+      from: t.from,
+      to: t.to,
+      amountMinor: t.amount.amountMinor,
+      text: lines[i]!,
+    })),
     text,
   };
 }
@@ -420,7 +475,7 @@ export function balancesFor(ctx: ToolContext): BalancesResult {
 export const getBalancesTool: ToolDefinition<Record<string, never>, BalancesResult> = {
   name: 'get_balances',
   description:
-    'The tab: total spent on the trip, each member\'s net position (positive = is owed) and the minimal set of transfers that settles up. Read-only.',
+    "The tab: total spent on the trip, each member's net position (positive = is owed) and the minimal set of transfers that settles up. Read-only.",
   inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   parse: (raw) => {
     asRecord(raw);

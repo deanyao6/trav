@@ -5,12 +5,7 @@
  */
 import type { IsoDate, MemberId } from '@trav/core';
 import { formatMoney, localDate, TravError } from '@trav/core';
-import type {
-  FlightsAdapter,
-  LodgingAdapter,
-  TicketsAdapter,
-  EventCategory,
-} from '@trav/adapters';
+import type { FlightsAdapter, LodgingAdapter, TicketsAdapter, EventCategory } from '@trav/adapters';
 import { sanitizeInline } from '../context/groupContext.js';
 import type { ToolDefinition } from './registry.js';
 import {
@@ -56,14 +51,21 @@ export interface EventResult {
   readonly startsAt: string;
   readonly category: string;
   readonly minimumAge: number | null;
-  readonly from: { readonly amountMinor: number; readonly currency: string; readonly text: string } | null;
+  readonly from: {
+    readonly amountMinor: number;
+    readonly currency: string;
+    readonly text: string;
+  } | null;
   readonly refundableOption: boolean;
   readonly bookable: boolean;
 }
 
 export function createSearchEventsTool(
   tickets: TicketsAdapter,
-): ToolDefinition<SearchEventsInput, { readonly events: readonly EventResult[]; readonly note?: string }> {
+): ToolDefinition<
+  SearchEventsInput,
+  { readonly events: readonly EventResult[]; readonly note?: string }
+> {
   return {
     name: 'search_events',
     description:
@@ -112,7 +114,9 @@ export function createSearchEventsTool(
         const api = offers.ok ? offers.value.filter((o) => o.purchaseMode === 'api') : [];
         const cheapest = [...api].sort(
           (a, b) =>
-            a.unitPrice.amountMinor + a.unitFees.amountMinor - (b.unitPrice.amountMinor + b.unitFees.amountMinor),
+            a.unitPrice.amountMinor +
+            a.unitFees.amountMinor -
+            (b.unitPrice.amountMinor + b.unitFees.amountMinor),
         )[0];
         const from =
           cheapest === undefined
@@ -164,7 +168,10 @@ export interface FlightResult {
 
 export function createSearchFlightsTool(
   flights: FlightsAdapter,
-): ToolDefinition<SearchFlightsInput, { readonly offers: readonly FlightResult[]; readonly note?: string }> {
+): ToolDefinition<
+  SearchFlightsInput,
+  { readonly offers: readonly FlightResult[]; readonly note?: string }
+> {
   return {
     name: 'search_flights',
     description:
@@ -175,7 +182,11 @@ export function createSearchFlightsTool(
         origin: { type: 'string', description: 'IATA, e.g. BOS' },
         destination: { type: 'string', description: 'IATA, e.g. BCN' },
         date: { type: 'string', description: 'YYYY-MM-DD' },
-        members: { type: 'array', items: { type: 'string' }, description: 'who flies; default: the sender' },
+        members: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'who flies; default: the sender',
+        },
       },
       required: ['origin', 'destination', 'date'],
       additionalProperties: false,
@@ -206,9 +217,12 @@ export function createSearchFlightsTool(
         ids.push(id);
       }
       if (ids.length === 0 && ctx.senderMemberId !== null) ids.push(ctx.senderMemberId);
-      if (ids.length === 0) throw new TravError('not_authorized', 'only members of this trip can search flights');
+      if (ids.length === 0)
+        throw new TravError('not_authorized', 'only members of this trip can search flights');
       const res = await flights.search({
-        slices: [{ origin: input.origin, destination: input.destination, departureDate: input.date }],
+        slices: [
+          { origin: input.origin, destination: input.destination, departureDate: input.date },
+        ],
         passengers: ids.map((memberId) => ({ memberId, type: 'adult' as const })),
       });
       if (!res.ok) return { offers: [], note: `provider ${res.error.code}` };
@@ -260,7 +274,10 @@ export interface LodgingResult {
 
 export function createSearchLodgingTool(
   lodging: LodgingAdapter,
-): ToolDefinition<SearchLodgingInput, { readonly stays: readonly LodgingResult[]; readonly note?: string }> {
+): ToolDefinition<
+  SearchLodgingInput,
+  { readonly stays: readonly LodgingResult[]; readonly note?: string }
+> {
   return {
     name: 'search_lodging',
     description:

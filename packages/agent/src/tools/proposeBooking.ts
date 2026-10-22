@@ -56,7 +56,11 @@ export function createProposeBookingTool(
     inputSchema: {
       type: 'object',
       properties: {
-        kind: { type: 'string', enum: [...KINDS], description: 'ticket (default), flight, lodging' },
+        kind: {
+          type: 'string',
+          enum: [...KINDS],
+          description: 'ticket (default), flight, lodging',
+        },
         query: { type: 'string', description: 'event or venue, e.g. "razzmatazz"' },
         eventId: { type: 'string' },
         offerId: { type: 'string' },
@@ -65,7 +69,10 @@ export function createProposeBookingTool(
         excludedNames: { type: 'array', items: { type: 'string' } },
         quantity: { type: 'integer', minimum: 1 },
         activityId: { type: 'string' },
-        date: { type: 'string', description: 'local date YYYY-MM-DD of the night; default tonight' },
+        date: {
+          type: 'string',
+          description: 'local date YYYY-MM-DD of the night; default tonight',
+        },
         requestText: { type: 'string' },
       },
       additionalProperties: true,

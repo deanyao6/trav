@@ -1,15 +1,19 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import type { BookingProposal, OutboundMessage } from '@trav/core';
-import { isReaction } from '@trav/core';
+import type { BookingProposal, Group, Member, Outbound, OutboundMessage, Trip } from '@trav/core';
+import { DEFAULT_GROUP_SETTINGS, defaultSpendingPolicy, isReaction, TravError } from '@trav/core';
 import { BARCELONA } from './compose.js';
 import {
+  clampReply,
   GUEST_REFUSAL_TEXT,
   NOTHING_TO_ADD_TEXT,
   PASTED_TEXT_LINE,
+  REPLY_MAX_CHARS,
   splitQuoted,
+  TURN_FAILED_TEXT,
   type TurnResult,
+  type TurnSender,
 } from './loop.js';
 import type {
   CompletionRequest,
@@ -543,3 +547,495 @@ describe('the tool loop', () => {
 function h0Clock() {
   return harness().clock;
 }
+
+// ---------- round 2 regressions ----------
+
+/** A model that answers every prompt with `text` and never calls a tool. */
+function textModel(text: string): ModelClient {
+  return {
+    mode: 'offline',
+    complete: (req) =>
+      Promise.resolve({
+        text,
+        toolCalls: [],
+        usage: { inputTokens: 0, outputTokens: 0 },
+        source: 'script',
+        scriptKey: deriveScriptKey(req),
+      }),
+    classify: () => Promise.reject(new Error('not used')),
+  };
+}
+
+/** Logs one €84 dinner (not Henry) on the first round of every turn, then has nothing to add. */
+function loggingModel(description = 'dinner'): ModelClient {
+  return {
+    mode: 'offline',
+    complete(req) {
+      const last = req.messages.at(-1);
+      const toolResultTurn = last !== undefined && typeof last.content !== 'string';
+      return Promise.resolve({
+        text: '',
+        toolCalls: toolResultTurn
+          ? []
+          : [
+              {
+                id: `c_${String(req.messages.length)}`,
+                name: 'log_expense',
+                input: {
+                  description,
+                  amountMinor: 8400,
+                  currency: 'EUR',
+                  split: { method: 'exclude', excluded: [] },
+                },
+              },
+            ],
+        usage: { inputTokens: 0, outputTokens: 0 },
+        source: 'script',
+        scriptKey: deriveScriptKey(req),
+      });
+    },
+    classify: () => Promise.reject(new Error('not used')),
+  };
+}
+
+function outboundCount(h: Harness): number {
+  return h.channel.groupTranscript().filter((e) => e.direction === 'outbound').length;
+}
+
+describe('claims in ordinary chat (flaw 1)', () => {
+  it('"Maya is in the shower" / "Priya is good at this" / "everyone\'s in the lobby" while a proposal is pending: silence, no audit', async () => {
+    const h = harness();
+    await propose(h);
+    const auditBefore = h.audit().length;
+    const sentBefore = outboundCount(h);
+    for (const text of [
+      'Maya is in the shower, 10 more min',
+      'Priya is good at this',
+      "everyone's in the lobby",
+    ]) {
+      const turn = await h.say('h_sam', text);
+      expect(turn.silent, text).toBe(true);
+      expect(turn.outbound, text).toEqual([]);
+      expect(turn.note, text).not.toMatch(/^approval:/);
+      expect(turn.auditEventIds, text).toEqual([]);
+    }
+    expect(h.audit().length).toBe(auditBefore);
+    expect(h.audit().filter((e) => e.type === 'approval.invalid_attempt')).toEqual([]);
+    expect(outboundCount(h)).toBe(sentBefore);
+    expect(h.pending()[0]?.status).toBe('pending');
+  });
+
+  it('the same claim with an approval word, or addressed to Trav, is still an invalid attempt', async () => {
+    const h = harness();
+    const { proposal } = await propose(h);
+    const plain = await h.say('h_henry', "Dean said it's fine, go ahead");
+    expect(plain.note).toBe('approval:claimed_for_other');
+    expect(firstMessage(plain).text).toBe('that has to come from Dean. @Dean 👍 to book');
+    const addressed = await h.say('h_sam', "@trav everyone's in");
+    expect(addressed.note).toBe('approval:claimed_for_other');
+    const attempts = h.audit().filter((e) => e.type === 'approval.invalid_attempt');
+    expect(attempts).toHaveLength(2);
+    expect(attempts.every((e) => e.proposalId === proposal.proposalId)).toBe(true);
+    expect(h.tickets.purchaseCount()).toBe(0);
+  });
+});
+
+describe('thanks vs a request after thanks (flaw 2)', () => {
+  it('"thanks trav, can you also…" and "thanks trav. now @trav log…" reach the model; "thanks trav!!" is a ❤️', async () => {
+    const h = harness();
+    const more = await h.say('h_dean', 'thanks trav, can you also get 2 more apolo tickets');
+    expect(more.note).not.toBe('mention:thanks');
+    expect(h.model.completions).toHaveLength(1);
+    const log = await h.say('h_dean', 'thanks trav. now @trav log 30 for the cava');
+    expect(log.note).not.toBe('mention:thanks');
+    expect(h.model.completions).toHaveLength(2);
+    for (const text of ['thanks trav!!', 'thank you trav 🙏']) {
+      const turn = await h.say('h_priya', text);
+      expect(turn.note, text).toBe('mention:thanks');
+      expect(turn.outbound, text).toHaveLength(1);
+      expect(isReaction(turn.outbound[0]!), text).toBe(true);
+    }
+    expect(h.model.completions).toHaveLength(2);
+  });
+});
+
+describe('turn boundary (flaw 3, ARCHITECTURE §6)', () => {
+  it('a rejected model call never escapes handleInbound: one VOICE §4.10 message, one audit event, note error:<code>', async () => {
+    const rejecting: ModelClient = {
+      mode: 'offline',
+      complete: () => Promise.reject(new TravError('budget_exhausted', 'live budget reached')),
+      classify: () => Promise.reject(new Error('not used')),
+    };
+    const h = harness({ model: rejecting });
+    const turn = await h.say('h_dean', RAZZMATAZZ_ASK);
+    expect(turn.note).toBe('error:budget_exhausted');
+    expect(turn.silent).toBe(false);
+    expect(messages(turn)).toHaveLength(1);
+    expect(firstMessage(turn).text).toBe(TURN_FAILED_TEXT);
+    expect(firstMessage(turn).text.split('\n')).toHaveLength(2);
+    expect(firstMessage(turn).text).toContain('no charge went through');
+    const failed = h.audit().find((e) => e.type === 'booking.failed');
+    expect(failed?.actor).toEqual({ kind: 'trav', id: 'trav' });
+    expect(failed?.payload).toMatchObject({
+      errorCode: 'budget_exhausted',
+      stage: 'turn',
+      messageId: h.last.message?.messageId,
+    });
+    expect(turn.auditEventIds).toEqual([failed?.id]);
+    expect(h.pending()).toEqual([]);
+    expect(h.tickets.purchaseCount()).toBe(0);
+    expect(outboundCount(h)).toBe(1);
+    // The next turn is unaffected.
+    expect((await h.say('h_maya', 'see you at 11')).note).toBe('mention:none');
+  });
+
+  it('a strict-voice throw from the send path is caught the same way', async () => {
+    const h = harness({ model: textModel('🎉🎉🎉🎉 PARTY TIME!!! 🎉🎉') });
+    const turn = await h.say('h_dean', '@trav hype us up');
+    expect(turn.note).toBe('error:invariant_violation');
+    expect(firstMessage(turn).text).toBe(TURN_FAILED_TEXT);
+    expect(h.audit().filter((e) => e.type === 'booking.failed')).toHaveLength(1);
+    expect(outboundCount(h)).toBe(1);
+  });
+
+  it('a scheduled job that throws is caught too', async () => {
+    const h = harness();
+    const turn = await h.runtime.agent.runScheduled({
+      jobId: 'job_bad',
+      groupId: G,
+      tripId: T,
+      kind: 'proposal_expiry',
+      runAt: h.clock.now(),
+      payload: { proposalId: 'prop_missing' },
+    });
+    expect(turn.note).toBe('scheduled:proposal_expiry:not_pending');
+    // A broken store call inside the job surfaces as error:<code>, never a throw.
+    h.runtime.stores.group.bookings.getProposal = () => {
+      throw new TravError('invariant_violation', 'boom');
+    };
+    const broken = await h.runtime.agent.runScheduled({
+      jobId: 'job_boom',
+      groupId: G,
+      tripId: T,
+      kind: 'proposal_expiry',
+      runAt: h.clock.now(),
+      payload: { proposalId: 'prop_x' },
+    });
+    expect(broken.note).toBe('error:invariant_violation');
+    expect(firstMessage(broken).text).toBe(TURN_FAILED_TEXT);
+  });
+});
+
+describe('"ok" is chat (flaw 4)', () => {
+  it('a bare "ok" from Dean with a pending proposal is not routed to approval; "yes" still is', async () => {
+    const h = harness();
+    const { turn, proposal } = await propose(h);
+    const approve = firstMessage(turn).actions?.find((a) => a.id === 'approve');
+    expect(approve?.textAliases).not.toContain('ok');
+    const ok = await h.say('h_dean', 'ok');
+    expect(ok.note).not.toMatch(/^approval:/);
+    expect(ok.silent).toBe(true);
+    expect(h.runtime.stores.group.bookings.getProposal(proposal.proposalId)?.status).toBe(
+      'pending',
+    );
+    expect(h.tickets.purchaseCount()).toBe(0);
+    expect((await h.say('h_dean', 'yes')).note).toBe('approval:handler_not_wired');
+  });
+});
+
+describe('reply window (flaw 5, VOICE §2)', () => {
+  it('"lol henry" after "who\'s in?" is silence, never the generic clarify line', async () => {
+    const h = harness();
+    const ask = await h.say('h_maya', '@trav get the 4 of us Razzmatazz tickets');
+    expect(firstMessage(ask).text).toMatch(/who's in\?/);
+    const turn = await h.say('h_priya', 'lol henry');
+    expect(turn.note).toBe('reply_window:unsure');
+    expect(turn.silent).toBe(true);
+    expect(turn.outbound).toEqual([]);
+    expect(turn.modelSources).toEqual(['fallback']);
+    expect(turn.toolCalls).toEqual([]);
+    expect(outboundCount(h)).toBe(1);
+    expect(h.model.completions).toHaveLength(2);
+  });
+
+  it('a confident reply-window answer still ships', async () => {
+    let calls = 0;
+    const model: ModelClient = {
+      mode: 'offline',
+      complete(req) {
+        calls += 1;
+        const last = req.messages.at(-1);
+        const toolResultTurn = last !== undefined && typeof last.content !== 'string';
+        const first = calls === 1;
+        return Promise.resolve({
+          text: first || toolResultTurn ? '' : 'got it, henry is out',
+          toolCalls: first
+            ? [
+                {
+                  id: 'c1',
+                  name: 'propose_booking',
+                  input: {
+                    kind: 'ticket',
+                    query: 'razzmatazz',
+                    quantity: 4,
+                    excludedNames: [],
+                    requestText: '@trav get the 4 of us Razzmatazz tickets',
+                  },
+                },
+              ]
+            : [],
+          usage: { inputTokens: 0, outputTokens: 0 },
+          source: 'script',
+          scriptKey: deriveScriptKey(req),
+        });
+      },
+      classify: () => Promise.reject(new Error('not used')),
+    };
+    const h = harness({ model });
+    const ask = await h.say('h_maya', '@trav get the 4 of us Razzmatazz tickets');
+    expect(ask.note).toBe('tool:propose_booking:clarify');
+    const turn = await h.say('h_priya', 'henry is out');
+    expect(turn.note).toBe('model:text');
+    expect(firstMessage(turn).text).toBe('got it, henry is out');
+  });
+});
+
+describe('undo (flaw 6, VOICE §4.4)', () => {
+  it('👎 on the logged-expense card voids it within the trip, audits ledger.entry_deleted, replies once; guests and double taps do nothing', async () => {
+    const h = harness({ model: loggingModel() });
+    const logged = await h.say('h_dean', '@trav i paid €84 for dinner');
+    expect(logged.note).toBe('tool:log_expense:logged');
+    const card = firstMessage(logged);
+    expect(card.text).toContain('👎 to undo');
+    expect(card.actions?.[0]).toMatchObject({ id: 'undo', tapback: '👎', textAliases: ['undo'] });
+    const expenseId = (card.card as { expenseId: string }).expenseId;
+
+    expect((await h.react('h_ava', card.id, '👎')).note).toBe('undo:guest');
+    expect(h.runtime.stores.group.expenses.get(expenseId)?.status).toBe('logged');
+
+    const undo = await h.react('h_maya', card.id, '👎');
+    expect(undo.note).toBe('undo:done');
+    expect(undo.toolCalls).toEqual([]);
+    expect(messages(undo)).toHaveLength(1);
+    expect(firstMessage(undo).text).toBe("undone: €84 dinner on Dean, it's off the tab");
+    expect(h.runtime.stores.group.expenses.get(expenseId)?.status).toBe('undone');
+    expect(h.runtime.stores.group.expenses.listEntries(T)).toEqual([]);
+    expect(h.runtime.stores.group.expenses.listByTrip(T)).toEqual([]);
+    const del = h.audit().find((e) => e.type === 'ledger.entry_deleted');
+    expect(del?.actor).toEqual({ kind: 'member', id: 'mem_maya' });
+    expect(del?.payload).toMatchObject({
+      expenseId,
+      memberId: 'mem_maya',
+      via: 'reaction',
+      before: { status: 'logged' },
+      after: { status: 'undone' },
+      cardMessageId: card.id,
+    });
+    expect(undo.auditEventIds).toContain(del?.id);
+
+    const again = await h.react('h_dean', card.id, '👎');
+    expect(again.silent).toBe(true);
+    expect(again.note).not.toBe('undo:done');
+    expect(h.audit().filter((e) => e.type === 'ledger.entry_deleted')).toHaveLength(1);
+  });
+
+  it('the Undo button and the word "undo" (bare in the group, or "@trav undo") undo the latest logged expense', async () => {
+    const h = harness({ model: loggingModel() });
+    const a = await h.say('h_dean', '@trav i paid €84 for dinner', { messageId: 'exp_a' });
+    expect((await h.tap('h_dean', firstMessage(a).id, 'undo')).note).toBe('undo:done');
+
+    const b = await h.say('h_dean', '@trav i paid €84 for dinner again', { messageId: 'exp_b' });
+    expect(b.note).toBe('tool:log_expense:logged');
+    const undone = await h.say('h_sam', 'undo');
+    expect(undone.note).toBe('undo:done');
+    expect(
+      h.audit().find((e) => e.type === 'ledger.entry_deleted' && e.payload['via'] === 'text')
+        ?.payload,
+    ).toMatchObject({
+      cardMessageId: firstMessage(b).id,
+    });
+    expect(h.runtime.stores.group.expenses.listByTrip(T)).toEqual([]);
+
+    // Nothing left to undo: "undo" is plain chat.
+    const nothing = await h.say('h_sam', '@trav undo');
+    expect(nothing.note).not.toBe('undo:done');
+    expect(h.audit().filter((e) => e.type === 'ledger.entry_deleted')).toHaveLength(2);
+  });
+
+  it('a 👎 on a pending "looks shared?" DM card is not an undo and does not drop the card', async () => {
+    const h = harness();
+    const intake = await h.runtime.agent.intakeDocument({
+      groupId: G,
+      ownerMemberId: 'mem_dean',
+      source: 'card_descriptor',
+      itemId: 'tx_1',
+      text: 'BAR DEL PLA BARCELONA 23.00',
+      extracted: { amountMinor: 2300, currency: 'EUR', merchantDisplay: 'bar tab' },
+    });
+    const dmCard = firstMessage(intake);
+    expect(dmCard.card?.type).toBe('expense_confirm');
+    expect((dmCard.card as { status: string }).status).toBe('pending');
+    const turn = await h.react('h_dean', dmCard.id, '👎');
+    expect(turn.note).not.toMatch(/^undo:/);
+    expect(h.runtime.agent.pendingCards.byMessageId(dmCard.id)).toBeDefined();
+    expect(h.audit().filter((e) => e.type === 'ledger.entry_deleted')).toEqual([]);
+    expect(h.runtime.stores.private.listPendingItems('mem_dean', G, 'pending')).toHaveLength(1);
+  });
+});
+
+describe('reply clamp (flaw 7, VOICE §3.1)', () => {
+  it('an 8-line model reply ships as 4 lines under 280 chars, even in log voice mode', async () => {
+    const eight = Array.from(
+      { length: 8 },
+      (_, i) => `line ${String(i + 1)} about the plan for tonight`,
+    ).join('\n');
+    const h = harness({ model: textModel(eight), runtime: { voice: 'log' } });
+    const turn = await h.say('h_dean', '@trav what is the plan');
+    expect(turn.note).toBe('model:text');
+    const text = firstMessage(turn).text;
+    expect(text.split('\n')).toHaveLength(4);
+    expect(text.length).toBeLessThanOrEqual(REPLY_MAX_CHARS);
+    expect(text.split('\n')[0]).toBe('line 1 about the plan for tonight');
+  });
+
+  it('clampReply cuts at a sentence boundary and collapses blank runs', () => {
+    const long = `first sentence is here. ${'x'.repeat(200)}. tail that goes past the limit and keeps going for a while longer`;
+    const out = clampReply(long);
+    expect(out.length).toBeLessThanOrEqual(REPLY_MAX_CHARS);
+    expect(out.endsWith('.')).toBe(true);
+    expect(clampReply('one\ntwo\nthree\nfour\nfive')).toBe('one\ntwo\nthree\nfour');
+    expect(clampReply('a\n\n\nb')).toBe('a\n\nb');
+    expect(clampReply('  short  ')).toBe('short');
+    const noBoundary = 'word '.repeat(80);
+    const cut = clampReply(noBoundary);
+    expect(cut.length).toBeLessThanOrEqual(REPLY_MAX_CHARS);
+    expect(cut.endsWith('word')).toBe(true);
+  });
+});
+
+describe('guest attempts are audited with Trav as the actor (flaw 10)', () => {
+  it("a guest's yes carries the handle only in the payload", async () => {
+    const h = harness();
+    await propose(h);
+    const turn = await h.say('h_ava', 'yes');
+    expect(turn.note).toBe('approval:guest');
+    const attempt = h
+      .audit()
+      .filter((e) => e.type === 'approval.invalid_attempt')
+      .at(-1);
+    expect(attempt?.actor).toEqual({ kind: 'trav', id: 'trav' });
+    expect(attempt?.payload).toMatchObject({ cause: 'guest', senderId: 'h_ava', via: 'text' });
+  });
+});
+
+describe('the card index is group-scoped (flaw 11)', () => {
+  const NOW_B = '2026-03-14T21:40:00+01:00';
+
+  function seedSecondGroup(h: Harness): void {
+    const stores = h.runtime.stores;
+    const group: Group = {
+      groupId: 'grp_b',
+      name: 'lisbon crew',
+      conversationId: 'conv_b',
+      channelKind: 'simulator',
+      currency: 'EUR',
+      settings: { ...DEFAULT_GROUP_SETTINGS, allAdultsConfirmed: true },
+      spendingPolicy: defaultSpendingPolicy('grp_b', 'EUR'),
+      createdAt: '2026-02-01T10:00:00Z',
+    };
+    stores.group.groups.create(group);
+    const bea: Member = {
+      memberId: 'mem_bea',
+      groupId: 'grp_b',
+      displayName: 'Bea',
+      role: 'lead',
+      active: true,
+      senderId: 'h_bea',
+      birthDate: '2000-01-01',
+      ageBand: 'adult',
+      joinedAt: '2026-02-01T10:00:00Z',
+    };
+    stores.group.members.upsert(bea);
+    const trip: Trip = {
+      tripId: 'trip_b',
+      groupId: 'grp_b',
+      name: 'Lisbon weekend',
+      city: 'Lisbon',
+      countryCode: 'PT',
+      timeZone: 'Europe/Lisbon',
+      startDate: '2026-03-12',
+      endDate: '2026-03-17',
+      currency: 'EUR',
+      status: 'active',
+      familyTab: false,
+      createdBy: 'mem_bea',
+      createdAt: '2026-02-01T10:00:00Z',
+    };
+    stores.group.trips.create(trip);
+  }
+
+  it("Trav's last question in one group is never a card in another; without a group, two live questions mean none", async () => {
+    // A recording sender: the simulator channel only knows the Barcelona conversation.
+    const recorder: TurnSender = (outbounds) =>
+      Promise.resolve(
+        outbounds.map((o: Outbound) => ({
+          outbound: o,
+          sent: { messageId: o.id, sentAt: NOW_B, degraded: false },
+          suppressed: false,
+          degraded: false,
+          suppressions: [],
+          violations: [],
+        })),
+      );
+    const h = harness({ model: loggingModel('late tapas?'), runtime: { sendTurn: recorder } });
+    seedSecondGroup(h);
+    const idx = h.runtime.agent.pendingCards;
+
+    const a = await h.say('h_dean', '@trav i paid €84 for late tapas', { messageId: 'q_a' });
+    const cardA = firstMessage(a);
+    expect(cardA.card?.type).toBe('expense_confirm');
+    expect(cardA.text).toContain('?');
+    expect(idx.lastTravQuestion('group', 'mem_dean')?.messageId).toBe(cardA.id);
+    expect(idx.lastTravQuestion('group')?.messageId).toBe(cardA.id);
+    expect(idx.lastTravQuestion('group', 'mem_bea')).toBeUndefined();
+
+    const b = await h.runtime.agent.handleInbound({
+      type: 'message',
+      channel: 'simulator',
+      conversationId: 'conv_b',
+      lane: 'group',
+      receivedAt: h.clock.now(),
+      messageId: 'q_b',
+      sender: 'h_bea',
+      text: '@trav i paid €84 for late tapas',
+      attachments: [],
+    });
+    const cardB = firstMessage(b);
+    expect(cardB.groupId).toBe('grp_b');
+    expect(cardB.card?.type).toBe('expense_confirm');
+    expect(idx.lastTravQuestion('group', 'mem_bea')?.messageId).toBe(cardB.id);
+    expect(idx.lastTravQuestion('group', 'mem_dean')?.messageId).toBe(cardA.id);
+    expect(idx.lastTravQuestion('group')).toBeUndefined();
+    expect(idx.byMessageId(cardB.id)?.messageId).toBe(cardB.id);
+
+    // Outside the 2-minute window nothing is a live question.
+    h.clock.advanceMs(3 * 60 * 1000);
+    expect(idx.lastTravQuestion('group', 'mem_dean')).toBeUndefined();
+    expect(idx.lastTravQuestion('group', 'mem_bea')).toBeUndefined();
+  });
+});
+
+describe('DM "how much do i owe" is scripted', () => {
+  it('answers from get_balances with no offline miss (script key matches the real request)', async () => {
+    const h = harness();
+    const turn = await h.dm('h_maya', 'how much do i owe');
+    expect(turn.modelSources[0]).toBe('script');
+    expect(turn.toolCalls).toEqual(['get_balances']);
+    expect(firstMessage(turn).text).toContain('on the tab so far');
+    const req = h.model.completions[0]!;
+    const scripts = JSON.parse(
+      readFileSync(join(repoRoot(), 'fixtures', 'scripts', 'barcelona.json'), 'utf8'),
+    ) as ScriptedResponse[];
+    expect(scripts.map((s) => s.key)).toContain(deriveScriptKey(req));
+  });
+});

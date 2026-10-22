@@ -142,6 +142,18 @@ export function detectClaimedApproval(
   return undefined;
 }
 
+/**
+ * Approval-shaped words that turn a claim about someone else ("Dean said it's
+ * fine, go ahead") into an attempted approval even when Trav is not addressed.
+ * Without one of these, "Maya is in the shower" is just chat and gets nothing.
+ */
+const APPROVAL_INTENT_WORD =
+  /(?:\b(?:yes|yep|go ahead|go for it|book it|do it|approve[ds]?|confirm(?:ed|s)?|green light|lock it in|send it)\b|👍)/i;
+
+export function hasApprovalIntentWord(text: string): boolean {
+  return APPROVAL_INTENT_WORD.test(stripInvisible(text));
+}
+
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -149,12 +161,7 @@ function escapeRegExp(s: string): string {
 // ---------- the gate ----------
 
 export type ApprovalGateCause =
-  | 'guest'
-  | 'minor'
-  | 'not_member'
-  | 'claimed_for_other'
-  | 'ambiguous'
-  | 'no_pending';
+  'guest' | 'minor' | 'not_member' | 'claimed_for_other' | 'ambiguous' | 'no_pending';
 
 export type ApprovalGateResult =
   | { readonly kind: 'ignored'; readonly cause: ApprovalGateCause }

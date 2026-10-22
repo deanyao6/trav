@@ -7,7 +7,14 @@ import type { BookingProposal, Member, MemberId } from '@trav/core';
 import { approval, formatMoney, money, TravError } from '@trav/core';
 import type { ProposalService } from '../booking/proposals.js';
 import type { ToolDefinition } from './registry.js';
-import { activeMembers, asRecord, messageIdOf, nameOf, reqString, requireMember } from './shared.js';
+import {
+  activeMembers,
+  asRecord,
+  messageIdOf,
+  nameOf,
+  reqString,
+  requireMember,
+} from './shared.js';
 
 export interface PendingProposalSummary {
   readonly proposalId: string;

@@ -15,7 +15,11 @@ import { createProposeBookingTool } from './proposeBooking.js';
 import type { ToolDefinition, ToolRegistry } from './registry.js';
 import { createToolRegistry, V0_TOOL_NAMES } from './registry.js';
 import { getRosterTool, setAttendanceTool } from './roster.js';
-import { createSearchEventsTool, createSearchFlightsTool, createSearchLodgingTool } from './search.js';
+import {
+  createSearchEventsTool,
+  createSearchFlightsTool,
+  createSearchLodgingTool,
+} from './search.js';
 import { getSettingsTool, requestSettingsChangeTool } from './settings.js';
 
 export type { TurnToolContext } from './shared.js';
