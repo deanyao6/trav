@@ -28,7 +28,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { RichCard } from '@trav/core';
+import type { RichCard, ScheduledJobKind } from '@trav/core';
 import { TravError, parseIso } from '@trav/core';
 import type {
   ReplayView,
@@ -58,7 +58,20 @@ export interface ReplayLine {
   readonly event?: string;
   readonly memberId?: string;
   readonly participant?: { readonly handle: string; readonly displayName: string };
+  /** Clock lines: the scheduled job the line exists to show (fixture `expect.scheduledJob`). */
+  readonly scheduledJob?: ScheduledJobKind;
 }
+
+const JOB_KINDS: readonly ScheduledJobKind[] = [
+  'morning_after',
+  'daily_settle',
+  'wrapped',
+  'proposal_expiry',
+  'hold_expiry',
+  'private_digest',
+  'day_of_reminder',
+  'budget_check',
+];
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 export const BARCELONA_SCRIPT_PATH = join(REPO_ROOT, 'fixtures', 'chats', 'barcelona.jsonl');
@@ -100,6 +113,12 @@ export function parseScript(text: string): ReplayLine[] {
             displayName: str(p as Record<string, unknown>, 'displayName') ?? '',
           }
         : undefined;
+    const ex = o['expect'];
+    const job =
+      typeof ex === 'object' && ex !== null
+        ? str(ex as Record<string, unknown>, 'scheduledJob')
+        : undefined;
+    const scheduledJob = JOB_KINDS.find((k) => k === job);
     const pick = (key: string): Record<string, string> => {
       const v = str(o, key);
       return v !== undefined ? { [key]: v } : {};
@@ -119,6 +138,7 @@ export function parseScript(text: string): ReplayLine[] {
       ...pick('memberId'),
       ...(cardRef !== undefined ? { cardRef } : {}),
       ...(participant !== undefined ? { participant } : {}),
+      ...(scheduledJob !== undefined ? { scheduledJob } : {}),
     });
   });
   return out;
@@ -134,9 +154,22 @@ function nameOf(group: SimGroup, handleOrId: string | null | undefined): string 
   return m?.name ?? handleOrId;
 }
 
-function clip(text: string, max = 48): string {
+/**
+ * Shortens a chat line for the replay label: at most `max` code points
+ * (never splits an emoji's surrogate pair), cut back to the last word
+ * boundary when one is in the last third, trailing punctuation dropped.
+ * Exported for tests.
+ */
+export function clip(text: string, max = 48): string {
   const flat = text.replace(/\s+/g, ' ').trim();
-  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
+  const chars = Array.from(flat);
+  if (chars.length <= max) return flat;
+  let kept = chars.slice(0, max - 1);
+  if (chars[max - 1] !== ' ') {
+    const space = kept.lastIndexOf(' ');
+    if (space >= Math.floor(((max - 1) * 2) / 3)) kept = kept.slice(0, space);
+  }
+  return `${kept.join('').replace(/[\s,;:.\-–—]+$/u, '')}…`;
 }
 
 /** One short line for the replay button's "next" label. */
@@ -236,7 +269,12 @@ export function withReplay(
 
   async function runLine(line: ReplayLine): Promise<string> {
     // The clock follows the script (forward only), and anything due fires first.
-    if (backend.advanceClock && parseIso(line.ts) > parseIso(backend.now())) {
+    // A clock line moves it itself (below), with the job it expects.
+    if (
+      line.kind !== 'clock' &&
+      backend.advanceClock &&
+      parseIso(line.ts) > parseIso(backend.now())
+    ) {
       await backend.advanceClock({ to: line.ts, groupId: group.groupId });
     }
     const label = describeLine(line, group);
@@ -288,9 +326,14 @@ export function withReplay(
       case 'clock': {
         if (!backend.advanceClock) throw new Skip('this backend has no clock');
         const to = line.advanceTo ?? line.ts;
-        if (parseIso(to) > parseIso(backend.now())) {
-          await backend.advanceClock({ to, groupId: group.groupId });
+        if (parseIso(to) <= parseIso(backend.now())) {
+          return `${label} (clock already past it)`;
         }
+        await backend.advanceClock({
+          to,
+          groupId: group.groupId,
+          ...(line.scheduledJob !== undefined ? { expectJob: line.scheduledJob } : {}),
+        });
         return label;
       }
       case 'system': {

@@ -4,6 +4,7 @@ import type { RichCard } from '@trav/core';
 import type { SimState, ThreadEntry, ThreadMessage } from '../shared/types.js';
 import { BARCELONA } from './groups.js';
 import {
+  clip,
   describeLine,
   findTargetCard,
   loadBarcelonaScript,
@@ -43,6 +44,16 @@ describe('parseScript', () => {
     expect(flagship).toMatchObject({ kind: 'reaction', reaction: '👍', cardRef: 'razz_proposal' });
     const join = SCRIPT.find((l) => l.kind === 'member_joined')!;
     expect(join.participant).toEqual({ handle: 'h_ava', displayName: 'Ava' });
+    // Clock lines carry the job they exist to show; nothing else does.
+    const clocks = SCRIPT.filter((l) => l.kind === 'clock');
+    expect(clocks.at(-1)).toMatchObject({ id: 'clk_bcn_2026031810', scheduledJob: 'wrapped' });
+    expect(SCRIPT.find((l) => l.id === 'clk_bcn_2026031510')?.scheduledJob).toBe('morning_after');
+    expect(SCRIPT.filter((l) => l.kind !== 'clock' && l.scheduledJob !== undefined)).toEqual([]);
+    // An unknown job kind in `expect` is ignored, not trusted.
+    const odd = parseScript(
+      '{"id":"c","ts":"2026-03-15T10:00:00+01:00","kind":"clock","expect":{"scheduledJob":"rm -rf"}}',
+    );
+    expect(odd[0]?.scheduledJob).toBeUndefined();
   });
 
   it('rejects a line that is not JSON or lacks id/ts/kind, naming the line', () => {
@@ -66,7 +77,7 @@ describe('describeLine', () => {
   });
   it('labels each kind for the replay button', () => {
     expect(describeLine(line({ text: "@trav get the 5 of us Razzmatazz tickets, Henry's sick" }), BARCELONA)).toBe(
-      'Dean: @trav get the 5 of us Razzmatazz tickets, Henry…',
+      'Dean: @trav get the 5 of us Razzmatazz tickets…',
     );
     expect(describeLine(line({ lane: 'direct', senderId: 'h_priya', text: 'photos on' }), BARCELONA)).toBe(
       'Priya (dm): photos on',
@@ -80,6 +91,34 @@ describe('describeLine', () => {
     expect(
       describeLine(line({ kind: 'system', senderId: null, event: 'card_sync', memberId: 'mem_sam' }), BARCELONA),
     ).toBe('card_sync for Sam');
+  });
+});
+
+describe('clip (replay label)', () => {
+  it('keeps short lines whole and collapses whitespace', () => {
+    expect(clip('  photos   on \n')).toBe('photos on');
+    expect(clip('x'.repeat(48))).toBe('x'.repeat(48));
+    expect(clip('')).toBe('');
+  });
+
+  it('cuts at a word boundary and drops trailing punctuation', () => {
+    expect(clip("@trav get the 5 of us Razzmatazz tickets, Henry's sick")).toBe(
+      '@trav get the 5 of us Razzmatazz tickets…',
+    );
+  });
+
+  it('never splits an emoji (counts code points, not UTF-16 units)', () => {
+    const out = clip('ok its official. BARCELONA mar 12-17 🇪🇸 everyone lock it in');
+    expect(out).toBe('ok its official. BARCELONA mar 12-17 🇪🇸…');
+    // A flag right at the cut: either whole or gone, never half a surrogate pair.
+    const atCut = clip(`${'a'.repeat(46)}🇪🇸🇪🇸 tail`);
+    expect(atCut).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
+    expect(Array.from(atCut).length).toBeLessThanOrEqual(48);
+  });
+
+  it('a single long word is hard-cut at the limit', () => {
+    const out = clip('a'.repeat(100));
+    expect(out).toBe(`${'a'.repeat(47)}…`);
   });
 });
 
@@ -134,12 +173,16 @@ describe('withReplay (scripted backend)', () => {
     const before = b.state();
     expect(before.controls.replay).toBe(true);
     expect(before.replay).toMatchObject({ cursor: 0, total: 199, running: false });
-    expect(before.replay?.next).toBe('Dean: ok its official. BARCELONA mar 12-17 🇪🇸 every…');
+    expect(before.replay?.next).toBe('Dean: ok its official. BARCELONA mar 12-17 🇪🇸…');
 
     const v1 = await b.replay.step();
     expect(v1).toMatchObject({ cursor: 1, next: 'Maya: AHHHH' });
     const s1 = b.state();
-    expect(s1.now).toBe('2026-02-03T20:02:30-05:00'.replace('-05:00', '-05:00') === s1.now ? s1.now : s1.now);
+    // The session restarted at the script's first moment (the scripted backend
+    // ticks its clock once per inbound, so allow that one step).
+    const drift = Date.parse(s1.now) - Date.parse(SCRIPT[0]!.ts);
+    expect(drift).toBeGreaterThanOrEqual(0);
+    expect(drift).toBeLessThanOrEqual(60_000);
     const thread = messages(s1.groups[0]!.thread);
     // The seeded demo lines are gone: only the script's first line.
     expect(thread.map((m) => [m.from, m.text])).toEqual([

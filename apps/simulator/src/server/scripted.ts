@@ -158,6 +158,20 @@ function isThanks(text: string): boolean {
   );
 }
 
+/**
+ * The one ask the script answers: Razzmatazz general admission for the group.
+ * Not the VIP mezzanine (`msg_bcn_0122`, a different, over-cap item the
+ * script has no card for) and not a roster question ("who's in for
+ * razzmatazz tonight?", `msg_bcn_0126`): replaying the Barcelona chat into
+ * this backend must leave the flagship ask at 21:40 to open the proposal.
+ */
+export function isScriptedRazzAsk(text: string): boolean {
+  if (!/razz/i.test(text)) return false;
+  if (/\b(vip|mezzanine)\b/i.test(text)) return false;
+  if (/\bwho(['’]?s| is) (in|out|coming|going)\b/i.test(text)) return false;
+  return true;
+}
+
 function normalized(text: string): string {
   return text
     .trim()
@@ -534,7 +548,7 @@ function createSession(clock: SimulatedClock, delayMs: number): Session {
       }
       return; // Trav is silent unless addressed.
     }
-    if (!/razz/i.test(text)) {
+    if (!isScriptedRazzAsk(text)) {
       await reply(group, SCRIPTED_TEXT.unknownAsk, event.messageId);
       return;
     }

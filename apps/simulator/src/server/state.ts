@@ -49,11 +49,11 @@ export function cardVisibleTo(card: RichCard, memberId: MemberId): boolean {
 interface Taps {
   readonly byMessage: Map<
     string,
-    { handle: string; actionId: string; value?: string; at: string }[]
+    { handle: string; actionId: string; value?: string; at: string; seq: number }[]
   >;
   readonly reactions: Map<
     string,
-    { handle: string; reaction: string; removed: boolean; at: string }[]
+    { handle: string; reaction: string; removed: boolean; at: string; seq: number }[]
   >;
 }
 
@@ -68,11 +68,18 @@ function collectInteractions(entries: readonly TranscriptEntry[]): Taps {
         actionId: e.actionId,
         ...(e.value !== undefined ? { value: e.value } : {}),
         at: e.at,
+        seq: e.seq,
       });
       byMessage.set(e.cardMessageId, list);
     } else if (e.type === 'reaction') {
       const list = reactions.get(e.targetMessageId) ?? [];
-      list.push({ handle: e.from, reaction: e.reaction, removed: e.removed, at: e.at });
+      list.push({
+        handle: e.from,
+        reaction: e.reaction,
+        removed: e.removed,
+        at: e.at,
+        seq: e.seq,
+      });
       reactions.set(e.targetMessageId, list);
     }
   }
@@ -124,14 +131,19 @@ function deriveProposalState(msg: TranscriptMessage, ctx: DeriveContext): CardSt
   };
   const taps = ctx.taps.byMessage.get(msg.messageId) ?? [];
   const reacts = (ctx.taps.reactions.get(msg.messageId) ?? []).filter((r) => !r.removed);
-  const approveSignal =
-    taps.find((t) => t.actionId === 'approve' && isApprover(t.handle)) ??
-    reacts.find((r) => APPROVE_REACTIONS.has(r.reaction) && isApprover(r.handle));
-
   const later = ctx.messages.filter((m) => m.seq > msg.seq && m.card !== undefined);
   const receipt = later.find(
     (m) => m.card?.type === 'receipt' && m.card.proposalId === card.proposalId,
   );
+  // The approval that booked it: the earliest approving tap or tapback before
+  // the receipt. A late Approve (a no-op on a done proposal) never relabels it.
+  const before = (s: { seq: number }): boolean => receipt === undefined || s.seq < receipt.seq;
+  const approveSignal = [
+    ...taps.filter((t) => t.actionId === 'approve' && isApprover(t.handle)),
+    ...reacts.filter((r) => APPROVE_REACTIONS.has(r.reaction) && isApprover(r.handle)),
+  ]
+    .filter(before)
+    .sort((a, b) => a.seq - b.seq)[0];
   if (receipt) {
     const who = approveSignal
       ? nameOfHandle(ctx, approveSignal.handle)

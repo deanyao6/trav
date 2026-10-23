@@ -3,7 +3,12 @@ import { safety } from '@trav/core';
 import type { BookingProposalCard, ReceiptCard, TicketCard } from '@trav/core';
 import type { GroupView, SimState, ThreadEntry, ThreadMessage } from '../shared/types.js';
 import { BARCELONA, RAZZMATAZZ_ASK } from './groups.js';
-import { BARCELONA_SEED, SCRIPTED_TEXT, createScriptedBackend } from './scripted.js';
+import {
+  BARCELONA_SEED,
+  SCRIPTED_TEXT,
+  createScriptedBackend,
+  isScriptedRazzAsk,
+} from './scripted.js';
 import type { ScriptedBackend } from './scripted.js';
 
 function bcn(state: SimState): GroupView {
@@ -596,5 +601,45 @@ describe('scripted text follows VOICE (lintVoice)', () => {
       const result = safety.lintVoice(text, { kind, properNouns: PROPER });
       expect(result.violations, text).toEqual([]);
     }
+  });
+});
+
+describe('isScriptedRazzAsk', () => {
+  it('answers the general-admission ask, not the VIP mezzanine or a roster question', () => {
+    expect(isScriptedRazzAsk(RAZZMATAZZ_ASK)).toBe(true);
+    expect(isScriptedRazzAsk('@trav razzmatazz tickets?')).toBe(true);
+    expect(isScriptedRazzAsk('@trav razzmatazz for us')).toBe(true);
+    expect(isScriptedRazzAsk('@trav book the razz vip mezzanine for all 6 tonight')).toBe(false);
+    expect(isScriptedRazzAsk("@trav who's in for razzmatazz tonight?")).toBe(false);
+    expect(isScriptedRazzAsk('@trav who is coming to razz')).toBe(false);
+    expect(isScriptedRazzAsk('@trav dinner at 9')).toBe(false);
+  });
+
+  it('a VIP ask gets the scripted "only know the razzmatazz ask" line, no proposal', async () => {
+    const b = await createScriptedBackend();
+    await b.inject({
+      type: 'message',
+      from: 'h_sam',
+      text: '@trav book the razz vip mezzanine for all 6 tonight',
+      groupId: BARCELONA.groupId,
+    });
+    const view = bcn(b.state());
+    expect(messages(view.thread).some((m) => m.card?.type === 'booking_proposal')).toBe(false);
+    expect(travMessages(view).map((m) => m.text)).toEqual([SCRIPTED_TEXT.unknownAsk]);
+  });
+});
+
+describe('approval label', () => {
+  it("names the approval that booked it: Dean's 👍, not a later no-op Approve from Sam", async () => {
+    const b = await createScriptedBackend();
+    await b.inject({ type: 'message', from: 'h_dean', text: RAZZMATAZZ_ASK, groupId: BARCELONA.groupId });
+    const p = proposalMessage(bcn(b.state()));
+    await b.inject({ type: 'reaction', from: 'h_dean', targetMessageId: p.messageId, reaction: '👍' });
+    await b.inject({ type: 'button_tap', from: 'h_sam', cardMessageId: p.messageId, actionId: 'approve' }).catch(
+      () => undefined, // the channel may refuse a tap on a collapsed button; either way nothing changes
+    );
+    const after = proposalMessage(bcn(b.state()));
+    expect(after.cardState?.label).toBe('Approved by Dean');
+    expect(b.bookingCount()).toBeLessThanOrEqual(1);
   });
 });

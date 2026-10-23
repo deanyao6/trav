@@ -172,6 +172,40 @@ describe('clockStatus', () => {
     ).toContain('1 job ran');
   });
 
+  it('a replay clock line that expects Morning After / Wrapped names the missing task', () => {
+    const morning = clockStatus({
+      ...base,
+      request: { to: base.now, expectJob: 'morning_after' },
+      jobs: [],
+      results: [],
+    });
+    expect(morning).toBe(
+      'clock → sun mar 15 · 10am · day 4 · nothing was scheduled · no Morning After yet: the recap job lands with T-015',
+    );
+    expect(
+      clockStatus({
+        ...base,
+        now: '2026-03-18T10:00:00+01:00',
+        request: { to: '2026-03-18T10:00:00+01:00', expectJob: 'wrapped' },
+        jobs: [],
+        results: [],
+      }),
+    ).toContain('T-016');
+    // Once the job runs and Trav posts, the line goes away.
+    expect(
+      clockStatus({
+        ...base,
+        request: { to: base.now, expectJob: 'morning_after' },
+        jobs: [job('morning_after', base.now)],
+        results: [{ silent: false, note: 'scheduled:morning_after' }],
+      }),
+    ).toBeUndefined();
+    // An expected job with no placeholder text (e.g. daily_settle) stays quiet.
+    expect(
+      clockStatus({ ...base, request: { to: base.now, expectJob: 'daily_settle' }, jobs: [], results: [] }),
+    ).toBeUndefined();
+  });
+
   it('status lines carry no amounts or merchants', () => {
     const s = clockStatus({ ...base, request: { step: 'morning' }, jobs: [], results: [] })!;
     expect(s).not.toMatch(/€|\$|uber/i);

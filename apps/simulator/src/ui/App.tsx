@@ -49,6 +49,9 @@ export interface AppViewProps {
   readonly onIntake?: (docId: string) => void;
   /** A clock step, replay or intake request is in flight (its buttons are disabled). */
   readonly busy?: boolean;
+  /** The right rail is collapsed to a narrow strip (VOICE §9.1 "collapsible"). */
+  readonly dmsCollapsed?: boolean;
+  readonly onToggleDms?: () => void;
   readonly handlers: ThreadHandlers;
 }
 
@@ -238,9 +241,38 @@ function DmRail(props: AppViewProps & { view: GroupView; me: SimMember }) {
   const readOnly = selected.memberId !== me.memberId;
   // A member's own card or email only: offered in their tab, while sending as them.
   const offers = readOnly ? [] : (view.intake[selected.memberId] ?? []);
+  if (props.dmsCollapsed === true && props.onToggleDms) {
+    const total = view.group.members.reduce((n, m) => n + (view.dms[m.memberId] ?? []).length, 0);
+    return (
+      <aside className="right-rail collapsed" data-testid="dm-rail-collapsed">
+        <button
+          type="button"
+          className="btn small dm-toggle"
+          data-testid="dm-toggle"
+          title="show Trav's DMs"
+          onClick={props.onToggleDms}
+        >
+          🔒 DMs{total > 0 ? <span className="dm-count">{total}</span> : null}
+        </button>
+      </aside>
+    );
+  }
   return (
     <aside className="right-rail">
-      <div className="rail-title">Trav's DMs</div>
+      <div className="rail-title rail-title-row">
+        Trav's DMs
+        {props.onToggleDms ? (
+          <button
+            type="button"
+            className="btn small secondary dm-toggle"
+            data-testid="dm-toggle"
+            title="hide Trav's DMs"
+            onClick={props.onToggleDms}
+          >
+            hide
+          </button>
+        ) : null}
+      </div>
       <div className="dm-tabs">
         {view.group.members.map((m) => {
           const count = (view.dms[m.memberId] ?? []).length;
@@ -421,6 +453,7 @@ export function App() {
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
+  const [dmsCollapsed, setDmsCollapsed] = useState(false);
   const version = useRef(-1);
 
   const accept = (s: SimState | undefined): void => {
@@ -547,6 +580,8 @@ export function App() {
         ? { onIntake: (docId: string) => control(() => feedDocument(docId)) }
         : {})}
       busy={busy}
+      dmsCollapsed={dmsCollapsed}
+      onToggleDms={() => setDmsCollapsed((c) => !c)}
       handlers={handlers}
     />
   );

@@ -5,10 +5,12 @@
  *   TRAV_SIM_BACKEND=agent     the real Trav runtime; fails loudly if it can't load
  *   (unset)                    the agent runtime if it loads, else the script
  *
- * `auto` prefers the real runtime because it is the product. Until T-030 wires
- * the approval handler, a proposal's Approve/👍 stops at the agent's gate
- * (`approval:handler_not_wired`): the startup log and the UI status line both
- * point at `TRAV_SIM_BACKEND=scripted` for the full demo.
+ * `auto` prefers the real runtime because it is the product. The approval
+ * handler (T-030) is wired; until the booking executor lands (T-009) an
+ * Approve/👍 ends in Trav's own "couldn't book, no charge" line, so the
+ * startup log points at `TRAV_SIM_BACKEND=scripted` for the full demo. A
+ * runtime without the handler still gets the `approval:handler_not_wired`
+ * status line in the UI.
  *
  * The agent runtime comes from `createTravRuntime` in `@trav/agent`
  * (packages/agent/src/compose.ts, T-009/T-021). It is looked up at runtime
@@ -64,8 +66,8 @@ export interface SimRuntimeOutput {
 
 /** Printed at startup whenever the simulator runs the real agent runtime. */
 export const AGENT_BACKEND_HINT =
-  'backend agent: the real Trav runtime. until T-030 wires the approval handler, ' +
-  'Approve and 👍 on a proposal do nothing here (the UI says so). ' +
+  'backend agent: the real Trav runtime. until the booking executor lands (T-009), ' +
+  'Approve and 👍 on a proposal end in "couldn\'t book, no charge" here. ' +
   'for the full Barcelona demo (chat → proposal → receipt + tickets) run ' +
   'TRAV_SIM_BACKEND=scripted pnpm sim';
 

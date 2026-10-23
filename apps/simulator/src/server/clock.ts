@@ -131,12 +131,18 @@ export function clockStatus(input: ClockOutcomeInput): string | undefined {
         (notes.length > 0 ? ` (${[...new Set(notes)].join(', ')})` : ''),
     );
   }
-  const expected = replayLine ? undefined : EXPECTED_KIND[request.step];
+  const expected = replayLine ? request.expectJob : EXPECTED_KIND[request.step];
+  let missing = false;
   if (expected !== undefined) {
     const ran = input.jobs.some((j) => j.kind === expected);
     const unhandled = input.results.some((r) => r.note === `scheduled:${expected}:not_handled`);
-    if (!ran || unhandled) parts.push(NOT_BUILT[expected]!);
+    const note = NOT_BUILT[expected];
+    if ((!ran || unhandled) && note !== undefined) {
+      parts.push(note);
+      missing = true;
+    }
   }
-  if (replayLine && input.jobs.length === 0) return undefined;
+  // A replay line that moved the clock with nothing to report stays quiet.
+  if (replayLine && input.jobs.length === 0 && !missing) return undefined;
   return parts.join(' · ');
 }

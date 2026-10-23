@@ -7,7 +7,15 @@
  * server-side: no `ticket` card and no private `expense_confirm` card can be
  * in `GroupView.thread`, whatever the backend sent.
  */
-import type { Action, ActionId, IsoDate, IsoDateTime, MemberId, RichCard } from '@trav/core';
+import type {
+  Action,
+  ActionId,
+  IsoDate,
+  IsoDateTime,
+  MemberId,
+  RichCard,
+  ScheduledJobKind,
+} from '@trav/core';
 
 export type BackendKind = 'scripted' | 'agent';
 
@@ -134,7 +142,15 @@ export type ClockStep = 'hour' | 'morning' | 'end_of_trip';
 /** A clock move: a top-bar step, or (replay `clock` lines) an exact instant. */
 export type ClockRequest =
   | { readonly step: ClockStep; readonly groupId?: string }
-  | { readonly to: IsoDateTime; readonly groupId?: string };
+  | {
+      readonly to: IsoDateTime;
+      readonly groupId?: string;
+      /**
+       * The job a replay clock line exists to show (its fixture
+       * `expect.scheduledJob`), so the status line can say when it is not built yet.
+       */
+      readonly expectJob?: ScheduledJobKind;
+    };
 
 /** What this backend can do beyond chat (the UI hides what it can't). */
 export interface SimControls {
