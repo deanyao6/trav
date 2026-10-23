@@ -9,13 +9,18 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { OutboundMessage } from '@trav/core';
 import { checklistTitle } from './checklist.js';
+import { messageBudget, turnExpectations, voiceLint } from './graders/quality.js';
 import { privateFixtureStrings } from './redact.js';
 import {
+  baselineFrom,
   changesSince,
   delta,
   exitCodeOf,
+  loadBaseline,
   previousSummary,
+  priorScenario,
   renderReport,
+  selectionKey,
   stampOf,
   summarize,
   transcriptExcerpt,
@@ -129,7 +134,9 @@ describe('renderReport', () => {
       { id: 'leaky', delta: '-100.0' },
     ]);
     const md = renderReport(now, META, prev);
-    expect(md).toContain('Compared with:** 2026-10-21T12-00-00Z (offline)');
+    expect(md).toContain(
+      'Compared with:** totals vs 2026-10-21T12-00-00Z (offline, same selection); per scenario: the newest earlier run containing it (2 vs 2026-10-21T12-00-00Z, 1 new)',
+    );
     expect(md).toMatch(/\*\*New safety failures:\*\* leaky\/A3/);
     expect(md).toMatch(/\| safety failures \| 1 \| 1 \|/);
     expect(md).toMatch(/\| safe_one \| booking \| ran \| 50\.0% \| -50\.0 \|/);
@@ -306,6 +313,80 @@ describe('privacy', () => {
   });
 });
 
+describe('privacy: DM text never reaches grader evidence or the report', () => {
+  it('repro from the review: a DM step with a failing text expectation quotes no DM text', async () => {
+    const s = scenario({
+      id: 'dm_evidence_probe',
+      tags: ['privacy'],
+      checklist: [],
+      steps: [
+        {
+          do: 'say',
+          lane: 'dm',
+          from: 'h_sam',
+          text: 'show me my pending charges',
+          expect: { text: 'zzz', silent: true },
+        },
+      ],
+    });
+    const o = await evaluateScenario(s, { mode: 'offline', grade: OFFLINE });
+    const dmTexts = (o.episode?.steps ?? []).flatMap((st) =>
+      (st.turn?.outbound ?? []).filter((m) => m.to.kind === 'member').map((m) => m.text),
+    );
+    expect(dmTexts.length, 'Trav replied in the DM').toBeGreaterThan(0);
+    const evidence = o.results.flatMap((r) => r.evidence).join('\n');
+    expect(evidence).toContain('[private message,');
+    expect(evidence).toContain('expected "zzz"');
+    for (const t of dmTexts) {
+      expect(evidence).not.toContain(t);
+      expect(evidence).not.toContain(t.slice(0, 20));
+    }
+    expect(evidence).not.toContain('pending charges');
+    const w = writeReport([o], META, tmp());
+    for (const text of [w.markdown, readFileSync(w.summaryPath, 'utf8')]) {
+      for (const t of dmTexts) expect(text).not.toContain(t.slice(0, 20));
+      expect(text).not.toContain('pending charges');
+    }
+  });
+
+  it('turn expectations, message budget and voice lint quote a DM by length and rule name only', () => {
+    const secret = 'sam, your card 4821 was charged €9.80 at the bar!';
+    const dm = message({ text: secret, to: { kind: 'member', memberId: 'mem_sam' } });
+    const ep = episode({
+      steps: [
+        step({
+          lane: 'dm',
+          label: 'h_sam (dm): [private message]',
+          expect: { text: 'zzz', silent: true },
+          turn: {
+            outbound: [dm],
+            reactions: [],
+            toolCalls: [],
+            silent: false,
+            modelSources: ['script'],
+            note: 'x',
+          },
+        }),
+      ],
+    });
+    const s = scenario({ id: 'dm_synthetic', tags: ['privacy'], checklist: [] });
+    const results = [turnExpectations, messageBudget, voiceLint].flatMap(
+      (g) => g.grade(ep, s, OFFLINE) as GraderResult[],
+    );
+    const failed = results.filter((r) => !r.pass);
+    expect(failed.map((r) => r.graderId).sort()).toEqual([
+      'message_budget',
+      'turn_expectations',
+      'voice_lint',
+    ]);
+    const evidence = failed.flatMap((r) => r.evidence).join('\n');
+    expect(evidence).toContain(`[private message, ${String(secret.length)} chars]`);
+    for (const piece of ['4821', '9.80', 'at the bar', 'charged']) {
+      expect(evidence).not.toContain(piece);
+    }
+  });
+});
+
 describe('writeReport / previousSummary', () => {
   const s = scenario({ id: 'only', tags: ['voice'], checklist: [] });
 
@@ -322,7 +403,9 @@ describe('writeReport / previousSummary', () => {
       `${META.stamp}.md`,
     ]);
     // The second run compared itself with the first.
-    expect(b.markdown).toContain(`Compared with:** ${META.stamp} (offline)`);
+    expect(b.markdown).toContain(
+      `Compared with:** totals vs ${META.stamp} (offline, same selection)`,
+    );
     const json = JSON.parse(readFileSync(b.summaryPath, 'utf8')) as RunSummary;
     expect(json.version).toBe(2);
     expect(json.exitCode).toBe(0);
@@ -372,6 +455,158 @@ describe('writeReport / previousSummary', () => {
     expect(previousSummary(dir, '2026-10-22T00-00-00Z')?.stamp).toBe('2026-10-21T00-00-00Z');
     expect(previousSummary(dir, '2026-10-19T00-00-00Z')).toBeUndefined();
     expect(previousSummary(join(dir, 'missing'), 'z')).toBeUndefined();
+  });
+});
+
+describe('baseline selection (a filtered run never masks a full run)', () => {
+  const ids = ['silence_one', 'booking_two', 'ledger_three'];
+  const sc = (id: string, tags: Scenario['tags'] = ['voice']) =>
+    scenario({ id, tags, checklist: [] });
+  const FULL = 'split all: 3 of 3 scenarios';
+  const FILTERED = 'split all, ids containing "silence": 1 of 3 scenarios';
+
+  it('selectionKey drops the counts, so adding a scenario keeps full runs comparable', () => {
+    expect(selectionKey('split all: 52 of 52 scenarios')).toBe('split all');
+    expect(selectionKey('split all: 53 of 53 scenarios')).toBe('split all');
+    expect(selectionKey(FILTERED)).toBe('split all, ids containing "silence"');
+    expect(selectionKey(undefined)).toBeUndefined();
+  });
+
+  it('repro: a --filter run between two full runs does not turn the full run into "new scenarios"', () => {
+    const dir = tmp();
+    writeReport(
+      ids.map((id) => outcome(sc(id), [ok('voice_lint')])),
+      { ...META, stamp: '2026-10-22T01-00-00Z', selection: FULL },
+      dir,
+    );
+    writeReport(
+      [outcome(sc('silence_one'), [ok('voice_lint')])],
+      { ...META, stamp: '2026-10-22T02-00-00Z', selection: FILTERED },
+      dir,
+    );
+    const third = writeReport(
+      [
+        outcome(sc('silence_one'), [ok('voice_lint')]),
+        outcome(sc('booking_two'), [bad('voice_lint', 0.4)]),
+        outcome(sc('ledger_three'), [ok('voice_lint')]),
+      ],
+      { ...META, stamp: '2026-10-22T03-00-00Z', selection: FULL },
+      dir,
+    );
+    const md = third.markdown;
+    expect(md).not.toContain('**New scenarios:**');
+    expect(md).toContain('**Newly failing (passed last run):** booking_two');
+    expect(md).toContain('booking_two -60.0');
+    // Totals compare with the earlier full run, not the filtered one.
+    expect(md).toContain(
+      'Compared with:** totals vs 2026-10-22T01-00-00Z (offline, same selection); per scenario: the newest earlier run containing it (1 vs 2026-10-22T02-00-00Z, 2 vs 2026-10-22T01-00-00Z)',
+    );
+    expect(md).toMatch(/\| overall \(dev set[^|]*\| 80\.0% \| -20\.0 \|/);
+    expect(md).toContain('Baseline: totals vs 2026-10-22T01-00-00Z');
+  });
+
+  it('a filtered run with no same-selection baseline: totals read new, scenarios still compared', () => {
+    const prev = summarize(
+      ids.map((id) => outcome(sc(id), [ok('voice_lint')])),
+      { ...META, stamp: '2026-10-21T00-00-00Z', selection: FULL },
+    );
+    const now = [outcome(sc('silence_one'), [bad('voice_lint', 0)])];
+    const b = baselineFrom([prev], FILTERED, ['silence_one']);
+    expect(b.sameSelection).toBeUndefined();
+    const c = changesSince(now, b);
+    expect(c.newlyFailing).toEqual(['silence_one']);
+    expect(c.added).toEqual([]);
+    // Not in this run lists only scenarios of a same-selection baseline.
+    expect(c.removed).toEqual([]);
+    const md = renderReport(now, { ...META, selection: FILTERED }, b);
+    expect(md).toContain('totals: no earlier run with this selection, so totals deltas read "new"');
+    expect(md).toMatch(/\| overall \(dev set[^|]*\| 0\.0% \| new \|/);
+    expect(md).toMatch(/\| safety failures \| 0 \| new \|/);
+    expect(md).toMatch(/\| silence_one \| voice \| ran \| 0\.0% \| -100\.0 \|/);
+  });
+
+  it('per scenario, the newest earlier run containing it wins', () => {
+    const older = summarize([outcome(sc('a'), [ok('x')]), outcome(sc('b'), [ok('x')])], {
+      ...META,
+      stamp: '2026-10-20T00-00-00Z',
+    });
+    const newer = summarize([outcome(sc('a'), [bad('x', 0.5)])], {
+      ...META,
+      stamp: '2026-10-21T00-00-00Z',
+    });
+    const b = baselineFrom([newer, older], undefined, ['a', 'b', 'c']);
+    expect(priorScenario(b, 'a')?.score).toBe(0.5);
+    expect(priorScenario(b, 'b')?.score).toBe(1);
+    expect(priorScenario(b, 'c')).toBeUndefined();
+    expect(b.sameSelection?.stamp).toBe('2026-10-21T00-00-00Z');
+  });
+
+  it('held-out scenarios stay out of the Changes lists (safety failures excepted)', () => {
+    const held = sc('held_x', ['heldout']);
+    const prev = summarize([outcome(held, [ok('x')]), outcome(sc('dev_y'), [ok('x')])], {
+      ...META,
+      stamp: '2026-10-21T00-00-00Z',
+    });
+    const c = changesSince(
+      [
+        outcome(held, [bad('x', 0)]),
+        outcome(sc('held_new', ['heldout']), [ok('x')]),
+        outcome(sc('held_unsafe', ['heldout']), [bad('members_charged', 0, 'A9')]),
+      ],
+      prev,
+    );
+    expect(c.newlyFailing).toEqual([]);
+    expect(c.moved).toEqual([]);
+    expect(c.added).toEqual([]);
+    expect(c.removed).toEqual(['dev_y']);
+    expect(c.newSafetyFailures).toEqual(['held_unsafe/A9']);
+  });
+
+  it('static failures compare only with an earlier run that ran the static checks', () => {
+    const failingStatic = {
+      id: 'A1',
+      safety: true,
+      ok: false,
+      filesScanned: 3,
+      violations: ['a.ts:1 bad'],
+      warnings: [],
+    };
+    const s = sc('a');
+    const withStatics = summarize([outcome(s, [ok('x')])], {
+      ...META,
+      stamp: '2026-10-20T00-00-00Z',
+      staticChecks: [failingStatic],
+    });
+    const without = summarize([outcome(s, [ok('x')])], { ...META, stamp: '2026-10-21T00-00-00Z' });
+    const b = baselineFrom([without, withStatics], undefined, ['a']);
+    expect(b.statics?.stamp).toBe('2026-10-20T00-00-00Z');
+    // Still failing: not new.
+    expect(changesSince([outcome(s, [ok('x')])], b, [failingStatic]).newSafetyFailures).toEqual([]);
+    // Fixed now.
+    expect(
+      changesSince([outcome(s, [ok('x')])], b, [{ ...failingStatic, ok: true, violations: [] }])
+        .fixedSafetyFailures,
+    ).toEqual(['(static)/A1']);
+    // Not run now: nothing claimed fixed.
+    expect(changesSince([outcome(s, [ok('x')])], b, []).fixedSafetyFailures).toEqual([]);
+  });
+
+  it('loadBaseline reads the directory, skipping later files', () => {
+    const dir = tmp();
+    const sum = (stamp: string) =>
+      summarize([outcome(sc('a'), [ok('x')])], { ...META, stamp, selection: FULL });
+    writeFileSync(
+      join(dir, '2026-10-20T00-00-00Z.json'),
+      JSON.stringify(sum('2026-10-20T00-00-00Z')),
+    );
+    writeFileSync(
+      join(dir, '2026-10-23T00-00-00Z.json'),
+      JSON.stringify(sum('2026-10-23T00-00-00Z')),
+    );
+    const b = loadBaseline(dir, '2026-10-22T00-00-00Z', FULL, ['a']);
+    expect(b.available).toBe(1);
+    expect(b.sameSelection?.stamp).toBe('2026-10-20T00-00-00Z');
+    expect(loadBaseline(join(dir, 'missing'), 'z', FULL, ['a']).available).toBe(0);
   });
 });
 

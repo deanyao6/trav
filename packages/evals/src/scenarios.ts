@@ -8,6 +8,8 @@
  * - each step kind's required fields are present with the right types;
  * - enums (tags, lanes, sources, categories, model sources, probe names,
  *   trip names, consent flags) are checked against their lists;
+ * - the top-level, setup and expect shapes are typed `satisfies Record<keyof T, Field>`,
+ *   so a field added to `types.ts` without a schema entry is a compile error;
  * - SAFETY ids (`checklist`, `expect.identity.safetyId`) must exist in the
  *   `docs/SAFETY.md` §3 checklist; weight keys must name a grader.
  */
@@ -17,7 +19,15 @@ import { repoRoot } from './arch/repo.js';
 import { checklistTitle } from './checklist.js';
 import { TRIP_NAMES } from './fixtures.js';
 import { GRADERS } from './graders/index.js';
-import type { ProbeName, Scenario, ScenarioTag, Step } from './types.js';
+import type {
+  ProbeName,
+  Scenario,
+  ScenarioExpect,
+  ScenarioSetup,
+  ScenarioTag,
+  Step,
+  StepExpect,
+} from './types.js';
 import { PROBE_NAMES, SCENARIO_TAGS } from './types.js';
 
 export function scenariosDir(): string {
@@ -52,16 +62,19 @@ function describe(v: unknown): string {
 }
 
 const str: Check = (v, at) => {
-  if (typeof v !== 'string' || v.length === 0) fail(at, `must be a non-empty string, got ${describe(v)}`);
+  if (typeof v !== 'string' || v.length === 0)
+    fail(at, `must be a non-empty string, got ${describe(v)}`);
 };
 const bool: Check = (v, at) => {
   if (typeof v !== 'boolean') fail(at, `must be true or false, got ${describe(v)}`);
 };
 const num: Check = (v, at) => {
-  if (typeof v !== 'number' || !Number.isFinite(v)) fail(at, `must be a number, got ${describe(v)}`);
+  if (typeof v !== 'number' || !Number.isFinite(v))
+    fail(at, `must be a number, got ${describe(v)}`);
 };
 const int: Check = (v, at) => {
-  if (typeof v !== 'number' || !Number.isInteger(v)) fail(at, `must be an integer, got ${describe(v)}`);
+  if (typeof v !== 'number' || !Number.isInteger(v))
+    fail(at, `must be an integer, got ${describe(v)}`);
 };
 const nonNegInt: Check = (v, at) => {
   int(v, at);
@@ -69,7 +82,8 @@ const nonNegInt: Check = (v, at) => {
 };
 const unit: Check = (v, at) => {
   num(v, at);
-  if ((v as number) < 0 || (v as number) > 1) fail(at, `must be between 0 and 1, got ${describe(v)}`);
+  if ((v as number) < 0 || (v as number) > 1)
+    fail(at, `must be between 0 and 1, got ${describe(v)}`);
 };
 function oneOf(values: readonly string[]): Check {
   return (v, at) => {
@@ -123,27 +137,27 @@ const tripName = oneOf(TRIP_NAMES);
 
 const CONSENT_FLAGS = ['photos', 'roast', 'cardImport', 'emailImport', 'memoryAcrossTrips'];
 
-const SETUP: Shape = {
+const SETUP = {
   group: opt(tripName),
   startAt: opt(str),
   fixtureExtras: opt(bool),
   settings: opt(record),
   consent: opt(recordOf(object(Object.fromEntries(CONSENT_FLAGS.map((f) => [f, opt(bool)]))))),
   privateStrings: opt(strs),
-};
+} satisfies Record<keyof ScenarioSetup, Field>;
 
-const SCENARIO_EXPECT: Shape = {
+const SCENARIO_EXPECT = {
   auditOrder: opt(arrayOf(str, { nonEmpty: true })),
   maxPurchases: opt(nonNegInt),
   mentionPrecision: opt(unit),
   mentionRecall: opt(unit),
   ledgerGroundTruth: opt(tripName),
   tickets: opt(object({ to: req(strs), notTo: req(strs) })),
-};
+} satisfies Record<keyof ScenarioExpect, Field>;
 
 // ---------- step shapes ----------
 
-const STEP_EXPECT: Shape = {
+const STEP_EXPECT = {
   silent: opt(bool),
   note: opt(strOrStrs),
   toolCalls: opt(strs),
@@ -187,7 +201,7 @@ const STEP_EXPECT: Shape = {
   ),
   purchases: opt(nonNegInt),
   explicitAdultAudience: opt(arrayOf(str, { nonEmpty: true })),
-};
+} satisfies Record<keyof StepExpect, Field>;
 
 const BASE: Shape = {
   do: req(str),
@@ -254,9 +268,7 @@ const STEPS: Readonly<Record<Step['do'], Shape>> = {
     ...BASE,
     memberId: req(str),
     text: req(str),
-    category: req(
-      oneOf(['preference', 'dietary', 'budget', 'logistics', 'constraint', 'other']),
-    ),
+    category: req(oneOf(['preference', 'dietary', 'budget', 'logistics', 'constraint', 'other'])),
     lane: req(oneOf(['private', 'group'])),
   },
   set_attendance: {
@@ -301,13 +313,9 @@ function validateStep(raw: unknown, at: string): void {
 
 // ---------- scenarios ----------
 
-const GRADER_IDS: readonly string[] = [
-  ...GRADERS.map((g) => g.id),
-  'runner',
-  'checklist_coverage',
-];
+const GRADER_IDS: readonly string[] = [...GRADERS.map((g) => g.id), 'runner', 'checklist_coverage'];
 
-const SCENARIO: Shape = {
+const SCENARIO = {
   id: req(str),
   title: req(str),
   tags: req(arrayOf(oneOf(SCENARIO_TAGS), { nonEmpty: true })),
@@ -316,19 +324,17 @@ const SCENARIO: Shape = {
   pendingNote: opt(str),
   setup: opt(object(SETUP)),
   steps: req(arrayOf(record, { nonEmpty: true })),
-  weights: opt(
-    (v, at) => {
-      recordOf(num)(v, at);
-      for (const [k, w] of Object.entries(v as Record<string, number>)) {
-        if (!GRADER_IDS.includes(k))
-          fail(`${at}.${k}`, `unknown grader (graders: ${GRADER_IDS.join(', ')})`);
-        if (w < 0) fail(`${at}.${k}`, 'weight must be ≥ 0');
-      }
-    },
-  ),
+  weights: opt((v, at) => {
+    recordOf(num)(v, at);
+    for (const [k, w] of Object.entries(v as Record<string, number>)) {
+      if (!GRADER_IDS.includes(k))
+        fail(`${at}.${k}`, `unknown grader (graders: ${GRADER_IDS.join(', ')})`);
+      if (w < 0) fail(`${at}.${k}`, 'weight must be ≥ 0');
+    }
+  }),
   expect: opt(object(SCENARIO_EXPECT)),
   rubric: opt(arrayOf(str, { nonEmpty: true })),
-};
+} satisfies Record<keyof Scenario, Field>;
 
 export function validateScenario(raw: unknown, where: string): Scenario {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) fail(where, 'not an object');

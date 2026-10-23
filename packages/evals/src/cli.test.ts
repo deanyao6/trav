@@ -341,6 +341,23 @@ describe('the real CLI process', () => {
     expect(readdirSync(broken.out).filter((f) => f.endsWith('.md'))).toHaveLength(1);
   }, 240_000);
 
+  it('root `pnpm eval` runs node directly, so exit 2 survives (pnpm would flatten a nested 2 to 1)', () => {
+    const root = join(here, '..', '..', '..');
+    const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as {
+      scripts: Record<string, string>;
+    };
+    expect(pkg.scripts['eval']).toBe('node --import tsx packages/evals/src/cli.ts');
+    const [, ...args] = (pkg.scripts['eval'] ?? '').split(' ');
+    const r = spawnSync(process.execPath, [...args, '--bogus'], {
+      cwd: root,
+      env: { PATH: process.env['PATH'] ?? '', HOME: process.env['HOME'] ?? '', TMPDIR: tmpdir() },
+      encoding: 'utf8',
+      timeout: 120_000,
+    });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/unknown argument --bogus/);
+  }, 120_000);
+
   it('prints help and exits 0', () => {
     const r = run(['--help'], { TRAV_OFFLINE: '1' });
     expect(r.status).toBe(0);

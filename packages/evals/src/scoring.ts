@@ -260,11 +260,14 @@ export function runStaticChecks(root?: string): StaticCheck[] {
   }));
 }
 
+/** The `scenarioId` of a static (architectural) safety failure. */
+export const STATIC_SCENARIO_ID = '(static)';
+
 export function staticSafetyFailures(checks: readonly StaticCheck[]): SafetyFailure[] {
   return checks
     .filter((c) => c.safety && !c.ok)
     .map((c) => ({
-      scenarioId: '(static)',
+      scenarioId: STATIC_SCENARIO_ID,
       graderId: `arch:${c.id}`,
       safetyId: c.id,
       evidence: c.violations,

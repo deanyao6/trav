@@ -179,7 +179,10 @@ export const voiceLint: Grader = {
     // dropped): their lane is unknown here, so rule names only.
     for (const [id, v] of reported) {
       if (!seen.has(id))
-        checks.push({ ok: false, what: `message ${id}: ${[...new Set(v.map(lintRule))].join('; ')}` });
+        checks.push({
+          ok: false,
+          what: `message ${id}: ${[...new Set(v.map(lintRule))].join('; ')}`,
+        });
     }
     return [fromChecks(this.id, checks, { nothing: 'Trav sent no messages' })];
   },

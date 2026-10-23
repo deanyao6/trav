@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { REDACTED, episodeSecrets, privateFixtureStrings, redact } from './redact.js';
+import { REDACTED, dmLines, episodeSecrets, privateFixtureStrings, redact } from './redact.js';
 import { episode } from './testing.js';
+import type { Episode } from './types.js';
 
 describe('redact', () => {
   it('removes secrets case-insensitively, longest first', () => {
@@ -34,5 +35,27 @@ describe('secret sources', () => {
   it("collects an episode's private strings", () => {
     expect(episodeSecrets(episode({ privateStrings: ['sunglasses'] }))).toEqual(['sunglasses']);
     expect(episodeSecrets(undefined)).toEqual([]);
+  });
+
+  it('backstop: whole DM lines (12+ chars) are secrets unless Trav also said them in the group', () => {
+    const t = (seq: number, lane: 'dm' | 'group', text: string) => ({
+      seq,
+      type: 'message',
+      direction: 'outbound',
+      lane,
+      fromName: 'Trav',
+      text,
+    });
+    const ep = episode({
+      transcript: [
+        t(1, 'dm', 'your card got €9.80 at the bar\nok'),
+        t(2, 'dm', "i'm not sure what you mean"),
+        t(3, 'group', "i'm not sure what you mean"),
+      ] as unknown as Episode['transcript'],
+    });
+    expect(dmLines(ep)).toEqual(['your card got €9.80 at the bar']);
+    expect(redact('evidence: your card got €9.80 at the bar', episodeSecrets(ep))).toBe(
+      `evidence: ${REDACTED}`,
+    );
   });
 });

@@ -1,8 +1,9 @@
 /**
  * Reports: `evals/reports/<timestamp>.md` (for people) plus a sidecar
  * `<timestamp>.json` summary (machine-readable, and the next run's baseline
- * for deltas). Deltas compare against the newest earlier summary in the same
- * directory.
+ * for deltas). Deltas use a `Baseline` from the earlier summaries in the same
+ * directory: per scenario, the newest earlier run containing it; totals, only
+ * an earlier run with the same selection. The report names the baseline used.
  *
  * The report is honest about what it did not test: offline fallback turns
  * are counted, skipped graders never count as passes, known gaps (scenarios
@@ -30,7 +31,13 @@ import {
 import { GRADERS, HYPOTHESES } from './graders/index.js';
 import { episodeSecrets, privateFixtureStrings, redact } from './redact.js';
 import type { SafetyFailure, ScenarioOutcome, StaticCheck, Totals } from './scoring.js';
-import { scenarioPassed, staticSafetyFailures, totals, turnSources } from './scoring.js';
+import {
+  STATIC_SCENARIO_ID,
+  scenarioPassed,
+  staticSafetyFailures,
+  totals,
+  turnSources,
+} from './scoring.js';
 import type { EvalMode, GraderResult } from './types.js';
 
 export function reportsDir(): string {
@@ -404,38 +411,68 @@ export interface RunChanges {
   readonly fixedSafetyFailures: readonly string[];
 }
 
+function isHeldout(tags: readonly string[]): boolean {
+  return tags.includes('heldout');
+}
+
+/**
+ * What changed since the baseline (see `Baseline`). Each scenario is compared
+ * with the newest earlier run that contained it, so a filtered run in between
+ * never turns a full run's scenarios into "new scenarios". "Not in this run"
+ * lists only scenarios of the earlier run with the same selection. Held-out
+ * scenarios never appear in the pass/fail/score lists (the build loop reads
+ * them); their safety failures still do, since every safety failure is hard
+ * and already named in the safety table.
+ */
 export function changesSince(
   outcomes: readonly ScenarioOutcome[],
-  previous: RunSummary,
+  previous: Baseline | RunSummary,
   staticChecks: readonly StaticCheck[] = [],
+  selection?: string,
 ): RunChanges {
-  const before = new Map(previous.scenarios.map((s) => [s.id, s]));
+  const b = asBaseline(previous, outcomes, selection);
   const now = new Set(outcomes.map((o) => o.scenario.id));
   const newlyFailing: string[] = [];
   const newlyPassing: string[] = [];
   const added: string[] = [];
   const moved: { id: string; delta: string }[] = [];
   for (const o of outcomes) {
-    const b = before.get(o.scenario.id);
-    if (b === undefined) {
+    if (isHeldout(o.scenario.tags)) continue;
+    const p = priorScenario(b, o.scenario.id);
+    if (p === undefined) {
       added.push(o.scenario.id);
       continue;
     }
     const passed = scenarioPassed(o);
-    if (b.passed === true && !passed) newlyFailing.push(o.scenario.id);
-    if (b.passed === false && passed) newlyPassing.push(o.scenario.id);
-    if (o.score !== null && b.score !== null && Math.abs(o.score - b.score) >= 0.05) {
-      moved.push({ id: o.scenario.id, delta: delta(o.score, b.score) });
+    if (p.passed && !passed) newlyFailing.push(o.scenario.id);
+    if (!p.passed && passed) newlyPassing.push(o.scenario.id);
+    if (o.score !== null && p.score !== null && Math.abs(o.score - p.score) >= 0.05) {
+      moved.push({ id: o.scenario.id, delta: delta(o.score, p.score) });
     }
   }
+  const removed = (b.sameSelection?.scenarios ?? [])
+    .filter((s) => !now.has(s.id) && !isHeldout(s.tags))
+    .map((s) => s.id);
   const key = (f: { scenarioId: string; safetyId: string }) => `${f.scenarioId}/${f.safetyId}`;
   const nowSafety = new Set(allSafetyFailures(outcomes, staticChecks).map(key));
-  const prevSafety = new Set(previous.safetyFailures.map(key));
+  // A scenario's earlier safety failures come from the run its delta uses;
+  // static failures only count when this run ran the static checks too.
+  const prevSafety = new Set<string>();
+  for (const id of now) {
+    for (const f of b.byScenario.get(id)?.safetyFailures ?? []) {
+      if (f.scenarioId === id) prevSafety.add(key(f));
+    }
+  }
+  if (staticChecks.length > 0) {
+    for (const f of b.statics?.safetyFailures ?? []) {
+      if (f.scenarioId === STATIC_SCENARIO_ID) prevSafety.add(key(f));
+    }
+  }
   return {
     newlyFailing,
     newlyPassing,
     added,
-    removed: [...before.keys()].filter((id) => !now.has(id)),
+    removed,
     moved,
     newSafetyFailures: [...nowSafety].filter((k) => !prevSafety.has(k)).sort(),
     fixedSafetyFailures: [...prevSafety].filter((k) => !nowSafety.has(k)).sort(),
@@ -490,20 +527,18 @@ function checklistRows(
   return rows;
 }
 
-function changesSection(
-  out: string[],
-  c: RunChanges | undefined,
-  previous: RunSummary | undefined,
-): void {
+function changesSection(out: string[], c: RunChanges | undefined, note: string): void {
   out.push('## Changes since the previous run');
   out.push('');
-  if (previous === undefined || c === undefined) {
+  if (c === undefined) {
     out.push('No earlier report in this directory; every delta reads "new".');
     out.push('');
     return;
   }
   const list = (xs: readonly string[]) => (xs.length === 0 ? 'none' : xs.join(', '));
-  out.push(`Compared with ${previous.stamp} (${previous.mode}).`);
+  out.push(
+    `Baseline: ${note}. A filtered run (\`--filter\`, \`--tag\`, \`--split\`) is never the baseline for a different selection. Held-out scenarios are left out of these lists (except safety failures).`,
+  );
   out.push('');
   out.push(`- **New safety failures:** ${list(c.newSafetyFailures)}`);
   out.push(`- **Safety failures fixed:** ${list(c.fixedSafetyFailures)}`);
@@ -520,11 +555,15 @@ function changesSection(
 export function renderReport(
   outcomes: readonly ScenarioOutcome[],
   meta: RunMeta,
-  previous: RunSummary | undefined,
+  previous: Baseline | RunSummary | undefined,
 ): string {
   const staticChecks = meta.staticChecks ?? [];
   const t = totals(outcomes, staticChecks);
-  const prevScore = new Map(previous?.scenarios.map((s) => [s.id, s.score]) ?? []);
+  const base = asBaseline(previous, outcomes, meta.selection);
+  const note = baselineNote(base, outcomes);
+  // Totals and per-tag deltas only against an earlier run of the same selection.
+  const same = base.sameSelection;
+  const prevScore = (id: string) => priorScenario(base, id)?.score;
   const out: string[] = [];
   const safety = allSafetyFailures(outcomes, staticChecks);
   const sourceTotals: Record<string, number> = {};
@@ -552,9 +591,7 @@ export function renderReport(
   out.push(
     `- **Result:** ${safety.length === 0 ? 'PASS (no safety failures), exit 0' : `FAIL: ${String(safety.length)} safety failure(s), hard fail, exit 1`}`,
   );
-  out.push(
-    `- **Compared with:** ${previous === undefined ? 'nothing (first report)' : `${previous.stamp} (${previous.mode})`}`,
-  );
+  out.push(`- **Compared with:** ${note}`);
   if (meta.mode === 'offline') {
     const fb = sourceTotals['fallback'] ?? 0;
     out.push(
@@ -567,20 +604,20 @@ export function renderReport(
   out.push('| | score | Δ vs previous (pts) |');
   out.push('|---|---|---|');
   out.push(
-    `| overall (dev set: everything not held out, known gaps included) | ${pct(t.overall)} | ${delta(t.overall, previous?.totals.overall)} |`,
+    `| overall (dev set: everything not held out, known gaps included) | ${pct(t.overall)} | ${delta(t.overall, same?.totals.overall)} |`,
   );
   out.push(
-    `| ready (dev set without known gaps) | ${pct(t.ready)} | ${delta(t.ready, previous?.totals.ready)} |`,
+    `| ready (dev set without known gaps) | ${pct(t.ready)} | ${delta(t.ready, same?.totals.ready)} |`,
   );
   out.push(
-    `| held-out (reported apart, never tuned against) | ${pct(t.heldout)} | ${delta(t.heldout, previous?.totals.heldout)} |`,
+    `| held-out (reported apart, never tuned against) | ${pct(t.heldout)} | ${delta(t.heldout, same?.totals.heldout)} |`,
   );
   out.push(
     `| regression suite passed | ${String(t.regression.passed)} / ${String(t.regression.ran)} | |`,
   );
   out.push(`| scenarios run / of which known gaps | ${String(t.ran)} / ${String(t.knownGaps)} | |`);
   out.push(
-    `| safety failures | ${String(t.safetyFailures)} | ${previous === undefined ? 'new' : String(t.safetyFailures - previous.totals.safetyFailures)} |`,
+    `| safety failures | ${String(t.safetyFailures)} | ${same === undefined ? 'new' : String(t.safetyFailures - same.totals.safetyFailures)} |`,
   );
   out.push('');
 
@@ -603,8 +640,8 @@ export function renderReport(
 
   changesSection(
     out,
-    previous === undefined ? undefined : changesSince(outcomes, previous, staticChecks),
-    previous,
+    base.available === 0 ? undefined : changesSince(outcomes, base, staticChecks),
+    note,
   );
 
   out.push('## Regression suite');
@@ -637,7 +674,7 @@ export function renderReport(
     out.push('|---|---|---|---|---|');
     for (const o of held) {
       out.push(
-        `| ${o.scenario.id} | ${statusOf(o)} | ${pct(o.score)} | ${delta(o.score, prevScore.get(o.scenario.id))} | ${failingIds(o.results).join(', ')} |`,
+        `| ${o.scenario.id} | ${statusOf(o)} | ${pct(o.score)} | ${delta(o.score, prevScore(o.scenario.id))} | ${failingIds(o.results).join(', ')} |`,
       );
     }
   }
@@ -692,7 +729,7 @@ export function renderReport(
   out.push('| tag | score | Δ (pts) |');
   out.push('|---|---|---|');
   for (const [tag, score] of Object.entries(t.byTag)) {
-    out.push(`| ${tag} | ${pct(score)} | ${delta(score, previous?.totals.byTag[tag])} |`);
+    out.push(`| ${tag} | ${pct(score)} | ${delta(score, same?.totals.byTag[tag])} |`);
   }
   out.push('');
 
@@ -745,7 +782,7 @@ export function renderReport(
   for (const o of outcomes) {
     const cov = o.coverage.map((c) => `${c.id} ${c.status.replace('_', ' ')}`).join(', ');
     out.push(
-      `| ${o.scenario.id} | ${o.scenario.tags.join(', ')} | ${statusOf(o)} | ${pct(o.score)} | ${delta(o.score, prevScore.get(o.scenario.id))} | ${sourcesCell(o)} | ${cov} | ${failingIds(o.results).join(', ')} |`,
+      `| ${o.scenario.id} | ${o.scenario.tags.join(', ')} | ${statusOf(o)} | ${pct(o.score)} | ${delta(o.score, prevScore(o.scenario.id))} | ${sourcesCell(o)} | ${cov} | ${failingIds(o.results).join(', ')} |`,
     );
   }
   out.push('');
@@ -823,8 +860,13 @@ export function writeReport(
     stamp = `${meta.stamp}-${String(i)}`;
   }
   const m: RunMeta = { ...meta, stamp };
-  const previous = previousSummary(dir, stamp);
-  const markdown = renderReport(outcomes, m, previous);
+  const baseline = loadBaseline(
+    dir,
+    stamp,
+    meta.selection,
+    outcomes.map((o) => o.scenario.id),
+  );
+  const markdown = renderReport(outcomes, m, baseline);
   const summary = summarize(outcomes, m);
   const markdownPath = join(dir, `${stamp}.md`);
   const summaryPath = join(dir, `${stamp}.json`);

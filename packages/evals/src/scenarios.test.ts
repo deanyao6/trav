@@ -63,16 +63,36 @@ describe('validateScenario', () => {
     ['say without text', withStep({ do: 'say', from: 'h_dean' }), /missing required "text"/],
     ['react without target', withStep({ do: 'react', from: 'h_dean', reaction: '👍' }), /"target"/],
     ['tap without actionId', withStep({ do: 'tap', from: 'h_dean', target: 'x' }), /"actionId"/],
-    ['intake without text', withStep({ do: 'intake', owner: 'mem_sam', source: 'email_receipt', itemId: 'i' }), /"text"/],
-    ['remember without lane', withStep({ do: 'remember', memberId: 'm', text: 't', category: 'other' }), /"lane"/],
+    [
+      'intake without text',
+      withStep({ do: 'intake', owner: 'mem_sam', source: 'email_receipt', itemId: 'i' }),
+      /"text"/,
+    ],
+    [
+      'remember without lane',
+      withStep({ do: 'remember', memberId: 'm', text: 't', category: 'other' }),
+      /"lane"/,
+    ],
     ['patch_member without patch', withStep({ do: 'patch_member', memberId: 'm' }), /"patch"/],
     ['injection without fixture', withStep({ do: 'injection' }), /"fixture"/],
     ['advance with neither minutes nor to', withStep({ do: 'advance' }), /minutes" or "to"/],
-    ['proposal without payers', withStep({ ...say, expect: { proposal: { attendees: [] } } }), /"payers"/],
-    ['identity without safetyId', withStep({ ...say, expect: { identity: { noEffect: true } } }), /"safetyId"/],
+    [
+      'proposal without payers',
+      withStep({ ...say, expect: { proposal: { attendees: [] } } }),
+      /"payers"/,
+    ],
+    [
+      'identity without safetyId',
+      withStep({ ...say, expect: { identity: { noEffect: true } } }),
+      /"safetyId"/,
+    ],
     // enums and types
     ['bad lane', withStep({ ...say, lane: 'direct' }), /lane: must be one of group, dm/],
-    ['bad intake source', withStep({ do: 'intake', owner: 'm', source: 'fax', itemId: 'i', text: 't' }), /fax/],
+    [
+      'bad intake source',
+      withStep({ do: 'intake', owner: 'm', source: 'fax', itemId: 'i', text: 't' }),
+      /fax/,
+    ],
     ['bad model source', withStep({ ...say, expect: { modelSource: 'scripted' } }), /scripted/],
     ['bad silent type', withStep({ ...say, expect: { silent: 'yes' } }), /true or false/],
     ['bad purchases', withStep({ ...say, expect: { purchases: -1 } }), /≥ 0/],
@@ -83,9 +103,17 @@ describe('validateScenario', () => {
     ['bad tag', { ...base, tags: ['vibes'] }, /vibes/],
     // probes
     ['unknown probe', withStep({ do: 'probe', probe: 'bogus_probe' }), /bogus_probe/],
-    ['unknown probe arg', withStep({ do: 'probe', probe: 'flights', args: { fast: true } }), /unknown key "fast"/],
+    [
+      'unknown probe arg',
+      withStep({ do: 'probe', probe: 'flights', args: { fast: true } }),
+      /unknown key "fast"/,
+    ],
     ['ledger probe without trips', withStep({ do: 'probe', probe: 'ledger', args: {} }), /"trips"/],
-    ['album probe with a bad trip', withStep({ do: 'probe', probe: 'album_consent', args: { trip: 'paris' } }), /paris/],
+    [
+      'album probe with a bad trip',
+      withStep({ do: 'probe', probe: 'album_consent', args: { trip: 'paris' } }),
+      /paris/,
+    ],
     // SAFETY ids
     [
       'identity.safetyId outside E2/E3/E5',
