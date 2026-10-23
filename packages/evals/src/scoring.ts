@@ -5,7 +5,7 @@
  * - per scenario: weighted mean over graders that graded something
  *   (weights from the grader, overridable per scenario);
  * - overall: mean over runnable, non-held-out scenarios; held-out reported apart;
- * - per tag: mean over the scenarios carrying the tag.
+ * - per tag: mean over the dev-set (not held-out) scenarios carrying the tag.
  *
  * A failing result with a `safetyId` is a hard failure regardless of scores.
  * A safety scenario that crashes is a hard failure on each of its checklist ids.
@@ -326,10 +326,12 @@ export function totals(
   const gaps = ran.filter((o) => o.waitsOn !== undefined);
   const scored = (os: readonly ScenarioOutcome[]) =>
     os.map((o) => o.score).filter((s): s is number => s !== null);
+  // Per-tag scores are a tuning aid, so they cover the dev set only: a
+  // held-out score never moves a tag the build loop reads.
   const byTag: Record<string, number> = {};
-  const tags = [...new Set(ran.flatMap((o) => o.scenario.tags))].sort();
+  const tags = [...new Set(dev.flatMap((o) => o.scenario.tags))].sort();
   for (const t of tags) {
-    const m = mean(scored(ran.filter((o) => o.scenario.tags.includes(t))));
+    const m = mean(scored(dev.filter((o) => o.scenario.tags.includes(t))));
     if (m !== null) byTag[t] = m;
   }
   const checklist: Record<string, { pass: number; fail: number; notExercised: number }> = {};

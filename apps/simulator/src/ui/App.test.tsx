@@ -139,7 +139,14 @@ describe('AppView renders demo states 1–3', () => {
     const { s2 } = await states();
     expect(render(s2, 'h_dean')).not.toContain('data-testid="sim-status"');
     const html = render(
-      { ...s2, status: 'approval handler not wired yet (T-030), use TRAV_SIM_BACKEND=scripted' },
+      {
+        ...s2,
+        groups: s2.groups.map((g, i) =>
+          i === 0
+            ? { ...g, status: 'approval handler not wired yet (T-030), use TRAV_SIM_BACKEND=scripted' }
+            : g,
+        ),
+      },
       'h_dean',
     );
     expect(html).toContain('data-testid="sim-status"');

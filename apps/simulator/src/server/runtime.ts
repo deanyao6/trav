@@ -19,11 +19,11 @@
 import { createSimulatorChannel } from '@trav/adapters';
 import type { SimulatorChannel } from '@trav/adapters';
 import { TravError, createSimulatedClock } from '@trav/core';
-import type { Clock } from '@trav/core';
-import type { TravAgent } from '@trav/agent';
+import type { Clock, ScheduledJob } from '@trav/core';
+import type { TravAgent, TurnResult } from '@trav/agent';
 import type { SimGroup } from '../shared/types.js';
-import type { SimulatorBackend } from './backend.js';
-import { createAgentBackend } from './backend.js';
+import type { ChannelBackend, ResetOptions, SimulatorBackend } from './backend.js';
+import { createAgentBackend, createSessionBackend, servicesOf } from './backend.js';
 import { SIM_GROUPS, toConversations } from './groups.js';
 import { createScriptedBackend } from './scripted.js';
 
@@ -54,6 +54,12 @@ export interface SimRuntimeOutput {
    * `TRAV_OFFLINE=true`, `TRAV_OFFLINE=1` or a missing key all mean offline.
    */
   readonly model?: { readonly mode: 'live' | 'offline' };
+  /** The runtime's scheduler (read-only use: which jobs are due, for the status line). */
+  readonly scheduler?: { list(): readonly ScheduledJob[] };
+  /** `scheduler.drain(clock.now())` through `agent.runScheduled` (the top-bar clock). */
+  drain?(): Promise<readonly TurnResult[]>;
+  /** Close the stores (called when the simulator starts over). */
+  close?(): void;
 }
 
 /** Printed at startup whenever the simulator runs the real agent runtime. */
@@ -89,23 +95,49 @@ export interface LoadAgentOptions {
   readonly createTravRuntime?: CreateTravRuntime;
 }
 
+/** Barcelona, sat mar 14, 9:39pm: a minute before the Razzmatazz ask. */
+export const AGENT_DEMO_START = '2026-03-14T21:39:30+01:00';
+
 export async function loadAgentBackend(options: LoadAgentOptions): Promise<SimulatorBackend> {
   const groups = options.groups ?? SIM_GROUPS;
-  const clock = createSimulatedClock(options.startAt ?? '2026-03-14T21:39:30+01:00');
-  const channel = createSimulatorChannel({ clock, conversations: toConversations(groups) });
   const create = options.createTravRuntime ?? (await importCreateTravRuntime());
-  // T-009/T-021 wires this: the one call into the real runtime. Adjust the
-  // input/output mapping here (and only here) when compose.ts lands.
   const forceOffline = options.offline === true;
-  const runtime = await create({ channel, clock, offline: forceOffline });
-  const agent = runtime?.agent;
-  if (!agent || typeof agent.handleInbound !== 'function') {
-    throw notConfigured('createTravRuntime did not return { agent: TravAgent }');
-  }
-  // The badge follows the model client's real mode, not an env-var guess.
-  const mode = runtime.model?.mode;
-  const offline = mode !== undefined ? mode === 'offline' : forceOffline;
-  return createAgentBackend({ agent, channel, clock, groups, offline });
+  // The runtime of the live session, and of the one a reset is building.
+  let active: SimRuntimeOutput | undefined;
+  let pending: SimRuntimeOutput | undefined;
+
+  const makeSession = async (reset: ResetOptions): Promise<ChannelBackend> => {
+    const clock = createSimulatedClock(reset.startAt ?? options.startAt ?? AGENT_DEMO_START);
+    const channel = createSimulatorChannel({ clock, conversations: toConversations(groups) });
+    // The one call into the real runtime. Adjust the input/output mapping
+    // here (and only here) if compose.ts changes.
+    const runtime = await create({ channel, clock, offline: forceOffline });
+    const agent = runtime?.agent;
+    if (!agent || typeof agent.handleInbound !== 'function') {
+      throw notConfigured('createTravRuntime did not return { agent: TravAgent }');
+    }
+    pending = runtime;
+    // The badge follows the model client's real mode, not an env-var guess.
+    const mode = runtime.model?.mode;
+    const offline = mode !== undefined ? mode === 'offline' : forceOffline;
+    return createAgentBackend({
+      agent,
+      channel,
+      clock,
+      groups,
+      offline,
+      services: servicesOf(runtime, clock),
+    });
+  };
+
+  const first = await makeSession({});
+  active = pending;
+  return createSessionBackend('agent', makeSession, first, () => {
+    // The old session's stores are closed only once the new one is live.
+    const old = active;
+    active = pending;
+    old?.close?.();
+  });
 }
 
 export interface SelectBackendOptions {

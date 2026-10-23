@@ -8,8 +8,24 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Action } from '@trav/core';
-import type { GroupView, SimInbound, SimMember, SimState, ThreadMessage } from '../shared/types.js';
-import { fetchState, inject, resetDemo, subscribeState } from './api.js';
+import type {
+  ClockStep,
+  GroupView,
+  IntakeOffer,
+  ReplayView,
+  SimMember,
+  SimState,
+  ThreadMessage,
+} from '../shared/types.js';
+import {
+  advanceClock,
+  feedDocument,
+  fetchState,
+  inject,
+  replay,
+  resetDemo,
+  subscribeState,
+} from './api.js';
 import { avatarColor, clockLabel, initials } from './logic.js';
 import { Thread } from './components/Thread.js';
 import type { ThreadHandlers } from './components/Thread.js';
@@ -28,6 +44,11 @@ export interface AppViewProps {
   readonly onDraft: (text: string) => void;
   readonly onSend: () => void;
   readonly onReset?: () => void;
+  readonly onClock?: (step: ClockStep) => void;
+  readonly onReplay?: (mode: 'step' | 'all') => void;
+  readonly onIntake?: (docId: string) => void;
+  /** A clock step, replay or intake request is in flight (its buttons are disabled). */
+  readonly busy?: boolean;
   readonly handlers: ThreadHandlers;
 }
 
@@ -39,20 +60,95 @@ export function pickMe(view: GroupView, handle: string): SimMember {
   return view.group.members.find((m) => m.handle === handle) ?? view.group.members[0]!;
 }
 
+const CLOCK_BUTTONS: readonly { step: ClockStep; label: string }[] = [
+  { step: 'hour', label: '+1 hour' },
+  { step: 'morning', label: 'next morning' },
+  { step: 'end_of_trip', label: 'end of trip' },
+];
+
+function ReplayControls({
+  replay,
+  busy,
+  onReplay,
+}: {
+  replay: ReplayView;
+  busy: boolean;
+  onReplay: (mode: 'step' | 'all') => void;
+}) {
+  const done = replay.cursor >= replay.total;
+  const title =
+    replay.cursor === 0
+      ? 'restarts the demo, then runs the Barcelona chat one line at a time'
+      : (replay.next ?? 'the script is done');
+  return (
+    <span className="replay" data-testid="replay">
+      <button
+        type="button"
+        className="btn small"
+        data-testid="replay-step"
+        disabled={busy || done}
+        title={title}
+        onClick={() => onReplay('step')}
+      >
+        replay ▸ {replay.cursor}/{replay.total}
+      </button>
+      <button
+        type="button"
+        className="btn small"
+        data-testid="replay-all"
+        disabled={busy || done}
+        onClick={() => onReplay('all')}
+      >
+        play all
+      </button>
+      {replay.next !== undefined || replay.last !== undefined ? (
+        <span className="replay-line muted small" data-testid="replay-line">
+          {replay.last !== undefined ? replay.last : `next: ${replay.next ?? ''}`}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 function TopBar({
   state,
   view,
+  busy,
   onReset,
+  onClock,
+  onReplay,
 }: {
   state: SimState;
   view: GroupView;
+  busy: boolean;
   onReset?: () => void;
+  onClock?: (step: ClockStep) => void;
+  onReplay?: (mode: 'step' | 'all') => void;
 }) {
   return (
     <header className="topbar">
       <span className="clock" data-testid="clock">
         {clockLabel(state.now, view.group)}
       </span>
+      {state.controls.clock && onClock ? (
+        <span className="clock-buttons" data-testid="clock-buttons">
+          {CLOCK_BUTTONS.map((b) => (
+            <button
+              key={b.step}
+              type="button"
+              className="btn small"
+              data-testid={`clock-${b.step}`}
+              disabled={busy}
+              onClick={() => onClock(b.step)}
+            >
+              {b.label}
+            </button>
+          ))}
+        </span>
+      ) : null}
+      {state.controls.replay && state.replay && onReplay ? (
+        <ReplayControls replay={state.replay} busy={busy} onReplay={onReplay} />
+      ) : null}
       <span className="spacer" />
       {state.offline ? (
         <span className="badge offline" data-testid="offline-badge" title="no live model calls">
@@ -128,6 +224,11 @@ function LeftRail(props: AppViewProps & { view: GroupView; me: SimMember }) {
   );
 }
 
+const INTAKE_LABEL: Readonly<Record<IntakeOffer['kind'], string>> = {
+  card: 'simulate a card charge',
+  email: 'simulate an email receipt',
+};
+
 function DmRail(props: AppViewProps & { view: GroupView; me: SimMember }) {
   const { view, me } = props;
   const selected = view.group.members.find((m) => m.memberId === props.dmMemberId) ?? me;
@@ -135,16 +236,19 @@ function DmRail(props: AppViewProps & { view: GroupView; me: SimMember }) {
   // Taps and tapbacks always act as the "send as" member, so another member's
   // DM is look-only: pressing "Share it" there would be a tap by someone else.
   const readOnly = selected.memberId !== me.memberId;
+  // A member's own card or email only: offered in their tab, while sending as them.
+  const offers = readOnly ? [] : (view.intake[selected.memberId] ?? []);
   return (
     <aside className="right-rail">
       <div className="rail-title">Trav's DMs</div>
       <div className="dm-tabs">
         {view.group.members.map((m) => {
           const count = (view.dms[m.memberId] ?? []).length;
+          const isMe = m.memberId === me.memberId;
           const cls = [
             'dm-tab',
             m.memberId === selected.memberId ? 'selected' : '',
-            m.memberId === me.memberId ? 'me' : '',
+            isMe ? 'me' : '',
             props.highlightDms.includes(m.memberId) ? 'highlight' : '',
           ].join(' ');
           return (
@@ -154,6 +258,9 @@ function DmRail(props: AppViewProps & { view: GroupView; me: SimMember }) {
               className={cls}
               data-testid={`dm-tab-${m.memberId}`}
               data-count={count}
+              data-me={isMe ? 'true' : undefined}
+              aria-current={isMe ? 'true' : undefined}
+              title={isMe ? `you are sending as ${m.name}` : undefined}
               onClick={() => props.onSelectDm(m.memberId)}
             >
               {m.name}
@@ -162,10 +269,29 @@ function DmRail(props: AppViewProps & { view: GroupView; me: SimMember }) {
           );
         })}
       </div>
-      <div className="dm-header">🔒 only {selected.name} sees this</div>
+      <div className="dm-header" data-testid="dm-header">
+        🔒 only {selected.name} sees this
+      </div>
       {readOnly ? (
         <div className="dm-readonly muted small" data-testid="dm-readonly">
           view only · send as {selected.name} to tap
+        </div>
+      ) : null}
+      {offers.length > 0 && props.onIntake ? (
+        <div className="intake" data-testid="intake">
+          {offers.map((o) => (
+            <button
+              key={o.docId}
+              type="button"
+              className="btn small"
+              data-testid={`intake-${o.docId}`}
+              disabled={props.busy === true}
+              title="feeds this member's fixture document through Trav's intake (demo only)"
+              onClick={() => props.onIntake?.(o.docId)}
+            >
+              {INTAKE_LABEL[o.kind]}
+            </button>
+          ))}
         </div>
       ) : null}
       <Thread
@@ -196,7 +322,10 @@ export function AppView(props: AppViewProps) {
       <TopBar
         state={props.state}
         view={view}
+        busy={props.busy === true}
         {...(props.onReset ? { onReset: props.onReset } : {})}
+        {...(props.onClock ? { onClock: props.onClock } : {})}
+        {...(props.onReplay ? { onReplay: props.onReplay } : {})}
       />
       <div className="main">
         <LeftRail {...props} view={view} me={me} />
@@ -231,9 +360,9 @@ export function AppView(props: AppViewProps) {
                 {props.error ?? props.state.lastError}
               </div>
             ) : null}
-            {props.state.status ? (
+            {view.status ? (
               <div className="status-banner" data-testid="sim-status" role="status">
-                {props.state.status}
+                {view.status}
               </div>
             ) : null}
             {hint ? (
@@ -291,6 +420,7 @@ export function App() {
   const [highlightDms, setHighlightDms] = useState<readonly string[]>([]);
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | undefined>();
+  const [busy, setBusy] = useState(false);
   const version = useRef(-1);
 
   const accept = (s: SimState | undefined): void => {
@@ -317,11 +447,20 @@ export function App() {
     };
   }, []);
 
-  const run = (input: SimInbound): void => {
+  const fail = (e: unknown): void => setError(e instanceof Error ? e.message : String(e));
+
+  const run = (input: Parameters<typeof inject>[0]): void => {
     setError(undefined);
-    inject(input).then(accept, (e: unknown) =>
-      setError(e instanceof Error ? e.message : String(e)),
-    );
+    inject(input).then(accept, fail);
+  };
+
+  /** Clock, replay and intake: one request at a time, buttons disabled meanwhile. */
+  const control = (request: () => Promise<SimState | undefined>): void => {
+    setError(undefined);
+    setBusy(true);
+    request()
+      .then(accept, fail)
+      .finally(() => setBusy(false));
   };
 
   const handlers = useMemo<ThreadHandlers | undefined>(() => {
@@ -384,15 +523,30 @@ export function App() {
         setDraft('');
         run({ type: 'message', from: me.handle, text, groupId: view.group.groupId });
       }}
-      {...(state.backend === 'scripted'
+      {...(state.controls.reset
         ? {
             onReset: () => {
               setDraft('');
               setHighlightDms([]);
-              resetDemo().then(accept, (e: unknown) => setError(String(e)));
+              control(resetDemo);
             },
           }
         : {})}
+      {...(state.controls.clock
+        ? { onClock: (step: ClockStep) => control(() => advanceClock(step, view.group.groupId)) }
+        : {})}
+      {...(state.controls.replay
+        ? {
+            onReplay: (mode: 'step' | 'all') => {
+              setHighlightDms([]);
+              control(() => replay(mode));
+            },
+          }
+        : {})}
+      {...(state.controls.intake
+        ? { onIntake: (docId: string) => control(() => feedDocument(docId)) }
+        : {})}
+      busy={busy}
       handlers={handlers}
     />
   );

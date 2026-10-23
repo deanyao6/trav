@@ -24,6 +24,36 @@ export function fullText(m: OutboundMessage): string {
   return [m.text, ...(m.images ?? []).map((i) => i.alt)].join('\n');
 }
 
+/**
+ * The one way grader evidence quotes text Trav (or a member) sent. Evidence
+ * lands in committed reports, and the report's transcript already hides DM
+ * lines; a DM can hold a private charge, a ticket or a card detail, so it is
+ * never quoted here either: a DM (`to.kind === 'member'`), or anything sent
+ * on a step whose lane is `dm`, renders as `[private message, N chars]`.
+ * Group text is quoted, cut to `max` characters.
+ */
+export function quoteText(text: string, isPrivate: boolean, max = 80): string {
+  if (isPrivate) return `[private message, ${String(text.length)} chars]`;
+  return `"${text.length > max ? `${text.slice(0, max)}…` : text}"`;
+}
+
+/** Is this message private for evidence purposes (a DM, or sent on a DM-lane step)? */
+export function isPrivateMessage(
+  msg: Pick<OutboundMessage, 'to'>,
+  step?: Pick<StepRecord, 'lane'>,
+): boolean {
+  return msg.to.kind === 'member' || step?.lane === 'dm';
+}
+
+/** `quoteText` for an outbound message (its `text` unless `text` is given, e.g. one roast line). */
+export function quoteMessage(
+  msg: Pick<OutboundMessage, 'to' | 'text'>,
+  step?: Pick<StepRecord, 'lane'>,
+  opts: { readonly text?: string; readonly max?: number } = {},
+): string {
+  return quoteText(opts.text ?? msg.text, isPrivateMessage(msg, step), opts.max);
+}
+
 export function where(step: StepRecord): string {
   return `step ${String(step.index)}${step.source !== undefined ? ` [${step.source}]` : ''} (${step.label})`;
 }

@@ -27,6 +27,7 @@ export const BARCELONA: SimGroup = {
   tripName: 'Barcelona spring break',
   timeZone: 'Europe/Madrid',
   tripStart: '2026-03-12',
+  tripEnd: '2026-03-17',
   members: members('grp_barcelona', [
     ['mem_dean', 'Dean', 'h_dean'],
     ['mem_henry', 'Henry', 'h_henry'],
@@ -45,6 +46,7 @@ export const LISBON: SimGroup = {
   tripName: 'Lisbon: Dean + Dad',
   timeZone: 'Europe/Lisbon',
   tripStart: '2026-04-15',
+  tripEnd: '2026-04-20',
   members: members('grp_lisbon', [
     ['mem_lis_dean', 'Dean', 'h_lis_dean'],
     ['mem_lis_dad', 'Dad', 'h_lis_dad'],
@@ -59,6 +61,7 @@ export const TURKS_AND_CAICOS: SimGroup = {
   tripName: 'Turks and Caicos family trip',
   timeZone: 'America/Grand_Turk',
   tripStart: '2026-06-20',
+  tripEnd: '2026-06-27',
   members: members('grp_turks_caicos', [
     ['mem_tci_mom', 'Mom', 'h_tci_mom'],
     ['mem_tci_dad', 'Dad', 'h_tci_dad'],

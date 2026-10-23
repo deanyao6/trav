@@ -81,6 +81,31 @@ function Reactions({ msg }: { msg: ThreadMessage }) {
   );
 }
 
+/**
+ * The tapback picker (VOICE §9.2: ❤️ 👍 👎 😂 ‼️ ❓), opened by clicking a
+ * bubble. A pick goes to `ThreadHandlers.onReact`, i.e. `POST /api/reactions`
+ * → `InboundReaction`: on a proposal, 👍 is the same approval event as the
+ * Approve button.
+ */
+export function TapbackPicker({ onPick }: { onPick: (tapback: string) => void }) {
+  return (
+    <div className="tapback-picker" role="menu" data-testid="tapback-picker">
+      {TAPBACKS.map((t) => (
+        <button
+          key={t}
+          type="button"
+          role="menuitem"
+          data-testid={`tapback-${t}`}
+          aria-label={`react ${t}`}
+          onClick={() => onPick(t)}
+        >
+          {t}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function MessageRow(props: {
   msg: ThreadMessage;
   group: SimGroup;
@@ -137,21 +162,12 @@ function MessageRow(props: {
           {content}
           <Reactions msg={msg} />
           {picker && !readOnly ? (
-            <div className="tapback-picker" role="menu">
-              {TAPBACKS.map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  data-testid={`tapback-${t}`}
-                  onClick={() => {
-                    setPicker(false);
-                    handlers.onReact(msg, t);
-                  }}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
+            <TapbackPicker
+              onPick={(t) => {
+                setPicker(false);
+                handlers.onReact(msg, t);
+              }}
+            />
           ) : null}
         </div>
         {delivered ? <div className="delivered">Delivered</div> : null}

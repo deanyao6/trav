@@ -17,7 +17,9 @@ import type {
   BackendKind,
   CardStateView,
   GroupView,
+  IntakeOffer,
   ReactionSummary,
+  SimControls,
   SimGroup,
   SimMember,
   SimState,
@@ -337,7 +339,25 @@ export interface BuildStateInput {
   readonly channel: ChannelView;
   readonly typing: ReadonlySet<string>;
   readonly lastError?: string;
+  /** Muted status line per groupId (`GroupView.status`). */
+  readonly status?: ReadonlyMap<string, string>;
+  /** Demo documents still to feed, per groupId then memberId. */
+  readonly intake?: ReadonlyMap<string, Readonly<Record<MemberId, readonly IntakeOffer[]>>>;
+  /** Default: no clock, no intake, no reset, no replay. */
+  readonly controls?: SimControls;
+}
+
+export const NO_CONTROLS: SimControls = {
+  clock: false,
+  scheduler: false,
+  intake: false,
+  reset: false,
+  replay: false,
+};
+
+export interface GroupExtras {
   readonly status?: string;
+  readonly intake?: Readonly<Record<MemberId, readonly IntakeOffer[]>>;
 }
 
 export function buildGroupView(
@@ -345,16 +365,23 @@ export function buildGroupView(
   channel: ChannelView,
   now: IsoDateTime,
   typing: boolean,
+  extras: GroupExtras = {},
 ): GroupView {
   const thread = buildGroupThread(group, channel, now);
   const dms: Record<MemberId, ThreadEntry[]> = {};
-  for (const m of group.members) dms[m.memberId] = buildDmThread(group, m, channel, now);
+  const intake: Record<MemberId, readonly IntakeOffer[]> = {};
+  for (const m of group.members) {
+    dms[m.memberId] = buildDmThread(group, m, channel, now);
+    intake[m.memberId] = extras.intake?.[m.memberId] ?? [];
+  }
   const last = [...thread].reverse().find((e): e is ThreadMessage => e.kind === 'message');
   return {
     group,
     thread,
     dms,
     typing,
+    intake,
+    ...(extras.status !== undefined ? { status: extras.status } : {}),
     ...(last
       ? {
           preview: {
@@ -374,10 +401,15 @@ export function buildState(input: BuildStateInput): SimState {
     offline: input.offline,
     now: input.now,
     travHandle: input.channel.travHandle,
-    groups: input.groups.map((g) =>
-      buildGroupView(g, input.channel, input.now, input.typing.has(g.groupId)),
-    ),
+    groups: input.groups.map((g) => {
+      const status = input.status?.get(g.groupId);
+      const intake = input.intake?.get(g.groupId);
+      return buildGroupView(g, input.channel, input.now, input.typing.has(g.groupId), {
+        ...(status !== undefined ? { status } : {}),
+        ...(intake !== undefined ? { intake } : {}),
+      });
+    }),
     ...(input.lastError !== undefined ? { lastError: input.lastError } : {}),
-    ...(input.status !== undefined ? { status: input.status } : {}),
+    controls: input.controls ?? NO_CONTROLS,
   };
 }

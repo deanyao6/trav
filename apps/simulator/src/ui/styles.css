@@ -55,6 +55,21 @@ button {
 .topbar .spacer {
   flex: 1;
 }
+.clock-buttons,
+.replay {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+}
+.replay-line {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--muted);
+}
 .badge {
   font-size: 11px;
   padding: 2px 8px;
@@ -687,6 +702,15 @@ button {
 }
 .dm-tab.me {
   font-weight: 700;
+  border-color: var(--blue);
+  color: var(--blue);
+}
+/* Demo document buttons, in the owner's own DM tab only */
+.intake {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 0 6px;
 }
 .dm-tab.selected {
   border-color: var(--blue);

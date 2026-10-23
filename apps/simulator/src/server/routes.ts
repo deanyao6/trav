@@ -8,15 +8,23 @@
  *   POST /api/messages              { from, text, groupId?, lane? }
  *   POST /api/reactions             { from, targetMessageId, reaction, removed? }
  *   POST /api/button-taps           { from, cardMessageId, actionId, value? }
- *   POST /api/reset                 back to demo state 1 (scripted backend only)
+ *   POST /api/reset                 start over (scripted: demo state 1; agent: fresh runtime)
+ *   POST /api/clock                 { step: hour | morning | end_of_trip, groupId? }:
+ *                                   move the simulated clock, drain due scheduled jobs
+ *   POST /api/intake                { docId }: feed one demo document (DM rail) through
+ *                                   agent.intakeDocument (the owner's "looks shared?" DM)
+ *   POST /api/replay/step           run the next line of fixtures/chats/barcelona.jsonl
+ *   POST /api/replay/all            run the rest of it
  *
  * Inbound endpoints go through `backend.inject`, i.e. the simulator channel,
  * which assigns ids and times and checks the sender is in the chat; a button
  * tap becomes an `InboundButtonTap`, the same event the agent normalizes into
  * an `ApprovalEvent` for a 👍 tapback.
  */
-import type { SimInbound } from '../shared/types.js';
+import { TravError } from '@trav/core';
+import type { ClockRequest, ClockStep, SimInbound } from '../shared/types.js';
 import type { SimulatorBackend } from './backend.js';
+import type { ReplayController } from './replay.js';
 
 export interface ApiRequest {
   readonly method: string;
@@ -58,8 +66,11 @@ function asObject(body: unknown): Record<string, unknown> {
   return body as Record<string, unknown>;
 }
 
+/** Inbound kinds a client may POST (membership changes are replay-only). */
+type HttpInboundType = Exclude<SimInbound['type'], 'member_joined'>;
+
 /** Validates a POST body into a `SimInbound`. Exported for tests. */
-export function parseInbound(kind: SimInbound['type'], raw: unknown): SimInbound {
+export function parseInbound(kind: HttpInboundType, raw: unknown): SimInbound {
   const body = asObject(raw);
   const from = field(body, 'from');
   switch (kind) {
@@ -105,7 +116,7 @@ export function parseInbound(kind: SimInbound['type'], raw: unknown): SimInbound
   }
 }
 
-const INBOUND_ROUTES: Readonly<Record<string, SimInbound['type']>> = {
+const INBOUND_ROUTES: Readonly<Record<string, HttpInboundType>> = {
   '/api/messages': 'message',
   '/api/reactions': 'reaction',
   '/api/button-taps': 'button_tap',
@@ -147,9 +158,59 @@ export async function handleApi(backend: SimulatorBackend, req: ApiRequest): Pro
       await backend.reset();
       return { status: 200, body: { ok: true, state: backend.state() } };
     }
+    if (req.path === '/api/clock') {
+      if (req.method !== 'POST') return { status: 405, body: { error: 'use POST' } };
+      const request = parseClock(req.body);
+      if (!backend.advanceClock) return { status: 409, body: { error: 'this backend has no clock' } };
+      await backend.advanceClock(request);
+      return { status: 200, body: { ok: true, state: backend.state() } };
+    }
+    if (req.path === '/api/intake') {
+      if (req.method !== 'POST') return { status: 405, body: { error: 'use POST' } };
+      const docId = field(asObject(req.body), 'docId');
+      if (!backend.intake) return { status: 409, body: { error: 'this backend cannot ingest documents' } };
+      await backend.intake(docId);
+      return { status: 200, body: { ok: true, state: backend.state() } };
+    }
+    if (req.path === '/api/replay/step' || req.path === '/api/replay/all') {
+      if (req.method !== 'POST') return { status: 405, body: { error: 'use POST' } };
+      const replay = (backend as Partial<ReplayCapable>).replay;
+      if (!replay) return { status: 409, body: { error: 'no chat script loaded' } };
+      const view = req.path.endsWith('/all') ? await replay.all() : await replay.step();
+      return { status: 200, body: { ok: true, replay: view, state: backend.state() } };
+    }
     return { status: 404, body: { error: `no route ${req.method} ${req.path}` } };
   } catch (e) {
     if (e instanceof BadRequest) return { status: 400, body: { error: e.message } };
+    if (e instanceof TravError) {
+      const status = TRAV_ERROR_STATUS[e.code];
+      if (status !== undefined) return { status, body: { error: e.message } };
+    }
     throw e;
   }
+}
+
+/** Backend failures a client can cause (unknown document, double feed, replay busy). */
+const TRAV_ERROR_STATUS: Partial<Record<TravError['code'], number>> = {
+  not_found: 404,
+  duplicate: 409,
+  invalid_argument: 400,
+  not_implemented: 409,
+};
+
+interface ReplayCapable {
+  readonly replay: ReplayController;
+}
+
+const CLOCK_STEPS: readonly ClockStep[] = ['hour', 'morning', 'end_of_trip'];
+
+/** `{ step: 'hour' | 'morning' | 'end_of_trip', groupId? }`. Exact instants are replay-only. */
+export function parseClock(raw: unknown): ClockRequest {
+  const body = asObject(raw);
+  const step = body['step'];
+  if (typeof step !== 'string' || !(CLOCK_STEPS as readonly string[]).includes(step)) {
+    throw new BadRequest('step must be hour, morning or end_of_trip');
+  }
+  const groupId = optionalField(body, 'groupId');
+  return { step: step as ClockStep, ...(groupId !== undefined ? { groupId } : {}) };
 }

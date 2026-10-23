@@ -156,28 +156,143 @@ export function summarize(outcomes: readonly ScenarioOutcome[], meta: RunMeta): 
   };
 }
 
-/** Newest summary in `dir` whose stamp sorts before `stamp`. */
-export function previousSummary(dir: string, stamp: string): RunSummary | undefined {
-  if (!existsSync(dir)) return undefined;
+/** Every valid summary in `dir` whose stamp sorts before `stamp`, newest first. */
+export function earlierSummaries(dir: string, stamp: string): RunSummary[] {
+  if (!existsSync(dir)) return [];
   const files = readdirSync(dir)
     .filter((f) => f.endsWith('.json') && f.slice(0, -5) < stamp)
-    .sort();
-  for (let i = files.length - 1; i >= 0; i -= 1) {
+    .sort()
+    .reverse();
+  const out: RunSummary[] = [];
+  for (const f of files) {
     try {
-      const s = JSON.parse(readFileSync(join(dir, files[i]!), 'utf8')) as RunSummary;
+      const s = JSON.parse(readFileSync(join(dir, f), 'utf8')) as RunSummary;
       if (
         (s.version === 1 || s.version === SUMMARY_VERSION) &&
         typeof s.stamp === 'string' &&
         Array.isArray(s.scenarios) &&
-        typeof s.totals === 'object'
+        typeof s.totals === 'object' &&
+        s.totals !== null
       ) {
-        return s;
+        out.push(s);
       }
     } catch {
       // Not a summary; keep looking.
     }
   }
-  return undefined;
+  return out;
+}
+
+/** Newest summary in `dir` whose stamp sorts before `stamp`. */
+export function previousSummary(dir: string, stamp: string): RunSummary | undefined {
+  return earlierSummaries(dir, stamp)[0];
+}
+
+/**
+ * What a selection is, without its counts: `split all, tags booking: 9 of 52
+ * scenarios` → `split all, tags booking`, so adding a scenario does not make
+ * two full runs incomparable.
+ */
+export function selectionKey(selection: string | undefined): string | undefined {
+  if (selection === undefined) return undefined;
+  return selection.replace(/: \d+ of \d+ scenarios$/, '');
+}
+
+/**
+ * What a run is compared with. A filtered run (`--filter`, `--tag`,
+ * `--regression`, `--heldout`) must never become the baseline that hides a
+ * full run's regressions, so:
+ *
+ * - each scenario is compared with the newest earlier run that contains it;
+ * - totals, per-tag scores and "not in this run" use the newest earlier run
+ *   with the same selection (absent ⇒ those deltas read "new");
+ * - static-check failures are compared with the newest earlier run that ran them.
+ */
+export interface Baseline {
+  readonly sameSelection?: RunSummary;
+  readonly byScenario: ReadonlyMap<string, RunSummary>;
+  readonly statics?: RunSummary;
+  /** How many earlier summaries there were at all. */
+  readonly available: number;
+}
+
+export function baselineFrom(
+  summaries: readonly RunSummary[],
+  selection: string | undefined,
+  ids: readonly string[],
+): Baseline {
+  const key = selectionKey(selection);
+  const sameSelection = summaries.find((s) => selectionKey(s.selection) === key);
+  const byScenario = new Map<string, RunSummary>();
+  for (const id of ids) {
+    const s = summaries.find((x) => x.scenarios.some((y) => y.id === id));
+    if (s !== undefined) byScenario.set(id, s);
+  }
+  const statics = summaries.find((s) => s.staticChecks !== undefined);
+  return {
+    ...(sameSelection !== undefined ? { sameSelection } : {}),
+    byScenario,
+    ...(statics !== undefined ? { statics } : {}),
+    available: summaries.length,
+  };
+}
+
+export function loadBaseline(
+  dir: string,
+  stamp: string,
+  selection: string | undefined,
+  ids: readonly string[],
+): Baseline {
+  return baselineFrom(earlierSummaries(dir, stamp), selection, ids);
+}
+
+function isBaseline(x: Baseline | RunSummary): x is Baseline {
+  return 'byScenario' in x;
+}
+
+/** A single earlier summary as a baseline (tests, and callers that already picked one). */
+export function asBaseline(
+  prev: Baseline | RunSummary | undefined,
+  outcomes: readonly ScenarioOutcome[],
+  selection: string | undefined,
+): Baseline {
+  if (prev === undefined) return { byScenario: new Map(), available: 0 };
+  if (isBaseline(prev)) return prev;
+  return baselineFrom(
+    [prev],
+    selection,
+    outcomes.map((o) => o.scenario.id),
+  );
+}
+
+export function priorScenario(b: Baseline, id: string): ScenarioSummary | undefined {
+  return b.byScenario.get(id)?.scenarios.find((s) => s.id === id);
+}
+
+/** One line naming the baseline(s) used. */
+export function baselineNote(b: Baseline, outcomes: readonly ScenarioOutcome[]): string {
+  if (b.available === 0) return 'nothing (first report)';
+  const parts: string[] = [];
+  parts.push(
+    b.sameSelection !== undefined
+      ? `totals vs ${b.sameSelection.stamp} (${b.sameSelection.mode}, same selection)`
+      : 'totals: no earlier run with this selection, so totals deltas read "new"',
+  );
+  const counts = new Map<string, number>();
+  let fresh = 0;
+  for (const o of outcomes) {
+    const s = b.byScenario.get(o.scenario.id);
+    if (s === undefined) fresh += 1;
+    else counts.set(s.stamp, (counts.get(s.stamp) ?? 0) + 1);
+  }
+  const per = [...counts.entries()]
+    .sort((x, y) => (x[0] < y[0] ? 1 : -1))
+    .map(([stamp, n]) => `${String(n)} vs ${stamp}`);
+  if (fresh > 0) per.push(`${String(fresh)} new`);
+  parts.push(
+    `per scenario: the newest earlier run containing it (${per.length === 0 ? 'none' : per.join(', ')})`,
+  );
+  return parts.join('; ');
 }
 
 function pct(x: number | null | undefined): string {

@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import type { Server } from 'node:http';
 import type { UiHandler } from './http.js';
 import { SIM_HOST, createSimServer, listenLocal, parsePort, staticUi } from './http.js';
+import { loadBarcelonaScript, withReplay } from './replay.js';
 import { backendChoice, selectBackend } from './runtime.js';
 
 const APP_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -23,11 +24,13 @@ async function main(): Promise<void> {
   const port = parsePort(process.env['TRAV_SIM_PORT']);
   // No offline flag here: the agent runtime's model client decides (TRAV_OFFLINE,
   // missing key), and the backend reports that real mode in its state.
-  const backend = await selectBackend({
+  const selected = await selectBackend({
     choice: backendChoice(process.env['TRAV_SIM_BACKEND']),
     responseDelayMs: 700,
     log: (line) => console.log(`[sim] ${line}`),
   });
+  // The top bar's replay button runs fixtures/chats/barcelona.jsonl into this backend.
+  const backend = withReplay(selected, loadBarcelonaScript());
 
   let ui: UiHandler | undefined;
   let attachHmr: ((server: Server) => Promise<void>) | undefined;

@@ -2,7 +2,7 @@
  * Browser client for the simulator server (same origin, `/api`). The UI never
  * talks to anything else.
  */
-import type { SimInbound, SimState } from '../shared/types.js';
+import type { ClockStep, SimInbound, SimState } from '../shared/types.js';
 
 async function post(path: string, body: unknown): Promise<{ state?: SimState }> {
   const res = await fetch(path, {
@@ -15,19 +15,35 @@ async function post(path: string, body: unknown): Promise<{ state?: SimState }> 
   return json;
 }
 
-const PATHS: Readonly<Record<SimInbound['type'], string>> = {
+type UiInbound = Exclude<SimInbound, { type: 'member_joined' }>;
+
+const PATHS: Readonly<Record<UiInbound['type'], string>> = {
   message: '/api/messages',
   reaction: '/api/reactions',
   button_tap: '/api/button-taps',
 };
 
-export async function inject(input: SimInbound): Promise<SimState | undefined> {
+export async function inject(input: UiInbound): Promise<SimState | undefined> {
   const { type: _type, ...body } = input;
   return (await post(PATHS[input.type], body)).state;
 }
 
 export async function resetDemo(): Promise<SimState | undefined> {
   return (await post('/api/reset', {})).state;
+}
+
+/** Top-bar clock buttons: move the simulated clock and run what came due. */
+export async function advanceClock(step: ClockStep, groupId: string): Promise<SimState | undefined> {
+  return (await post('/api/clock', { step, groupId })).state;
+}
+
+/** DM rail: feed one of the selected member's own demo documents through Trav's intake. */
+export async function feedDocument(docId: string): Promise<SimState | undefined> {
+  return (await post('/api/intake', { docId })).state;
+}
+
+export async function replay(mode: 'step' | 'all'): Promise<SimState | undefined> {
+  return (await post(`/api/replay/${mode}`, {})).state;
 }
 
 export async function fetchState(): Promise<SimState> {

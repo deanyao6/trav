@@ -130,8 +130,13 @@ export function splitMentions(text: string): TextPart[] {
   return parts;
 }
 
-/** `sat mar 14 · 9:40pm · day 3` for the top bar (VOICE §9.1). */
+/** `sat mar 14 · 9:40pm · day 3` for the top bar (VOICE §9.1); `· trip over` after the last day. */
 export function clockLabel(now: string, group: SimGroup): string {
+  const day = tripDayNumber(now, group.tripStart, group.timeZone);
+  const last = tripDayNumber(`${group.tripEnd}T12:00:00Z`, group.tripStart, 'UTC');
+  if (day > last) {
+    return `${formatDate(now, group.timeZone)} · ${formatClockTime(now, group.timeZone)} · trip over`;
+  }
   return separatorLabel(now, group);
 }
 

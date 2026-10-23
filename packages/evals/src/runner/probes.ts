@@ -46,6 +46,7 @@ import { detectMention, sendOutbound } from '@trav/agent';
 import type { TripName } from '../fixtures.js';
 import { loadFixture } from '../fixtures.js';
 import type { ProbeName } from '../types.js';
+import { PROBE_NAMES } from '../types.js';
 import { loadGroupFixture, seedGroup } from './seed.js';
 
 export interface ProbeDeps {
@@ -69,6 +70,8 @@ interface LabeledLine {
 
 export interface MentionProbeRow {
   readonly id: string;
+  /** `dm` rows are never quoted in evidence. */
+  readonly lane: 'group' | 'dm';
   readonly text: string;
   readonly expected: boolean;
   readonly got: boolean;
@@ -98,6 +101,7 @@ export async function probeMentions(deps: ProbeDeps): Promise<{ rows: MentionPro
     );
     rows.push({
       id: line.id,
+      lane: line.lane === 'direct' ? 'dm' : 'group',
       text: line.text,
       expected: line.expected.addressed,
       got: res.addressed,
@@ -654,5 +658,11 @@ export async function runProbe(
       return probeRoastScreen();
     case 'minor_screen':
       return probeMinorScreen();
+    default: {
+      // Scenario validation rejects unknown probes; this is the backstop, so an
+      // unknown name is a step error (graded), never a silent no-op.
+      const never: never = probe;
+      throw new Error(`unknown probe ${String(never)} (probes: ${PROBE_NAMES.join(', ')})`);
+    }
   }
 }

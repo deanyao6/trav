@@ -294,7 +294,7 @@ describe('agent backend', () => {
       },
     });
     await backend.inject({ type: 'message', from: 'h_dean', text: '@trav razz for 5' });
-    expect(backend.state().status).toBeUndefined();
+    expect(backend.state().groups[0]!.status).toBeUndefined();
     const card = backend
       .state()
       .groups[0]!.thread.find((e): e is ThreadMessage => e.kind === 'message' && e.isTrav)!;
@@ -305,12 +305,12 @@ describe('agent backend', () => {
       cardMessageId: card.messageId,
       actionId: 'approve',
     });
-    expect(backend.state().status).toBe(HANDLER_NOT_WIRED_STATUS);
+    expect(backend.state().groups[0]!.status).toBe(HANDLER_NOT_WIRED_STATUS);
     expect(backend.state().lastError).toBeUndefined();
 
     next = { ...SILENT, note: 'mention:not_addressed' };
     await backend.inject({ type: 'message', from: 'h_maya', text: 'lol' });
-    expect(backend.state().status).toBeUndefined();
+    expect(backend.state().groups[0]!.status).toBeUndefined();
 
     next = { ...SILENT, note: 'approval:handler_not_wired' };
     await backend.inject({
@@ -319,7 +319,7 @@ describe('agent backend', () => {
       targetMessageId: card.messageId,
       reaction: '👍',
     });
-    expect(backend.state().status).toMatch(/T-030.*TRAV_SIM_BACKEND=scripted/);
+    expect(backend.state().groups[0]!.status).toMatch(/T-030.*TRAV_SIM_BACKEND=scripted/);
   });
 
   it('silentTurnStatus: only silent taps and approval tapbacks get a line', () => {
@@ -401,15 +401,17 @@ describe('agent backend', () => {
       actionId: 'approve',
     });
     const after = backend.state();
-    const card = after.groups[0]!.thread.find(
-      (e): e is ThreadMessage => e.kind === 'message' && e.messageId === proposal!.messageId,
-    )!;
-    if (card.cardState?.status === 'pending') {
-      // T-030 not wired yet: the tap must say so instead of doing nothing visibly.
-      expect(after.status).toBe(HANDLER_NOT_WIRED_STATUS);
+    const g = after.groups[0]!;
+    // Anything Trav posted (in the group or a DM) after the proposal is a visible answer:
+    // a receipt once T-009 books, or the "couldn't book, no charge" line while it can't.
+    const answered =
+      g.thread.some((e) => e.kind === 'message' && e.isTrav && e.seq > proposal!.seq) ||
+      Object.values(g.dms).some((d) => d.some((e) => e.kind === 'message' && e.isTrav));
+    if (answered) {
+      expect(g.status).toBeUndefined();
     } else {
-      // T-030 landed: the tap did something visible, so no status line.
-      expect(after.status).toBeUndefined();
+      // T-030 handler not wired: the tap must say so instead of doing nothing visibly.
+      expect(g.status).toBe(HANDLER_NOT_WIRED_STATUS);
     }
   });
 

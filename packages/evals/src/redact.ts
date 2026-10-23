@@ -63,9 +63,35 @@ export function qrPayloads(ep: Episode): string[] {
   return out;
 }
 
+/**
+ * Lines of every DM in the episode (both directions), 12+ characters. Grader
+ * evidence never quotes a DM (`graders/util.ts` `quoteMessage`); this is the
+ * backstop for a whole DM line that slipped into evidence anyway.
+ */
+export function dmLines(ep: Episode): string[] {
+  const out = new Set<string>();
+  const add = (text: string) => {
+    for (const line of text.split('\n')) {
+      const t = line.trim();
+      if (t.length >= 12) out.add(t);
+    }
+  };
+  for (const t of ep.transcript) {
+    if (t.type === 'message' && t.lane === 'dm') add(t.text);
+  }
+  for (const s of ep.steps) {
+    for (const m of s.turn?.outbound ?? []) if (m.to.kind === 'member') add(m.text);
+  }
+  // A line Trav also said in the group (a generic fallback) is not private.
+  const group = ep.transcript
+    .flatMap((t) => (t.type === 'message' && t.lane === 'group' ? [t.text] : []))
+    .join('\n');
+  return [...out].filter((l) => !group.includes(l));
+}
+
 export function episodeSecrets(ep: Episode | undefined): string[] {
   if (ep === undefined) return [];
-  return [...ep.privateStrings, ...qrPayloads(ep)];
+  return [...ep.privateStrings, ...qrPayloads(ep), ...dmLines(ep)];
 }
 
 function escapeRe(s: string): string {

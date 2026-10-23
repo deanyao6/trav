@@ -197,7 +197,10 @@ function stepLabel(step: Step): string {
     case 'intake':
       return `intake ${step.source} ${step.itemId} (owner ${step.owner})`;
     case 'remember':
-      return `remember (${step.lane}) for ${step.memberId}: ${cut(step.text)}`;
+      // A private memory is the member's personal data; only group facts are shown.
+      return step.lane === 'private'
+        ? `remember (private) for ${step.memberId}: [private memory]`
+        : `remember (${step.lane}) for ${step.memberId}: ${cut(step.text)}`;
     case 'set_attendance':
       return `attendance ${step.memberId} ${step.status} for ${step.activityId}`;
     case 'patch_member':

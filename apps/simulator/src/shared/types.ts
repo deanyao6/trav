@@ -33,6 +33,8 @@ export interface SimGroup {
   readonly tripName: string;
   readonly timeZone: string;
   readonly tripStart: IsoDate;
+  /** Last trip day (local). "end of trip" jumps to 10am the day after (Wrapped time). */
+  readonly tripEnd: IsoDate;
   /** In group member order (VOICE §3.5). */
   readonly members: readonly SimMember[];
   readonly hints: readonly SimHint[];
@@ -105,6 +107,58 @@ export interface GroupView {
   readonly typing: boolean;
   /** Last group message, for the trip list. */
   readonly preview?: { readonly fromName: string; readonly text: string; readonly at: IsoDateTime };
+  /**
+   * Muted operator line for this group only (never a Trav message): the last
+   * tap, tapback or clock step got no visible answer, and why. Cleared by the
+   * next turn in this group. Keyed per group so a line from one trip never
+   * shows under another.
+   */
+  readonly status?: string;
+  /**
+   * Demo documents the simulator can feed for each member (their own card
+   * charge or email receipt, from fixtures). Kind only: no amount, merchant or
+   * text, so nothing private is in the payload before the owner sees the DM.
+   */
+  readonly intake: Readonly<Record<MemberId, readonly IntakeOffer[]>>;
+}
+
+/** One fixture document waiting to be fed through `agent.intakeDocument` for its owner. */
+export interface IntakeOffer {
+  readonly docId: string;
+  readonly kind: 'card' | 'email';
+}
+
+/** Top-bar clock buttons (VOICE §9.1). */
+export type ClockStep = 'hour' | 'morning' | 'end_of_trip';
+
+/** A clock move: a top-bar step, or (replay `clock` lines) an exact instant. */
+export type ClockRequest =
+  | { readonly step: ClockStep; readonly groupId?: string }
+  | { readonly to: IsoDateTime; readonly groupId?: string };
+
+/** What this backend can do beyond chat (the UI hides what it can't). */
+export interface SimControls {
+  /** +1 hour / next morning / end of trip move the simulated clock. */
+  readonly clock: boolean;
+  /** A clock step runs due scheduled jobs (`scheduler.drain`) through Trav. */
+  readonly scheduler: boolean;
+  /** Demo documents can be fed through `agent.intakeDocument`. */
+  readonly intake: boolean;
+  /** Start over (fresh channel; the agent backend also gets a fresh runtime). */
+  readonly reset: boolean;
+  /** The Barcelona chat script can be replayed. */
+  readonly replay: boolean;
+}
+
+export interface ReplayView {
+  /** Lines already run. */
+  readonly cursor: number;
+  readonly total: number;
+  /** Short label of the next line ("Dean: ok its official…", "clock → mar 15 10am"). */
+  readonly next?: string;
+  /** What the last line did, or why it was skipped. */
+  readonly last?: string;
+  readonly running: boolean;
 }
 
 export interface SimState {
@@ -118,12 +172,9 @@ export interface SimState {
   readonly groups: readonly GroupView[];
   /** Last failed inject, shown as a small banner (never a Trav message). */
   readonly lastError?: string;
-  /**
-   * Muted operator line (never a Trav message): the last tap or tapback got no
-   * visible answer, and why (e.g. the approval handler isn't wired yet).
-   * Cleared by the next turn.
-   */
-  readonly status?: string;
+  readonly controls: SimControls;
+  /** Replay progress, when the backend has the Barcelona script loaded. */
+  readonly replay?: ReplayView;
 }
 
 /**
@@ -154,4 +205,11 @@ export type SimInbound =
       readonly cardMessageId: string;
       readonly actionId: string;
       readonly value?: string;
+    }
+  | {
+      /** Replay only (no HTTP route): someone new is added to the group chat. */
+      readonly type: 'member_joined';
+      readonly handle: string;
+      readonly displayName: string;
+      readonly groupId?: string;
     };

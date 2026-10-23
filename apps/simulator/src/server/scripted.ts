@@ -17,6 +17,13 @@
  * backend. Every message still goes through the real simulator channel, so
  * the channel's lane rules (DM-only cards refused on the group lane, tickets
  * only to their holder) apply to the script as well.
+ *
+ * States 4–6 are not scripted. Each session embeds a real offline runtime
+ * (`createTravRuntime` on the same channel and clock) whose services back the
+ * top-bar clock (`scheduler.drain` → `agent.runScheduled`) and the DM rail's
+ * demo documents (`agent.intakeDocument` → the real "looks shared?" DM).
+ * Taps and tapbacks on anything that runtime sent go to its
+ * `agent.handleInbound`; only the Razzmatazz flow is answered by the script.
  */
 import { createSimulatorChannel, mockBarcodePayload, mockQrDataUrl } from '@trav/adapters';
 import type { InboundEvent, SimulatorChannel } from '@trav/adapters';
@@ -39,10 +46,16 @@ import type {
   SimulatedClock,
   TicketCard,
 } from '@trav/core';
-import type { Unsubscribe } from '@trav/adapters';
+import { createTravRuntime } from '@trav/agent';
 import type { SimGroup, SimMember } from '../shared/types.js';
-import type { ChannelBackend, SimulatorBackend } from './backend.js';
-import { createChannelBackend } from './backend.js';
+import type { ChannelBackend, RespondOutcome, ResetOptions, SimulatorBackend } from './backend.js';
+import {
+  createChannelBackend,
+  createSessionBackend,
+  servicesOf,
+  silentTurnStatus,
+  targetCardOf,
+} from './backend.js';
 import { BARCELONA, SIM_GROUPS, toConversations } from './groups.js';
 
 const TZ = BARCELONA.timeZone;
@@ -180,26 +193,37 @@ export interface ScriptedBackend extends SimulatorBackend {
   readonly clock: SimulatedClock;
   /** Number of scripted "bookings" made (a test proves a double approve never makes two). */
   bookingCount(): number;
-  reset(): Promise<void>;
+  reset(options?: ResetOptions): Promise<void>;
 }
 
 interface Session {
   readonly backend: ChannelBackend;
   readonly channel: SimulatorChannel;
   bookings: number;
+  /** The embedded offline runtime's stores (closed when the session is replaced). */
+  close(): void;
 }
 
 /** The Barcelona demo script as a responder over a simulator channel. */
 function createSession(clock: SimulatedClock, delayMs: number): Session {
   const groups = SIM_GROUPS;
   const channel = createSimulatorChannel({ clock, conversations: toConversations(groups) });
+  // The real runtime on the same channel and clock: clock steps, scheduled
+  // jobs, document intake and taps on its own cards. Offline, always.
+  const runtime = createTravRuntime({ channel, clock, offline: true });
   const memberByHandle = new Map(groups.flatMap((g) => g.members).map((m) => [m.handle, m]));
   const proposals: ProposalRecord[] = [];
+  /** Every message the script sent (anything else on the channel is the runtime's). */
+  const scriptedIds = new Set<string>();
   let seq = 0;
   let orderNumber = 48212;
   let booked: { orderRef: string } | undefined;
 
-  const nextId = (prefix: string): string => `${prefix}_scripted_${String(++seq).padStart(3, '0')}`;
+  const nextId = (prefix: string): string => {
+    const id = `${prefix}_scripted_${String(++seq).padStart(3, '0')}`;
+    scriptedIds.add(id);
+    return id;
+  };
 
   async function pause(): Promise<void> {
     if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -532,7 +556,14 @@ function createSession(clock: SimulatedClock, delayMs: number): Session {
     await propose(attendees, excluded, sender, undefined);
   }
 
-  const handle = async (event: InboundEvent): Promise<void> => {
+  /** A tap or tapback on a card the embedded runtime sent (a "looks shared?" DM, an expiry line). */
+  async function forwardToRuntime(event: InboundEvent): Promise<RespondOutcome | undefined> {
+    const result = await runtime.agent.handleInbound(event);
+    const status = silentTurnStatus(event, result, targetCardOf(channel, event));
+    return status !== undefined ? { status } : undefined;
+  }
+
+  const handle = async (event: InboundEvent): Promise<RespondOutcome | undefined> => {
     if (!('sender' in event)) return; // membership changes: nothing to say
     const sender = memberByHandle.get(event.sender);
     if (!sender) return; // unknown identity: Trav does nothing (SAFETY: identity from the channel only)
@@ -545,9 +576,11 @@ function createSession(clock: SimulatedClock, delayMs: number): Session {
       await onGroupMessage(event, sender);
       return;
     }
-    const p = proposalFor(
-      event.type === 'button_tap' ? event.cardMessageId : event.targetMessageId,
-    );
+    const targetId = event.type === 'button_tap' ? event.cardMessageId : event.targetMessageId;
+    if (!scriptedIds.has(targetId) && channel.sentMessage(targetId) !== undefined) {
+      return forwardToRuntime(event);
+    }
+    const p = proposalFor(targetId);
     if (!p) return;
     refreshExpiry(p);
     if (event.type === 'button_tap') {
@@ -573,8 +606,9 @@ function createSession(clock: SimulatedClock, delayMs: number): Session {
     offline: true,
     respond: handle,
     beforeInject: () => clock.advanceMs(STEP_MS),
+    services: servicesOf(runtime, clock),
   });
-  const session: Session = { backend, channel, bookings: 0 };
+  const session: Session = { backend, channel, bookings: 0, close: () => runtime.close() };
   return session;
 }
 
@@ -592,57 +626,37 @@ async function seed(session: Session, clock: SimulatedClock): Promise<void> {
 
 /**
  * The scripted Barcelona backend, seeded at demo state 1. `reset()` throws the
- * whole session away (new channel, new transcript) and re-seeds; subscribers
- * stay attached.
+ * whole session away (new channel, new transcript, new embedded runtime) and
+ * re-seeds; `reset({ seed: false, startAt })` starts empty at `startAt` (the
+ * replay's first step). Subscribers stay attached.
  */
 export async function createScriptedBackend(
   options: ScriptedOptions = {},
 ): Promise<ScriptedBackend> {
   const clock = createSimulatedClock(START);
   const delayMs = options.responseDelayMs ?? 0;
-  const listeners = new Set<() => void>();
-  let session = createSession(clock, delayMs);
-  let unsubscribeInner: Unsubscribe = () => {};
-  // Monotonic across resets (each session's own counter restarts at 0).
-  let version = 0;
-  const emit = (): void => {
-    version += 1;
-    for (const l of [...listeners]) l();
+  let active: Session | undefined;
+  let pending: Session | undefined;
+  const make = async (reset: ResetOptions): Promise<ChannelBackend> => {
+    clock.set(reset.startAt ?? START);
+    const session = createSession(clock, delayMs);
+    if (reset.seed !== false) await seed(session, clock);
+    pending = session;
+    return session.backend;
   };
-  const attach = (): void => {
-    unsubscribeInner = session.backend.subscribe(emit);
-  };
-  await seed(session, clock);
-  attach();
-
-  const scripted: ScriptedBackend = {
-    kind: 'scripted',
+  const first = await make({});
+  active = pending;
+  const inner = createSessionBackend('scripted', make, first, () => {
+    const old = active;
+    active = pending;
+    old?.close();
+  });
+  // `createSessionBackend` always provides `reset`; re-assigning the same
+  // function only narrows the type to non-optional.
+  const reset = inner.reset!;
+  return Object.assign(inner, {
     clock,
-    get groups() {
-      return session.backend.groups;
-    },
-    get members() {
-      return session.backend.members;
-    },
-    inject: (input) => session.backend.inject(input),
-    transcript: (groupId) => session.backend.transcript(groupId),
-    dms: (memberId) => session.backend.dms(memberId),
-    state: () => ({ ...session.backend.state(), version }),
-    subscribe(listener) {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-    bookingCount: () => session.bookings,
-    async reset() {
-      unsubscribeInner();
-      clock.set(START);
-      session = createSession(clock, delayMs);
-      await seed(session, clock);
-      attach();
-      emit();
-    },
-  };
-  return scripted;
+    bookingCount: () => active?.bookings ?? 0,
+    reset,
+  });
 }

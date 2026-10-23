@@ -294,7 +294,7 @@ describe('runAll / main', () => {
       ),
     ).toBe(2);
     expect(errs.join('\n')).toMatch(
-      /unknown argument --bogus[\s\S]*no scenarios match[\s\S]*unknown tag nope/,
+      /unknown argument --bogus[\s\S]*no scenarios match[\s\S]*tags\[0\]: must be one of[\s\S]*"nope"/,
     );
   });
 

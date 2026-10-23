@@ -230,6 +230,15 @@ export interface InjectionStep extends StepBase {
 export type ProbeName =
   'mentions' | 'flights' | 'ledger' | 'album_consent' | 'roast_screen' | 'minor_screen';
 
+export const PROBE_NAMES: readonly ProbeName[] = [
+  'mentions',
+  'flights',
+  'ledger',
+  'album_consent',
+  'roast_screen',
+  'minor_screen',
+];
+
 /** A deterministic probe of a pure component (core function, mock adapter, the send path). */
 export interface ProbeStep extends StepBase {
   readonly do: 'probe';

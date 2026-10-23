@@ -8,7 +8,16 @@ import { voiceViolations } from '@trav/agent';
 import { loadFixture } from '../fixtures.js';
 import type { FlightsProbe, LedgerProbeTrip, MentionProbeRow } from '../runner/probes.js';
 import type { Episode, Grader, GraderResult } from '../types.js';
-import { allMessages, containsCi, fromChecks, groupMessages, where } from './util.js';
+import {
+  allMessages,
+  containsCi,
+  fromChecks,
+  groupMessages,
+  isPrivateMessage,
+  quoteMessage,
+  quoteText,
+  where,
+} from './util.js';
 
 type Check = { ok: boolean; what: string };
 
@@ -73,9 +82,10 @@ export const turnExpectations: Grader = {
         });
       }
       if (e.text !== undefined) {
+        const first = turn?.outbound[0];
         checks.push({
           ok: texts[0] === e.text,
-          what: `${w}: text "${texts[0] ?? ''}", expected "${e.text}"`,
+          what: `${w}: text ${first === undefined ? 'none' : quoteMessage(first, step)}, expected "${e.text}"`,
         });
       }
       for (const t of e.audit ?? []) {
@@ -109,9 +119,10 @@ export const messageBudget: Grader = {
         what: `${w}: ${String(group.length)} group messages in one turn (VOICE §3.7)`,
       });
       if (step.expect?.silent === true) {
+        const spoke = turn.outbound[0];
         checks.push({
           ok: turn.outbound.length === 0 && turn.reactions.length === 0,
-          what: `${w}: Trav spoke on a line it was not pulled into: "${turn.outbound[0]?.text ?? turn.reactions.join('')}"`,
+          what: `${w}: Trav spoke on a line it was not pulled into: ${spoke !== undefined ? quoteMessage(spoke, step) : `"${turn.reactions.join('')}"`}`,
         });
       }
       if (step.proactive && group.length > 0) {
@@ -130,6 +141,12 @@ export const messageBudget: Grader = {
 };
 
 // ---------- voice linter on every outbound (VOICE §3) ----------
+
+/** `raw_money: "€9.80" is not a formatMoney shape` → `raw_money`. */
+function lintRule(violation: string): string {
+  const i = violation.indexOf(':');
+  return i === -1 ? violation : violation.slice(0, i);
+}
 
 export const voiceLint: Grader = {
   id: 'voice_lint',
@@ -150,14 +167,19 @@ export const voiceLint: Grader = {
         ...voiceViolations(msg as OutboundMessage, members, trip),
         ...(reported.get(msg.id) ?? []),
       ]);
+      // A violation's detail can quote the text ("€9.80" is not a formatMoney shape),
+      // so a private message's findings are reported by rule name only.
+      const findings = isPrivateMessage(msg, step) ? [...v].map(lintRule) : [...v];
       checks.push({
         ok: v.size === 0,
-        what: `${where(step)}: ${[...v].join('; ')} in "${msg.text.slice(0, 80)}"`,
+        what: `${where(step)}: ${[...new Set(findings)].join('; ')} in ${quoteMessage(msg, step)}`,
       });
     }
-    // Lint findings on drafts that never reached a turn summary (suppressed or dropped).
+    // Lint findings on drafts that never reached a turn summary (suppressed or
+    // dropped): their lane is unknown here, so rule names only.
     for (const [id, v] of reported) {
-      if (!seen.has(id)) checks.push({ ok: false, what: `message ${id}: ${v.join('; ')}` });
+      if (!seen.has(id))
+        checks.push({ ok: false, what: `message ${id}: ${[...new Set(v.map(lintRule))].join('; ')}` });
     }
     return [fromChecks(this.id, checks, { nothing: 'Trav sent no messages' })];
   },
@@ -189,8 +211,12 @@ export const mentionAccuracy: Grader = {
         pass,
         evidence: [
           `precision ${precision.toFixed(3)} (min ${String(minP)}), recall ${recall.toFixed(3)} (min ${String(minR)}) over ${String(rows.length)} lines`,
-          ...fp.map((r) => `false reply: ${r.id} "${r.text}" (${r.reason})`),
-          ...fn.map((r) => `missed: ${r.id} "${r.text}" (${r.reason})`),
+          ...fp.map(
+            (r) => `false reply: ${r.id} ${quoteText(r.text, r.lane === 'dm', 200)} (${r.reason})`,
+          ),
+          ...fn.map(
+            (r) => `missed: ${r.id} ${quoteText(r.text, r.lane === 'dm', 200)} (${r.reason})`,
+          ),
         ],
       } satisfies GraderResult;
     });
@@ -374,13 +400,18 @@ export const DEFAULT_RUBRIC: readonly string[] = [
   'Clarifying questions: Trav asks exactly one short question when the request is ambiguous, and none when it is clear.',
 ];
 
+/**
+ * The transcript the rubric judge reads. DM lines are replaced by a marker:
+ * the judge's rationale is quoted in the report, and a DM's text never is.
+ */
 export function transcriptText(ep: Episode): string {
   return ep.transcript
     .filter((t) => t.type === 'message')
-    .map(
-      (t) =>
-        `${t.direction === 'outbound' ? 'trav' : t.fromName}${t.lane === 'dm' ? ' (dm)' : ''}: ${'text' in t ? t.text : ''}`,
-    )
+    .map((t) => {
+      const who = `${t.direction === 'outbound' ? 'trav' : t.fromName}${t.lane === 'dm' ? ' (dm)' : ''}`;
+      const text = 'text' in t ? t.text : '';
+      return `${who}: ${t.lane === 'dm' ? quoteText(text, true) : text}`;
+    })
     .join('\n');
 }
 
