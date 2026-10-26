@@ -112,6 +112,7 @@ import {
   type MentionReason,
   type MentionResult,
 } from './mention.js';
+import { parseRosterUpdate, resolveActivity, resolveMemberName, rosterOf } from './roster/index.js';
 import { handleRosterMessage, type RosterTurn } from './roster/turn.js';
 import type { ToolRegistry } from './tools/registry.js';
 import type { TurnToolContext } from './tools/shared.js';
@@ -332,41 +333,35 @@ export interface QuoteSplit {
 
 const QUOTE_LINE = /^\s*(?:>|\||»)/;
 /**
- * A forward header is the header and nothing else: "fwd:", "Fw", "Forwarded
- * message", "---------- Forwarded message ----------", or "fwd from dean
- * lol:" (a "from …" line ending in a colon). "fwd this to henry pls" is a
- * sentence, not a header (T-066).
+ * A forward header: a header word followed by a colon ("fwd:", "FWD: re:
+ * tickets", "Forwarded message:"), a header word alone on its line ("Fwd",
+ * "---------- Forwarded message ----------"), or a "from …" / "by …" line
+ * ending in a colon ("fwd from dean lol:", "forwarded by maya:"). "fwd this
+ * to henry pls" is a sentence, not a header (T-066).
  */
 const FWD_HEADER =
-  /^\s*(?:-+\s*)?(?:fwd?|fw|forwarded(?: message)?)\s*:?\s*(?:-+\s*)?$|^\s*(?:fwd?|fw|forwarded(?: message)?)\s+from\b.{0,60}:\s*$/i;
+  /^\s*(?:-+\s*)?(?:fwd?|fw|forwarded(?: message)?)\s*:|^\s*(?:-+\s*)?(?:fwd?|fw|forwarded(?: message)?)\s*(?:-+\s*)?$|^\s*(?:fwd?|fw|forwarded)\s+(?:from|by)\b.{0,60}:\s*$/i;
 const FAKE_CARD_LINE = /^\s*trav\s*(?:\(bot\))?\s*:/i;
 /** Marks only Trav's cards carry: a check, "👍 to …", an order number. */
 const CARD_MARKS = /✅|👍\s*to\b|\border\s*#?\s*[A-Za-z]{0,6}-?\d{3,}/i;
-/** Status words a card leads with ("booked ✅ …", "logged: …") unless the sender is the subject. */
-const CARD_WORDS = /\b(?:booked|approved|confirmed|purchased|logged)\b/i;
-/** A currency amount written the way Trav's cards write it ("€84", "84 €", "$1,860"). */
-const CARD_MONEY = /[€$£]\s?\d|\d\s?[€$£]/;
-/** "trav: who's …", "trav: get …", "trav: i paid …": the sender talking to Trav. */
-const OWN_WORDS_AFTER_NAME =
-  /^\s*(?:i|i'?m|im|i'?ll|i've|we|we're|my|our|me|us|can|could|would|will|pls|plz|please|what|who|whos|who's|how|when|where|which|why|is|are|do|does|did|log|add|book|get|grab|split|settle|put|show|find|remember|forget|leave|roast|stop|cancel|drop|make|send|tell|give|check|help|count|undo|hey|hi|yo|ok|okay|thanks|thank)\b/i;
+/** Status words Trav's cards really lead with ("booked ✅ …", "logged …"). */
+const CARD_LEAD = /^\s*(?:booked|logged)\b/i;
 
 /**
- * "trav: …" on a line is a pasted Trav card when it is not the first line, or
- * when another line follows it, or when it carries a card mark (✅, "👍 to",
- * an order number), or when it leads with a status word or an amount rather
- * than the sender's own request ("trav: booked …", "trav: €1,860 …").
- * A single first line "trav: who's in tonight?" is the sender addressing Trav
- * (mention.ts reads "trav:" as the vocative).
+ * "trav: …" is a pasted Trav card when it is not the first line, or when it
+ * is the first line and the message carries a card mark on any line (✅,
+ * "👍 to", an order number) or the line leads with a status word Trav really
+ * emits ("trav: booked …", "trav: logged …"). Anything else on the first
+ * line ("trav: who's in tonight?", "trav: €20 taxi on me", "trav: approved,
+ * book it", a multi-line "trav: log these\n€20 taxi") is the sender
+ * addressing Trav (mention.ts reads "trav:" as the vocative).
  */
 function isPastedCardLine(lines: readonly string[], i: number): boolean {
   const line = lines[i]!;
   if (!FAKE_CARD_LINE.test(line)) return false;
   if (i > 0) return true;
-  if (lines.slice(1).some((l) => l.trim().length > 0)) return true;
-  if (CARD_MARKS.test(line)) return true;
-  const rest = line.replace(FAKE_CARD_LINE, '');
-  if (OWN_WORDS_AFTER_NAME.test(rest)) return false;
-  return CARD_WORDS.test(rest) || CARD_MONEY.test(rest);
+  if (lines.some((l) => CARD_MARKS.test(l))) return true;
+  return CARD_LEAD.test(line.replace(FAKE_CARD_LINE, ''));
 }
 
 /**
@@ -416,6 +411,25 @@ const ATTENDANCE_FOLLOW_UP =
  */
 export function rosterTexts(text: string): string[] {
   const out = [text];
+  const split = attendanceClause(text);
+  if (split !== undefined && split.clause !== text.trim()) out.push(split.clause);
+  return out;
+}
+
+/**
+ * The headcount a "make it N" follow-up asks for ("henry's in, make it 6" ⇒
+ * 6), or undefined when the message has no such tail. The loop offers the
+ * attendance clause to the roster handler only when N matches the in-count
+ * the change would produce; otherwise the whole message goes to the model,
+ * which can ask (T-066).
+ */
+export function rosterFollowUpCount(text: string): number | undefined {
+  const tail = attendanceClause(text)?.tail ?? '';
+  const n = /\bmake it (?:for )?(\d{1,2})\b/i.exec(tail);
+  return n === null ? undefined : Number(n[1]);
+}
+
+function attendanceClause(text: string): { clause: string; tail: string } | undefined {
   const t = stripInvisible(text)
     .replace(AT_TRAV_TOKEN, '$1')
     .replace(/\s+/g, ' ')
@@ -424,10 +438,9 @@ export function rosterTexts(text: string): string[] {
   const m = /^(.*?)(?:[,!.;]+|\s+-\s+)\s*(.*)$/u.exec(t);
   const head = (m === null ? t : m[1]!).trim();
   const tail = m === null ? '' : m[2]!.trim();
-  if (tail.length > 0 && !ATTENDANCE_FOLLOW_UP.test(tail)) return out;
+  if (tail.length > 0 && !ATTENDANCE_FOLLOW_UP.test(tail)) return undefined;
   const clause = head.replace(ATTENDANCE_FILLER, '').trim();
-  if (clause.length > 0 && clause !== text.trim()) out.push(clause);
-  return out;
+  return clause.length > 0 ? { clause, tail } : undefined;
 }
 
 // ---------- helpers ----------
@@ -732,12 +745,52 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
    * `each_payer`: everyone still missing, at most two (more is a list, not a
    * nudge). Empty ⇒ Trav stays silent and the audit row is the record.
    */
-  function approversToName(proposalId: string, decision: PolicyDecision, r: Resolved): Member[] {
-    const granted = new Set(
+  /**
+   * The in-count an attendance line would leave its activity with, read
+   * before anything is written (the same activity and member resolution as
+   * `handleRosterMessage`); undefined when the line does not resolve.
+   */
+  function predictInCount(
+    trip: Trip,
+    members: readonly Member[],
+    me: Member,
+    line: string,
+    now: IsoDateTime,
+  ): number | undefined {
+    const update = parseRosterUpdate(line);
+    if (update === undefined) return undefined;
+    const activity = resolveActivity(
+      stores.group.trips.listActivities(trip.tripId),
+      trip.timeZone,
+      now,
+      update.hint,
+      update.when,
+    );
+    if (activity === undefined) return undefined;
+    const memberId = update.who === 'me' ? me.memberId : resolveMemberName(members, update.who);
+    if (memberId === undefined) return undefined;
+    const inIds = new Set(
+      rosterOf(stores.group.trips, activity.activityId, members, now).inMemberIds,
+    );
+    if (update.status === 'in') inIds.add(memberId);
+    else inIds.delete(memberId);
+    return inIds.size;
+  }
+
+  function grantedBy(proposalId: string): Set<MemberId> {
+    return new Set(
       (stores.group.bookings.getGrantForProposal(proposalId)?.grantedBy ?? []).map(
         (s) => s.memberId,
       ),
     );
+  }
+
+  function approversToName(
+    proposalId: string,
+    decision: PolicyDecision,
+    granted: ReadonlySet<MemberId>,
+    r: Resolved,
+  ): Member[] {
     const others = decision.requiredApprovers.filter(
       (id) => id !== r.me?.memberId && !granted.has(id),
     );
@@ -836,11 +889,16 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
           return finish([], 'approval:claimed_for_other');
         }
         // Trav only ever tags someone whose 👍 would count (T-066): the
-        // named member when they are a required approver, else the
+        // named member when they are a required approver who has not 👍'd yet, else the
         // approver(s) the decision actually needs (VOICE §6.2), else nothing.
         const decision = decisionFor(proposalId);
         const required = decision?.requiredApprovers ?? [];
-        if (target !== undefined && required.includes(target.memberId)) {
+        const granted = grantedBy(proposalId);
+        if (
+          target !== undefined &&
+          required.includes(target.memberId) &&
+          !granted.has(target.memberId)
+        ) {
           const name = sanitizeInline(target.displayName, 40);
           const sent = await send(r, [
             message(r, `that has to come from ${name}. @${name} 👍 to book`, {
@@ -854,7 +912,7 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
         const needed =
           decision === undefined || claim?.kind !== 'named'
             ? []
-            : approversToName(proposalId, decision, r);
+            : approversToName(proposalId, decision, granted, r);
         if (needed.length === 0) return finish([], 'approval:claimed_for_other');
         const names = needed.map((m) => `@${sanitizeInline(m.displayName, 40)}`);
         const sent = await send(r, [
@@ -1448,7 +1506,14 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       r.trip !== null &&
       canRequest(r.identity)
     ) {
-      for (const candidate of rosterTexts(text)) {
+      const wantCount = rosterFollowUpCount(text);
+      for (const [i, candidate] of rosterTexts(text).entries()) {
+        // "henry's in, make it 7" when the change makes 6: the clause alone
+        // would drop the 7, so the whole message goes to the model (T-066).
+        if (i > 0 && wantCount !== undefined) {
+          const predicted = predictInCount(r.trip, r.members, me, candidate, r.now);
+          if (predicted !== wantCount) continue;
+        }
         const roster = handleRosterMessage({
           group: stores.group,
           trip: r.trip,
@@ -1466,16 +1531,23 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     }
 
     // 5. "Dean said it's fine, go ahead" while something is pending: not Dean's
-    // answer (SAFETY §2.5). Only a message carrying an approval word is an
-    // attempt at all, addressed or not (T-066): "@trav henry's in now too"
-    // is attendance and "@trav everyone's in the lobby, where next?" is a
-    // question, so both go on to the model. "Maya is in the shower" is
-    // chat: no post, no audit. Trav answers out loud only when it was
-    // addressed; an unaddressed claim is audited and nothing more (D-019).
+    // answer (SAFETY §2.5). A claim is an attempt when it carries an approval
+    // word, addressed or not, or when it names a member's consent ("@trav
+    // dean said it's fine") and was addressed to Trav (D-019 §1-2). An
+    // "everyone" claim needs the approval word: "@trav everyone's in the
+    // lobby, where next?" is a question for the model, and attendance lines
+    // ("@trav henry's in now too") are no claim at all (T-066). "Maya is in
+    // the shower" is chat: no post, no audit. Trav answers out loud only when
+    // it was addressed; an unaddressed claim is audited and nothing more.
     const pending = pendingFor(r);
-    if (pending.length > 0 && hasApprovalIntentWord(text)) {
+    if (pending.length > 0) {
       const addressed = mention.addressed && mention.reason !== 'thanks';
-      const claim = detectClaimedApproval(text, r.members, me.memberId);
+      const found = detectClaimedApproval(text, r.members, me.memberId);
+      const claim =
+        found !== undefined &&
+        (hasApprovalIntentWord(text) || (addressed && found.kind === 'named'))
+          ? found
+          : undefined;
       if (claim !== undefined) {
         recordInbound();
         return routeApproval(
