@@ -61,9 +61,14 @@ export interface MoneyCallSite {
    * `x.purchase(` (dot), `x['purchase'](` (bracket), `x.purchase.call/apply/bind`
    * (indirect), or any other bare member reference such as
    * `const f = x.purchase`, `(x.purchase)(r)`, `x.purchase<T>(r)` or
-   * `Reflect.apply(x.purchase, …)` (reference).
+   * `Reflect.apply(x.purchase, …)` (reference), or a destructuring that
+   * pulls the method off its object, `const { purchase } = x` /
+   * `const { purchase: run } = x` (destructure).
+   *
+   * Out of scope (relied on review): computed keys built at runtime such as
+   * `x[\`exec${'ute'}\`]` or `const K = 'execute'; x[K](…)`.
    */
-  readonly form: 'dot' | 'bracket' | 'indirect' | 'reference';
+  readonly form: 'dot' | 'bracket' | 'indirect' | 'reference' | 'destructure';
 }
 
 // A call site is a member access on a value: an identifier, `)`, `]` or a TS
@@ -79,9 +84,10 @@ interface MethodPatterns {
   readonly bracket: RegExp;
   readonly indirect: RegExp;
   readonly reference: RegExp;
+  readonly destructure: RegExp;
 }
 
-/** The four member-access forms for a set of method names (`findMoneyCallSites` doc). */
+/** The five member-access forms for a set of method names (`findMoneyCallSites` doc). */
 function methodPatterns(methods: readonly string[]): MethodPatterns {
   const alt = methods.join('|');
   return {
@@ -90,6 +96,9 @@ function methodPatterns(methods: readonly string[]): MethodPatterns {
     indirect: new RegExp(String.raw`${RECEIVER}(${alt})${INDIRECT_TAIL}`, 'g'),
     // Any other `.purchase` member reference (alias, parenthesised, generic, Reflect).
     reference: new RegExp(String.raw`${RECEIVER}(${alt})\b(?!${CALL_TAIL}|${INDIRECT_TAIL})`, 'g'),
+    // `const { purchase } = x` / `{ purchase: run } = x`: a pattern with the name
+    // inside braces that is immediately assigned from something.
+    destructure: new RegExp(String.raw`\{[^{}]*\b(${alt})\b[^{}]*\}\s*=[^=]`, 'g'),
   };
 }
 
@@ -120,6 +129,7 @@ function findMethodCallSites(
     scan(patterns.bracket, 2, 'bracket');
     scan(patterns.indirect, 1, 'indirect');
     scan(patterns.reference, 1, 'reference');
+    scan(patterns.destructure, 1, 'destructure');
   }
   return sites.sort((a, b) => (a.path === b.path ? a.line - b.line : a.path < b.path ? -1 : 1));
 }

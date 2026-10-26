@@ -253,14 +253,38 @@ describe('A1b: BookingExecutor.execute has one caller', () => {
       f('packages/agent/src/tools/book.ts', "await executor['execute'](id, grant);"),
       f('apps/simulator/src/server.ts', 'executor.execute.call(executor, id, grant);'),
       f('packages/agent/src/booking/retry.ts', 'const run = executor.execute;'),
+      f(
+        'packages/agent/src/tools/pull.ts',
+        'const { execute } = deps.executor;\nawait execute(p, g);',
+      ),
+      f(
+        'packages/agent/src/tools/rename.ts',
+        'const { audit, execute: run } = executor;\nrun(p, g);',
+      ),
     ]);
     expect(r.violations.map((v) => v.path).sort()).toEqual([
       'apps/simulator/src/server.ts',
       'packages/agent/src/booking/retry.ts',
       'packages/agent/src/loop.ts',
       'packages/agent/src/tools/book.ts',
+      'packages/agent/src/tools/pull.ts',
+      'packages/agent/src/tools/rename.ts',
     ]);
     expect(r.violations.every((v) => v.check === 'A1b')).toBe(true);
+    expect(r.callSites.filter((s) => s.form === 'destructure')).toHaveLength(2);
+  });
+
+  it('an object literal that merely mentions the name is not a destructuring', () => {
+    const r = checkSingleExecuteCallSite([
+      HANDLER,
+      COMPOSE,
+      f(
+        'packages/agent/src/loop.ts',
+        "audit.append({ type: 'booking.failed', stage: 'execute' });",
+      ),
+      f('packages/agent/src/tools/eq.ts', 'if (x === { execute }) {}'),
+    ]);
+    expect(r.violations).toEqual([]);
   });
 
   it('fails when an allowed file has zero or two call sites', () => {
