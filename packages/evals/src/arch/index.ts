@@ -13,10 +13,12 @@ import {
   checkMocksOffline,
   checkNoSecrets,
   checkNoWallClock,
+  checkSingleExecuteCallSite,
   checkSinglePurchaseCallSite,
   checkToolNames,
   selectsA1,
   selectsAuditSources,
+  selectsExecuteSources,
   selectsMockSources,
   selectsSecretScan,
   selectsToolSources,
@@ -45,6 +47,7 @@ export function runArchChecks(opts: ArchRunOptions = {}): readonly CheckResult[]
   const requireExactlyOne = opts.requireExactlyOne ?? !isExecutorStub(executor?.content ?? '');
   return [
     checkSinglePurchaseCallSite(a1Files, { requireExactlyOne }),
+    checkSingleExecuteCallSite(read(selectsExecuteSources)),
     // TODO(T-007-b): once `packages/agent/src/tools/` exports the default
     // registry factory (e.g. `createDefaultToolRegistry()` from `tools/index.ts`;
     // neither exists yet), check `factory().names()` here instead of the

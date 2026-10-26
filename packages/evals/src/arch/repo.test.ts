@@ -8,12 +8,15 @@ import { createMemoryStores, createSqliteStores } from '@trav/core/storage';
 import { createToolRegistry, V0_TOOL_NAMES } from '@trav/agent';
 import type { CheckResult } from './index.js';
 import {
+  APPROVAL_HANDLER_PATH,
   AUDIT_ALLOWED_MEMBERS,
   auditRepositoryMembers,
   BOOKING_EXECUTOR_PATH,
   checkAuditRepositoryObject,
+  checkSingleExecuteCallSite,
   checkSinglePurchaseCallSite,
   checkToolNames,
+  COMPOSE_PATH,
   formatViolations,
   isExecutorStub,
   MONEY_METHODS,
@@ -21,6 +24,7 @@ import {
   repoRoot,
   runArchChecks,
   selectsA1,
+  selectsExecuteSources,
 } from './index.js';
 
 /**
@@ -79,6 +83,16 @@ describe('architectural checks on the repo', () => {
       content: `${implemented.content}await p.tickets.purchase(r);\n`,
     };
     expect(checkSinglePurchaseCallSite([twice]).violations).toHaveLength(1);
+  });
+
+  it('A1b: BookingExecutor.execute is called once by the approval handler and once by the compose delegation, nowhere else', () => {
+    const r = checkSingleExecuteCallSite(readRepoFiles(repoRoot(), selectsExecuteSources));
+    expect(r.filesScanned).toBeGreaterThan(20);
+    expect(r.violations).toEqual([]);
+    expect(r.callSites.map((s) => s.path)).toEqual([APPROVAL_HANDLER_PATH, COMPOSE_PATH]);
+    // The loop, the tools and the simulator never reach the executor directly.
+    expect(r.callSites.some((s) => s.path.endsWith('/loop.ts'))).toBe(false);
+    expect(r.callSites.some((s) => s.path.startsWith('apps/'))).toBe(false);
   });
 
   // TODO(T-007-b): replace the stub registration below with the default

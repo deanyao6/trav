@@ -9,6 +9,8 @@ import type {
 import { razzmatazzProposal } from '../render/testkit.js';
 import {
   classifyApprovalText,
+  followSupersededBy,
+  MAX_SUPERSEDE_HOPS,
   normalizeApprovalEvent,
   reactionIntent,
   TEXT_ALIASES,
@@ -257,6 +259,29 @@ describe('normalizeApprovalEvent: buttons, tapbacks and text become one Approval
     });
   });
 
+  it('a quote-reply to a known non-proposal card is none: it never falls through to the reply window or the requester\'s own proposal', () => {
+    const idx = index({
+      cards,
+      asked: ref('msg_q', 'p9'),
+      mine: [razzmatazzProposal({ proposalId: 'p3' })],
+    });
+    expect(
+      normalizeApprovalEvent(message('yes', { replyToMessageId: 'msg_expense' }), idx, 'mem_dean', NOW),
+    ).toEqual({ kind: 'none' });
+    expect(
+      normalizeApprovalEvent(
+        message('not me', { replyToMessageId: 'msg_expense' }),
+        idx,
+        'mem_dean',
+        NOW,
+      ),
+    ).toEqual({ kind: 'none' });
+    // An unknown replied-to message (not one of Trav's cards) still falls through as before.
+    expect(
+      normalizeApprovalEvent(message('yes', { replyToMessageId: 'msg_nobody' }), idx, 'mem_dean', NOW),
+    ).toMatchObject({ kind: 'event', event: { proposalId: 'p9' } });
+  });
+
   it('two pending proposals of the requester ⇒ ambiguous (Trav asks which); never a guess', () => {
     const r = normalizeApprovalEvent(
       message('yes'),
@@ -296,6 +321,26 @@ describe('normalizeApprovalEvent: buttons, tapbacks and text become one Approval
       kind: 'event',
       event: { senderId: 'h_dean2', proposalId: 'p2' },
     });
+  });
+
+  it('followSupersededBy walks the chain to the live proposal, stops on a loop or a missing link, and is bounded', () => {
+    const chain: Record<string, { status: 'superseded' | 'pending'; supersededBy?: string }> = {
+      p1: { status: 'superseded', supersededBy: 'p2' },
+      p2: { status: 'superseded', supersededBy: 'p3' },
+      p3: { status: 'pending' },
+      loopA: { status: 'superseded', supersededBy: 'loopB' },
+      loopB: { status: 'superseded', supersededBy: 'loopA' },
+      dangling: { status: 'superseded', supersededBy: 'gone' },
+    };
+    const get = (id: string) => chain[id];
+    expect(followSupersededBy(get, 'p1')).toBe('p3');
+    expect(followSupersededBy(get, 'p3')).toBe('p3');
+    expect(followSupersededBy(get, 'nope')).toBe('nope');
+    expect(followSupersededBy(get, 'loopA')).toBe('loopB');
+    expect(followSupersededBy(get, 'dangling')).toBe('gone');
+    const long: Record<string, { status: 'superseded'; supersededBy: string }> = {};
+    for (let i = 0; i < 100; i++) long[`c${i}`] = { status: 'superseded', supersededBy: `c${i + 1}` };
+    expect(followSupersededBy((id) => long[id], 'c0')).toBe(`c${MAX_SUPERSEDE_HOPS}`);
   });
 
   it('membership events are none', () => {

@@ -73,18 +73,21 @@ export function handleRosterMessage(input: RosterTurnInput): RosterTurn | undefi
   if (roll === undefined && update === undefined) return undefined;
 
   const hint = roll?.hint ?? update?.hint;
+  const when = roll?.when ?? update?.when;
   const activity = resolveActivity(
     group.trips.listActivities(trip.tripId),
     trip.timeZone,
     now,
     hint,
+    when,
   );
   if (activity === undefined) {
     // A named activity that is not on the plan is not ours to answer.
     if (hint !== undefined) return undefined;
-    // "Henry's sick" with nothing planned: nothing to mark him out of.
+    // "Henry's sick" / "Maya is out tomorrow" with nothing planned that
+    // night: nothing to mark them out of, and never some other night's roster.
     if (update !== undefined && update.who !== 'me') return undefined;
-    return { kind: 'no_activity', text: 'nothing on the plan for tonight yet' };
+    return { kind: 'no_activity', text: `nothing on the plan for ${when ?? 'tonight'} yet` };
   }
 
   if (roll !== undefined) {

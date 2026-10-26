@@ -266,6 +266,29 @@ describe('resolveActivity', () => {
   it('an empty list ⇒ undefined', () => {
     expect(resolveActivity([], TZ, BARCELONA_NOW)).toBeUndefined();
   });
+
+  it('"tomorrow" is the next night only (earliest start wins), and never tonight, even when nothing is planned', () => {
+    // Sunday 10am is past the 5am rollover, so sagrada and apolo (12:30am monday) are both "tomorrow".
+    expect(resolveActivity(acts, TZ, BARCELONA_NOW, undefined, 'tomorrow')?.activityId).toBe(
+      'sagrada',
+    );
+    const noSagrada = acts.filter((a) => a.activityId !== 'sagrada');
+    expect(resolveActivity(noSagrada, TZ, BARCELONA_NOW, undefined, 'tomorrow')?.activityId).toBe(
+      'apolo',
+    );
+    const tonightOnly = acts.filter((a) => a.activityId === 'a' || a.activityId === 'past');
+    expect(resolveActivity(tonightOnly, TZ, BARCELONA_NOW, undefined, 'tomorrow')).toBeUndefined();
+  });
+
+  it('"tonight" is strict too: nothing tonight ⇒ undefined, never the next upcoming one', () => {
+    const later = acts.filter((a) => a.activityId !== 'a' && a.activityId !== 'sagrada');
+    expect(resolveActivity(later, TZ, BARCELONA_NOW, undefined, 'tonight')).toBeUndefined();
+    expect(resolveActivity(acts, TZ, BARCELONA_NOW, undefined, 'tonight')?.activityId).toBe('a');
+    // At 1:30am the night has not rolled over: "tonight" is still razzmatazz.
+    expect(
+      resolveActivity(acts, TZ, '2026-03-15T01:30:00+01:00', undefined, 'tonight')?.activityId,
+    ).toBe('a');
+  });
 });
 
 describe('natural language: roll calls and overrides', () => {
@@ -276,10 +299,15 @@ describe('natural language: roll calls and overrides', () => {
   });
 
   it.each([
-    ["@trav who's in tonight?", {}],
+    ["@trav who's in tonight?", { when: 'tonight' }],
     ['who is in', {}],
     ["so who's coming to razzmatazz", { hint: 'razzmatazz' }],
-    ['@trav who all is going tomorrow', {}],
+    ['@trav who all is going tomorrow', { when: 'tomorrow' }],
+    ['who is in tomorrow?', { when: 'tomorrow' }],
+    ["who's coming tmrw", { when: 'tomorrow' }],
+    ["who's down today", { when: 'tonight' }],
+    ["who's in this evening", { when: 'tonight' }],
+    ["who's in for razzmatazz tomorrow", { hint: 'razzmatazz', when: 'tomorrow' }],
     ["who's down for the sagrada tour", { hint: 'the sagrada tour' }],
   ])('detectRollCall(%j)', (text, expected) => {
     expect(detectRollCall(text)).toEqual(expected);
@@ -298,7 +326,12 @@ describe('natural language: roll calls and overrides', () => {
     ["Henry's not coming", { who: 'Henry', status: 'out' }],
     ['count Henry out', { who: 'Henry', status: 'out' }],
     ['henry is out for razzmatazz', { who: 'henry', status: 'out', hint: 'razzmatazz' }],
-    ["i'm out tonight", { who: 'me', status: 'out' }],
+    ["i'm out tonight", { who: 'me', status: 'out', when: 'tonight' }],
+    ['Maya is out tomorrow', { who: 'Maya', status: 'out', when: 'tomorrow' }],
+    ["Maya's sick tmrw", { who: 'Maya', status: 'out', when: 'tomorrow' }],
+    ['count me in tomorrow', { who: 'me', status: 'in', when: 'tomorrow' }],
+    ["i'm a maybe for apolo tomorrow", { who: 'me', status: 'maybe', hint: 'apolo', when: 'tomorrow' }],
+    ["i'm out this evening", { who: 'me', status: 'out', when: 'tonight' }],
     ["i'm sick", { who: 'me', status: 'out' }],
     ["can't make it", undefined],
     ['count me in', { who: 'me', status: 'in' }],
@@ -485,6 +518,85 @@ describe('handleRosterMessage (the roster turn)', () => {
     });
     expect(turn(stores, "@trav Henry's sick")).toBeUndefined();
   });
+
+  describe('time qualifiers: "tomorrow" is tomorrow night, never tonight', () => {
+    const apolo = (stores: Stores): Activity => {
+      const act = stores.group.trips.getActivity(ACT)!;
+      const a: Activity = {
+        ...act,
+        activityId: 'act_bcn_apolo',
+        name: 'Apolo',
+        venue: 'Sala Apolo',
+        startsAt: '2026-03-16T00:30:00+01:00',
+        endsAt: '2026-03-16T05:00:00+01:00',
+      };
+      stores.group.trips.upsertActivity(a);
+      return a;
+    };
+    const razzRows = (stores: Stores) =>
+      stores.group.trips.listAttendance(ACT).map((r) => [r.memberId, r.status]);
+
+    it('"Maya is out tomorrow" marks her out of tomorrow\'s activity; tonight\'s roster is untouched', () => {
+      const { stores } = world();
+      const a = apolo(stores);
+      const before = razzRows(stores);
+      const r = turn(stores, '@trav Maya is out tomorrow');
+      expect(r?.kind).toBe('changed');
+      if (r?.kind !== 'changed') return;
+      expect(r.activity.activityId).toBe(a.activityId);
+      expect(r.text).toBe('Maya is out for apolo. that leaves 0');
+      expect(r.notice).toMatchObject({
+        activityId: a.activityId,
+        changes: [{ memberId: 'mem_maya', status: 'out' }],
+      });
+      expect(razzRows(stores)).toEqual(before);
+      expect(stores.group.trips.listAttendance(a.activityId)).toHaveLength(1);
+    });
+
+    it('"who is in tomorrow?" rolls tomorrow\'s activity, with its day and time', () => {
+      const { stores } = world();
+      apolo(stores);
+      const r = turn(stores, '@trav who is in tomorrow?');
+      expect(r?.kind).toBe('roll_call');
+      expect(r?.text.split('\n')[0]).toBe('apolo tomorrow night 12:30am: nobody marked in yet');
+      expect(turn(stores, "@trav who's in tonight?")?.text).toMatch(/^razzmatazz tonight: 6 in/);
+    });
+
+    it('nothing planned tomorrow: the roll call says so, "X is out tomorrow" writes nothing and never touches tonight', () => {
+      const { stores } = world();
+      const before = razzRows(stores);
+      const audits = stores.group.audit.listByGroup(G).length;
+      expect(turn(stores, '@trav who is in tomorrow?')).toEqual({
+        kind: 'no_activity',
+        text: 'nothing on the plan for tomorrow yet',
+      });
+      expect(turn(stores, '@trav Maya is out tomorrow')).toBeUndefined();
+      expect(turn(stores, "@trav Maya's sick tmrw")).toBeUndefined();
+      expect(razzRows(stores)).toEqual(before);
+      expect(stores.group.audit.listByGroup(G).length).toBe(audits);
+      // First person with nothing planned: the same one-liner, no row.
+      expect(turn(stores, "@trav i'm out tomorrow", 'mem_maya')).toEqual({
+        kind: 'no_activity',
+        text: 'nothing on the plan for tomorrow yet',
+      });
+      expect(razzRows(stores)).toEqual(before);
+    });
+
+    it('"who\'s in tonight?" with only tomorrow planned does not answer about tomorrow', () => {
+      const { stores } = world();
+      apolo(stores);
+      const act = stores.group.trips.getActivity(ACT)!;
+      stores.group.trips.upsertActivity({
+        ...act,
+        startsAt: '2026-03-10T22:00:00+01:00',
+        endsAt: '2026-03-11T04:00:00+01:00',
+      });
+      expect(turn(stores, "@trav who's in tonight?")).toEqual({
+        kind: 'no_activity',
+        text: 'nothing on the plan for tonight yet',
+      });
+    });
+  });
 });
 
 describe('roster turns through the loop (offline, no model)', () => {
@@ -537,6 +649,20 @@ describe('roster turns through the loop (offline, no model)', () => {
     const unknown = await h.say('h_dean', "@trav Ava's in");
     expect(unknown.note).not.toBe('roster:changed');
     expect(h.audit().filter((e) => e.type === 'roster.changed')).toEqual([]);
+  });
+
+  it('"@trav who\'s in tomorrow?" with nothing planned tomorrow says so, without touching tonight', async () => {
+    const h = harness();
+    const turn = await h.say('h_dean', "@trav who's in tomorrow?");
+    expect(turn.note).toBe('roster:no_activity');
+    expect(messages(turn)[0]?.text).toBe('nothing on the plan for tomorrow yet');
+    const out = await h.say('h_dean', '@trav Maya is out tomorrow');
+    expect(out.note).not.toBe('roster:changed');
+    expect(h.audit().filter((e) => e.type === 'roster.changed')).toEqual([]);
+    const roll = await h.say('h_dean', "@trav who's in tonight?");
+    expect(messages(roll)[0]?.text).toBe(
+      'razzmatazz tonight: 6 in · Dean, Henry, Maya, Jordan, Priya, Sam',
+    );
   });
 
   it('a maybe is listed separately and flagged as out for booking', async () => {

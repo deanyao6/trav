@@ -24,16 +24,25 @@
  *     `approval.rejected`, hold released, one line; anyone else ⇒ ignored
  *  4. not me: a charged member is marked out on the roster (no reason text),
  *     the grant is invalidated, the proposal superseded (`proposal.superseded`)
- *     and re-proposed for the rest (VOICE §6.2); the old card's actions are dead
+ *     and re-proposed for the rest (VOICE §6.2); the old card's 👍/👎 are dead,
+ *     and a "not me" on it follows `supersededBy` to the live card
  *  5. expiry: an approval that arrives after `grant.expiresAt` (or a `refused:
  *     expired` from the executor) expires the proposal here, posts the one
  *     VOICE §6.4 line and cancels the `proposal_expiry` job, so the line is
  *     posted exactly once either way
  *
  * `rosterChanged(notice)`: the newest pending proposal for the activity whose
- * party no longer matches the roster is invalidated, superseded and re-priced;
- * a member who joins after a confirmed booking is offered a separate add-on
- * ticket (`rosterMode: 'add_on'`), never a re-buy for the others.
+ * party no longer matches the roster is invalidated, superseded and re-priced
+ * (a proposal whose purchase is in flight is left to the executor's own
+ * re-check); a member who joins after a confirmed booking is offered a
+ * separate add-on ticket (`rosterMode: 'add_on'`), never a re-buy for the others.
+ *
+ * Nothing here executes except a complete grant from a 👍 on a pending card
+ * (`approve`) or the loop's `autoApproved` hand-off for the requester's own
+ * ask. A re-quote after "not me", a roster change or a price change, and a
+ * late joiner's add-on, always come back as a card that needs a 👍
+ * (`ProposeContext.requireConfirmation`); should one ever come back
+ * `auto_approved` anyway, it is refused and nothing is bought (D-019 §3).
  *
  * Every message leaves through the loop's send path (voice lint, screen,
  * lanes); this module only builds `Outbound`s. At most one group message per
@@ -70,12 +79,14 @@ import {
   expiryJobId,
   nightOf,
   PROPOSAL_ACTIONS,
+  proposalExpiresAt,
   proposalMessage,
   shortEventName,
   type ProposalService,
   type ProposeResult,
 } from '../booking/proposals.js';
 import { sanitizeInline } from '../context/groupContext.js';
+import { TURN_FAILED_AFTER_PURCHASE_TEXT } from '../loop.js';
 import { renderBookingProposal } from '../render/bookingProposal.js';
 import type { RenderContext } from '../render/common.js';
 import { renderReceipt } from '../render/receipt.js';
@@ -87,7 +98,12 @@ import {
   rosterOf,
   setAttendance,
 } from '../roster/index.js';
-import type { ApprovalEvent, ApprovalHandler, RosterChangeNotice } from './events.js';
+import {
+  followSupersededBy,
+  type ApprovalEvent,
+  type ApprovalHandler,
+  type RosterChangeNotice,
+} from './events.js';
 
 export interface ApprovalHandlerDeps {
   readonly stores: Stores;
@@ -244,20 +260,23 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
     };
   }
 
+  /** VOICE §6.4: the job runs at the shorter of the grant TTL and the provider hold. */
   function scheduleExpiry(
-    res: Extract<ProposeResult, { kind: 'proposal' }>,
+    proposal: BookingProposal,
+    decision: PolicyDecision,
     groupId: string,
-  ): void {
-    const expiresAt = res.decision.expiresAt ?? res.proposal.holdExpiresAt;
-    if (expiresAt === undefined) return;
+  ): IsoDateTime | undefined {
+    const expiresAt = proposalExpiresAt(decision, proposal);
+    if (expiresAt === undefined) return undefined;
     scheduler.schedule({
-      jobId: expiryJobId(res.proposal.proposalId),
+      jobId: expiryJobId(proposal.proposalId),
       groupId,
-      tripId: res.proposal.tripId,
+      tripId: proposal.tripId,
       kind: 'proposal_expiry',
       runAt: expiresAt,
-      payload: { proposalId: res.proposal.proposalId },
+      payload: { proposalId: proposal.proposalId },
     });
+    return expiresAt;
   }
 
   function setStatus(proposalId: ProposalId, status: BookingProposal['status']): void {
@@ -360,7 +379,12 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
     return renderProposeResult(res, proposal.groupId, ctx.now);
   }
 
-  /** The outbound for a `ProposeResult`: the card, a clarifying question, or the refusal line. An auto-approved re-quote executes. */
+  /**
+   * The outbound for a `ProposeResult` the handler itself asked for (a
+   * re-quote or an add-on): the card, a clarifying question, or the refusal
+   * line. Never a purchase: an `auto_approved` result here means the
+   * proposal service ignored `requireConfirmation`, and it is refused.
+   */
   async function renderProposeResult(
     res: ProposeResult,
     groupId: string,
@@ -368,12 +392,12 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
   ): Promise<readonly Outbound[]> {
     switch (res.kind) {
       case 'proposal':
-        scheduleExpiry(res, groupId);
+        scheduleExpiry(res.proposal, res.decision, groupId);
         return [proposalMessage(res, groupId)];
       case 'auto_approved': {
         const ctx = load(res.proposal.proposalId, now);
-        if (ctx === undefined) return [];
-        return execute(ctx, res.proposal.sourceMessageId);
+        if (ctx === undefined) return [text(groupId, EXECUTOR_REFUSED_TEXT)];
+        return refuseUnasked(ctx, res.proposal.sourceMessageId);
       }
       case 'clarify':
         return [text(groupId, res.question)];
@@ -383,6 +407,50 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
       case 'unavailable':
         return [text(groupId, res.text)];
     }
+  }
+
+  /**
+   * D-019 §3 / SAFETY §2.1: only the requester's own ask may auto-execute,
+   * and only through `autoApproved`. A synthetic complete grant on a card
+   * nobody asked for is invalidated (the handler's rule, recorded as a policy
+   * change), the proposal failed, the hold released, and one truthful line
+   * goes out. `executor.execute` is never reached.
+   */
+  async function refuseUnasked(ctx: Loaded, messageId: MessageId): Promise<readonly Outbound[]> {
+    const { proposal } = ctx;
+    const grant = group.bookings.getGrantForProposal(proposal.proposalId) ?? ctx.grant;
+    if (grant.status === 'pending' || grant.status === 'complete') {
+      const invalidated = approval.invalidateGrant(grant, 'policy_changed');
+      group.bookings.saveGrant(invalidated);
+      const input = approval.invalidatedAuditInput(invalidated, proposal, {
+        kind: 'trav',
+        id: 'trav',
+      });
+      audit({
+        ...input,
+        payload: { ...input.payload, why: 'auto_approved_without_ask', messageId },
+      });
+    }
+    audit({
+      groupId: proposal.groupId,
+      tripId: proposal.tripId,
+      type: 'booking.failed',
+      actor: { kind: 'trav', id: 'trav' },
+      visibility: 'group',
+      proposalId: proposal.proposalId,
+      idempotencyKey: proposal.idempotencyKey,
+      payload: {
+        errorCode: 'auto_approved_without_ask',
+        retriable: true,
+        stage: 'propose',
+        moneyMoved: false,
+        messageId,
+      },
+    });
+    setStatus(proposal.proposalId, 'failed');
+    scheduler.cancel(expiryJobId(proposal.proposalId));
+    await proposals.releaseHold(proposal);
+    return [text(proposal.groupId, EXECUTOR_REFUSED_TEXT)];
   }
 
   // ---------- expiry (VOICE §6.4: exactly one line) ----------
@@ -408,15 +476,28 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
 
   // ---------- THE executor call ----------
 
+  /**
+   * Exactly one `executor.execute` per complete grant. If the executor
+   * throws, the audit log decides what to say: a `booking.completed` for this
+   * proposal written since the call started means money moved, so the
+   * proposal is marked completed, the grant consumed, and the line is the
+   * loop's "the charge went through" text, never "no charge went through".
+   */
   async function execute(ctx: Loaded, messageId: MessageId): Promise<readonly Outbound[]> {
     const { proposal } = ctx;
     const grant = group.bookings.getGrantForProposal(proposal.proposalId) ?? ctx.grant;
     inFlight.add(proposal.proposalId);
+    const auditBefore = new Set(
+      group.audit.listByProposal(proposal.proposalId).map((event) => event.id),
+    );
     let result: ExecuteResult;
     try {
       result = await executor.execute(proposal.proposalId, grant.grantId);
     } catch (e) {
       const code = e instanceof TravError ? e.code : 'failed';
+      const bought = group.audit
+        .listByProposal(proposal.proposalId)
+        .some((event) => !auditBefore.has(event.id) && event.type === 'booking.completed');
       audit({
         groupId: proposal.groupId,
         tripId: proposal.tripId,
@@ -425,12 +506,35 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
         visibility: 'group',
         proposalId: proposal.proposalId,
         idempotencyKey: proposal.idempotencyKey,
-        payload: { errorCode: code, retriable: true, stage: 'execute', messageId },
+        payload: {
+          errorCode: code,
+          retriable: !bought,
+          stage: 'execute',
+          moneyMoved: bought,
+          messageId,
+        },
       });
-      setStatus(proposal.proposalId, 'failed');
+      if (bought) {
+        // The purchase stands: the proposal is done and its grant is spent,
+        // whatever the executor managed to write after the charge.
+        setStatus(proposal.proposalId, 'completed');
+        const latest = group.bookings.getGrantForProposal(proposal.proposalId);
+        if (latest !== undefined && latest.status === 'complete' && latest.complete) {
+          group.bookings.saveGrant(approval.consumeGrant(latest));
+        }
+      } else {
+        setStatus(proposal.proposalId, 'failed');
+      }
       scheduler.cancel(expiryJobId(proposal.proposalId));
       inFlight.delete(proposal.proposalId);
-      return [text(proposal.groupId, bookingFailedText(proposal.description, true))];
+      return [
+        text(
+          proposal.groupId,
+          bought
+            ? TURN_FAILED_AFTER_PURCHASE_TEXT
+            : bookingFailedText(proposal.description, true),
+        ),
+      ];
     }
     try {
       return await afterExecute(ctx, result, messageId);
@@ -504,11 +608,12 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
   /**
    * A proposal that is already in the store (an executor re-quote) rendered
    * from its records (`render/bookingProposal.ts`), with the proposal actions
-   * and its expiry job. An auto-approved re-quote executes instead.
+   * and its expiry job. A re-quote that came back auto-approved is refused
+   * (nobody asked for it, VOICE §6.2: a re-proposal needs its own 👍).
    */
   async function renderStoredProposal(next: Loaded): Promise<readonly Outbound[]> {
     if (next.decision.outcome === 'auto_approve') {
-      return execute(next, next.proposal.sourceMessageId);
+      return refuseUnasked(next, next.proposal.sourceMessageId);
     }
     const p = next.proposal;
     const rctx: RenderContext = {
@@ -532,17 +637,7 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
       },
       rctx,
     );
-    const expiresAt = next.decision.expiresAt ?? p.holdExpiresAt;
-    if (expiresAt !== undefined) {
-      scheduler.schedule({
-        jobId: expiryJobId(p.proposalId),
-        groupId: p.groupId,
-        tripId: p.tripId,
-        kind: 'proposal_expiry',
-        runAt: expiresAt,
-        payload: { proposalId: p.proposalId },
-      });
-    }
+    const expiresAt = scheduleExpiry(p, next.decision, p.groupId);
     return [
       {
         ...msg,
@@ -611,7 +706,14 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
     sender: Member,
   ): Promise<readonly Outbound[]> {
     const { proposal, decision, members, now } = ctx;
-    // 1. the roster is the source of truth: a changed party re-prices and needs a fresh 👍.
+    // 1. only a required approver's 👍 counts for anything, including the
+    //    roster check below: anyone else's is silent (VOICE §6.2, D-019 §1)
+    //    and must not re-propose on their behalf.
+    if (!decision.requiredApprovers.includes(sender.memberId)) {
+      invalidAttempt(proposal, event, 'not_required_approver', sender);
+      return [];
+    }
+    // 2. the roster is the source of truth: a changed party re-prices and needs a fresh 👍.
     const drift = divergence(ctx);
     if (drift !== undefined) {
       return supersede(
@@ -622,7 +724,7 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
         drift.problems,
       );
     }
-    // 2. the signature (identity = channel sender; the policy's approver set decides).
+    // 3. the signature (identity = channel sender; the policy's approver set decides).
     const applied = approval.applyApproval(
       ctx.grant,
       decision,
@@ -774,7 +876,13 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
   async function handle(event: ApprovalEvent): Promise<readonly Outbound[]> {
     if (event.proposalId === undefined) return [];
     const now = clock.now();
-    const ctx = load(event.proposalId, now);
+    // A "not me" on a superseded card lands on the card that replaced it; a
+    // 👍 or 👎 on it stays dead (the count and price changed).
+    const proposalId =
+      event.kind === 'not_me'
+        ? followSupersededBy((id) => group.bookings.getProposal(id), event.proposalId)
+        : event.proposalId;
+    const ctx = load(proposalId, now);
     if (ctx === undefined) return [];
     const { proposal, members } = ctx;
     const sender = members.find(
@@ -822,12 +930,16 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
     const booked = bookedAttendees(group, trip, activity.activityId);
     const party = bookingParty(roster, booked);
 
-    // 1. the newest pending proposal for this activity whose party changed.
+    // 1. the newest pending proposal for this activity whose party changed. One
+    //    whose purchase is running right now is left alone: its grant is being
+    //    spent, and the executor's own roster re-check decides that purchase.
     const pending = group.bookings
       .listPendingProposals(notice.groupId)
       .filter((p) => p.activityId === activity.activityId)
       .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
-    const stale = pending.find((p) => rosterDiverged(roster, p, booked));
+    const stale = pending.find(
+      (p) => !inFlight.has(p.proposalId) && rosterDiverged(roster, p, booked),
+    );
     if (stale !== undefined) {
       const ctx = load(stale.proposalId, now);
       if (ctx !== undefined) {
@@ -863,6 +975,8 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
         tripId: trip.tripId,
         requestedBy: notice.by,
         sourceMessageId: notice.messageId,
+        // "i'm in" is attendance, not an approval: the add-on card needs its own 👍.
+        requireConfirmation: true,
       },
     );
     return renderProposeResult(res, notice.groupId, now);

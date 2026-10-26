@@ -194,6 +194,11 @@ export function normalizeApprovalEvent(
         inbound.replyToMessageId === undefined
           ? undefined
           : index.byMessageId(inbound.replyToMessageId);
+      // A quote-reply to one of Trav's other cards (a logged expense, a
+      // question) is a reply to that card, never an approval of some
+      // unrelated proposal: it must not fall through to the reply window or
+      // the requester's own proposal.
+      if (bound !== undefined && bound.proposalId === undefined) return none;
       if (bound?.proposalId !== undefined) {
         return {
           kind: 'event',
@@ -233,6 +238,33 @@ export function normalizeApprovalEvent(
       return { kind: 'event', event: base };
     }
   }
+}
+
+/** Longest `supersededBy` chain followed; a longer one is a store bug, not a card to act on. */
+export const MAX_SUPERSEDE_HOPS = 16;
+
+/**
+ * The live replacement of a superseded proposal: follows `supersededBy` to
+ * the end of the chain (at most `MAX_SUPERSEDE_HOPS`), so a "not me" on an
+ * old card still drops the member from the card that replaced it (VOICE
+ * §6.2: an opt-out never spends and only ever yields a fresh card). Returns
+ * `proposalId` itself when it is not superseded. Only for `not_me`: a 👍 or
+ * 👎 on a superseded card stays dead, since the price and count changed.
+ */
+export function followSupersededBy(
+  getProposal: (id: ProposalId) => Pick<BookingProposal, 'status' | 'supersededBy'> | undefined,
+  proposalId: ProposalId,
+): ProposalId {
+  let current = proposalId;
+  const seen = new Set<ProposalId>([current]);
+  for (let hop = 0; hop < MAX_SUPERSEDE_HOPS; hop++) {
+    const p = getProposal(current);
+    if (p === undefined || p.status !== 'superseded' || p.supersededBy === undefined) break;
+    if (seen.has(p.supersededBy)) break;
+    seen.add(p.supersededBy);
+    current = p.supersededBy;
+  }
+  return current;
 }
 
 /** A roster change the handler must reconcile pending proposals against. */

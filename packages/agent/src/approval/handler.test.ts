@@ -12,13 +12,25 @@ import type {
   Expense,
   GroupSpendingPolicy,
   OutboundMessage,
+  PolicyDecision,
   TicketArtifact,
 } from '@trav/core';
-import { approval, isReaction, ledger, markPrivate, money, TravError } from '@trav/core';
+import {
+  addMinutes,
+  approval,
+  createDeterministicIdGenerator,
+  createSimulatedClock,
+  isReaction,
+  ledger,
+  markPrivate,
+  money,
+  TravError,
+} from '@trav/core';
+import { createMockTickets, loadTicketInventory } from '@trav/adapters';
 import type { BookingExecutor, ExecuteResult } from '../booking/executor.js';
-import { expiryJobId } from '../booking/proposals.js';
-import { BARCELONA } from '../compose.js';
-import type { TurnResult } from '../loop.js';
+import { expiryJobId, proposalExpiresAt, type ProposalService } from '../booking/proposals.js';
+import { BARCELONA, BARCELONA_NOW } from '../compose.js';
+import { TURN_FAILED_AFTER_PURCHASE_TEXT, type TurnResult } from '../loop.js';
 import {
   FIVE,
   RAZZMATAZZ_ASK,
@@ -26,7 +38,7 @@ import {
   type Harness,
   type HarnessOptions,
 } from '../runtime.testkit.js';
-import { createApprovalHandler } from './handler.js';
+import { createApprovalHandler, EXECUTOR_REFUSED_TEXT } from './handler.js';
 
 const G = BARCELONA.groupId;
 const T = BARCELONA.tripId;
@@ -34,7 +46,13 @@ const ACT = BARCELONA.razzmatazzActivityId;
 const FOUR = ['mem_dean', 'mem_jordan', 'mem_priya', 'mem_sam'] as const;
 
 type FakeMode =
-  'complete' | 'fail' | 'throw' | 'refuse_price' | 'refuse_reproposed' | 'refuse_expired';
+  | 'complete'
+  | 'fail'
+  | 'throw'
+  | 'throw_after_purchase'
+  | 'refuse_price'
+  | 'refuse_reproposed'
+  | 'refuse_expired';
 
 interface Fake {
   readonly executor: BookingExecutor;
@@ -230,12 +248,52 @@ function fakeExecutor(get: () => Harness, mode: FakeMode = 'complete'): Fake {
         });
         s.private.putTicket(t.holderMemberId, artifact);
       }
+      if (mode === 'throw_after_purchase') {
+        // Money moved, the booking, ledger and tickets are written, and then
+        // the executor dies before consuming the grant or closing the proposal.
+        throw new Error('ticket render crashed after the purchase');
+      }
       b.saveGrant(approval.consumeGrant(grant));
       b.updateProposal({ ...proposal, status: 'completed' });
       return { kind: 'completed', booking, expense, auditEventIds: auditIds };
     },
   };
   return { executor, calls };
+}
+
+function decisionOf(h: Harness, proposalId: string): PolicyDecision {
+  return h.runtime.stores.group.bookings.getDecision(proposalId)!.decision;
+}
+
+function markOut(h: Harness, memberId: string, status: 'out' | 'maybe' = 'out'): void {
+  h.runtime.stores.group.trips.setAttendance({
+    activityId: ACT,
+    memberId,
+    status,
+    updatedAt: h.clock.now(),
+    sourceMessageId: 'msg_tool',
+    setBy: memberId,
+  });
+}
+
+function rosterRow(h: Harness, memberId: string): string | undefined {
+  return h.runtime.stores.group.trips.listAttendance(ACT).find((r) => r.memberId === memberId)
+    ?.status;
+}
+
+/** A handler over the harness runtime with a different executor or proposal service. */
+function handlerWith(
+  h: Harness,
+  deps: { executor?: BookingExecutor; proposals?: ProposalService },
+) {
+  return createApprovalHandler({
+    stores: h.runtime.stores,
+    executor: deps.executor ?? h.runtime.executor,
+    proposals: deps.proposals ?? h.runtime.proposals,
+    scheduler: h.runtime.scheduler,
+    clock: h.clock,
+    ids: h.ids,
+  });
 }
 
 function rig(mode: FakeMode = 'complete', opts: Omit<HarnessOptions, 'executor'> = {}) {
@@ -740,6 +798,384 @@ describe('roster change before approval invalidates the grant and re-prices', ()
   });
 });
 
+describe('a re-quote never spends (D-019 §3, VOICE §6.2): supersede and roster-change paths never reach the executor', () => {
+  it('"not me" with the re-priced total under autoApproveCapMinor ⇒ a card that still needs a 👍, zero executor calls, no approval.granted', async () => {
+    const { h, fake } = rig();
+    setPolicy(h, { autoApproveCapMinor: 8000 });
+    const { proposal, cardMessageId } = await propose(h);
+    // €90 is over the €80 auto cap, so the first card needs a 👍 as usual…
+    expect(decisionOf(h, proposal.proposalId).outcome).toBe('needs_confirmation');
+    // …and the €72 re-quote would be under it.
+    const turn = await h.say('h_maya', 'not me', { replyToMessageId: cardMessageId });
+    expect(turn.note).toBe('approval:handled');
+    expect(fake.calls).toEqual([]);
+    expect(h.tickets.purchaseCount()).toBe(0);
+    const card = groupMessages(turn)[0]!;
+    expect(card.card?.type).toBe('booking_proposal');
+    expect(card.actions?.map((a) => a.id)).toEqual(['approve', 'not_me', 'decline']);
+    expect(card.text).toContain('€72 total');
+    expect(card.text).toContain('👍 to book');
+    const next = h.pending()[0]!;
+    expect(next.totalMinor).toBe(7200);
+    expect(next.attendees).toEqual([...FOUR]);
+    const decision = decisionOf(h, next.proposalId);
+    expect(decision.outcome).toBe('needs_confirmation');
+    expect(decision.approvalMode).toBe('any_one');
+    expect(decision.requiredApprovers).toContain('mem_dean');
+    expect(decision.ruleIds[0]).toBe('C1');
+    expect(decision.expiresAt).toBe(proposalExpiresAt(decision, next));
+    expect(grantStatus(h, next.proposalId)).toBe('pending');
+    expect(expiryJobs(h)).toEqual([expiryJobId(next.proposalId)]);
+    expect(h.audit().filter((e) => e.type === 'approval.granted')).toEqual([]);
+    expect(h.audit().filter((e) => e.type === 'booking.attempted')).toEqual([]);
+    const evaluated = h
+      .audit()
+      .find((e) => e.type === 'policy.evaluated' && e.proposalId === next.proposalId)!;
+    expect(evaluated.payload).toMatchObject({
+      outcome: 'needs_confirmation',
+      confirmationForced: true,
+      policyOutcome: 'auto_approve',
+    });
+    // Dean's 👍 on the fresh card books for 4, once.
+    const booked = await h.tap('h_dean', card.id, 'approve');
+    expect(fake.calls.map((c) => c.proposalId)).toEqual([next.proposalId]);
+    expect(groupMessages(booked)[0]?.text.split('\n')[0]).toBe(
+      'booked ✅ razzmatazz, 4 tickets, €72',
+    );
+  });
+
+  it('"@trav Maya is sick" under the cap ⇒ the roster change re-proposes a card that needs a 👍; nothing executes', async () => {
+    const { h, fake } = rig();
+    setPolicy(h, { autoApproveCapMinor: 8000 });
+    const { proposal } = await propose(h);
+    const turn = await h.say('h_dean', '@trav Maya is sick');
+    expect(turn.note).toBe('roster:changed');
+    expect(fake.calls).toEqual([]);
+    expect(h.tickets.purchaseCount()).toBe(0);
+    const card = groupMessages(turn)[0]!;
+    expect(card.card?.type).toBe('booking_proposal');
+    expect(card.actions?.map((a) => a.id)).toEqual(['approve', 'not_me', 'decline']);
+    expect(card.text).toContain('Dean, Jordan, Priya, Sam (not Henry, Maya)');
+    expect(status(h, proposal.proposalId)).toBe('superseded');
+    const next = h.pending()[0]!;
+    expect(decisionOf(h, next.proposalId).outcome).toBe('needs_confirmation');
+    expect(grantStatus(h, next.proposalId)).toBe('pending');
+    expect(h.audit().filter((e) => e.type === 'approval.granted')).toEqual([]);
+    expect(h.audit().filter((e) => e.type === 'booking.attempted')).toEqual([]);
+    expect(JSON.stringify(h.audit())).not.toMatch(/sick/i);
+    await h.tap('h_dean', card.id, 'approve');
+    expect(fake.calls.map((c) => c.proposalId)).toEqual([next.proposalId]);
+  });
+
+  it("a late joiner's add-on under the cap is a card with a 👍, not a purchase; Henry's own 👍 then books it", async () => {
+    const { h, fake } = rig();
+    setPolicy(h, { autoApproveCapMinor: 8000 });
+    const { cardMessageId } = await propose(h);
+    await h.tap('h_dean', cardMessageId, 'approve');
+    expect(fake.calls).toHaveLength(1);
+    const turn = await h.say('h_henry', "@trav i'm in");
+    expect(turn.note).toBe('roster:changed');
+    expect(fake.calls).toHaveLength(1);
+    const card = groupMessages(turn)[0]!;
+    expect(card.card?.type).toBe('booking_proposal');
+    expect(card.text.split('\n')[0]).toBe(
+      "razzmatazz tonight, 1 more ticket (5 already booked, this one's separate)",
+    );
+    expect(card.text).toContain('👍 to book');
+    const addOn = h.pending()[0]!;
+    expect(addOn.totalMinor).toBe(1800);
+    expect(decisionOf(h, addOn.proposalId).outcome).toBe('needs_confirmation');
+    expect(h.audit().filter((e) => e.type === 'approval.granted')).toHaveLength(1);
+    await h.tap('h_henry', card.id, 'approve');
+    expect(fake.calls.map((c) => c.proposalId).at(-1)).toBe(addOn.proposalId);
+    expect(fake.calls).toHaveLength(2);
+  });
+
+  it('defence in depth: a proposal service that hands back an auto_approved re-quote is refused, nothing executes', async () => {
+    const { h, fake } = rig();
+    setPolicy(h, { autoApproveCapMinor: 8000 });
+    const { proposal } = await propose(h);
+    const real = h.runtime.proposals;
+    // A service that forgets `requireConfirmation`: the policy auto-approves €72.
+    const forgetful: ProposalService = {
+      ...real,
+      repropose: (previous, attendees, sourceMessageId) =>
+        real.propose(
+          {
+            kind: 'ticket',
+            attendeeMemberIds: attendees,
+            query: 'razzmatazz',
+            ...(previous.activityId !== undefined ? { activityId: previous.activityId } : {}),
+            ...(previous.eventDate !== '' ? { date: previous.eventDate } : {}),
+          },
+          {
+            groupId: previous.groupId,
+            tripId: previous.tripId,
+            requestedBy: previous.requestedBy,
+            sourceMessageId,
+          },
+        ),
+    };
+    const handler = handlerWith(h, { executor: fake.executor, proposals: forgetful });
+    const out = await handler.handle({
+      kind: 'not_me',
+      senderId: 'h_maya',
+      via: 'button',
+      messageId: 'm_not_me',
+      at: h.clock.now(),
+      proposalId: proposal.proposalId,
+    });
+    expect(fake.calls).toEqual([]);
+    expect(h.tickets.purchaseCount()).toBe(0);
+    expect(out.map((o) => (isReaction(o) ? '' : o.text))).toEqual([EXECUTOR_REFUSED_TEXT]);
+    expect(h.audit().find((e) => e.type === 'booking.failed')?.payload).toMatchObject({
+      errorCode: 'auto_approved_without_ask',
+      stage: 'propose',
+      moneyMoved: false,
+    });
+    expect(h.audit().filter((e) => e.type === 'approval.granted')).toEqual([]);
+    expect(h.audit().filter((e) => e.type === 'booking.attempted')).toEqual([]);
+    expect(h.pending()).toEqual([]);
+    expect(status(h, proposal.proposalId)).toBe('superseded');
+    const refused = h.runtime.stores.group.bookings.getProposal(proposal.proposalId)!.supersededBy!;
+    expect(status(h, refused)).toBe('failed');
+    expect(grantStatus(h, refused)).toBe('invalidated');
+    expect(expiryJobs(h)).toEqual([]);
+  });
+});
+
+describe('the roster does not race the purchase', () => {
+  it('a roster change while the executor is awaiting neither invalidates the grant nor re-proposes; the purchase completes once', async () => {
+    const { h, fake } = rig();
+    const { proposal } = await propose(h);
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const handler = handlerWith(h, {
+      executor: {
+        execute: async (p, g) => {
+          await gate;
+          return fake.executor.execute(p, g);
+        },
+      },
+    });
+    const approving = handler.handle({
+      kind: 'approve',
+      senderId: 'h_dean',
+      via: 'button',
+      messageId: 'm_ok',
+      at: h.clock.now(),
+      proposalId: proposal.proposalId,
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(grantStatus(h, proposal.proposalId)).toBe('complete');
+    expect(fake.calls).toEqual([]);
+
+    // Maya drops out while the purchase is running.
+    markOut(h, 'mem_maya');
+    const follow = await handler.rosterChanged({
+      groupId: G,
+      activityId: ACT,
+      changes: [{ memberId: 'mem_maya', status: 'out' }],
+      by: 'mem_maya',
+      messageId: 'm_out',
+    });
+    expect(follow).toEqual([]);
+    expect(status(h, proposal.proposalId)).toBe('pending');
+    expect(grantStatus(h, proposal.proposalId)).toBe('complete');
+    expect(h.audit().filter((e) => e.type === 'approval.invalidated')).toEqual([]);
+    expect(h.audit().filter((e) => e.type === 'proposal.superseded')).toEqual([]);
+    expect(h.pending().map((p) => p.proposalId)).toEqual([proposal.proposalId]);
+
+    release();
+    const out = await approving;
+    expect(fake.calls).toHaveLength(1);
+    expect(status(h, proposal.proposalId)).toBe('completed');
+    const receipt = out.find((o) => !isReaction(o) && o.to.kind === 'group');
+    expect(receipt !== undefined && !isReaction(receipt) ? receipt.card?.type : '').toBe('receipt');
+    // After the purchase, the same change is a late-joiner question for nobody: nothing more.
+    expect(
+      await handler.rosterChanged({
+        groupId: G,
+        activityId: ACT,
+        changes: [{ memberId: 'mem_maya', status: 'out' }],
+        by: 'mem_maya',
+        messageId: 'm_out2',
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe("a non-approver's 👍 never supersedes", () => {
+  it("Henry's 👍 with Sam drifted to maybe is silent (not_required_approver); the card stays pending until Dean's 👍 catches the drift", async () => {
+    const { h, fake } = rig();
+    setPolicy(h, { approvers: ['mem_dean'] });
+    const { proposal, cardMessageId } = await propose(h);
+    markOut(h, 'mem_sam', 'maybe');
+    const henry = await h.react('h_henry', cardMessageId, '👍');
+    expect(henry.silent).toBe(true);
+    expect(attempts(h).at(-1)?.payload).toMatchObject({
+      cause: 'not_required_approver',
+      senderId: 'h_henry',
+      via: 'reaction',
+    });
+    expect(status(h, proposal.proposalId)).toBe('pending');
+    expect(grantStatus(h, proposal.proposalId)).toBe('pending');
+    expect(h.audit().filter((e) => e.type === 'approval.invalidated')).toEqual([]);
+    expect(h.audit().filter((e) => e.type === 'proposal.superseded')).toEqual([]);
+    expect(h.pending().map((p) => p.proposalId)).toEqual([proposal.proposalId]);
+    expect(fake.calls).toEqual([]);
+    // Dean's 👍 is the one that re-prices (no execute: the party changed).
+    const dean = await h.tap('h_dean', cardMessageId, 'approve');
+    expect(fake.calls).toEqual([]);
+    expect(status(h, proposal.proposalId)).toBe('superseded');
+    expect(groupMessages(dean)[0]?.text).toContain('Dean, Maya, Jordan, Priya (not Henry, Sam)');
+  });
+});
+
+describe('"not me" on a superseded card', () => {
+  it("follows supersededBy: Maya opts out (new card), then Jordan's Not me on the OLD card drops him from the live proposal", async () => {
+    const { h, fake } = rig();
+    const { proposal, cardMessageId } = await propose(h);
+    const first = await h.tap('h_maya', cardMessageId, 'not_me');
+    expect(groupMessages(first)[0]?.card?.type).toBe('booking_proposal');
+    const live = h.pending()[0]!;
+    expect(live.attendees).toEqual([...FOUR]);
+
+    const out = await h.runtime.approvalHandler.handle({
+      kind: 'not_me',
+      senderId: 'h_jordan',
+      via: 'button',
+      messageId: 'm_old_card',
+      at: h.clock.now(),
+      proposalId: proposal.proposalId,
+      targetMessageId: cardMessageId,
+    });
+    const card = out.find((o) => !isReaction(o) && o.to.kind === 'group') as OutboundMessage;
+    expect(card.card?.type).toBe('booking_proposal');
+    expect(card.text).toContain('Dean, Priya, Sam (not Henry, Maya, Jordan)');
+    expect(card.text).toContain('€54 total');
+    const next = h.pending();
+    expect(next).toHaveLength(1);
+    expect(next[0]!.attendees).toEqual(['mem_dean', 'mem_priya', 'mem_sam']);
+    expect(status(h, live.proposalId)).toBe('superseded');
+    expect(h.runtime.stores.group.bookings.getProposal(live.proposalId)?.supersededBy).toBe(
+      next[0]!.proposalId,
+    );
+    expect(rosterRow(h, 'mem_jordan')).toBe('out');
+    expect(attempts(h).filter((e) => e.payload['cause'] === 'not_pending')).toEqual([]);
+    expect(fake.calls).toEqual([]);
+
+    // A 👍 on either dead card stays dead; only the live card books, for 3.
+    const old = await h.runtime.approvalHandler.handle({
+      kind: 'approve',
+      senderId: 'h_dean',
+      via: 'button',
+      messageId: 'm_old_ok',
+      at: h.clock.now(),
+      proposalId: proposal.proposalId,
+    });
+    expect(old).toEqual([]);
+    expect(attempts(h).at(-1)?.payload).toMatchObject({ cause: 'not_pending', messageId: 'm_old_ok' });
+    expect(fake.calls).toEqual([]);
+    expect((await h.tap('h_dean', groupMessages(first)[0]!.id, 'approve')).silent).toBe(true);
+    expect(fake.calls).toEqual([]);
+    // (The live card above came straight from the handler, so it is approved the same way.)
+    const booked = await h.runtime.approvalHandler.handle({
+      kind: 'approve',
+      senderId: 'h_dean',
+      via: 'button',
+      messageId: 'm_live_ok',
+      at: h.clock.now(),
+      proposalId: next[0]!.proposalId,
+    });
+    expect(fake.calls.map((c) => c.proposalId)).toEqual([next[0]!.proposalId]);
+    const receipt = booked.find((o) => !isReaction(o) && o.to.kind === 'group');
+    expect(receipt !== undefined && !isReaction(receipt) ? receipt.text.split('\n')[0] : '').toBe(
+      'booked ✅ razzmatazz, 3 tickets, €54',
+    );
+  });
+
+  it('someone no longer charged on the live card gets the "not on that one" line, nothing superseded', async () => {
+    const { h } = rig();
+    const { proposal, cardMessageId } = await propose(h);
+    await h.tap('h_maya', cardMessageId, 'not_me');
+    const live = h.pending()[0]!;
+    const out = await h.runtime.approvalHandler.handle({
+      kind: 'not_me',
+      senderId: 'h_maya',
+      via: 'button',
+      messageId: 'm_again',
+      at: h.clock.now(),
+      proposalId: proposal.proposalId,
+    });
+    expect(out.map((o) => (isReaction(o) ? '' : o.text))).toEqual([
+      "you're not on that one, Maya. it's Dean, Jordan, Priya, Sam",
+    ]);
+    expect(h.pending().map((p) => p.proposalId)).toEqual([live.proposalId]);
+  });
+});
+
+describe('expiry is the shorter of the grant TTL and the provider hold (VOICE §6.4)', () => {
+  it('a 5-minute hold under a 15-minute TTL: "price held for 5 min", the job runs at the hold expiry, one line at +5', async () => {
+    const tickets = createMockTickets({
+      clock: createSimulatedClock(BARCELONA_NOW),
+      ids: createDeterministicIdGenerator('hold'),
+      inventory: { ...loadTicketInventory('barcelona'), holdMinutes: 5 },
+    });
+    const { h, fake } = rig('complete', { runtime: { providers: { tickets } } });
+    const { proposal, turn } = await propose(h);
+    const card = groupMessages(turn)[0]!;
+    const holdEnd = addMinutes(BARCELONA_NOW, 5);
+    expect(proposal.holdExpiresAt).toBe(holdEnd);
+    const decision = decisionOf(h, proposal.proposalId);
+    expect(decision.policySnapshot.approvalTtlSeconds).toBe(900);
+    expect(decision.expiresAt).toBe(holdEnd);
+    expect(card.text).toContain('price held for 5 min');
+    expect(card.expiresAt).toBe(holdEnd);
+    expect(card.card?.type === 'booking_proposal' ? card.card.holdExpiresAt : '').toBe(holdEnd);
+    const job = h.runtime.scheduler.list().find((j) => j.jobId === expiryJobId(proposal.proposalId));
+    expect(job?.runAt).toBe(holdEnd);
+    h.clock.advanceMs(6 * 60 * 1000);
+    const turns = await h.runtime.drain();
+    expect(turns.map((t) => groupMessages(t).map((m) => m.text))).toEqual([
+      ['razzmatazz proposal expired, no charge. @ me if you still want it'],
+    ]);
+    expect(status(h, proposal.proposalId)).toBe('expired');
+    expect(fake.calls).toEqual([]);
+  });
+
+  it('proposalExpiresAt: the earlier of the two, or whichever exists', () => {
+    const early = '2026-03-14T21:45:00+01:00';
+    const late = '2026-03-14T21:55:00+01:00';
+    expect(proposalExpiresAt({ expiresAt: late }, { holdExpiresAt: early })).toBe(early);
+    expect(proposalExpiresAt({ expiresAt: early }, { holdExpiresAt: late })).toBe(early);
+    expect(proposalExpiresAt({ expiresAt: null }, { holdExpiresAt: late })).toBe(late);
+    expect(proposalExpiresAt({ expiresAt: late }, {})).toBe(late);
+    expect(proposalExpiresAt({ expiresAt: null }, {})).toBeUndefined();
+  });
+
+  it('a re-quote schedules its expiry at the shorter of its own TTL and its new hold', async () => {
+    const tickets = createMockTickets({
+      clock: createSimulatedClock(BARCELONA_NOW),
+      ids: createDeterministicIdGenerator('hold2'),
+      inventory: { ...loadTicketInventory('barcelona'), holdMinutes: 5 },
+    });
+    const { h } = rig('complete', { runtime: { providers: { tickets } } });
+    const { cardMessageId } = await propose(h);
+    h.clock.advanceMs(60 * 1000);
+    const turn = await h.say('h_maya', 'not me', { replyToMessageId: cardMessageId });
+    const next = h.pending()[0]!;
+    const expected = proposalExpiresAt(decisionOf(h, next.proposalId), next);
+    expect(expected).toBe(next.holdExpiresAt);
+    expect(groupMessages(turn)[0]?.expiresAt).toBe(expected);
+    expect(h.runtime.scheduler.list().map((j) => [j.jobId, j.runAt])).toEqual([
+      [expiryJobId(next.proposalId), expected],
+    ]);
+  });
+});
+
 describe('decline (VOICE §6.2)', () => {
   it("Dean's 👎 rejects: approval.rejected, hold released, one line, and later taps are dead", async () => {
     const { h, fake } = rig();
@@ -872,6 +1308,42 @@ describe('executor outcomes other than completed', () => {
     expect(status(h, proposal.proposalId)).toBe('failed');
     expect((await h.tap('h_dean', cardMessageId, 'approve')).silent).toBe(true);
     expect(fake.calls).toHaveLength(1);
+  });
+
+  it('an executor that throws AFTER booking.completed ⇒ proposal completed, grant consumed, booking.failed{moneyMoved:true}, the "charge went through" line, never "no charge"', async () => {
+    const { h, fake } = rig('throw_after_purchase');
+    const { proposal, cardMessageId } = await propose(h);
+    const turn = await h.tap('h_dean', cardMessageId, 'approve');
+    expect(turn.note).toBe('approval:handled');
+    expect(fake.calls).toHaveLength(1);
+    expect(groupMessages(turn).map((m) => m.text)).toEqual([TURN_FAILED_AFTER_PURCHASE_TEXT]);
+    expect(
+      h.channel
+        .groupTranscript()
+        .filter((e) => e.direction === 'outbound')
+        .some((e) => JSON.stringify(e).includes('no charge')),
+    ).toBe(false);
+    const failed = h.audit().find((e) => e.type === 'booking.failed')!;
+    expect(failed.payload).toMatchObject({
+      errorCode: 'failed',
+      stage: 'execute',
+      moneyMoved: true,
+      retriable: false,
+    });
+    const types = h.auditTypes();
+    expect(types.indexOf('booking.completed')).toBeLessThan(types.indexOf('booking.failed'));
+    expect(status(h, proposal.proposalId)).toBe('completed');
+    expect(grantStatus(h, proposal.proposalId)).toBe('consumed');
+    expect(h.runtime.stores.group.bookings.listByTrip(T)).toHaveLength(1);
+    expect(h.runtime.stores.group.bookings.listByTrip(T)[0]?.status).toBe('confirmed');
+    expect(expiryJobs(h)).toEqual([]);
+    // Nothing is bought twice: the card is dead (the loop's gate sees no pending proposal) and the job is gone.
+    const again = await h.tap('h_dean', cardMessageId, 'approve');
+    expect(again.silent).toBe(true);
+    expect(again.note).toBe('approval:no_pending');
+    expect(fake.calls).toHaveLength(1);
+    h.clock.advanceMs(20 * 60 * 1000);
+    expect(await h.runtime.drain()).toEqual([]);
   });
 
   it('a failed result ⇒ the same two-liner; a refused price change ⇒ the grant is dropped and a re-quote is posted', async () => {

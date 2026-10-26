@@ -1,6 +1,7 @@
 /**
  * Architectural checks (T-054; docs/SAFETY.md §4 checklist A1, A2, B2, H1, H2;
- * docs/DECISIONS.md D-008). Every check is a pure function over a list of
+ * docs/DECISIONS.md D-008; T-030's A1b: one caller of `BookingExecutor.execute`).
+ * Every check is a pure function over a list of
  * `{ path, content }` files with repo-relative POSIX paths, so the
  * planted-violation tests can feed it an in-memory or temp-dir tree. Each
  * check owns its file selection (`selects`), which the tests exercise too.
@@ -65,7 +66,6 @@ export interface MoneyCallSite {
   readonly form: 'dot' | 'bracket' | 'indirect' | 'reference';
 }
 
-const METHOD_ALT = MONEY_METHODS.join('|');
 // A call site is a member access on a value: an identifier, `)`, `]` or a TS
 // non-null `!` before the dot (`providers.tickets!.purchase(`), with an
 // optional `!` after the name (`x.purchase!(`). `async purchase(` /
@@ -73,33 +73,63 @@ const METHOD_ALT = MONEY_METHODS.join('|');
 const RECEIVER = String.raw`[\w$)\]!]\s*\??\.\s*`;
 const CALL_TAIL = String.raw`\s*!?\s*(?:\?\.\s*)?\(`;
 const INDIRECT_TAIL = String.raw`\s*!?\s*\.\s*(?:call|apply|bind)\b`;
-const DOT_CALL = new RegExp(String.raw`${RECEIVER}(${METHOD_ALT})${CALL_TAIL}`, 'g');
-const BRACKET_CALL = new RegExp(String.raw`\[\s*(['"\x60])(${METHOD_ALT})\1\s*\]${CALL_TAIL}`, 'g');
-const INDIRECT_CALL = new RegExp(String.raw`${RECEIVER}(${METHOD_ALT})${INDIRECT_TAIL}`, 'g');
-// Any other `.purchase` member reference (alias, parenthesised, generic, Reflect).
-const MEMBER_REFERENCE = new RegExp(
-  String.raw`${RECEIVER}(${METHOD_ALT})\b(?!${CALL_TAIL}|${INDIRECT_TAIL})`,
-  'g',
-);
 
-/** Every money-moving call site in `files` (no scope filtering). */
-export function findMoneyCallSites(files: readonly SourceFile[]): MoneyCallSite[] {
-  const sites: MoneyCallSite[] = [];
+interface MethodPatterns {
+  readonly dot: RegExp;
+  readonly bracket: RegExp;
+  readonly indirect: RegExp;
+  readonly reference: RegExp;
+}
+
+/** The four member-access forms for a set of method names (`findMoneyCallSites` doc). */
+function methodPatterns(methods: readonly string[]): MethodPatterns {
+  const alt = methods.join('|');
+  return {
+    dot: new RegExp(String.raw`${RECEIVER}(${alt})${CALL_TAIL}`, 'g'),
+    bracket: new RegExp(String.raw`\[\s*(['"\x60])(${alt})\1\s*\]${CALL_TAIL}`, 'g'),
+    indirect: new RegExp(String.raw`${RECEIVER}(${alt})${INDIRECT_TAIL}`, 'g'),
+    // Any other `.purchase` member reference (alias, parenthesised, generic, Reflect).
+    reference: new RegExp(String.raw`${RECEIVER}(${alt})\b(?!${CALL_TAIL}|${INDIRECT_TAIL})`, 'g'),
+  };
+}
+
+interface MethodCallSite {
+  readonly path: string;
+  readonly line: number;
+  readonly method: string;
+  readonly form: MoneyCallSite['form'];
+}
+
+/** Every call site (or bare member reference) of `methods` in `files`, comments stripped. */
+function findMethodCallSites(
+  files: readonly SourceFile[],
+  methods: readonly string[],
+): MethodCallSite[] {
+  const patterns = methodPatterns(methods);
+  const sites: MethodCallSite[] = [];
   for (const file of files) {
     const code = stripComments(file.content);
     const scan = (re: RegExp, group: number, form: MoneyCallSite['form']): void => {
       for (const m of code.matchAll(re)) {
-        const method = m[group] as MoneyMethod;
+        const method = m[group]!;
         const at = (m.index ?? 0) + m[0].indexOf(method);
         sites.push({ path: file.path, line: lineAt(code, at), method, form });
       }
     };
-    scan(DOT_CALL, 1, 'dot');
-    scan(BRACKET_CALL, 2, 'bracket');
-    scan(INDIRECT_CALL, 1, 'indirect');
-    scan(MEMBER_REFERENCE, 1, 'reference');
+    scan(patterns.dot, 1, 'dot');
+    scan(patterns.bracket, 2, 'bracket');
+    scan(patterns.indirect, 1, 'indirect');
+    scan(patterns.reference, 1, 'reference');
   }
   return sites.sort((a, b) => (a.path === b.path ? a.line - b.line : a.path < b.path ? -1 : 1));
+}
+
+/** Every money-moving call site in `files` (no scope filtering). */
+export function findMoneyCallSites(files: readonly SourceFile[]): MoneyCallSite[] {
+  return findMethodCallSites(files, MONEY_METHODS).map((s) => ({
+    ...s,
+    method: s.method as MoneyMethod,
+  }));
 }
 
 /**
@@ -161,6 +191,97 @@ export function checkSinglePurchaseCallSite(
     }
   }
   return { ...result('A1', scanned.length, violations, warnings), callSites };
+}
+
+// ---------------------------------------------------------------------------
+// A1b: one caller of BookingExecutor.execute (the approval handler)
+// ---------------------------------------------------------------------------
+
+/** THE executor call site (SAFETY §2.1; T-030: the handler is the only caller). */
+export const APPROVAL_HANDLER_PATH = 'packages/agent/src/approval/handler.ts';
+/** The composition root's lazy executor delegates `execute` once to the real one. */
+export const COMPOSE_PATH = 'packages/agent/src/compose.ts';
+
+/**
+ * Files allowed to call `.execute(`, each exactly once: the handler (the
+ * call) and the compose wrapper (the delegation). Everything else under
+ * `packages/` and `apps/` (the loop, tools, the simulator) must go through
+ * `ApprovalHandler`.
+ */
+export const EXECUTE_CALL_SITES: readonly string[] = [APPROVAL_HANDLER_PATH, COMPOSE_PATH];
+
+const A1B_ROOTS = ['packages/', 'apps/'];
+
+export function selectsExecuteSources(path: string): boolean {
+  return (
+    inScope(path, A1B_ROOTS) &&
+    isCodeFile(path) &&
+    !isTestFile(path) &&
+    !path.split('/').includes('node_modules')
+  );
+}
+
+export interface ExecuteCallSite {
+  readonly path: string;
+  readonly line: number;
+  readonly form: MoneyCallSite['form'];
+}
+
+/** The method name, kept out of string literals below: this file is in its own scan scope. */
+const EXECUTE = 'execute';
+
+/** Every `.execute(` call site or member reference in `files` (no scope filtering). */
+export function findExecuteCallSites(files: readonly SourceFile[]): ExecuteCallSite[] {
+  return findMethodCallSites(files, [EXECUTE]).map(({ path, line, form }) => ({
+    path,
+    line,
+    form,
+  }));
+}
+
+/**
+ * A1b: `BookingExecutor.execute` has one caller. Every `.execute(` under
+ * `packages/` and `apps/` is in `EXECUTE_CALL_SITES`, and each of those
+ * files has exactly one. `.execute(` is matched by name (the executor is the
+ * only `execute` in the codebase; a future `db.execute(` would show up here
+ * and need its own allow-list entry, which is the point).
+ */
+export function checkSingleExecuteCallSite(
+  files: readonly SourceFile[],
+): CheckResult & { readonly callSites: readonly ExecuteCallSite[] } {
+  const scanned = files.filter((f) => selectsExecuteSources(f.path));
+  const callSites = findExecuteCallSites(scanned);
+  const violations: Violation[] = [];
+  for (const site of callSites) {
+    if (!EXECUTE_CALL_SITES.includes(site.path)) {
+      violations.push({
+        check: 'A1b',
+        path: site.path,
+        line: site.line,
+        message: `.${EXECUTE}${site.form === 'reference' ? ' referenced' : '( called'} outside the approval handler (${APPROVAL_HANDLER_PATH}); every purchase goes through ApprovalHandler`,
+      });
+    }
+  }
+  for (const allowed of EXECUTE_CALL_SITES) {
+    const here = callSites.filter((s) => s.path === allowed);
+    if (here.length === 0) {
+      violations.push({
+        check: 'A1b',
+        path: allowed,
+        line: 1,
+        message: `no .${EXECUTE}( call site in ${allowed}; expected exactly one`,
+      });
+    }
+    for (const extra of here.slice(1)) {
+      violations.push({
+        check: 'A1b',
+        path: extra.path,
+        line: extra.line,
+        message: `second .${EXECUTE}( call site in ${allowed} (first at line ${here[0]!.line}); exactly one is allowed`,
+      });
+    }
+  }
+  return { ...result('A1b', scanned.length, violations), callSites };
 }
 
 // ---------------------------------------------------------------------------

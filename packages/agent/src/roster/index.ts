@@ -21,7 +21,7 @@ import type {
   MessageId,
   Roster,
 } from '@trav/core';
-import { formatTime, parseIso } from '@trav/core';
+import { addDays, formatTime, parseIso } from '@trav/core';
 import { nightOf } from '../booking/proposals.js';
 import { sanitizeInline } from '../context/groupContext.js';
 import { stripInvisible } from '../untrusted.js';
@@ -182,17 +182,23 @@ export function setAttendance(
 
 // ---------- which activity ----------
 
+/** The night a roll call or override names: "tonight"/"today"/"this evening", or "tomorrow"/"tmrw". */
+export type RosterWhen = 'tonight' | 'tomorrow';
+
 /**
  * The activity a roll call or "I'm out" refers to: by name/venue when a hint
- * is given, else tonight's activity (earliest start), else the next upcoming
- * one. An activity that is over (past `endsAt`, or an hour past its start
- * when no end is known) is never picked.
+ * is given; else by the night the message names ("tonight", "tomorrow"),
+ * with nothing planned that night ⇒ `undefined`, never the other night; else
+ * tonight's activity (earliest start), else the next upcoming one. An
+ * activity that is over (past `endsAt`, or an hour past its start when no
+ * end is known) is never picked.
  */
 export function resolveActivity(
   activities: readonly Activity[],
   tz: string,
   now: IsoDateTime,
   hint?: string,
+  when?: RosterWhen,
 ): Activity | undefined {
   const nowMs = parseIso(now);
   const stillOn = (a: Activity): boolean =>
@@ -217,7 +223,11 @@ export function resolveActivity(
     return upcoming.find(match) ?? activities.find(match);
   }
   const tonight = nightOf(now, tz);
-  return upcoming.find((a) => nightOf(a.startsAt!, tz) === tonight) ?? upcoming[0];
+  const onNight = (night: string): Activity | undefined =>
+    upcoming.find((a) => nightOf(a.startsAt!, tz) === night);
+  if (when === 'tomorrow') return onNight(addDays(tonight, 1));
+  if (when === 'tonight') return onNight(tonight);
+  return onNight(tonight) ?? upcoming[0];
 }
 
 // ---------- natural language ----------
@@ -236,10 +246,23 @@ export function stripTravPrefix(text: string): string {
 export interface RollCall {
   /** Activity name hint ("razzmatazz"), if the message named one. */
   readonly hint?: string;
+  /** The night the message named ("tonight", "tomorrow"), if any. */
+  readonly when?: RosterWhen;
 }
 
-const ROLL_CALL =
-  /^(?:so\s+)?who(?:'s|s| is| are| all is| all are)\s+(?:all\s+)?(?:in|coming|going|down|up)(?:\s+(?:for|to)\s+(?<hint>[\w' ]{2,40}?))?(?:\s+(?:tonight|tn|tonite|today|tomorrow|tmrw|this evening))?$/i;
+/** The time words a roll call or override may end with; captured so "tomorrow" never means tonight. */
+const WHEN = String.raw`(?:\s+(?<when>tonight|tn|tonite|today|tomorrow|tmrw|this evening))?`;
+
+function whenOf(groups: Record<string, string | undefined> | undefined): RosterWhen | undefined {
+  const w = groups?.['when']?.trim().toLowerCase();
+  if (w === undefined || w.length === 0) return undefined;
+  return w === 'tomorrow' || w === 'tmrw' ? 'tomorrow' : 'tonight';
+}
+
+const ROLL_CALL = new RegExp(
+  String.raw`^(?:so\s+)?who(?:'s|s| is| are| all is| all are)\s+(?:all\s+)?(?:in|coming|going|down|up)(?:\s+(?:for|to)\s+(?<hint>[\w' ]{2,40}?))?${WHEN}$`,
+  'i',
+);
 
 /** "@trav who's in tonight?", "who's coming to razzmatazz?", "who is going" ⇒ a roll call. */
 export function detectRollCall(text: string): RollCall | undefined {
@@ -247,7 +270,11 @@ export function detectRollCall(text: string): RollCall | undefined {
   const m = ROLL_CALL.exec(t);
   if (m === null) return undefined;
   const hint = m.groups?.['hint']?.trim();
-  return hint !== undefined && hint.length > 0 ? { hint } : {};
+  const when = whenOf(m.groups);
+  return {
+    ...(hint !== undefined && hint.length > 0 ? { hint } : {}),
+    ...(when !== undefined ? { when } : {}),
+  };
 }
 
 export interface RosterUpdate {
@@ -255,12 +282,14 @@ export interface RosterUpdate {
   readonly who: 'me' | string;
   readonly status: AttendanceStatus;
   readonly hint?: string;
+  /** The night the message named ("tonight", "tomorrow"), if any. */
+  readonly when?: RosterWhen;
 }
 
 const OUT_WORDS = String.raw`(?:sick|ill|out|not coming|not going|staying in|staying home|skipping|can't make it|cant make it|not feeling it|gonna pass|passing|done for tonight|out tonight)`;
 const IN_WORDS = String.raw`(?:in|coming|going|down|up for it|keen)`;
 const MAYBE_WORDS = String.raw`(?:a maybe|maybe|not sure|undecided|50\/50|on the fence)`;
-const FOR = String.raw`(?:\s+(?:for|to|on)\s+(?<hint>[\w' ]{2,40}?))?(?:\s+(?:tonight|tn|tonite|today|tomorrow|tmrw|this evening))?`;
+const FOR = String.raw`(?:\s+(?:for|to|on)\s+(?<hint>[\w' ]{2,40}?))?${WHEN}`;
 // A name ends with a letter, so "Henry's" splits into the name and the "'s" that follows.
 const NAME = String.raw`(?<name>[\p{L}](?:[\p{L}'-]{0,29}[\p{L}])?)`;
 
@@ -299,6 +328,7 @@ export function parseRosterUpdate(text: string): RosterUpdate | undefined {
     if (m === null) return undefined;
     const hint = m.groups?.['hint']?.trim();
     const name = m.groups?.['name']?.trim();
+    const when = whenOf(m.groups);
     if (who === 'name' && (name === undefined || SELF_WORDS.has(name.toLowerCase()))) {
       return undefined;
     }
@@ -306,6 +336,7 @@ export function parseRosterUpdate(text: string): RosterUpdate | undefined {
       who: who === 'me' ? 'me' : name!,
       status,
       ...(hint !== undefined && hint.length > 0 ? { hint } : {}),
+      ...(when !== undefined ? { when } : {}),
     };
   };
   return (

@@ -17,7 +17,7 @@ export interface Violation {
   readonly message: string;
 }
 
-export type ArchCheckId = 'A1' | 'A2' | 'B2' | 'H1' | 'H2' | 'D-008';
+export type ArchCheckId = 'A1' | 'A1b' | 'A2' | 'B2' | 'H1' | 'H2' | 'D-008';
 
 export interface CheckResult {
   readonly id: ArchCheckId;

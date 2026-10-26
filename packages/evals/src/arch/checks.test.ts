@@ -9,6 +9,7 @@ import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { FORBIDDEN_TOOL_NAME_PATTERN, V0_TOOL_NAMES } from '@trav/agent';
 import {
+  APPROVAL_HANDLER_PATH,
   BOOKING_EXECUTOR_PATH,
   checkAuditAppendOnly,
   checkAuditRepositoryObject,
@@ -16,12 +17,15 @@ import {
   checkMocksOffline,
   checkNoSecrets,
   checkNoWallClock,
+  checkSingleExecuteCallSite,
   checkSinglePurchaseCallSite,
   checkToolNames,
+  COMPOSE_PATH,
   findMoneyCallSites,
   isExecutorStub,
   runArchChecks,
   readRepoFiles,
+  selectsExecuteSources,
 } from './index.js';
 import type { SourceFile } from './index.js';
 
@@ -218,6 +222,76 @@ describe('A1: single money-moving call site', () => {
     expect(isExecutorStub(FULL_EXECUTOR)).toBe(false);
     // a mention in a comment does not keep it lax
     expect(isExecutorStub(`// was notImplemented(...) before T-009\n${FULL_EXECUTOR}`)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('A1b: BookingExecutor.execute has one caller', () => {
+  const HANDLER = f(
+    APPROVAL_HANDLER_PATH,
+    '/** the only caller of executor.execute( */\nasync function run(p, g) {\n  const result = await executor.execute(p, g);\n  return result;\n}',
+  );
+  const COMPOSE = f(
+    COMPOSE_PATH,
+    'function lazy(deps) {\n  let real;\n  return { async execute(p, g) { real ??= create(deps); return real.execute(p, g); } };\n}',
+  );
+
+  it('accepts the handler call plus the compose delegation, exactly one each (definitions never count)', () => {
+    const r = checkSingleExecuteCallSite([HANDLER, COMPOSE]);
+    expect(r.violations).toEqual([]);
+    expect(r.callSites.map((s) => [s.path, s.line, s.form])).toEqual([
+      [APPROVAL_HANDLER_PATH, 3, 'dot'],
+      [COMPOSE_PATH, 3, 'dot'],
+    ]);
+  });
+
+  it('fails on a call, bracket call, .call() or bare reference anywhere else under packages/ or apps/', () => {
+    const r = checkSingleExecuteCallSite([
+      HANDLER,
+      COMPOSE,
+      f('packages/agent/src/loop.ts', 'const out = await deps.executor.execute(id, grant);'),
+      f('packages/agent/src/tools/book.ts', "await executor['execute'](id, grant);"),
+      f('apps/simulator/src/server.ts', 'executor.execute.call(executor, id, grant);'),
+      f('packages/agent/src/booking/retry.ts', 'const run = executor.execute;'),
+    ]);
+    expect(r.violations.map((v) => v.path).sort()).toEqual([
+      'apps/simulator/src/server.ts',
+      'packages/agent/src/booking/retry.ts',
+      'packages/agent/src/loop.ts',
+      'packages/agent/src/tools/book.ts',
+    ]);
+    expect(r.violations.every((v) => v.check === 'A1b')).toBe(true);
+  });
+
+  it('fails when an allowed file has zero or two call sites', () => {
+    const none = checkSingleExecuteCallSite([COMPOSE]);
+    expect(none.violations).toHaveLength(1);
+    expect(none.violations[0]).toMatchObject({ path: APPROVAL_HANDLER_PATH, line: 1 });
+    const twice = checkSingleExecuteCallSite([
+      f(
+        APPROVAL_HANDLER_PATH,
+        'await executor.execute(p, g);\nif (retry) await executor.execute(p, g);',
+      ),
+      COMPOSE,
+    ]);
+    expect(twice.violations).toHaveLength(1);
+    expect(twice.violations[0]).toMatchObject({ path: APPROVAL_HANDLER_PATH, line: 2 });
+  });
+
+  it('ignores comments, tests, scripts/, node_modules and non-code files', () => {
+    expect(selectsExecuteSources('packages/agent/src/approval/handler.test.ts')).toBe(false);
+    expect(selectsExecuteSources('scripts/demo.ts')).toBe(false);
+    expect(selectsExecuteSources('packages/agent/node_modules/x/index.js')).toBe(false);
+    expect(selectsExecuteSources('packages/agent/README.md')).toBe(false);
+    expect(selectsExecuteSources('apps/simulator/src/ui/App.tsx')).toBe(true);
+    const r = checkSingleExecuteCallSite([
+      HANDLER,
+      COMPOSE,
+      f('packages/agent/src/loop.ts', '// never calls executor.execute( here\nconst x = 1;'),
+      f('packages/agent/src/loop.test.ts', 'await executor.execute(p, g);'),
+      f('scripts/demo.ts', 'await executor.execute(p, g);'),
+    ]);
+    expect(r.violations).toEqual([]);
   });
 });
 
@@ -569,6 +643,8 @@ describe('runArchChecks on a temp-dir tree', () => {
   const cleanTree = (): void => {
     root = mkdtempSync(join(tmpdir(), 'trav-arch-'));
     write(BOOKING_EXECUTOR_PATH, FULL_EXECUTOR);
+    write(APPROVAL_HANDLER_PATH, 'const result = await executor.execute(proposalId, grantId);');
+    write(COMPOSE_PATH, 'return { execute: (p, g) => real.execute(p, g) };');
     write('packages/core/src/repositories.ts', CLEAN_INTERFACE);
     write('packages/core/src/storage/shared/auditRepository.ts', CLEAN_IMPL);
     write(
@@ -588,6 +664,7 @@ describe('runArchChecks on a temp-dir tree', () => {
   it('every check fires on its planted violation', () => {
     cleanTree();
     write('packages/agent/src/tools/sneaky.ts', 'export const go = (p) => p.tickets.purchase(x);');
+    write('packages/agent/src/tools/book.ts', 'export const go = (d) => d.executor.execute(p, g);');
     write(
       'packages/agent/src/tools/refund.ts',
       "export const t = { name: 'refund_booking', inputSchema: {} };",
@@ -612,7 +689,15 @@ describe('runArchChecks on a temp-dir tree', () => {
     const results = runArchChecks({ root });
     const fired = new Map(results.map((r) => [r.id, 0]));
     for (const r of results) fired.set(r.id, (fired.get(r.id) ?? 0) + r.violations.length);
-    expect(Object.fromEntries(fired)).toEqual({ A1: 1, A2: 1, B2: 1, H1: 1, 'D-008': 1, H2: 1 });
+    expect(Object.fromEntries(fired)).toEqual({
+      A1: 1,
+      A1b: 1,
+      A2: 1,
+      B2: 1,
+      H1: 1,
+      'D-008': 1,
+      H2: 1,
+    });
   });
 
   it('readRepoFiles returns repo-relative POSIX paths and skips node_modules and .env files', () => {

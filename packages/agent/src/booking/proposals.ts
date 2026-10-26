@@ -19,12 +19,14 @@ import type {
   BookingProposalCard,
   Clock,
   GroupId,
+  GroupSpendingPolicy,
   IdGenerator,
   IsoDate,
   IsoDateTime,
   Member,
   MemberId,
   MemberSpendingPrefs,
+  MemberView,
   MessageId,
   Money,
   OutboundMessage,
@@ -95,6 +97,15 @@ export interface ProposeContext {
   readonly tripId: TripId | null;
   readonly requestedBy: MemberId;
   readonly sourceMessageId: MessageId;
+  /**
+   * Never `auto_approved`: when the policy would auto-approve, the decision is
+   * still `needs_confirmation` (`any_one`, the policy's approvers plus the
+   * requester) and a card with 👍 goes out. Set for every proposal that does
+   * not come from the requester's own ask: a re-quote after "not me", a
+   * roster change or a price change, and a late joiner's add-on (D-019 §3 "an
+   * opt-out never spends", VOICE §6.2 re-proposal). `repropose` always sets it.
+   */
+  readonly requireConfirmation?: boolean;
 }
 
 export interface EventSummary {
@@ -207,7 +218,7 @@ export function proposalMessage(
   const mentions = res.decision.requiredApprovers.includes(me)
     ? []
     : res.decision.requiredApprovers.filter((id) => id !== me);
-  const expiresAt = res.decision.expiresAt ?? res.proposal.holdExpiresAt;
+  const expiresAt = proposalExpiresAt(res.decision, res.proposal);
   return {
     id: res.messageId,
     groupId,
@@ -223,6 +234,24 @@ export function proposalMessage(
 /** The scheduler job id for a proposal's 15-minute expiry (replace-by-jobId keeps one per proposal). */
 export function expiryJobId(proposalId: ProposalId): string {
   return `proposal_expiry:${proposalId}`;
+}
+
+/**
+ * When a proposal stops being bookable: the shorter of the grant's expiry
+ * (`decision.expiresAt`, the policy TTL) and the provider hold
+ * (`holdExpiresAt`), VOICE §6.4 "15 minutes, or the provider's hold, if
+ * shorter". The expiry job, the card's `holdExpiresAt` and the "price held
+ * for N min" line all use this one value.
+ */
+export function proposalExpiresAt(
+  decision: Pick<PolicyDecision, 'expiresAt'>,
+  proposal: Pick<BookingProposal, 'holdExpiresAt'>,
+): IsoDateTime | undefined {
+  const grant = decision.expiresAt ?? undefined;
+  const hold = proposal.holdExpiresAt;
+  if (grant === undefined) return hold;
+  if (hold === undefined) return grant;
+  return parseIso(hold) < parseIso(grant) ? hold : grant;
 }
 
 const NIGHT_ROLLOVER_HOUR = 5;
@@ -603,14 +632,22 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
       now,
     );
     const spentTripMinor = group.bookings.spentBetween(ctx.groupId, tripStartIso(trip), now);
-    const decision = approval.evaluate(proposal, grp.spendingPolicy, {
+    const views = approval.toMemberViews(members, now);
+    const evaluatedDecision = approval.evaluate(proposal, grp.spendingPolicy, {
       now,
-      members: approval.toMemberViews(members, now),
+      members: views,
       prefs,
       spentTodayMinor,
       spentTripMinor,
       existingBookingForKey: group.bookings.getBookingByKey(key)?.bookingId ?? null,
     });
+    // A re-quote or an add-on never auto-approves: stricter than the policy,
+    // never looser, so the card still needs a 👍 (D-019 §3, VOICE §6.2).
+    const confirmationForced =
+      ctx.requireConfirmation === true && evaluatedDecision.outcome === 'auto_approve';
+    const decision = confirmationForced
+      ? confirmAnyway(evaluatedDecision, proposal, grp.spendingPolicy, views, now)
+      : evaluatedDecision;
 
     const auditIds: AuditEventId[] = [];
     group.bookings.createProposal(proposal);
@@ -655,6 +692,9 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
         policySnapshot: decision.policySnapshot,
         spentTodayMinor,
         spentTripMinor,
+        ...(confirmationForced
+          ? { confirmationForced: true, policyOutcome: evaluatedDecision.outcome }
+          : {}),
       },
     });
     auditIds.push(evaluated.id);
@@ -767,6 +807,8 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
       tripId: previous.tripId,
       requestedBy: previous.requestedBy,
       sourceMessageId,
+      // Nobody asked for this card: it always needs a fresh 👍 (VOICE §6.2).
+      requireConfirmation: true,
     };
     const input: ProposeInput = {
       kind: previous.kind === 'ticket' ? 'ticket' : previous.kind,
@@ -801,6 +843,41 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
 }
 
 // ---------- helpers ----------
+
+/**
+ * The policy said `auto_approve`; the caller wants a 👍 anyway. Same rule as
+ * the policy's C1 (`default_confirm`, `any_one`: the policy's adult approvers
+ * plus the requester), with the VOICE §6.4 expiry (TTL or hold, whichever is
+ * shorter). Only ever makes a decision stricter.
+ */
+function confirmAnyway(
+  decision: PolicyDecision,
+  proposal: BookingProposal,
+  policy: GroupSpendingPolicy,
+  views: readonly MemberView[],
+  now: IsoDateTime,
+): PolicyDecision {
+  const byId = new Map(views.map((v) => [v.memberId, v] as const));
+  const listed =
+    policy.approvers === 'any_adult_member'
+      ? views
+      : policy.approvers.map((id) => byId.get(id)).filter((v): v is MemberView => v !== undefined);
+  const pool = listed.filter(approval.canApprove).map((v) => v.memberId);
+  const requester = byId.get(proposal.requestedBy);
+  const requiredApprovers = [
+    ...new Set(approval.canApprove(requester) ? [...pool, requester.memberId] : pool),
+  ];
+  const ttl = addMinutes(now, policy.approvalTtlSeconds / 60);
+  return {
+    ...decision,
+    outcome: 'needs_confirmation',
+    approvalMode: 'any_one',
+    requiredApprovers,
+    reasons: ['default_confirm', ...decision.reasons],
+    ruleIds: ['C1', ...decision.ruleIds],
+    expiresAt: proposalExpiresAt({ expiresAt: ttl }, proposal) ?? ttl,
+  };
+}
 
 /** Attendees of every confirmed booking for the activity (ids only). */
 export function bookedAttendees(
@@ -1045,7 +1122,7 @@ export function renderProposalText(input: RenderInput): string {
     lines.push(`charged to ${payerName}'s card`);
   } else lines.push(`charged to ${payerName}'s card, on ${who}'s tab`);
 
-  const holdEnd = decision.expiresAt ?? p.holdExpiresAt ?? addMinutes(now, 15);
+  const holdEnd = proposalExpiresAt(decision, p) ?? addMinutes(now, 15);
   const held = `price held for ${minutesUntil(holdEnd, now)} min`;
   const approvers = decision.requiredApprovers;
   const requesterCan = approvers.includes(p.requestedBy);
@@ -1121,7 +1198,7 @@ function buildCard(input: CardInput): BookingProposalCard {
       ...(reason !== undefined ? { reason } : {}),
       ruleId: input.ruleId,
     },
-    holdExpiresAt: decision.expiresAt ?? p.holdExpiresAt ?? p.quotedAt,
+    holdExpiresAt: proposalExpiresAt(decision, p) ?? p.quotedAt,
     status: 'pending',
   };
 }
