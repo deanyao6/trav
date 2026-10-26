@@ -64,7 +64,9 @@ const LEADING_PUNCT = String.raw`^[\s"'(\[]*`;
 const GREETING = String.raw`(?:he+y+|hi+|yo+|ok(?:ay)?|hello|oi|psst)`;
 /** "hey trav" at the start; what follows the name decides (see `looksLikeRequest`). */
 const LEADING_GREETING_TRAV = new RegExp(`${LEADING_PUNCT}${GREETING}\\s*[,!]*\\s*trav\\b`, 'i');
-const LEADING_TRAV_PUNCT = new RegExp(`${LEADING_PUNCT}trav\\s*[,:!;]`, 'i');
+const LEADING_TRAV_PUNCT = new RegExp(`${LEADING_PUNCT}trav\\s*[,:!;.]`, 'i');
+/** "trav," / "trav:" / "trav!" address Trav outright; "trav." only does when a request follows. */
+const LEADING_TRAV_VOCATIVE = new RegExp(`${LEADING_PUNCT}trav\\s*[,:!;]`, 'i');
 /** Second-person, imperative and question openers that make "trav <rest>" a request. */
 const REQUEST_WORDS = String.raw`(?:can|could|would|pls|plz|please|what|who|how|when|where|which|why|log|add|book|get|grab|split|settle|put|show|find|remember|forget|leave|roast|stop|cancel|drop|do|make|send|tell|give|check|help|u|you|we|also|now|next|one|two|quick|any|is it|are we|did we|do we|whats|whos|hows|wheres|whens)\b`;
 /** "trav can you", "trav pls", "trav log it": a second-person or imperative verb right after the name. */
@@ -81,8 +83,11 @@ const THANKS_ONLY = new RegExp(
 );
 /** The message ends with thanks + trav: "Venmo'd. Thanks trav", "ok thanks trav ❤️". */
 const THANKS_TRAILING = new RegExp(`\\b${THANKS}\\s*[,!]*\\s*trav${TRAILING_THANKS_NOISE}$`, 'iu');
-/** "thanks trav, <more>": the thanks is a prefix on something else. */
-const THANKS_PREFIX = new RegExp(`${LEADING_PUNCT}${THANKS}\\s*[,!]*\\s*(?=trav\\b)`, 'iu');
+/** "thanks trav, <more>" / "ok thanks trav. <more>": the thanks (with an optional greeting in front) is a prefix on something else. */
+const THANKS_PREFIX = new RegExp(
+  `${LEADING_PUNCT}(?:${GREETING}\\s*[,!]*\\s*)?${THANKS}\\s*[,!.]*\\s*(?=trav\\b)`,
+  'iu',
+);
 const TRAV_WORD = /\btrav\b/i;
 const AFTER_NAME = /^trav\b\s*[,:!;.]*\s*/i;
 
@@ -149,8 +154,9 @@ export function detectMentionRules(text: string, ctx: MentionContext): MentionRe
   if (THANKS_ONLY.test(t) || THANKS_TRAILING.test(t)) return hit('thanks', 0.95);
   if (AT_TRAV.test(t)) return hit('at_mention', 1);
 
-  // "thanks trav, can you also …": gratitude in front of a request. Drop the
-  // prefix and judge the rest as a "trav …" opener.
+  // "thanks trav, can you also …" / "ok thanks trav, can you log the taxi":
+  // gratitude in front of a request. Drop the prefix and judge the rest as a
+  // "trav …" opener ("trav." and "trav!" count as the vocative too).
   const body = t.replace(THANKS_PREFIX, '');
 
   const greeting = LEADING_GREETING_TRAV.exec(body);
@@ -164,7 +170,10 @@ export function detectMentionRules(text: string, ctx: MentionContext): MentionRe
   if (LEADING_TRAV_PUNCT.test(body)) {
     const rest = body.replace(/^[\s"'([]*/, '').replace(AFTER_NAME, '');
     // "thanks trav, you're the best" is not a request; a plain "trav, …" is.
-    if (body === t || looksLikeRequest(rest)) return hit('leading_name', 0.95);
+    // A full stop after the name ("trav. booked it already") is not a
+    // vocative comma: what follows has to read as a request.
+    const vocative = LEADING_TRAV_VOCATIVE.test(body);
+    if ((body === t && vocative) || looksLikeRequest(rest)) return hit('leading_name', 0.95);
     return 'ambiguous';
   }
   if (LEADING_TRAV_IMPERATIVE.test(body)) return hit('leading_name', 0.9);

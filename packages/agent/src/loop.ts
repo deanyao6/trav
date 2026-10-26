@@ -4,13 +4,21 @@
  *
  *  1. dedupe by message id; identity from the channel `senderId` only (SAFETY §2.5)
  *  2. approval-shaped events (tapback, button, "yes"/"no"/"not me") go through
- *     the identity gate and then the approval handler (T-030), never the model
+ *     the identity gate and then the approval handler (T-030), never the model.
+ *     A bare "yes" binds only to the sender's own proposal (SAFETY §2.1);
+ *     anyone else must reply to the card or tap it, otherwise it is chat and
+ *     gets at most an `approval.invalid_attempt` audit (D-019)
  *  3. guest messages and pasted/forwarded text are untrusted: `detectInjection`
- *     ⇒ `injection.detected`, zero tools, one polite line at most (SAFETY §2.4)
- *  4. mention gate (rules → classifier → silence); "thanks trav" ⇒ ❤️. While a
+ *     ⇒ `injection.detected`, zero tools, one polite line at most (SAFETY §2.4).
+ *     None of it is kept for later prompts either: the `recent` transcript the
+ *     next tool-enabled turn sees holds a member's own words only, with
+ *     `[pasted text, not shown]` / `[guest message, not shown]` markers
+ *  4. mention gate (rules → classifier → silence; guests get rules only, so
+ *     their text never reaches a classifier call); "thanks trav" ⇒ ❤️. While a
  *     proposal is pending, "Dean said it's fine" is an invalid approval attempt
  *     only when the message is for Trav (addressed, or carrying an approval
- *     word); "Maya is in the shower" is chat and gets nothing, not even audit
+ *     word); Trav names the real approver only when it was addressed;
+ *     "Maya is in the shower" is chat and gets nothing, not even audit
  *  5. group context → prompt → model tool loop capped at `maxToolRounds`
  *  6. money results (proposal, logged expense, clarifying question, refusal) are
  *     rendered from the tool result, never from model prose; model prose is
@@ -24,6 +32,13 @@
  * ("no charge went through"); the result carries `note: 'error:<code>'`.
  * "👎 to undo" on a logged expense is honoured here: the expense is voided
  * (`status: 'undone'`, no ledger entries) and `ledger.entry_deleted` written.
+ * The word "undo" binds to a logged-expense card it replies to, or (bare /
+ * "@trav undo") to the latest such card within the 2-minute reply window;
+ * never to anything older, never through some other card.
+ *
+ * The loop never calls `BookingExecutor.execute`: a policy `auto_approve`
+ * is handed to `ApprovalHandler.autoApproved`, so `approval/handler.ts` stays
+ * the single caller (SAFETY §2.1).
  */
 import type {
   Action,
@@ -51,6 +66,7 @@ import type {
 import { approval, formatMoney, isReaction, ledger, money, parseIso, TravError } from '@trav/core';
 import type { ChannelAdapter, ChannelHandle, InboundEvent, InboundMessage } from '@trav/adapters';
 import type {
+  ApprovalEvent,
   ApprovalHandler,
   NormalizeResult,
   PendingCardIndex,
@@ -89,9 +105,12 @@ import type { SendOutcome } from './outbound/send.js';
 import { DM_CHAT_PROMPT, GROUP_CHAT_PROMPT, type PromptTemplate } from './prompts/index.js';
 import {
   detectMention,
+  detectMentionRules,
+  inReplyWindow,
   REPLY_WINDOW_MS,
   type MentionContext,
   type MentionReason,
+  type MentionResult,
 } from './mention.js';
 import { handleRosterMessage, type RosterTurn } from './roster/turn.js';
 import type { ToolRegistry } from './tools/registry.js';
@@ -197,6 +216,19 @@ export const NOTHING_TO_ADD_TEXT = 'nothing to add on that';
 /** VOICE §4.10: two lines, no emoji, says whether money moved and what happens next. */
 export const TURN_FAILED_TEXT =
   "something went wrong on my end. no charge went through\n@ me again in a minute and i'll retry";
+/** Same shape, for a turn that failed AFTER `booking.completed` was written: money did move. */
+export const TURN_FAILED_AFTER_PURCHASE_TEXT =
+  "something went wrong on my end after the purchase. the charge went through and the booking stands\n@ me in a minute and i'll sort out the receipt and tickets";
+/** The auto-approve path could not hand the proposal to the approval handler; nothing was bought. */
+export const AUTO_APPROVE_FAILED_TEXT =
+  "couldn't complete that one. no charge went through\n@ me again in a minute and i'll retry";
+/**
+ * What the `recent` transcript keeps instead of untrusted text (SAFETY §2.4):
+ * pasted or forwarded lines, and anything a guest says, never reach a
+ * tool-enabled prompt, not even on a later turn.
+ */
+export const PASTED_TEXT_MARKER = '[pasted text, not shown]';
+export const GUEST_TEXT_MARKER = '[guest message, not shown]';
 
 /** VOICE §3.1 ordinary reply: 1–4 lines, under 280 characters. */
 export const REPLY_MAX_LINES = 4;
@@ -261,6 +293,9 @@ const UNDO_ACTION: readonly Action[] = [
 ];
 const UNDO_TEXT =
   /^[\s(]*(?:@trav\s*[,:]?\s*|(?:hey |ok |okay |yeah )?trav\s*[,:]?\s*)?undo[\s!.]*$/i;
+/** The addressed form only ("@trav undo", "trav, undo"): a bare "undo" past the window is chat. */
+const EXPLICIT_UNDO = /^[\s(]*(?:@trav|(?:hey |ok |okay |yeah )?trav\s*[,:])/i;
+export const UNDO_WHICH_TEXT = 'which one? reply undo on the logged line you want gone';
 
 /**
  * Clamps model prose to an ordinary reply (VOICE §3.1): the first 4 lines,
@@ -627,6 +662,8 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     via: 'button' | 'reaction' | 'text',
     boundProposalId: string | undefined,
     messageId: MessageId,
+    /** The message was for Trav (mention, quote-reply, reply window): only then may Trav answer a claim out loud. */
+    addressed = false,
   ): Promise<TurnResult> {
     const before = snapshotAudit(r.group.groupId);
     const pending = pendingFor(r);
@@ -675,13 +712,20 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     if (gate.kind === 'ignored') {
       if (gate.cause === 'no_pending') return finish([], 'approval:no_pending');
       if (gate.cause === 'claimed_for_other' && r.me !== null) {
+        // "Dean said it's fine" / "everyone's in": audited, never counted. Trav
+        // names the person it needs only when it was asked (VOICE §2, D-019);
+        // an unaddressed claim in chat gets no reply, and an "everyone" claim
+        // names nobody, so nobody is tagged.
         const claim = detectClaimedApproval(text, r.members, r.me.memberId);
+        const claimedFor = claim?.kind === 'named' ? claim.claimedFor : null;
         const target =
-          claim === undefined ? undefined : r.members.find((m) => m.memberId === claim.claimedFor);
+          claimedFor === null ? undefined : r.members.find((m) => m.memberId === claimedFor);
         invalid('claimed_for_other', boundProposalId ?? pending[0]?.proposalId, {
-          claimedFor: claim?.claimedFor ?? null,
+          claimedFor,
+          claimKind: claim?.kind ?? null,
+          addressed,
         });
-        if (target === undefined) return finish([], 'approval:claimed_for_other');
+        if (target === undefined || !addressed) return finish([], 'approval:claimed_for_other');
         const name = sanitizeInline(target.displayName, 40);
         const sent = await send(r, [
           message(r, `that has to come from ${name}. @${name} 👍 to book`, {
@@ -720,11 +764,28 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       r.me?.memberId ?? null,
       r.now,
     );
-    if (normalized.kind !== 'event') return finish([], `approval:normalize_${normalized.kind}`);
-    const ev =
-      normalized.event.proposalId === undefined
-        ? { ...normalized.event, proposalId: gate.proposal.proposalId }
-        : normalized.event;
+    let ev: ApprovalEvent;
+    if (normalized.kind === 'event') {
+      ev =
+        normalized.event.proposalId === undefined
+          ? { ...normalized.event, proposalId: gate.proposal.proposalId }
+          : normalized.event;
+    } else if (normalized.kind === 'none' && via === 'text' && event.type === 'message') {
+      // "everyone's in, book it" is not a whole-message alias, so the normalizer
+      // has no event for it; the gate has already established it is the
+      // sender's own attempt on this one proposal (D-019). Same signature
+      // shape as a bare "yes": channel sender id, text, this message.
+      ev = {
+        kind: intent,
+        senderId: event.sender,
+        via: 'text',
+        messageId,
+        at: r.now,
+        proposalId: gate.proposal.proposalId,
+      };
+    } else {
+      return finish([], `approval:normalize_${normalized.kind}`);
+    }
     const outbound = await deps.approval.handler.handle(ev);
     const sent = await send(r, outbound);
     return finish(sent, 'approval:handled');
@@ -866,8 +927,7 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     let note = 'model:text';
     if (terminal !== undefined) {
       note = `tool:${terminal.name}:${String((terminal.value as Record<string, unknown>)['kind'])}`;
-      const draft = await renderTerminal(r, terminal.value, me);
-      if (draft !== undefined) drafts.push(draft);
+      drafts.push(...(await renderTerminal(r, terminal.value, me, event.messageId, before)));
     } else {
       let text = clampReply(stripMarkdown(modelText));
       if (text.length === 0) {
@@ -892,12 +952,90 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     };
   }
 
+  /**
+   * The outbound(s) for a terminal tool result. Everything is one group
+   * message, except a policy auto-approval, which the approval handler turns
+   * into the receipt card plus the ticket DMs (or the failure line).
+   */
   async function renderTerminal(
     r: Resolved,
     value: unknown,
     me: Member,
-  ): Promise<OutboundMessage | undefined> {
-    if (!isRecord(value)) return undefined;
+    messageId: MessageId,
+    auditBefore: ReadonlySet<string>,
+  ): Promise<readonly Outbound[]> {
+    if (!isRecord(value)) return [];
+    const kind = value['kind'];
+    if (kind === 'auto_approved') {
+      const res = value as Extract<ProposeResult, { kind: 'auto_approved' }>;
+      return autoApproved(r, res.proposal, messageId, auditBefore);
+    }
+    const one = renderTerminalMessage(r, value, me);
+    return one === undefined ? [] : [one];
+  }
+
+  /**
+   * Flow 2 step 1 "auto_approve ⇒ skip to 4 with a synthetic complete grant":
+   * the handler executes (it is the only caller of the executor, SAFETY §2.1)
+   * and renders the result. If the hand-off itself throws, or no handler is
+   * wired, the proposal is failed here (`booking.failed{stage:'execute'}`,
+   * grant expired, expiry job cancelled) so a re-ask is not told "already
+   * waiting for a 👍 above"; the line says "no charge" only when no
+   * `booking.completed` was written for it this turn.
+   */
+  async function autoApproved(
+    r: Resolved,
+    proposal: BookingProposal,
+    messageId: MessageId,
+    auditBefore: ReadonlySet<string>,
+  ): Promise<readonly Outbound[]> {
+    const fail = (code: string): readonly Outbound[] => {
+      const bought = auditIdsSince(r.group.groupId, auditBefore).some((id) => {
+        const e = stores.group.audit.get(id);
+        return e?.type === 'booking.completed' && e.proposalId === proposal.proposalId;
+      });
+      audit(r, {
+        type: 'booking.failed',
+        actor: { kind: 'trav', id: 'trav' },
+        visibility: 'group',
+        proposalId: proposal.proposalId,
+        idempotencyKey: proposal.idempotencyKey,
+        payload: {
+          errorCode: code,
+          retriable: true,
+          stage: 'execute',
+          moneyMoved: bought,
+          messageId,
+        },
+      });
+      const current = stores.group.bookings.getProposal(proposal.proposalId);
+      if (current !== undefined && current.status === 'pending') {
+        // Bought ⇒ the audit log already proves a completed booking: never leave it "pending".
+        stores.group.bookings.updateProposal({
+          ...current,
+          status: bought ? 'completed' : 'failed',
+        });
+        const grant = stores.group.bookings.getGrantForProposal(proposal.proposalId);
+        if (!bought && grant !== undefined && grant.status === 'pending') {
+          stores.group.bookings.saveGrant(approval.expireGrant(grant, r.now));
+        }
+        scheduler.cancel(`proposal_expiry:${proposal.proposalId}`);
+      }
+      return [message(r, bought ? TURN_FAILED_AFTER_PURCHASE_TEXT : AUTO_APPROVE_FAILED_TEXT)];
+    };
+    if (deps.approval === undefined) return fail('approval_handler_not_wired');
+    try {
+      return await deps.approval.handler.autoApproved(proposal.proposalId, messageId);
+    } catch (e) {
+      return fail(e instanceof TravError ? e.code : 'failed');
+    }
+  }
+
+  function renderTerminalMessage(
+    r: Resolved,
+    value: Record<string, unknown>,
+    me: Member,
+  ): OutboundMessage | undefined {
     const kind = value['kind'];
     if (kind === 'proposal') {
       const res = value as Extract<ProposeResult, { kind: 'proposal' }>;
@@ -926,21 +1064,6 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
         res.messageId,
       );
     }
-    if (kind === 'auto_approved') {
-      const res = value as Extract<ProposeResult, { kind: 'auto_approved' }>;
-      try {
-        const out = await deps.executor.execute(res.proposal.proposalId, res.grant.grantId);
-        if (out.kind === 'completed' || out.kind === 'duplicate') {
-          return message(
-            r,
-            `booked: ${sanitizeInline(out.booking.description, 60)}, ${formatMoney(money(out.booking.totalMinor, out.booking.currency))}. receipt and tickets on the way`,
-          );
-        }
-        return message(r, "couldn't complete that one. no charge went through, @ me to try again");
-      } catch {
-        return message(r, "couldn't complete that one. no charge went through, @ me to try again");
-      }
-    }
     if (kind === 'clarify') {
       const q = typeof value['question'] === 'string' ? value['question'] : "who's in?";
       return message(r, q);
@@ -960,6 +1083,22 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     const me = r.me;
     const groupKey = laneKey(r.group.groupId, 'group', null);
     const rawText = stripInvisible(event.text);
+    // Pasted or forwarded content is data, never instructions (SAFETY §2.4);
+    // flagged content is also never remembered.
+    const split = splitQuoted(rawText);
+    const quotedMatches = split.quoted.length > 0 ? detectInjection(split.quoted) : [];
+
+    /**
+     * What the next tool-enabled prompt may see of this message: a member's
+     * own words (quoted lines replaced by a marker; only the marker when the
+     * quote tripped the detector), a bare marker for a guest.
+     */
+    const recentText = (): string => {
+      if (me === null) return GUEST_TEXT_MARKER;
+      if (split.quoted.length === 0) return rawText;
+      if (quotedMatches.length > 0 || split.remainder.length === 0) return PASTED_TEXT_MARKER;
+      return `${split.remainder}\n${PASTED_TEXT_MARKER}`;
+    };
     const recordInbound = (): void => {
       if (r.lane !== 'group') return;
       pushRecent(groupKey, {
@@ -968,17 +1107,41 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
         senderDisplayName:
           me?.displayName ??
           (r.identity.kind === 'guest' ? (r.identity.displayName ?? 'guest') : ''),
-        text: rawText,
+        text: recentText(),
         at: r.now,
         fromTrav: false,
       });
     };
 
-    // 1. approval-shaped text ("yes", "nah", "not me"), bound to a card or a pending proposal.
-    const intent = classifyApprovalText(rawText);
+    const myLaneKey = laneKey(r.group.groupId, r.lane, me?.memberId ?? null);
     const boundRef =
       event.replyToMessageId === undefined ? undefined : cards.get(event.replyToMessageId);
-    if (intent !== undefined && (boundRef?.proposalId !== undefined || pendingFor(r).length > 0)) {
+    const mentionCtx: MentionContext = {
+      lane: r.lane,
+      repliesToTrav:
+        boundRef !== undefined ||
+        (event.replyToMessageId !== undefined && isTravMessage(event.replyToMessageId)),
+      platformMention: event.platformMention === true,
+      ...(lastQuestionAt.get(myLaneKey) !== undefined
+        ? { lastTravQuestionAt: lastQuestionAt.get(myLaneKey)! }
+        : {}),
+      now: r.now,
+    };
+
+    // 1. approval-shaped text ("yes", "nah", "not me"). It binds to the quoted
+    // proposal card, else to the proposal card of Trav's question inside the
+    // reply window, else the identity gate binds it (requester only). A quote-
+    // reply to some other Trav card (a logged expense, a question) is a reply
+    // to that card, not an approval of an unrelated proposal.
+    const intent = classifyApprovalText(rawText);
+    const askedRef =
+      boundRef === undefined
+        ? cardIndexFor(r.group.groupId).lastTravQuestion(r.lane, me?.memberId)
+        : undefined;
+    const boundProposalId = boundRef?.proposalId ?? askedRef?.proposalId;
+    const approvalShaped =
+      intent !== undefined && (boundRef === undefined || boundRef.proposalId !== undefined);
+    if (approvalShaped && (boundProposalId !== undefined || pendingFor(r).length > 0)) {
       recordInbound();
       return routeApproval(
         r,
@@ -986,43 +1149,48 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
         intent,
         rawText,
         'text',
-        boundRef?.proposalId,
+        boundProposalId,
         event.messageId,
+        boundRef !== undefined || inReplyWindow(mentionCtx),
       );
     }
 
-    // 1b. "undo" (bare or "@trav undo") from a member: the quoted expense card,
-    // else the latest logged-expense card in this group thread (VOICE §4.4).
+    // 1b. "undo" (bare or "@trav undo") from a member: the quoted logged-expense
+    // card, else the latest logged-expense card in this group thread when it
+    // is still inside the reply window (VOICE §4.4). A quote-reply to any
+    // other card is not an undo of anything; past the window only 👎 or a
+    // reply on the card itself undoes.
     if (me !== null && UNDO_TEXT.test(rawText)) {
-      const target =
-        boundRef !== undefined && isLoggedExpenseCard(boundRef)
-          ? boundRef
-          : r.lane === 'group'
-            ? latestExpenseCard(r.group.groupId)
-            : undefined;
-      if (target !== undefined) {
+      if (boundRef !== undefined) {
         recordInbound();
-        return undoExpense(r, target, 'text', event.messageId);
+        return isLoggedExpenseCard(boundRef)
+          ? undoExpense(r, boundRef, 'text', event.messageId)
+          : silent('undo:not_expense');
+      }
+      const latest = r.lane === 'group' ? latestExpenseCard(r.group.groupId) : undefined;
+      if (latest !== undefined && parseIso(r.now) - parseIso(latest.sentAt) <= REPLY_WINDOW_MS) {
+        recordInbound();
+        return undoExpense(r, latest, 'text', event.messageId);
+      }
+      // "@trav undo" with nothing in reach: one question (VOICE §4.11), not a
+      // guess at an older line and not a model turn (there is no undo tool).
+      if (EXPLICIT_UNDO.test(rawText)) {
+        recordInbound();
+        const sent = await send(r, [message(r, UNDO_WHICH_TEXT)]);
+        return {
+          outbound: sent,
+          toolCalls: [],
+          auditEventIds: [],
+          silent: sent.length === 0,
+          modelSources: [],
+          note: 'undo:which',
+        };
       }
     }
 
-    const mentionCtx: MentionContext = {
-      lane: r.lane,
-      repliesToTrav:
-        boundRef !== undefined ||
-        (event.replyToMessageId !== undefined && isTravMessage(event.replyToMessageId)),
-      platformMention: event.platformMention === true,
-      ...(lastQuestionAt.get(laneKey(r.group.groupId, r.lane, me?.memberId ?? null)) !== undefined
-        ? {
-            lastTravQuestionAt: lastQuestionAt.get(
-              laneKey(r.group.groupId, r.lane, me?.memberId ?? null),
-            )!,
-          }
-        : {}),
-      now: r.now,
-    };
-
-    // 2. guests: untrusted text, zero tools, one polite refusal when addressed (SAFETY §2.5).
+    // 2. guests: untrusted text, zero tools, one polite refusal when addressed
+    // (SAFETY §2.5). Rules only: a guest's words never reach a model call, not
+    // even the mention classifier, and the transcript keeps a marker for them.
     if (me === null) {
       recordInbound();
       const before = snapshotAudit(r.group.groupId);
@@ -1042,7 +1210,9 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
           },
         });
       }
-      const mention = await detectMention(rawText, mentionCtx, model);
+      const ruled = detectMentionRules(rawText, mentionCtx);
+      const mention: MentionResult =
+        ruled === 'ambiguous' ? { addressed: false, confidence: 0, reason: 'third_person' } : ruled;
       if (!mention.addressed || r.lane === 'dm') {
         return silent('guest:not_addressed', {
           auditEventIds: auditIdsSince(r.group.groupId, before),
@@ -1065,9 +1235,8 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
 
     // 3. pasted or forwarded content is data, never instructions (SAFETY §2.4).
     let text = rawText;
-    const split = splitQuoted(rawText);
     if (split.quoted.length > 0) {
-      const matches = detectInjection(split.quoted);
+      const matches = quotedMatches;
       if (matches.length > 0) {
         recordInbound();
         const before = snapshotAudit(r.group.groupId);
@@ -1154,15 +1323,26 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     // 5. "Dean said it's fine, go ahead" while something is pending: not Dean's
     // answer (SAFETY §2.5), but only when the message is for Trav: addressed
     // (mention, quote-reply, reply window) or carrying an approval word.
-    // "Maya is in the shower, 10 more min" is chat: no post, no audit.
+    // "Maya is in the shower, 10 more min" is chat: no post, no audit. Trav
+    // answers ("that has to come from Dean") only when it was addressed; an
+    // unaddressed claim is audited and nothing more (D-019).
     const pending = pendingFor(r);
     if (pending.length > 0) {
-      const forTrav =
-        (mention.addressed && mention.reason !== 'thanks') || hasApprovalIntentWord(text);
+      const addressed = mention.addressed && mention.reason !== 'thanks';
+      const forTrav = addressed || hasApprovalIntentWord(text);
       const claim = forTrav ? detectClaimedApproval(text, r.members, me.memberId) : undefined;
       if (claim !== undefined) {
         recordInbound();
-        return routeApproval(r, event, 'approve', text, 'text', undefined, event.messageId);
+        return routeApproval(
+          r,
+          event,
+          'approve',
+          text,
+          'text',
+          boundProposalId,
+          event.messageId,
+          addressed,
+        );
       }
     }
 
@@ -1321,11 +1501,19 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     r: Resolved | undefined,
     e: unknown,
     messageId: string | undefined,
+    /** Audit ids before the turn: "no charge went through" is said only when no `booking.completed` landed since. */
+    auditBefore: ReadonlySet<string> | undefined,
   ): Promise<TurnResult> {
     const code = e instanceof TravError ? e.code : 'failed';
     if (r === undefined) return silent(`error:${code}`);
     const auditEventIds: AuditEventId[] = [];
+    let bought = false;
     try {
+      bought =
+        auditBefore !== undefined &&
+        stores.group.audit
+          .listByGroup(r.group.groupId)
+          .some((ev) => !auditBefore.has(ev.id) && ev.type === 'booking.completed');
       auditEventIds.push(
         audit(r, {
           type: 'booking.failed',
@@ -1336,6 +1524,7 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
             retriable: true,
             stage: 'turn',
             lane: r.lane,
+            moneyMoved: bought,
             ...(messageId !== undefined ? { messageId } : {}),
           },
         }),
@@ -1343,7 +1532,9 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     } catch {
       // the audit store failing must not take the turn down with it
     }
-    const sent = await send(r, [message(r, TURN_FAILED_TEXT)]).catch((): readonly Outbound[] => []);
+    const sent = await send(r, [
+      message(r, bought ? TURN_FAILED_AFTER_PURCHASE_TEXT : TURN_FAILED_TEXT),
+    ]).catch((): readonly Outbound[] => []);
     return {
       outbound: sent,
       toolCalls: [],
@@ -1393,17 +1584,21 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
   async function handleInbound(event: InboundEvent): Promise<TurnResult> {
     if (!remember(dedupeKey(event))) return silent('duplicate');
     let r: Resolved | undefined;
+    let before: ReadonlySet<string> | undefined;
     try {
       r = resolve(event);
       if (r === undefined) return silent('unknown_conversation');
+      before = snapshotAudit(r.group.groupId);
       return await dispatch(r, event);
     } catch (e) {
-      return failTurn(r, e, 'messageId' in event ? event.messageId : undefined);
+      return failTurn(r, e, 'messageId' in event ? event.messageId : undefined, before);
     }
   }
 
   async function runScheduled(job: ScheduledJob): Promise<TurnResult> {
+    let before: ReadonlySet<string> | undefined;
     try {
+      before = snapshotAudit(job.groupId);
       return await runScheduledJob(job);
     } catch (e) {
       const group = stores.group.groups.get(job.groupId);
@@ -1421,6 +1616,7 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
         },
         e,
         job.jobId,
+        before,
       );
     }
   }

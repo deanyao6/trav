@@ -240,7 +240,10 @@ export interface RosterChangeNotice {
   readonly groupId: string;
   readonly activityId: string;
   /** Ids and statuses only; the reason is never carried (SAFETY §2.8). */
-  readonly changes: readonly { readonly memberId: MemberId; readonly status: 'in' | 'out' | 'maybe' }[];
+  readonly changes: readonly {
+    readonly memberId: MemberId;
+    readonly status: 'in' | 'out' | 'maybe';
+  }[];
   /** Who made the change (channel-resolved member). */
   readonly by: MemberId;
   readonly messageId: MessageId;
@@ -249,6 +252,15 @@ export interface RosterChangeNotice {
 export interface ApprovalHandler {
   /** Applies the event to the grant, audits, and on completion calls the executor. Returns the outbound messages for this turn. */
   handle(event: ApprovalEvent): Promise<readonly Outbound[]>;
+  /**
+   * A proposal the policy auto-approved (`outcome: 'auto_approve'`, synthetic
+   * complete grant): the loop hands it here instead of calling the executor
+   * itself, so this module stays the only caller. Executes once, then renders
+   * the receipt and ticket DMs (or the failure line) exactly like a 👍 would.
+   * Returns nothing when the proposal is not pending, was not auto-approved,
+   * or is already executing.
+   */
+  autoApproved(proposalId: ProposalId, sourceMessageId: MessageId): Promise<readonly Outbound[]>;
   /**
    * A roster change for an activity: a pending proposal whose attendees no
    * longer match the roster is invalidated (`approval.invalidated{payers_changed}`),

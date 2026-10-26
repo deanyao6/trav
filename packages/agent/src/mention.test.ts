@@ -220,22 +220,44 @@ describe('mention rules', () => {
   it('"thanks trav" is a ❤️ only when the whole message is thanks; thanks in front of a request reaches the model', async () => {
     const clock = createSimulatedClock(NOW);
     const model = spyModel(offlineModel(clock));
-    for (const t of ['thanks trav!!', 'thank you trav 🙏', 'Thanks, trav', 'ok thanks trav ❤️']) {
+    for (const t of [
+      'thanks trav!!',
+      'thanks trav!',
+      'thank you trav 🙏',
+      'Thanks, trav',
+      'ok thanks trav ❤️',
+      'ok thanks trav',
+    ]) {
       expect(await detectMention(t, base(), model.client), t).toMatchObject({
         addressed: true,
         reason: 'thanks',
       });
     }
-    // A request after the thanks is a request: addressed, not `thanks`.
+    // A request after the thanks is a request: addressed, not `thanks`, with
+    // or without a greeting in front and whatever punctuation follows the name.
     for (const t of [
       'thanks trav, can you also get 2 more apolo tickets',
       'thanks trav. now @trav log 30 for the cava',
       'thanks trav! what time are doors',
+      'ok thanks trav, can you log the taxi',
+      'ok thanks trav. can you log the taxi',
+      'hey thanks trav! can you log the taxi',
+      'ok thanks trav can you log the taxi',
     ]) {
       const res = await detectMention(t, base(), model.client);
       expect(res.addressed, t).toBe(true);
-      expect(res.reason, t).not.toBe('thanks');
+      expect(res.reason, t).toMatch(/^(?:leading_name|at_mention)$/);
     }
+    expect(model.classifies).toEqual([]);
+    // A full stop after the name is not a vocative comma: a statement still goes to the classifier.
+    expect(detectMentionRules('trav. booked it already', base())).toBe('ambiguous');
+    expect(detectMentionRules('trav. can you log the taxi', base())).toMatchObject({
+      addressed: true,
+      reason: 'leading_name',
+    });
+    expect(detectMentionRules('trav, booked it already', base())).toMatchObject({
+      addressed: true,
+    });
     // Praise after the thanks is neither a request nor a bare thanks: the
     // classifier decides and the offline one stays silent.
     const praise = await detectMention("thanks trav, you're the best", base(), model.client);

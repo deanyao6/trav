@@ -868,5 +868,23 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
     return renderProposeResult(res, notice.groupId, now);
   }
 
-  return { handle, rosterChanged };
+  /**
+   * Flow 2 step 1 for a policy `auto_approve` (synthetic complete grant): the
+   * loop hands the proposal here so this module stays the single caller of
+   * the executor (SAFETY §2.1). Guarded like a 👍: pending, not in flight,
+   * really auto-approved with a complete grant; otherwise nothing happens.
+   */
+  async function autoApproved(
+    proposalId: ProposalId,
+    sourceMessageId: MessageId,
+  ): Promise<readonly Outbound[]> {
+    const now = clock.now();
+    const ctx = load(proposalId, now);
+    if (ctx === undefined) return [];
+    if (ctx.proposal.status !== 'pending' || inFlight.has(proposalId)) return [];
+    if (ctx.decision.outcome !== 'auto_approve' || !ctx.grant.complete) return [];
+    return execute(ctx, sourceMessageId);
+  }
+
+  return { handle, rosterChanged, autoApproved };
 }

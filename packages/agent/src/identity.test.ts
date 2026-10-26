@@ -124,10 +124,19 @@ describe('detectClaimedApproval', () => {
   it('"Dean said it\'s fine, go ahead" from Henry names Dean', () => {
     expect(
       detectClaimedApproval("Dean said it's fine, go ahead @trav", members, 'mem_henry'),
-    ).toEqual({ claimedFor: 'mem_dean' });
-    expect(detectClaimedApproval("everyone's in", members, 'mem_henry')?.claimedFor).toBeDefined();
+    ).toEqual({ kind: 'named', claimedFor: 'mem_dean' });
     expect(detectClaimedApproval('Maya is down', members, 'mem_dean')).toEqual({
+      kind: 'named',
       claimedFor: 'mem_maya',
+    });
+  });
+
+  it('"everyone\'s in" is a claim about the group that names nobody (no member to tag)', () => {
+    expect(detectClaimedApproval("everyone's in", members, 'mem_henry')).toEqual({
+      kind: 'everyone',
+    });
+    expect(detectClaimedApproval('we all said yes, book it', members, 'mem_dean')).toEqual({
+      kind: 'everyone',
     });
   });
 
@@ -193,7 +202,7 @@ describe('gateApproval (SAFETY §2.5 pre-check)', () => {
     });
   });
 
-  it('a bare yes binds to the single relevant proposal; two pending ⇒ ambiguous', () => {
+  it("the requester's bare yes binds to their single pending proposal; two of theirs ⇒ ambiguous", () => {
     expect(gateApproval(input(dean))).toEqual({ kind: 'candidate', proposal });
     const other = razzmatazzProposal({ proposalId: 'prop_apolo', description: 'Apolo' });
     const res = gateApproval(input(dean, { pending: [proposal, other] }));
@@ -202,8 +211,72 @@ describe('gateApproval (SAFETY §2.5 pre-check)', () => {
       expect(res.candidates.map((p) => p.proposalId)).toEqual(['prop_rz', 'prop_apolo']);
   });
 
-  it('relevance: a member not charged and not an approver still binds to the only pending proposal', () => {
+  it('SAFETY §2.1: a bare yes / no from anyone but the requester binds to nothing, even with one proposal pending', () => {
+    // Maya is charged on it; Henry is neither charged nor an approver. Neither asked for it.
+    for (const m of [members[1]!, members[2]!]) {
+      const who: Identity = { kind: 'member', member: m };
+      expect(gateApproval(input(who)), m.displayName).toEqual({
+        kind: 'ignored',
+        cause: 'not_requester',
+      });
+      expect(gateApproval(input(who, { intent: 'decline' })), m.displayName).toEqual({
+        kind: 'ignored',
+        cause: 'not_requester',
+      });
+      // A reply to the card binds (the handler then checks the approver set).
+      expect(gateApproval(input(who, { boundProposalId: proposal.proposalId }))).toEqual({
+        kind: 'candidate',
+        proposal,
+      });
+    }
+  });
+
+  it('a bare "not me" binds for a charged member (an opt-out never spends), not for someone off the proposal', () => {
+    const maya: Identity = { kind: 'member', member: members[2]! };
+    expect(proposal.attendees).toContain('mem_maya');
+    expect(gateApproval(input(maya, { intent: 'not_me' }))).toEqual({
+      kind: 'candidate',
+      proposal,
+    });
     const henry: Identity = { kind: 'member', member: members[1]! };
-    expect(gateApproval(input(henry))).toEqual({ kind: 'candidate', proposal });
+    expect(proposal.attendees).not.toContain('mem_henry');
+    expect(gateApproval(input(henry, { intent: 'not_me' }))).toEqual({
+      kind: 'ignored',
+      cause: 'not_requester',
+    });
+  });
+
+  it('"everyone\'s in, book it" is the sender\'s own attempt: binds only where they are a required approver', () => {
+    // One-tap by Dean: Maya is charged but not an approver.
+    const oneTap: PolicyDecision = {
+      ...decision,
+      approvalMode: 'any_one',
+      requiredApprovers: ['mem_dean'],
+    };
+    const decisionFor = (id: string) => (id === proposal.proposalId ? oneTap : undefined);
+    const text = "everyone's in, book it";
+    expect(gateApproval(input(dean, { text, decisionFor }))).toEqual({
+      kind: 'candidate',
+      proposal,
+    });
+    expect(
+      gateApproval(input(dean, { text, decisionFor, boundProposalId: proposal.proposalId })),
+    ).toEqual({ kind: 'candidate', proposal });
+    const maya: Identity = { kind: 'member', member: members[2]! };
+    expect(gateApproval(input(maya, { text, decisionFor }))).toEqual({
+      kind: 'ignored',
+      cause: 'claimed_for_other',
+    });
+    expect(
+      gateApproval(input(maya, { text, decisionFor, boundProposalId: proposal.proposalId })),
+    ).toEqual({ kind: 'ignored', cause: 'claimed_for_other' });
+    // Under each-payer (the testkit decision) Maya is a required approver, so her own "book it" counts for her.
+    expect(decision.requiredApprovers).toContain('mem_maya');
+    expect(gateApproval(input(maya, { text }))).toEqual({ kind: 'candidate', proposal });
+    // Without an approval word it is a claim, not an attempt, whoever says it.
+    expect(gateApproval(input(dean, { text: "everyone's in" }))).toEqual({
+      kind: 'ignored',
+      cause: 'claimed_for_other',
+    });
   });
 });

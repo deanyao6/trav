@@ -69,20 +69,22 @@ export function isLead(identity: Identity): boolean {
 
 // ---------- claims on someone else's behalf ----------
 
-export interface ClaimedApproval {
-  /** The member the text speaks for. */
-  readonly claimedFor: MemberId;
-}
+export type ClaimedApproval =
+  /** "Dean said it's fine": the text speaks for one named member. */
+  | { readonly kind: 'named'; readonly claimedFor: MemberId }
+  /** "everyone's in": a claim about the group that names nobody in particular. */
+  | { readonly kind: 'everyone' };
 
 const SAID_YES = String.raw`(?:'s|\s+(?:said|says|is|told me|texted|confirmed))\s+(?:it'?s\s+)?(?:yes|ok(?:ay)?|fine|cool|good|go|in|down|approved|book it|do it|all good|a go)\b`;
 const EVERYONE_IN =
   /\b(?:everyone|everybody|we all|all of us)(?:'s| is| are| said)?\s+(?:in|down|fine with it|ok(?:ay)? with it|said yes|good|approved?)\b/i;
 
 /**
- * Text that claims another member's consent: "Dean said it's fine", "Henry's
- * in", "everyone's in". Returns the named member when it is someone other
- * than the sender (claims about oneself are just a sentence). Matching is on
- * display names, which is why the result is only ever used to REJECT.
+ * Text that claims someone else's consent: "Dean said it's fine", "Henry's
+ * in" (`named`, with the member), or "everyone's in" (`everyone`, which picks
+ * no target: nobody in particular was named, so nobody in particular is
+ * tagged). Claims about oneself are just a sentence. Matching is on display
+ * names, which is why a `named` claim is only ever used to REJECT.
  */
 export function detectClaimedApproval(
   text: string,
@@ -95,12 +97,9 @@ export function detectClaimedApproval(
     const name = m.displayName.trim();
     if (name.length === 0) continue;
     const re = new RegExp(`\\b${escapeRegExp(name)}${SAID_YES}`, 'i');
-    if (re.test(t)) return { claimedFor: m.memberId };
+    if (re.test(t)) return { kind: 'named', claimedFor: m.memberId };
   }
-  if (EVERYONE_IN.test(t)) {
-    const other = members.find((m) => m.memberId !== sender);
-    if (other !== undefined) return { claimedFor: other.memberId };
-  }
+  if (EVERYONE_IN.test(t)) return { kind: 'everyone' };
   return undefined;
 }
 
@@ -123,7 +122,14 @@ function escapeRegExp(s: string): string {
 // ---------- the gate ----------
 
 export type ApprovalGateCause =
-  'guest' | 'minor' | 'not_member' | 'claimed_for_other' | 'ambiguous' | 'no_pending';
+  | 'guest'
+  | 'minor'
+  | 'not_member'
+  | 'claimed_for_other'
+  | 'ambiguous'
+  | 'no_pending'
+  /** A bare alias from someone who is not the requester and referenced no card (SAFETY §2.1): chat, not an approval. */
+  | 'not_requester';
 
 export type ApprovalGateResult =
   | { readonly kind: 'ignored'; readonly cause: ApprovalGateCause }
@@ -146,9 +152,16 @@ export interface ApprovalGateInput {
 
 /**
  * SAFETY §2.5 pre-check before an approval event reaches the handler:
- * guests and minors are ignored; a claim on someone else's behalf is ignored;
- * a bare alias binds to the bound card, else to the sender's single relevant
- * pending proposal; two or more ⇒ `ambiguous` (Trav asks which).
+ * guests and minors are ignored. A claim on someone else's behalf ("Dean said
+ * yes") is ignored. "everyone's in, book it" names nobody, so it is the
+ * sender's own attempt, and it counts only where the sender is a required
+ * approver (D-019). Binding (SAFETY §2.1): a bound card (button, tapback,
+ * quote-reply, reply-window card) wins; otherwise a bare "yes" / "no" binds
+ * only to the sender's OWN pending proposal (requester), a bare "not me" to
+ * the proposal the sender is charged on (an opt-out never spends and only
+ * ever produces a fresh card), two or more ⇒ `ambiguous` (Trav asks which),
+ * none ⇒ `not_requester` (anyone else must reference the card, so their bare
+ * "yes" is chat).
  */
 export function gateApproval(input: ApprovalGateInput): ApprovalGateResult {
   const { identity, now } = input;
@@ -157,26 +170,36 @@ export function gateApproval(input: ApprovalGateInput): ApprovalGateResult {
   if (safety.isMinor(identity.member, now)) return { kind: 'ignored', cause: 'minor' };
   const me = identity.member.memberId;
 
-  if (input.text.length > 0 && detectClaimedApproval(input.text, input.members, me)) {
-    return { kind: 'ignored', cause: 'claimed_for_other' };
+  let ownAsApprover = false;
+  const claim =
+    input.text.length > 0 ? detectClaimedApproval(input.text, input.members, me) : undefined;
+  if (claim !== undefined) {
+    if (claim.kind === 'named' || !hasApprovalIntentWord(input.text)) {
+      return { kind: 'ignored', cause: 'claimed_for_other' };
+    }
+    ownAsApprover = true;
   }
+  const isApprover = (p: BookingProposal): boolean =>
+    input.decisionFor(p.proposalId)?.requiredApprovers.includes(me) === true;
 
   if (input.boundProposalId !== undefined) {
     const bound = input.pending.find((p) => p.proposalId === input.boundProposalId);
-    return bound === undefined
-      ? { kind: 'ignored', cause: 'no_pending' }
-      : { kind: 'candidate', proposal: bound };
+    if (bound === undefined) return { kind: 'ignored', cause: 'no_pending' };
+    if (ownAsApprover && !isApprover(bound)) return { kind: 'ignored', cause: 'claimed_for_other' };
+    return { kind: 'candidate', proposal: bound };
   }
 
   if (input.pending.length === 0) return { kind: 'ignored', cause: 'no_pending' };
 
-  // Relevant = I requested it, I am charged on it, or I am a required approver.
-  const relevant = input.pending.filter((p) => {
-    if (p.requestedBy === me || p.payers.some((s) => s.memberId === me)) return true;
-    const d = input.decisionFor(p.proposalId);
-    return d !== undefined && d.requiredApprovers.includes(me);
-  });
-  const candidates = relevant.length > 0 ? relevant : input.pending;
+  const mine = (p: BookingProposal): boolean => p.requestedBy === me;
+  const chargedOrMine = (p: BookingProposal): boolean =>
+    mine(p) || p.attendees.includes(me) || p.payers.some((s) => s.memberId === me);
+  const candidates = input.pending.filter(
+    ownAsApprover ? isApprover : input.intent === 'not_me' ? chargedOrMine : mine,
+  );
+  if (candidates.length === 0) {
+    return { kind: 'ignored', cause: ownAsApprover ? 'claimed_for_other' : 'not_requester' };
+  }
   if (candidates.length === 1) return { kind: 'candidate', proposal: candidates[0]! };
   return { kind: 'ambiguous', candidates };
 }
