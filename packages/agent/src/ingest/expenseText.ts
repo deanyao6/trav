@@ -806,10 +806,17 @@ function personRuns(scan: Scan, span: [number, number]): PersonRun[] {
   for (const t of toks) {
     const last = groups[groups.length - 1];
     const prev = last?.[last.length - 1];
+    const gap = low.slice(prev?.end ?? 0, t.start);
+    // "me maya and sam, henry wasn't there": past a comma, a name whose own
+    // clause says they were out starts a new run instead of joining the list.
+    const ownClause = low.slice(t.end).split(/[,;.:()]|\sbut\s/)[0] ?? '';
+    const absentAfterComma =
+      /,/.test(gap) && (ABSENCE_CUE.test(ownClause) || /n't\b/.test(ownClause));
     if (
       prev !== undefined &&
       !last!.some((x) => x.id === t.id) && // "me and sam, sam wasn't there": a new clause
-      /^\s*(?:,\s*(?:and\s+)?|and|&|\+|)\s*$/.test(low.slice(prev.end, t.start))
+      !absentAfterComma &&
+      /^\s*(?:,\s*(?:and\s+)?|and|&|\+|)\s*$/.test(gap)
     ) {
       last!.push(t);
     } else groups.push([t]);
@@ -992,7 +999,7 @@ function parseParticipants(
 }
 
 const DESC_STOP =
-  /\s*(?:,|;|:|\.|\(|\?|!|\s(?:(?:and|with|split|between|among|but|except|so|since|because|on|for|me|just|only|each|was|were|is|cost|came|i|we|plus|then|x|evenly|equally|everyone|everybody|half|the \d+ of us)(?=\s|$|[,.;:!?])|=|50\/50|\d|[€$£]))/;
+  /\s*(?:,|;|:|\.|\(|\?|!|\s(?:(?:and|with|without|minus|excluding|not|split|between|among|but|except|so|since|because|on|for|me|just|only|each|was|were|is|cost|came|i|we|plus|then|x|evenly|equally|everyone|everybody|half|the \d+ of us)(?=\s|$|[,.;:!?])|=|50\/50|\d|[€$£]))/;
 const ARTICLE = /^(?:the|a|an|our|my|some|his|her|their|us)\s+/;
 const NOT_DESC =
   /^(?:me|us|you|everyone|everybody|all|the group|both|each|it|that|this|them|him|her|the tab|tab|my card|my|i|the \d+ of us|\d+ of us|today|tonight|tomorrow|yesterday|mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday|later|earlier|before|after|tip|tips|tax|vat|service|gratuity|fee|fees)\b/;
@@ -1090,7 +1097,7 @@ function describe(low: string, scan: Scan): string | undefined {
     for (let i = words.length - 1; i >= 0 && kept.length < 4; i -= 1) {
       const w = words[i]!;
       if (
-        /^(?:paid|i|me|was|were|is|for|the|split|add|put|log|on|and|with|of|tab|weighted|a|an|venmo|trav)$/.test(
+        /^(?:paid|i|me|was|were|is|for|the|split|add|put|log|on|and|with|of|tab|weighted|a|an|venmo|trav|plus|then|also)$/.test(
           w,
         )
       )
@@ -1250,6 +1257,9 @@ export function parseExpenseText(text: string, ctx: ExpenseTextContext): Expense
 
   // "-€20": a refund or a correction, not something to log blind (r1 #9).
   if (amounts.some((t) => t.negative)) return { kind: 'unsure', reason: 'negative_amount' };
+  // "for !!!", "for ...": a description that is only punctuation (r1 #6)
+  if (/\b(?:for|on)\s+\p{P}+\s*(?:[,;]|$)/u.test(low))
+    return { kind: 'unsure', reason: 'punctuation_description' };
   const roles = assignRoles(scan);
   if (roles.unsure !== undefined) return { kind: 'unsure', reason: roles.unsure };
   const doubt = CURRENCY_DOUBT.exec(low)?.[1];
@@ -1260,11 +1270,28 @@ export function parseExpenseText(text: string, ctx: ExpenseTextContext): Expense
     for (const t of totals) if (t.each) t.role = 'paren';
     totals = totals.filter((t) => !t.each);
   }
-  // "dinner €84 + €10 tip": one total (r1 #6).
+  // "€84 + tip", "€84 +": an extra with no amount is a money fact missing,
+  // never logged as the first figure alone (r1 #6).
+  for (const t of totals) {
+    if (/^\s*(?:\+|plus\b)\s*(?:$|[,;.!?)]|(?:the |a |an )?[a-z])/.test(low.slice(t.end)))
+      return { kind: 'unsure', reason: 'unstated_extra' };
+  }
+  // "dinner €84 + €10 tip", "€84 for dinner plus €10 tip": one total (r1 #6).
+  // The second figure folds in only when nothing describes it as its own thing.
+  const EXTRA = /^\s*(?:(?:the|a|an)\s+)?(?:tips?|tax|vat|service(?: charge)?|gratuity|fees?)\b/;
   for (let i = totals.length - 1; i > 0; i -= 1) {
     const a = totals[i - 1]!;
     const b = totals[i]!;
-    if (!/^\s*(?:\+|plus)\s*$/.test(low.slice(a.end, b.start))) continue;
+    const gap = low.slice(a.end, b.start);
+    if (!/(?:\+|\bplus)\s*$/.test(gap)) continue;
+    const afterB = low.slice(b.end);
+    const extraOnly = EXTRA.test(afterB) || /^\s*(?:$|[,;.!?)]|(?:for|on)\b)/.test(afterB);
+    if (!extraOnly) {
+      // "€84 + €20 cab": two things joined by a plus is past these rules
+      if (/^\s*(?:\+|plus)\s*$/.test(gap)) return { kind: 'unsure', reason: 'plus_two_things' };
+      continue; // "84 for dinner plus 20 for the cab": two expenses, split below
+    }
+    if (!/^\s*(?:\+|plus)\s*$/.test(gap) && /^\s*(?:for|on)\b/.test(afterB)) continue;
     if (a.currency !== undefined && b.currency !== undefined && a.currency !== b.currency) {
       return { kind: 'unsure', reason: 'mixed_currencies' };
     }
@@ -1392,6 +1419,30 @@ export function parseExpenseText(text: string, ctx: ExpenseTextContext): Expense
   });
   // Several expenses: who's in, said once, applies to all.
   if (parts.length > 1) {
+    // A later figure is its own expense only when it is phrased as one: a
+    // payment verb, "<amount> for/on …", "<thing> was <amount>", or
+    // "<thing> <amount>". "i have €5 left lol" is not (r1 #5).
+    for (const x of parts.slice(1)) {
+      const t = x.total;
+      if (t === undefined) continue;
+      const after = low.slice(t.end, x.seg[1]);
+      const before = low.slice(x.seg[0], t.start);
+      const shaped =
+        new RegExp(`\\b${PAYER_VERB}\\b`).test(x.segLow) ||
+        /^\s*(?:each\s+)?(?:for|on)\b/.test(after) ||
+        /\b(?:was|were|is|came to|cost|costs)\s*$/.test(before) ||
+        (/^\s*(?:(?:and|plus|then|&|,)\s+)?(?:the\s+)?[a-z][a-z' ]{1,30}\s*$/.test(before) &&
+          !/\b(?:i|we|you|he|she|they|it|have|has|had|still|only|just|and|plus|then)\s*$/.test(
+            before,
+          ));
+      if (!shaped || /\b(?:btw|lol|haha|lmao|left|remaining|budget)\b/.test(x.segLow))
+        return { kind: 'unsure', reason: 'aside_amount' };
+    }
+    // "€84 for dinner, everyone, room was €200": who's in, said before a later
+    // amount, is not carried forward to it (r1 #5).
+    const firstStated = parts.findIndex((x) => x.p.spec !== undefined);
+    if (firstStated >= 0 && parts.slice(firstStated + 1).some((x) => x.p.spec === undefined))
+      return { kind: 'unsure', reason: 'participants_before_amount' };
     const stated = parts.filter((x) => x.p.spec !== undefined);
     const specs = uniq(stated.map((x) => JSON.stringify(x.p.spec)));
     if (stated.length > 0 && stated.length < parts.length) {
@@ -1728,7 +1779,7 @@ function questionFor(
   if (all.has('trip_currency') && d.amount !== undefined && ctx.tripCurrency !== null) {
     const said = shown(d, ctx) ?? d.amount.decimal;
     const word = CURRENCY_NAMES[ctx.tripCurrency] ?? ctx.tripCurrency;
-    const thing = d.description === 'expense' ? 'that' : `the ${d.description}`;
+    const thing = d.description === 'expense' ? 'it' : `the ${d.description}`;
     parts.push(
       `what was ${thing} in ${word}? the tab's in ${ctx.tripCurrency} and i can't convert ${said} yet`,
     );
@@ -1759,7 +1810,7 @@ function questionFor(
   if (parts.length === 0) return 'what should i put on the tab?';
   if (all.has('trip_currency') && parts.length > 1) {
     // the currency line carries its own reason; drop it into a lighter form
-    parts[0] = `what was ${d.description === 'expense' ? 'that' : `the ${d.description}`} in ${CURRENCY_NAMES[ctx.tripCurrency ?? ''] ?? ctx.tripCurrency ?? 'the trip currency'}`;
+    parts[0] = `what was ${d.description === 'expense' ? 'it' : `the ${d.description}`} in ${CURRENCY_NAMES[ctx.tripCurrency ?? ''] ?? ctx.tripCurrency ?? 'the trip currency'}`;
   }
   const q =
     parts.length === 1

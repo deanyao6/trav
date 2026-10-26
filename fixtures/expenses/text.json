@@ -436,6 +436,7 @@
             "amountMinor": 8400,
             "currency": "EUR",
             "method": "exclude",
+            "description": "dinner",
             "shares": {
               "mem_dean": 1680,
               "mem_maya": 1680,
@@ -460,6 +461,7 @@
             "amountMinor": 8400,
             "currency": "EUR",
             "method": "exclude",
+            "description": "dinner",
             "shares": {
               "mem_dean": 1680,
               "mem_maya": 1680,
@@ -545,6 +547,7 @@
             "amountMinor": 8400,
             "currency": "EUR",
             "method": "exclude",
+            "description": "dinner",
             "shares": {
               "mem_dean": 1680,
               "mem_maya": 1680,
@@ -838,6 +841,189 @@
         "action": "clarify",
         "about": ["payer"],
         "question": "who paid for dinner? i put each one on one person"
+      }
+    },
+    {
+      "id": "r2_01",
+      "note": "T-010 r2 (builder self-review of r1 #1): a name past a comma with its own absence clause never joins the list before it",
+      "sender": "mem_dean",
+      "text": "@trav i paid €84 for dinner, me maya and sam, henry wasn't there",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_dean",
+            "amountMinor": 8400,
+            "currency": "EUR",
+            "method": "equal",
+            "description": "dinner",
+            "shares": { "mem_dean": 2800, "mem_maya": 2800, "mem_sam": 2800 }
+          }
+        ]
+      }
+    },
+    {
+      "id": "r2_02",
+      "note": "T-010 r2 (r1 #1): two names out after a list",
+      "sender": "mem_dean",
+      "text": "@trav i paid €84 for dinner, me maya and sam, henry and jordan weren't there",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_dean",
+            "amountMinor": 8400,
+            "currency": "EUR",
+            "method": "equal",
+            "description": "dinner",
+            "shares": { "mem_dean": 2800, "mem_maya": 2800, "mem_sam": 2800 }
+          }
+        ]
+      }
+    },
+    {
+      "id": "r2_03",
+      "note": "T-010 r2 (r1 #6): 'A for X plus B tip' is one total, never a second expense called 'plus'",
+      "sender": "mem_dean",
+      "text": "@trav i paid €84 for dinner plus €10 tip, everyone",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_dean",
+            "amountMinor": 9400,
+            "currency": "EUR",
+            "method": "equal",
+            "description": "dinner",
+            "shares": {
+              "mem_dean": 1567,
+              "mem_henry": 1567,
+              "mem_maya": 1567,
+              "mem_jordan": 1567,
+              "mem_priya": 1566,
+              "mem_sam": 1566
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "r2_04",
+      "note": "T-010 r2 (r1 #6): 'A plus B for Y' with its own description is two expenses",
+      "sender": "mem_dean",
+      "text": "@trav i paid 84 for dinner plus 20 for the cab, everyone",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_dean",
+            "amountMinor": 8400,
+            "currency": "EUR",
+            "method": "equal",
+            "description": "dinner",
+            "shares": {
+              "mem_dean": 1400,
+              "mem_henry": 1400,
+              "mem_maya": 1400,
+              "mem_jordan": 1400,
+              "mem_priya": 1400,
+              "mem_sam": 1400
+            }
+          },
+          {
+            "payer": "mem_dean",
+            "amountMinor": 2000,
+            "currency": "EUR",
+            "method": "equal",
+            "description": "cab",
+            "shares": {
+              "mem_dean": 334,
+              "mem_henry": 334,
+              "mem_maya": 333,
+              "mem_jordan": 333,
+              "mem_priya": 333,
+              "mem_sam": 333
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "r2_05",
+      "note": "T-010 r2 (r1 #6): a tip with no amount is a missing money fact, never logged as €84",
+      "sender": "mem_dean",
+      "text": "@trav i paid €84 + tip, everyone",
+      "expect": { "action": "unsure" }
+    },
+    {
+      "id": "r2_06",
+      "note": "T-010 r2 (r1 #6): a dangling plus",
+      "sender": "mem_dean",
+      "text": "@trav €84 + , everyone",
+      "expect": { "action": "unsure" }
+    },
+    {
+      "id": "r2_07",
+      "note": "T-010 r2 (r1 #6): two things joined by a bare plus are past the rules",
+      "sender": "mem_dean",
+      "text": "@trav i paid €84 + €20 cab, everyone",
+      "expect": { "action": "unsure" }
+    },
+    {
+      "id": "r2_08",
+      "note": "T-010 r2 (r1 #6): a punctuation-only description",
+      "sender": "mem_dean",
+      "text": "@trav i paid €84 for ..., everyone",
+      "expect": { "action": "unsure" }
+    },
+    {
+      "id": "r2_09",
+      "note": "T-010 r2 (r1 #6): a punctuation-only description",
+      "sender": "mem_dean",
+      "text": "@trav i paid € 84 for !!!, everyone",
+      "expect": { "action": "unsure" }
+    },
+    {
+      "id": "r2_10",
+      "note": "T-010 r2 (r1 #5): money said as an aside is never logged as an expense",
+      "sender": "mem_dean",
+      "text": "@trav i paid €84 for dinner, everyone, i have €5 left lol",
+      "expect": { "action": "unsure" }
+    },
+    {
+      "id": "r2_11",
+      "note": "T-010 r2 (r1 #5): who's in, said before a later amount, is not carried to it",
+      "sender": "mem_dean",
+      "text": "@trav i paid €84 for dinner, everyone, room was €200 btw",
+      "expect": { "action": "unsure" }
+    },
+    {
+      "id": "r2_12",
+      "note": "T-010 r2 (r1 #5): 'with maya' may or may not cover the cab",
+      "sender": "mem_dean",
+      "text": "@trav i paid 84 for dinner with maya and 20 for the cab",
+      "expect": { "action": "unsure" }
+    },
+    {
+      "id": "r2_13",
+      "note": "T-010 r2 (r1 #10): no description means 'it' in the question, never 'expense' or 'that'",
+      "sender": "mem_priya",
+      "text": "@trav paid 20 quid, me and sam",
+      "expect": {
+        "action": "clarify",
+        "about": ["trip_currency"],
+        "question": "what was it in euros? the tab's in EUR and i can't convert £20 yet"
+      }
+    },
+    {
+      "id": "r2_14",
+      "note": "T-010 r2 (r1 #1, #10): a stray name with the amount missing is one question for both; the second part says 'it'",
+      "sender": "mem_dean",
+      "text": "@trav i paid for dinner, sam picked the place",
+      "expect": {
+        "action": "clarify",
+        "about": ["amount", "participants"],
+        "question": "how much was dinner, and who's in on it, by name?"
       }
     }
   ]

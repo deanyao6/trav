@@ -358,6 +358,8 @@ describe('fixtures/expenses/text.json (T-010)', () => {
         expect([...new Set(c.missing.flat())].sort()).toEqual([...x.about].sort());
         expect(c.question).toBe(x.question);
         expectVoice(c.question);
+        // r1 #10: the internal fallback description never reaches the chat
+        expect(c.question).not.toMatch(/\bexpense\b/);
         return;
       }
       expect(r.kind, JSON.stringify(r)).toBe('ready');
