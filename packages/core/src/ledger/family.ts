@@ -110,9 +110,10 @@ function carrier(memberId: MemberId, folding: MinorFolding): MemberId {
 /**
  * Fold minors' shares into their guardians'. Returns one share per carrier, in
  * `memberOrder`, with Σ unchanged (integer addition only, no re-rounding). A
- * guardian who was not a participant gains a share equal to the minor's. Zero
- * shares stay listed (as in `computeShares`). A zero-share minor with no
- * guardian is simply dropped; a non-zero one throws `minor_without_guardian`.
+ * guardian who was not a participant gains a share equal to the minor's.
+ * Adults' zero shares stay listed (as in `computeShares`); a minor's zero share
+ * is dropped and adds no row for their guardian. A minor with a non-zero share
+ * and no valid guardian throws `minor_without_guardian`.
  */
 export function foldShares(
   shares: readonly Share[],
@@ -131,10 +132,10 @@ export function foldShares(
         right: currency,
       });
     }
-    // A guardian-less minor who owes nothing has nothing to move (and is never listed).
-    const unguarded =
-      folding.guardianOf.has(s.memberId) && (folding.guardianOf.get(s.memberId) ?? null) === null;
-    if (unguarded && s.amount.amountMinor === 0) continue;
+    // A minor who owes exactly nothing has nothing to move: drop the row without
+    // touching the guardian (a non-participant guardian must not appear with a
+    // 0 share, and a guardian-less minor must not throw over nothing).
+    if (folding.guardianOf.has(s.memberId) && s.amount.amountMinor === 0) continue;
     const to = carrier(s.memberId, folding);
     total.set(to, (total.get(to) ?? 0) + s.amount.amountMinor);
   }
@@ -217,7 +218,10 @@ export function spendByCategory(
 
 export interface TripLedgerInput {
   readonly trip: Pick<Trip, 'familyTab' | 'currency'>;
-  /** Every group member, in group member order (minors included; ages are read here). */
+  /**
+   * Every group member (minors included; ages are read here). Output order
+   * follows `ctx.memberOrder` when `ctx` is static, else this array's order.
+   */
   readonly members: readonly Member[];
   readonly expenses: readonly Expense[];
   /** Split context for each expense, as for `buildLedger`. */
@@ -244,6 +248,25 @@ export interface TripLedger {
 }
 
 /**
+ * Order for balances, settle-up tie-breaks and `frontedBy`. With a static
+ * `SplitContext` this is `ctx.memberOrder` (the same order the raw
+ * `computeBalances` → `settle` chain uses), whatever order `members` came in;
+ * members absent from `ctx.memberOrder` are appended in `members` order. With a
+ * per-expense context function there is no single order, so `members` order is used.
+ */
+function balanceOrder(
+  members: readonly Member[],
+  ctx: SplitContext | ((expense: Expense) => SplitContext),
+): MemberId[] {
+  const ids = members.map((m) => m.memberId);
+  if (typeof ctx === 'function') return ids;
+  const present = new Set(ids);
+  const inCtx = ctx.memberOrder.filter((id) => present.has(id));
+  const listed = new Set(inCtx);
+  return [...inCtx, ...ids.filter((id) => !listed.has(id))];
+}
+
+/**
  * The trip's money picture with both T-058 rules applied (see the module doc).
  * Throws what `buildLedger` throws (invalid split, `duplicate` expense id,
  * currency mismatch) and `minor_without_guardian` when a guardian-less minor
@@ -254,7 +277,7 @@ export function tripLedger(input: TripLedgerInput): TripLedger {
   const currency = trip.currency;
   const folding = minorFolding(members, now);
   const entries = foldLedgerEntries(buildLedger(expenses, ctx), folding);
-  const order = members.map((m) => m.memberId).filter((id) => !folding.guardianOf.has(id));
+  const order = balanceOrder(members, ctx).filter((id) => !folding.guardianOf.has(id));
   if (order.length === 0) {
     throw new TravError(
       'invalid_argument',

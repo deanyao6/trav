@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import type { MemberId } from '../primitives.js';
-import { money } from '../money.js';
+import { allocate, money } from '../money.js';
 import type { Expense, ExpenseCategory, LedgerEntry, Share } from '../domain/expense.js';
 import type { Member } from '../domain/group.js';
 import type { Trip } from '../domain/trip.js';
@@ -54,6 +54,11 @@ const FAMILY: readonly Member[] = [
   member({ memberId: LILY, displayName: 'Lily', ageBand: 'under18', guardianMemberId: DAD }),
 ];
 const FAMILY_IDS = FAMILY.map((m) => m.memberId);
+const SIB = 'mem_sib'; // second minor, same guardian
+const FAMILY_WITH_SIB: readonly Member[] = [
+  ...FAMILY,
+  member({ memberId: SIB, displayName: 'Sib', ageBand: 'under18', guardianMemberId: DAD }),
+];
 const FAMILY_CTX = contextFor(FAMILY_IDS);
 const usd = (n: number) => money(n, 'USD');
 
@@ -179,6 +184,67 @@ describe('foldShares', () => {
       [DAD, 501],
       [KID, 250],
     ]);
+  });
+
+  it('when the guardian pays, they take the odd cent and carry the minor on top', () => {
+    const e = famExpense({ amountMinor: 1001, payer: DAD });
+    const raw = computeShares(e, FAMILY_CTX);
+    expect(pairs(raw)).toEqual([
+      [MOM, 250],
+      [DAD, 251],
+      [KID, 250],
+      [LILY, 250],
+    ]);
+    expect(pairs(foldShares(raw, folding, FAMILY_IDS))).toEqual([
+      [MOM, 250],
+      [DAD, 501],
+      [KID, 250],
+    ]);
+  });
+
+  it('two minors sharing one guardian both fold into that guardian', () => {
+    const ids = [...FAMILY_IDS, SIB];
+    const fold2 = minorFolding(FAMILY_WITH_SIB, NOW);
+    const e = famExpense({
+      amountMinor: 1002,
+      payer: SIB,
+      split: { method: 'equal', participants: ids },
+    });
+    const raw = computeShares(e, contextFor(ids));
+    expect(pairs(raw)).toEqual([
+      [MOM, 201],
+      [DAD, 200],
+      [KID, 200],
+      [LILY, 200],
+      [SIB, 201],
+    ]);
+    expect(pairs(foldShares(raw, fold2, ids))).toEqual([
+      [MOM, 201],
+      [DAD, 601],
+      [KID, 200],
+    ]);
+  });
+
+  it("a minor's exactly-zero share adds no row for a non-participant guardian", () => {
+    const e = famExpense({
+      amountMinor: 100,
+      payer: MOM,
+      split: {
+        method: 'exact',
+        amounts: [
+          { memberId: MOM, amount: usd(100) },
+          { memberId: LILY, amount: usd(0) },
+        ],
+      },
+    });
+    const raw = computeShares(e, FAMILY_CTX);
+    expect(pairs(raw)).toEqual([
+      [MOM, 100],
+      [LILY, 0],
+    ]);
+    const folded = foldShares(raw, folding, FAMILY_IDS);
+    expect(pairs(folded)).toEqual([[MOM, 100]]);
+    expect(folded.some((s) => s.memberId === DAD)).toBe(false);
   });
 
   it('a guardian who was not a participant still carries the minor', () => {
@@ -498,6 +564,121 @@ describe('tripLedger: split trips', () => {
     ).toBe(true);
   });
 
+  it('an inactive guardian (left the group) still carries the minor', () => {
+    resetCounter();
+    const members = [
+      member({ memberId: MOM, displayName: 'Mom', ageBand: 'adult' }),
+      member({
+        memberId: DAD,
+        displayName: 'Dad',
+        ageBand: 'adult',
+        active: false,
+        leftAt: '2026-06-21T09:00:00-04:00',
+      }),
+      member({ memberId: LILY, displayName: 'Lily', ageBand: 'under18', guardianMemberId: DAD }),
+    ];
+    const ids = members.map((m) => m.memberId);
+    const e = famExpense({
+      amountMinor: 300,
+      payer: MOM,
+      split: { method: 'equal', participants: [MOM, LILY] },
+    });
+    const got = tripLedger({
+      trip: splitTrip,
+      members,
+      expenses: [e],
+      ctx: contextFor(ids),
+      now: NOW,
+    });
+    expect(got.folded).toEqual([{ minor: LILY, guardian: DAD }]);
+    expect(nets(got.balances)).toEqual([
+      [MOM, 150],
+      [DAD, -150],
+    ]);
+    expect(got.transfers.map((t) => [t.from, t.to, t.amount.amountMinor])).toEqual([
+      [DAD, MOM, 150],
+    ]);
+  });
+
+  it('two minors sharing one guardian: both fold into the guardian end to end', () => {
+    resetCounter();
+    const ids = FAMILY_WITH_SIB.map((m) => m.memberId);
+    const e = famExpense({
+      amountMinor: 1002,
+      payer: SIB,
+      split: { method: 'equal', participants: ids },
+    });
+    const got = tripLedger({
+      trip: splitTrip,
+      members: FAMILY_WITH_SIB,
+      expenses: [e],
+      ctx: contextFor(ids),
+      now: NOW,
+    });
+    expect(got.folded).toEqual([
+      { minor: LILY, guardian: DAD },
+      { minor: SIB, guardian: DAD },
+    ]);
+    // Sib's 1002 is credited to Dad, who owes 200 + 200 + 201 = 601.
+    expect(nets(got.balances)).toEqual([
+      [MOM, -201],
+      [DAD, 1002 - 601],
+      [KID, -200],
+    ]);
+    expect(got.transfers.map((t) => [t.from, t.to, t.amount.amountMinor])).toEqual([
+      [MOM, DAD, 201],
+      [KID, DAD, 200],
+    ]);
+    expect(pairs(got.frontedBy)).toEqual([[DAD, 1002]]);
+    expect(mentions(got, LILY) || mentions(got, SIB)).toBe(false);
+  });
+
+  it('output order follows ctx.memberOrder, not the order `members` was passed in', () => {
+    resetCounter();
+    // Mom fronts for Dad, Kid and Lily: Dad (carrying Lily) and Kid end up equal
+    // debtors (−300 each), so settle's tie-break and output order depend on member order.
+    const expenses = [
+      famExpense({
+        amountMinor: 200,
+        payer: MOM,
+        split: { method: 'equal', participants: [DAD, KID] },
+      }),
+      famExpense({
+        amountMinor: 400,
+        payer: MOM,
+        split: { method: 'equal', participants: [KID, LILY] },
+      }),
+    ];
+    const base = { trip: splitTrip, expenses, ctx: FAMILY_CTX, now: NOW };
+    const straight = tripLedger({ ...base, members: FAMILY });
+    const reversed = tripLedger({ ...base, members: FAMILY.slice().reverse() });
+    expect(reversed).toEqual(straight);
+    expect(nets(reversed.balances)).toEqual([
+      [MOM, 600],
+      [DAD, -300],
+      [KID, -300],
+    ]);
+    expect(reversed.transfers.map((t) => [t.from, t.to, t.amount.amountMinor])).toEqual([
+      [DAD, MOM, 300],
+      [KID, MOM, 300],
+    ]);
+    // Same as the raw computeBalances → settle chain over the folded entries in ctx order.
+    const raw = computeBalances(
+      foldLedgerEntries(buildLedger(expenses, FAMILY_CTX), minorFolding(FAMILY, NOW)),
+      'USD',
+      [MOM, DAD, KID],
+    );
+    expect(reversed.balances).toEqual(raw);
+    expect(reversed.transfers).toEqual(settle(raw));
+    // A member absent from ctx.memberOrder is appended after the ctx order.
+    const extra = member({ memberId: 'mem_extra', displayName: 'Extra', ageBand: 'adult' });
+    const withExtra = tripLedger({ ...base, members: [extra, ...FAMILY.slice().reverse()] });
+    expect(withExtra.balances.map((b) => b.memberId)).toEqual([MOM, DAD, KID, 'mem_extra']);
+    // With a per-expense context function there is no single order: `members` order is used.
+    const fnCtx = tripLedger({ ...base, ctx: () => FAMILY_CTX, members: FAMILY.slice().reverse() });
+    expect(fnCtx.balances.map((b) => b.memberId)).toEqual([KID, DAD, MOM]);
+  });
+
   it('rejects a group with no adult to carry the tab', () => {
     const kids = [member({ memberId: LILY, displayName: 'Lily', ageBand: 'under18' })];
     expectTravError(
@@ -760,21 +941,89 @@ describe('properties', () => {
     );
   });
 
-  it('foldShares preserves Σ for every split mode output', () => {
+  it('foldShares preserves Σ, never lists a minor and stays integer across split modes', () => {
     const folding = minorFolding(FAMILY, NOW);
+    const methodArb = fc.constantFrom('equal', 'exclude', 'weighted', 'exact', 'itemized');
+    const weightsArb = fc.array(fc.integer({ min: 0, max: 9 }), { minLength: 4, maxLength: 4 });
+    const seen = new Set<string>();
     fc.assert(
       fc.property(
         fc.integer({ min: 1, max: 5_000_000 }),
         fc.constantFrom(...anyone),
         fc.shuffledSubarray(anyone, { minLength: 1 }),
-        (amountMinor, payer, participants) => {
-          const e = famExpense({ amountMinor, payer, split: { method: 'equal', participants } });
+        methodArb,
+        weightsArb,
+        (amountMinor, payer, members, method, weights) => {
+          const amount = usd(amountMinor);
+          const w = (i: number) => (weights[i] ?? 0) + 1; // integer weights ≥ 1
+          let split: Expense['split'];
+          switch (method) {
+            case 'equal':
+              split = { method, participants: members };
+              break;
+            case 'exclude':
+              // excluded = everyone NOT drawn, so at least one participant remains
+              split = { method, excluded: anyone.filter((id) => !members.includes(id)) };
+              break;
+            case 'weighted':
+              split = {
+                method,
+                weights: members.map((memberId, i) => ({ memberId, weight: w(i) })),
+              };
+              break;
+            case 'exact': {
+              // amounts that sum exactly (zeros allowed, e.g. a minor with $0.00)
+              const parts = allocate(
+                amount,
+                members.map((_, i) => weights[i] ?? 0).some((x) => x > 0)
+                  ? members.map((_, i) => weights[i] ?? 0)
+                  : members.map(() => 1),
+              );
+              split = {
+                method,
+                amounts: members.map((memberId, i) => ({
+                  memberId,
+                  amount: parts[i] ?? usd(0),
+                })),
+              };
+              break;
+            }
+            case 'itemized': {
+              // one claimed line per member plus an unclaimed tip, summing to the amount
+              const parts = allocate(amount, [...members.map((_, i) => w(i)), 1]);
+              split = {
+                method,
+                participants: members,
+                lineItems: [
+                  ...members.map((memberId, i) => ({
+                    lineId: `l${i}`,
+                    label: `l${i}`,
+                    amount: parts[i] ?? usd(0),
+                    claimedBy: [memberId],
+                    kind: 'item' as const,
+                  })),
+                  {
+                    lineId: 'tip',
+                    label: 'tip',
+                    amount: parts[members.length] ?? usd(0),
+                    claimedBy: [],
+                    kind: 'tip' as const,
+                  },
+                ],
+              };
+              break;
+            }
+          }
+          seen.add(method);
+          const e = famExpense({ amountMinor, payer, split });
           const folded = foldShares(computeShares(e, FAMILY_CTX), folding, FAMILY_IDS);
           expect(folded.reduce((a, s) => a + s.amount.amountMinor, 0)).toBe(amountMinor);
           expect(folded.some((s) => s.memberId === LILY)).toBe(false);
           expect(folded.every((s) => Number.isSafeInteger(s.amount.amountMinor))).toBe(true);
         },
       ),
+      { numRuns: 300 },
     );
+    expect([...seen].sort()).toEqual(['equal', 'exact', 'exclude', 'itemized', 'weighted']);
   });
 });
