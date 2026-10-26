@@ -26,7 +26,7 @@
  * `agent.handleInbound`; only the Razzmatazz flow is answered by the script.
  */
 import { createSimulatorChannel, mockBarcodePayload, mockQrDataUrl } from '@trav/adapters';
-import type { InboundEvent, SimulatorChannel } from '@trav/adapters';
+import type { ChannelHandle, InboundEvent, SimulatorChannel } from '@trav/adapters';
 import {
   allocateEqual,
   createSimulatedClock,
@@ -570,7 +570,16 @@ function createSession(clock: SimulatedClock, delayMs: number): Session {
     await propose(attendees, excluded, sender, undefined);
   }
 
-  /** A tap or tapback on a card the embedded runtime sent (a "looks shared?" DM, an expiry line). */
+  /** Whether the embedded runtime (not the script) has sent anything into this member's DM. */
+  function runtimeSentInDm(handle: ChannelHandle): boolean {
+    return channel
+      .dmTranscript(handle)
+      .some(
+        (e) => e.direction === 'outbound' && e.type === 'message' && !scriptedIds.has(e.messageId),
+      );
+  }
+
+  /** A tap, tapback or typed DM reply on a card the embedded runtime sent (a "looks shared?" DM, an expiry line). */
   async function forwardToRuntime(event: InboundEvent): Promise<RespondOutcome | undefined> {
     const result = await runtime.agent.handleInbound(event);
     const status = silentTurnStatus(event, result, targetCardOf(channel, event));
@@ -583,6 +592,10 @@ function createSession(clock: SimulatedClock, delayMs: number): Session {
     if (!sender) return; // unknown identity: Trav does nothing (SAFETY: identity from the channel only)
     if (event.type === 'message') {
       if (event.lane === 'dm') {
+        // Once the embedded runtime has sent a card into this DM (a "looks
+        // shared?" prompt), typed replies ("share it") go to the runtime just
+        // like taps on that card do; otherwise the scripted line applies.
+        if (runtimeSentInDm(event.sender)) return forwardToRuntime(event);
         await pause();
         await sendDm(sender, { text: SCRIPTED_TEXT.dm });
         return;

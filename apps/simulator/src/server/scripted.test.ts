@@ -569,6 +569,28 @@ describe('scripted backend: channel identity checks and reset', () => {
     ]);
     expect(travMessages(view)).toHaveLength(0);
   });
+
+  it('a typed DM reply after the runtime sent a card in that DM goes to the runtime, not the scripted line', async () => {
+    const b = await createScriptedBackend();
+    expect(b.intake).toBeDefined();
+    await b.intake!('doc_bcn_sam_card_1');
+    const prompt = messages(bcn(b.state()).dms['mem_sam'] ?? []).find(
+      (m) => m.card?.type === 'expense_confirm',
+    );
+    expect(prompt).toBeDefined();
+    await b.inject({ type: 'message', from: 'h_sam', text: 'share it', lane: 'dm' });
+    const view = bcn(b.state());
+    const sam = messages(view.dms['mem_sam'] ?? []).map((m) => m.text);
+    expect(sam).toContain('share it');
+    expect(sam).not.toContain(SCRIPTED_TEXT.dm);
+    // Priya's DM has no runtime card, so her typed DM still gets the scripted line.
+    await b.inject({ type: 'message', from: 'h_priya', text: 'share it', lane: 'dm' });
+    expect(messages(bcn(b.state()).dms['mem_priya'] ?? []).map((m) => m.text)).toEqual([
+      'share it',
+      SCRIPTED_TEXT.dm,
+    ]);
+    expect(JSON.stringify(view.thread)).not.toContain('23.40');
+  });
 });
 
 describe('scripted text follows VOICE (lintVoice)', () => {
