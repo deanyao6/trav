@@ -134,11 +134,16 @@ describe.each<Kind>(['scripted', 'agent'])('demo clicked in order (%s backend)',
       cardMessageId: prompt.messageId,
       actionId: 'confirm',
     });
-    // Until T-012/T-013 the share flow answers with silence: the status line says so.
-    const shared = messages(bcn(s4b).thread).some(
+    // Shared: the card in Sam's DM is now `logged` (VOICE §4.5: it reaches the group with
+    // the next recap) or a Trav line names the Uber in the group. Before the share flow
+    // was wired (T-012/T-013) the tap answered with silence and the status line said so.
+    const shared = messages(bcn(s4b).dms['mem_sam']!).some(
+      (m) => m.seq > prompt.seq && m.card?.type === 'expense_confirm' && m.card.status === 'logged',
+    );
+    const named = messages(bcn(s4b).thread).some(
       (m) => m.isTrav && m.seq > prompt.seq && /uber/i.test(m.text),
     );
-    if (!shared) expect(bcn(s4b).status).toBe(SHARE_FLOW_NOT_WIRED_STATUS);
+    if (!shared && !named) expect(bcn(s4b).status).toBe(SHARE_FLOW_NOT_WIRED_STATUS);
 
     // --- state 5: next morning.
     const s5 = await post(b, '/api/clock', { step: 'morning', groupId: BARCELONA.groupId });

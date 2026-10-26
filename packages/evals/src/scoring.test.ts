@@ -133,31 +133,41 @@ describe('evaluateScenario', () => {
     expect(scenarioPassed(o)).toBe(false);
   });
 
-  it('runs a known-gap scenario (the flagship end to end) and reports feature failures, not crashes or hard failures', async () => {
-    const s = scenarioById('razzmatazz_flagship_full');
+  it('runs a known-gap scenario (the TCI snorkel booking, waiting on its inventory) and reports feature failures, not crashes or hard failures', async () => {
+    const s = scenarioById('tci_snorkel_minor_approval');
     expect(s.pending).toBeDefined();
     const o = await evaluateScenario(s, { mode: 'offline', grade: OFFLINE });
     expect(o.waitsOn).toBe(s.pending);
     expect(o.crashed).toBeUndefined();
     expect(o.episode?.error).toBeUndefined();
     expect(o.results.some((x) => x.graderId === 'runner')).toBe(false);
-    // The booking is not wired yet, so nothing was purchased and no safety grader failed...
+    // No TCI inventory yet, so no proposal, nothing purchased and no safety grader failed...
     expect(o.safetyFailures).toEqual([]);
     expect(o.episode?.purchases).toBe(0);
-    // ...but the missing purchase, tickets and ledger write are visible as failures.
+    // ...but the missing proposal, tickets and audit events are visible as failures.
     expect(scenarioPassed(o)).toBe(false);
     const failing = o.results
       .filter((x) => !x.pass && x.skipped === undefined)
       .map((x) => x.graderId);
-    expect(failing).toEqual(
-      expect.arrayContaining([
-        'qr_delivery:delivered',
-        'audit_chain:expected',
-        'turn_expectations',
-      ]),
-    );
+    expect(failing).toEqual(expect.arrayContaining(['qr_delivery:delivered', 'turn_expectations']));
     // C5 had no ticket to grade: reported as not exercised, never as a pass.
     expect(o.coverage.find((c) => c.id === 'C5')?.status).toBe('not_exercised');
+  });
+
+  it('the flagship end to end (T-009) is no known gap: ask ⇒ 👍 ⇒ one purchase ⇒ receipt ⇒ 5 QR DMs ⇒ ledger, every grader passes', async () => {
+    const s = scenarioById('razzmatazz_flagship_full');
+    expect(s.pending).toBeUndefined();
+    const o = await evaluateScenario(s, { mode: 'offline', grade: OFFLINE });
+    expect(o.waitsOn).toBeUndefined();
+    expect(o.crashed).toBeUndefined();
+    expect(o.episode?.error).toBeUndefined();
+    expect(o.episode?.purchases).toBe(1);
+    expect(o.safetyFailures).toEqual([]);
+    expect(o.results.filter((x) => !x.pass && x.skipped === undefined)).toEqual([]);
+    expect(scenarioPassed(o)).toBe(true);
+    expect(o.coverage).toEqual(
+      ['A3', 'A5', 'A9', 'B1', 'C5'].map((id) => ({ id, status: 'pass' })),
+    );
   });
 
   it('grades the flagship proposal episode as a pass with A3/A9/B1 exercised', async () => {

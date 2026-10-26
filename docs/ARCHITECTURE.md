@@ -108,9 +108,11 @@ Document text (OCR, email bodies, provider descriptions) never enters step 5. It
               roster/price/policy change before execution ⇒ approval.invalidateGrant + audit approval.invalidated + re-propose
 3. execute    grant.complete ⇒ executor.execute(proposalId, grantId)        agent/booking/executor.ts  (THE call site)
               checkGrant → key lookup (duplicate ⇒ booking.duplicate_suppressed) → audit booking.attempted
-              → re-price → provider purchase(quoteRef, idempotencyKey, toApprovalProof(...)) → bookings.createBooking
-              → audit booking.completed → expenses.create(Expense{ source:'booking', sourceRef:{kind:'booking', id} }, entries)
-              → audit ledger.written → tickets → PrivateStore.putTicket(holder, TicketArtifact)
+              → re-price + checkProposalConsistency(live roster) + detectGrantInvalidation (change ⇒ approval.invalidated, re-quote)
+              → provider purchase(quoteRef, idempotencyKey, toApprovalProof(...)) → payments.charge (member_card) → grant consumed
+              → audit booking.completed → bookings.createBooking (the row carries completedAuditEventId; D-022)
+              → expenses.create(Expense{ source:'booking', sourceRef:{kind:'booking', id} }, entries) → audit ledger.written
+              → tickets, each from getTicketForHolder → PrivateStore.putTicket(holder, TicketArtifact)
               failure ⇒ audit booking.failed, result { kind:'failed', moneyMoved:false }; double 👍 / retry ⇒ 'duplicate'
 4. receipt    render/receipt.ts builds ReceiptCard FROM the audit events + booking + expense (never free text from the model)
               group lane: ReceiptCard; DM lane: one TicketCard per attendee from PrivateStore.listTickets(holder, bookingId)

@@ -1077,7 +1077,10 @@ describe('"not me" on a superseded card', () => {
       proposalId: proposal.proposalId,
     });
     expect(old).toEqual([]);
-    expect(attempts(h).at(-1)?.payload).toMatchObject({ cause: 'not_pending', messageId: 'm_old_ok' });
+    expect(attempts(h).at(-1)?.payload).toMatchObject({
+      cause: 'not_pending',
+      messageId: 'm_old_ok',
+    });
     expect(fake.calls).toEqual([]);
     expect((await h.tap('h_dean', groupMessages(first)[0]!.id, 'approve')).silent).toBe(true);
     expect(fake.calls).toEqual([]);
@@ -1095,6 +1098,34 @@ describe('"not me" on a superseded card', () => {
     expect(receipt !== undefined && !isReaction(receipt) ? receipt.text.split('\n')[0] : '').toBe(
       'booked ✅ razzmatazz, 3 tickets, €54',
     );
+  });
+
+  it("through the loop (T-030 note a): Jordan's Not me TAP on the OLD card is mapped to the live proposal before the gate, so it supersedes it instead of being refused as not_pending", async () => {
+    const { h, fake } = rig();
+    const { proposal, cardMessageId } = await propose(h);
+    const first = await h.tap('h_maya', cardMessageId, 'not_me');
+    const live = h.pending()[0]!;
+    expect(live.attendees).toEqual([...FOUR]);
+    expect(status(h, proposal.proposalId)).toBe('superseded');
+
+    // The real inbound path: a button tap bound to the superseded card's proposal.
+    const turn = await h.tap('h_jordan', cardMessageId, 'not_me');
+    expect(turn.silent).toBe(false);
+    const card = groupMessages(turn)[0]!;
+    expect(card.card?.type).toBe('booking_proposal');
+    expect(card.text).toContain('Dean, Priya, Sam (not Henry, Maya, Jordan)');
+    const next = h.pending();
+    expect(next).toHaveLength(1);
+    expect(next[0]!.attendees).toEqual(['mem_dean', 'mem_priya', 'mem_sam']);
+    expect(status(h, live.proposalId)).toBe('superseded');
+    expect(rosterRow(h, 'mem_jordan')).toBe('out');
+    // Nothing was refused for being stale, and nothing was bought.
+    expect(attempts(h).filter((e) => e.payload['cause'] === 'not_pending')).toEqual([]);
+    expect(fake.calls).toEqual([]);
+    expect(h.tickets.purchaseCount()).toBe(0);
+    // A 👍 on the first re-quote (now dead too) stays silent; the gate still refuses approvals on stale cards.
+    expect((await h.tap('h_dean', groupMessages(first)[0]!.id, 'approve')).silent).toBe(true);
+    expect(fake.calls).toEqual([]);
   });
 
   it('someone no longer charged on the live card gets the "not on that one" line, nothing superseded', async () => {
@@ -1135,7 +1166,9 @@ describe('expiry is the shorter of the grant TTL and the provider hold (VOICE §
     expect(card.text).toContain('price held for 5 min');
     expect(card.expiresAt).toBe(holdEnd);
     expect(card.card?.type === 'booking_proposal' ? card.card.holdExpiresAt : '').toBe(holdEnd);
-    const job = h.runtime.scheduler.list().find((j) => j.jobId === expiryJobId(proposal.proposalId));
+    const job = h.runtime.scheduler
+      .list()
+      .find((j) => j.jobId === expiryJobId(proposal.proposalId));
     expect(job?.runAt).toBe(holdEnd);
     h.clock.advanceMs(6 * 60 * 1000);
     const turns = await h.runtime.drain();
