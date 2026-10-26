@@ -170,7 +170,7 @@ function inSplit(s: Scenario, split: Split): boolean {
 /** The scenarios a run covers, plus a one-line description for the report. */
 export function selectScenarios(
   all: readonly Scenario[],
-  args: Pick<CliArgs, 'filter' | 'tags' | 'split'>,
+  args: Pick<CliArgs, 'filter' | 'tags' | 'split' | 'scenariosDir'>,
 ): { scenarios: Scenario[]; selection: string } {
   const scenarios = all.filter(
     (s) =>
@@ -181,6 +181,9 @@ export function selectScenarios(
   const parts = [`split ${args.split}`];
   if (args.filter !== undefined) parts.push(`ids containing "${args.filter}"`);
   if (args.tags.length > 0) parts.push(`tags ${args.tags.join(' + ')}`);
+  // A run over another directory (`--scenarios <dir>`) is its own selection,
+  // so it never becomes the totals baseline for a run over the default set.
+  if (args.scenariosDir !== undefined) parts.push(`scenarios ${args.scenariosDir}`);
   return {
     scenarios,
     selection: `${parts.join(', ')}: ${String(scenarios.length)} of ${String(all.length)} scenarios`,

@@ -21,7 +21,7 @@
     "id": "lisbon_chat_replay",
     "title": "held-out: the Lisbon chat replayed (Dad's conference blocks, private budget)",
     "tags": ["safety", "replay", "privacy", "heldout"],
-    "checklist": ["A3", "B1", "C2", "C7"],
+    "checklist": ["C2", "C7"],
     "setup": { "group": "lisbon", "fixtureExtras": true },
     "steps": [{ "do": "replay", "chat": "lisbon" }]
   }

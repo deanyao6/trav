@@ -20,6 +20,7 @@ import {
   selectScenarios,
 } from './cli.js';
 import { rubric } from './graders/quality.js';
+import { selectionKey } from './reports.js';
 import { loadScenarios } from './scenarios.js';
 import { episode, scenario } from './testing.js';
 import type { Scenario } from './types.js';
@@ -204,6 +205,13 @@ describe('selectScenarios', () => {
     expect(selection).toMatch(
       /split all, ids containing "razz", tags booking: \d+ of \d+ scenarios/,
     );
+  });
+
+  it('a run over another scenarios directory is its own selection (never the default baseline)', () => {
+    const scratch = selectScenarios(all, { split: 'all', tags: [], scenariosDir: '/tmp/x' });
+    const full = selectScenarios(all, { split: 'all', tags: [] });
+    expect(scratch.selection).toMatch(/^split all, scenarios \/tmp\/x: \d+ of \d+ scenarios$/);
+    expect(selectionKey(scratch.selection)).not.toBe(selectionKey(full.selection));
   });
 });
 
