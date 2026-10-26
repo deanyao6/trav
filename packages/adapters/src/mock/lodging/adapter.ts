@@ -515,6 +515,7 @@ export function createMockLodging(options: MockLodgingOptions): MockLodging {
         const ids = request.guestMemberIds as unknown;
         const same =
           replay.groupId === request.groupId &&
+          replay.groupId === request.approval.groupId &&
           replay.rateId === request.rateId &&
           replay.approvalId === request.approval.approvalId &&
           Array.isArray(ids) &&
@@ -630,7 +631,8 @@ export function createMockLodging(options: MockLodgingOptions): MockLodging {
         if (
           replayOf.bookingId === bookingId &&
           rec &&
-          replayOf.approvalId === approval.approvalId
+          replayOf.approvalId === approval.approvalId &&
+          rec.groupId === approval.groupId
         ) {
           return done(ok(rec.booking));
         }

@@ -34,7 +34,14 @@ export interface PaymentIntent {
   readonly reference: string;
   readonly createdAt: IsoDateTime;
   readonly approvalId: string;
+  /** Cumulative amount refunded across every refund of this charge. */
   readonly refundedAmount?: Money;
+  /**
+   * Only on the result of `refund` (and its idempotent replays): the amount
+   * THIS refund returned, i.e. the `refundMinor` of its `booking.refunded`
+   * audit event. Never present on `charge`/`getCharge` results.
+   */
+  readonly refundAmount?: Money;
 }
 
 export interface ChargeRequest {
@@ -87,7 +94,9 @@ export interface BookingPaymentsAdapter {
    * expired, another group's, below the refund, or already used for another
    * action ⇒ `approval_invalid`/`approval_exceeded`; a missing `requestedBy`
    * ⇒ `invalid_request`; a `requestedBy` who did not approve ⇒
-   * `approval_invalid`. Idempotent per idempotencyKey. Never throws.
+   * `approval_invalid`. Idempotent per idempotencyKey. Never throws. The
+   * result carries `refundAmount` (this refund) next to the cumulative
+   * `refundedAmount`.
    */
   refund(request: RefundChargeRequest): Promise<Result<PaymentIntent>>;
 

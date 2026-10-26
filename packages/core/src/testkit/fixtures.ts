@@ -16,9 +16,18 @@ import { TravError } from '../errors.js';
 /** `<repo>/fixtures` (this file lives in packages/core/src/testkit). */
 const FIXTURES_ROOT = fileURLToPath(new URL('../../../../fixtures', import.meta.url));
 
-const SEGMENT_RE = /^[A-Za-z0-9_][A-Za-z0-9._-]*$/;
+/**
+ * One path segment: lowercase letters, digits, `_`, `-` and `.` (for the
+ * extension), starting with a letter, digit or `_` (so no `.hidden` and no
+ * `..`), at most 100 characters. `/` separates segments; a leading `/`, an
+ * empty segment, `\` and uppercase are all rejected.
+ */
+const SEGMENT_RE = /^[a-z0-9_][a-z0-9._-]{0,99}$/;
 
-function fixturePath(rel: string): string {
+function fixturePath(rel: unknown): string {
+  if (typeof rel !== 'string') {
+    throw new TravError('invalid_argument', 'fixture path must be a string');
+  }
   const segments = rel.split('/');
   for (const s of segments) {
     if (!SEGMENT_RE.test(s) || s.includes('..')) {

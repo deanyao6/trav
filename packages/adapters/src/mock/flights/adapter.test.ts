@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { addMinutes, createSimulatedClock, parseIso } from '@trav/core';
+import { addMinutes, createSimulatedClock, formatIso, parseIso } from '@trav/core';
 import type { Money, SimulatedClock } from '@trav/core';
 import type { ApprovalProof, Result, Traveler } from '../../interfaces/common.js';
 import type {
@@ -365,9 +365,20 @@ describe('createOrder', () => {
       travelers: [traveler('mem_dean')],
       expectedTotal: one.totalAmount,
       idempotencyKey: 'k2',
-      approval,
+      approval: proofFor(clock, eur(50000), { approvalId: 'grant_t000002' }),
     });
     expect(errorCode(newKey)).toBe('duplicate');
+    // One approval funds one action: the first order's approval cannot book another offer.
+    const reused = await flights.createOrder({
+      groupId: 'grp_barcelona',
+      offerId: three.offerId,
+      travelers: [traveler('mem_dean')],
+      expectedTotal: three.totalAmount,
+      idempotencyKey: 'k3',
+      approval,
+    });
+    expect(errorCode(reused)).toBe('approval_invalid');
+    expect(flights.purchaseCount()).toBe(1);
     expect(flights.purchaseCount()).toBe(1);
   });
 
@@ -509,20 +520,22 @@ describe('createOrder', () => {
       expect(flights.purchaseCount()).toBe(0);
     });
 
-    it('accepts a proof exactly at the cap and exactly at its expiry instant', async () => {
+    it('accepts a proof exactly at the cap one ms before expiry; expired AT expiresAt (shared rule)', async () => {
       const offer = await searchOne();
       const approval = proofFor(clock, offer.totalAmount);
+      const request = {
+        groupId: 'grp_barcelona',
+        offerId: offer.offerId,
+        travelers: [traveler('mem_dean')],
+        expectedTotal: offer.totalAmount,
+        idempotencyKey: 'k',
+        approval,
+      };
       clock.set(approval.expiresAt);
-      const order = unwrap(
-        await flights.createOrder({
-          groupId: 'grp_barcelona',
-          offerId: offer.offerId,
-          travelers: [traveler('mem_dean')],
-          expectedTotal: offer.totalAmount,
-          idempotencyKey: 'k',
-          approval,
-        }),
-      );
+      expect(errorCode(await flights.createOrder(request))).toBe('approval_invalid');
+      expect(flights.purchaseCount()).toBe(0);
+      clock.set(formatIso(parseIso(approval.expiresAt) - 1, 60));
+      const order = unwrap(await flights.createOrder(request));
       expect(order.status).toBe('confirmed');
       expect(flights.purchaseCount()).toBe(1);
     });
@@ -580,7 +593,7 @@ describe('cancellation', () => {
         travelers: [traveler('mem_dean')],
         expectedTotal: offer.totalAmount,
         idempotencyKey: `book-${templateId}`,
-        approval: proofFor(clock, eur(50000)),
+        approval: proofFor(clock, eur(50000), { approvalId: `grant_book_${templateId}` }),
       }),
     );
     return order.orderId;
@@ -624,6 +637,68 @@ describe('cancellation', () => {
     expect(flights.cancellationCount()).toBe(1);
     expect(unwrap(await flights.getOrder(orderId)).status).toBe('cancelled');
     expect(errorCode(await flights.quoteCancellation(orderId))).toBe('invalid_request');
+  });
+
+  it('one approval funds one action: the booking approval cannot cancel; a cancel approval cannot be reused', async () => {
+    const orderId = await book('bos-jfk-1');
+    const q = unwrap(await flights.quoteCancellation(orderId));
+    const bookingApproval = proofFor(clock, eur(50000), { approvalId: 'grant_book_bos-jfk-1' });
+    expect(errorCode(await flights.confirmCancellation(q.quoteId, bookingApproval, 'c1'))).toBe(
+      'approval_invalid',
+    );
+    expect(flights.cancellationCount()).toBe(0);
+
+    const cancelApproval = proofFor(clock, eur(7500), { approvalId: 'grant_cancel_1' });
+    unwrap(await flights.confirmCancellation(q.quoteId, cancelApproval, 'c1'));
+    const other = await book('bos-jfk-3');
+    const q2 = unwrap(await flights.quoteCancellation(other));
+    expect(errorCode(await flights.confirmCancellation(q2.quoteId, cancelApproval, 'c2'))).toBe(
+      'approval_invalid',
+    );
+    // ...nor fund a new booking.
+    const offer = byTemplate(unwrap(await flights.search(deanSearch())), 'bos-jfk-1');
+    const r = await flights.createOrder({
+      groupId: 'grp_barcelona',
+      offerId: offer.offerId,
+      travelers: [traveler('mem_dean')],
+      expectedTotal: offer.totalAmount,
+      idempotencyKey: 'k-new',
+      approval: proofFor(clock, eur(50000), { approvalId: 'grant_cancel_1' }),
+    });
+    expect(errorCode(r)).toBe('approval_invalid');
+    expect(flights.cancellationCount()).toBe(1);
+  });
+
+  it('a cancellation replay must carry a well-formed proof, the same approval and the same group', async () => {
+    const orderId = await book('bos-jfk-1');
+    const q = unwrap(await flights.quoteCancellation(orderId));
+    const proof = proofFor(clock, eur(7500), { approvalId: 'grant_cancel_1' });
+    const cancelled = unwrap(await flights.confirmCancellation(q.quoteId, proof, 'c1'));
+    expect(
+      errorCode(
+        await flights.confirmCancellation(q.quoteId, undefined as unknown as ApprovalProof, 'c1'),
+      ),
+    ).toBe('approval_invalid');
+    expect(
+      errorCode(
+        await flights.confirmCancellation(
+          q.quoteId,
+          proofFor(clock, eur(7500), { approvalId: 'grant_cancel_2' }),
+          'c1',
+        ),
+      ),
+    ).toBe('duplicate');
+    expect(
+      errorCode(
+        await flights.confirmCancellation(
+          q.quoteId,
+          proofFor(clock, eur(7500), { approvalId: 'grant_cancel_1', groupId: 'grp_lisbon' }),
+          'c1',
+        ),
+      ),
+    ).toBe('duplicate');
+    expect(unwrap(await flights.confirmCancellation(q.quoteId, proof, 'c1'))).toBe(cancelled);
+    expect(flights.cancellationCount()).toBe(1);
   });
 
   it('rejects an expired quote and a proof from another group', async () => {
@@ -710,6 +785,18 @@ describe('request identity (T-059): groupId must match the proof, even on an ope
       approval: proofFor(clock, eur(50000), { groupId: 'grp_lisbon' }),
     });
     expect(errorCode(r)).toBe('duplicate');
+    expect(open.purchaseCount()).toBe(1);
+  });
+
+  it('a same-key replay whose proof names another group is duplicate, even with the same approvalId', async () => {
+    const { open, base } = await openBase();
+    const order = unwrap(await open.createOrder(base));
+    const r = await open.createOrder({
+      ...base,
+      approval: proofFor(clock, eur(50000), { groupId: 'grp_lisbon' }),
+    });
+    expect(errorCode(r)).toBe('duplicate');
+    expect(unwrap(await open.createOrder(base))).toBe(order);
     expect(open.purchaseCount()).toBe(1);
   });
 

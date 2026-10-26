@@ -10,11 +10,17 @@ import { describe, expect, it } from 'vitest';
 const here = dirname(fileURLToPath(import.meta.url));
 const dirs = [here, join(here, '..', 'fx')];
 
-const sources = dirs.flatMap((dir) =>
-  readdirSync(dir)
-    .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
-    .map((f) => ({ file: join(dir, f), text: stripComments(readFileSync(join(dir, f), 'utf8')) })),
-);
+/** Shared modules flights and fx depend on: the fixture loader and the ApprovalProof checks. */
+const shared = [join(here, '..', 'fixtures.ts'), join(here, '..', 'payments', 'proof.ts')];
+
+const sources = [
+  ...dirs.flatMap((dir) =>
+    readdirSync(dir)
+      .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
+      .map((f) => join(dir, f)),
+  ),
+  ...shared,
+].map((file) => ({ file, text: stripComments(readFileSync(file, 'utf8')) }));
 
 /** Doc comments may name the forbidden APIs ("no Date.now()"); code may not. */
 function stripComments(src: string): string {

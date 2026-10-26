@@ -178,6 +178,31 @@ describe('mock booking payments: group identity (T-059)', () => {
     expect(payments.chargeCount()).toBe(1);
   });
 
+  it('a same-key replay whose proof names another group is duplicate (charge and refund)', async () => {
+    const { payments } = setup();
+    const intent = unwrap(await payments.charge(charge()));
+    const r = await payments.charge(charge({ approval: proof({ groupId: 'grp_lisbon' }) }));
+    expect(code(r)).toBe('duplicate');
+    expect(unwrap(await payments.charge(charge()))).toEqual(intent);
+
+    const refundApproval = proof({ approvalId: 'grant_r1', maxAmount: eur(1000) });
+    const req: RefundChargeRequest = {
+      intentId: intent.intentId,
+      amount: eur(1000),
+      requestedBy: 'mem_dean',
+      idempotencyKey: 'r1',
+      approval: refundApproval,
+    };
+    unwrap(await payments.refund(req));
+    const otherGroup = await payments.refund({
+      ...req,
+      approval: proof({ approvalId: 'grant_r1', maxAmount: eur(1000), groupId: 'grp_lisbon' }),
+    });
+    expect(code(otherGroup)).toBe('duplicate');
+    expect(payments.chargeCount()).toBe(1);
+    expect(payments.refundCount()).toBe(1);
+  });
+
   it('a malformed request is a typed result, never a throw', async () => {
     const { payments } = setup();
     expect(code(await payments.charge(undefined as unknown as ChargeRequest))).toBe(
@@ -213,6 +238,7 @@ describe('mock booking payments: refund', () => {
     );
     expect(part.status).toBe('partially_refunded');
     expect(part.refundedAmount).toEqual(eur(1800));
+    expect(part.refundAmount).toEqual(eur(1800));
     expect(
       unwrap(await payments.refund(refundReq(intent.intentId, 'r1', { amount: eur(1800) }))),
     ).toEqual(part);
@@ -229,6 +255,11 @@ describe('mock booking payments: refund', () => {
     const rest = unwrap(await payments.refund(refundReq(intent.intentId, 'r3')));
     expect(rest.status).toBe('refunded');
     expect(rest.refundedAmount).toEqual(eur(9000));
+    // This refund's own amount (the remaining 7200), next to the cumulative total.
+    expect(rest.refundAmount).toEqual(eur(7200));
+    const stored = unwrap(await payments.getCharge(intent.intentId));
+    expect(stored.refundAmount).toBeUndefined();
+    expect(stored.refundedAmount).toEqual(eur(9000));
     expect(code(await payments.refund(refundReq(intent.intentId, 'r4')))).toBe('invalid_request');
     expect(payments.refundCount()).toBe(2);
     expect(payments.chargeCount()).toBe(1);

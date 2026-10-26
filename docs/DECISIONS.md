@@ -157,9 +157,16 @@ One entry per significant decision. Format: context, decision, alternatives, con
   - A new `'refused'` error code (rejected: `AdapterErrorCode` already has `approval_invalid` for exactly this case, and a new code would ripple into every executor branch).
   - Positional `refund(intentId, approval, requestedBy, key, amount?)` (rejected: two adjacent string parameters).
   - Adding `requestedBy` to `TicketsAdapter.refund` as well (not requested. The executor already knows the requester for a ticket refund. Left for T-009 if it wants symmetry).
+  - Making `refundAmount` a field of the stored intent/order (rejected: `getCharge`/`getOrder` would then report the amount of whichever refund happened to be last).
 - **Consequences:**
   - The T-009 executor must pass `groupId` on every provider purchase and charge.
   - For a refund it must pass a fresh refund grant's proof plus `requestedBy`. A refund needs its own approval, distinct from the purchase approval.
   - No caller outside `packages/adapters` constructs these requests today (the executor is still a stub), so nothing else changed.
   - `packages/core/src/ledger/family.test.ts` (another builder's in-progress file) still reads its fixture with `readFileSync` and should move to `testkit/fixtures.ts` when that work lands.
-  - Open inconsistency, not changed here: `flights/approvalProof.ts` treats a proof as still valid at exactly `expiresAt`, while `payments/proof.ts` treats it as expired at `expiresAt`.
+  - The executor's `booking.refunded` `refundMinor` comes from the refund result's `refundAmount`.
+- **Round 2 (review T-059-r1):**
+  - **One approval funds one action in every money-moving mock.** Tickets keeps one `approvalUse` map (`purchase:<key>` / `refund:<key>`), so neither the purchase approval nor a used refund approval can fund a refund. Flights does the same for `createOrder` and `confirmCancellation` (`order:<key>` / `cancel:<key>`). Payments and lodging already did this. A same-key call is an idempotent replay, not a second use.
+  - **One proof-validity rule.** Flights now uses `checkApprovalProofValidity` and `checkApprovalCovers` from `payments/proof.ts`, keeping its `options.groupId` binding. `flights/approvalProof.ts` is deleted. Every mock now treats a proof as expired AT `expiresAt`; before this, flights still accepted it at that instant.
+  - **Replays check the proof's group.** Every replay (purchase, charge, book, createOrder, and the refund and cancel replays) also requires `approval.groupId` to equal the group of the original action; otherwise it returns `duplicate`. Flights cancellation replays now run the proof shape check and compare the `approvalId`.
+  - **Refund results show this refund's amount.** Refund results carry `refundAmount` (this action's amount, i.e. the audit `refundMinor`) next to the cumulative `refundedAmount`. `PaymentIntent.refundAmount?` and `TicketOrder.refundAmount?` exist only on `refund` results and their replays, never on `getCharge`/`getOrder`. `TicketOrder` also gained the cumulative `refundedAmount?`.
+  - **Fixture path rules.** Core's segment rule now matches the adapters convention: lowercase only, at most 100 characters. A non-string path or directory is a typed `invalid_argument` in both loaders; before this, a non-string adapters directory threw a `TypeError`.

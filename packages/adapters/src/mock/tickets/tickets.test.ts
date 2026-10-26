@@ -485,6 +485,16 @@ describe('mock tickets: purchase rejections (counter stays 0)', () => {
     expect(tickets.purchaseCount()).toBe(1);
   });
 
+  it('a same-key replay whose proof names another group is duplicate, even with the same approvalId', async () => {
+    const { tickets } = setupTickets();
+    const hold = await holdFive(tickets);
+    const order = unwrap(await tickets.purchase(request(hold)));
+    const r = await tickets.purchase(request(hold, { approval: proof({ groupId: 'grp_lisbon' }) }));
+    expect(errorCode(r)).toBe('duplicate');
+    expect(unwrap(await tickets.purchase(request(hold)))).toEqual(order);
+    expect(tickets.purchaseCount()).toBe(1);
+  });
+
   it('proof exactly at the total is enough', async () => {
     const { tickets } = setupTickets();
     const hold = await holdFive(tickets);
@@ -656,8 +666,9 @@ describe('mock tickets: refunds', () => {
     const order = unwrap(await tickets.purchase(request(await holdFive(tickets))));
     return { tickets, clock, order };
   }
-  const refundProof = (amountMinor = 1800) =>
-    proof({ approvalId: 'grant_refund', maxAmount: eur(amountMinor) });
+  /** A refund approval of its own: one approval funds one action. */
+  const refundProof = (amountMinor = 1800, approvalId = 'grant_refund') =>
+    proof({ approvalId, maxAmount: eur(amountMinor) });
 
   it('partial then full refund before the deadline; refunded tickets stop being served', async () => {
     const { tickets, order } = await bought();
@@ -668,6 +679,8 @@ describe('mock tickets: refunds', () => {
       await tickets.refund(order.orderId, [sam.ticketId], refundProof(), 'r1'),
     );
     expect(partial.status).toBe('partially_refunded');
+    expect(partial.refundAmount).toEqual(eur(1800));
+    expect(partial.refundedAmount).toEqual(eur(1800));
     expect(tickets.availableFor(GA)).toBe(before + 1);
     expect(errorCode(await tickets.getTicketForHolder(order.orderId, 'mem_sam'))).toBe('not_found');
     unwrap(await tickets.getTicketForHolder(order.orderId, 'mem_dean'));
@@ -678,12 +691,58 @@ describe('mock tickets: refunds', () => {
     expect(tickets.refundCount()).toBe(1);
     // already refunded under a new key
     expect(
-      errorCode(await tickets.refund(order.orderId, [sam.ticketId], refundProof(), 'r2')),
+      errorCode(
+        await tickets.refund(order.orderId, [sam.ticketId], refundProof(1800, 'grant_r2'), 'r2'),
+      ),
     ).toBe('invalid_request');
     const rest = order.tickets.slice(0, 4).map((t) => t.ticketId);
-    const full = unwrap(await tickets.refund(order.orderId, rest, refundProof(7200), 'r3'));
+    const full = unwrap(
+      await tickets.refund(order.orderId, rest, refundProof(7200, 'grant_r3'), 'r3'),
+    );
     expect(full.status).toBe('refunded');
+    // This refund's amount, next to the cumulative total.
+    expect(full.refundAmount).toEqual(eur(7200));
+    expect(full.refundedAmount).toEqual(eur(9000));
+    const stored = unwrap(await tickets.getOrder(order.orderId));
+    expect(stored.refundAmount).toBeUndefined();
+    expect(stored.refundedAmount).toEqual(eur(9000));
     expect(tickets.refundCount()).toBe(2);
+  });
+
+  it('one approval funds one action: the purchase approval cannot fund a refund', async () => {
+    const { tickets, order } = await bought();
+    const id = order.tickets[0]?.ticketId ?? '';
+    // proof() is the purchase approval (grant_t000001), with a cap that covers the refund.
+    const r = await tickets.refund(order.orderId, [id], proof(), 'r1');
+    expect(errorCode(r)).toBe('approval_invalid');
+    expect(tickets.refundCount()).toBe(0);
+    expect(unwrap(await tickets.getTicketForHolder(order.orderId, 'mem_dean')).status).toBe(
+      'issued',
+    );
+  });
+
+  it('one approval funds one action: a refund approval cannot fund a second refund', async () => {
+    const { tickets, order } = await bought();
+    const [t0, t1] = order.tickets;
+    if (!t0 || !t1) throw new Error('no tickets');
+    const approval = refundProof(3600, 'grant_refund_once');
+    unwrap(await tickets.refund(order.orderId, [t0.ticketId], approval, 'r1'));
+    const second = await tickets.refund(order.orderId, [t1.ticketId], approval, 'r2');
+    expect(errorCode(second)).toBe('approval_invalid');
+    expect(tickets.refundCount()).toBe(1);
+    // Same key is an idempotent replay, not a second use.
+    expect(unwrap(await tickets.refund(order.orderId, [t0.ticketId], approval, 'r1')).status).toBe(
+      'partially_refunded',
+    );
+    // A same-key replay whose proof names another group is duplicate.
+    const otherGroup = await tickets.refund(
+      order.orderId,
+      [t0.ticketId],
+      proof({ approvalId: 'grant_refund_once', maxAmount: eur(3600), groupId: 'grp_lisbon' }),
+      'r1',
+    );
+    expect(errorCode(otherGroup)).toBe('duplicate');
+    expect(tickets.refundCount()).toBe(1);
   });
 
   it('refund rejects: past deadline, insufficient proof, unknown ticket, key reuse', async () => {
@@ -728,7 +787,11 @@ describe('mock tickets: refunds', () => {
       ['mem_priya', 'issued'],
       ['mem_sam', 'refunded'],
     ]);
-    expect(unwrap(await tickets.getOrder(order.orderId))).toEqual(after);
+    // getOrder is the same order minus this refund's own `refundAmount`.
+    expect(unwrap(await tickets.getOrder(order.orderId))).toEqual({
+      ...after,
+      refundAmount: undefined,
+    });
     // The executor DMs only what getTicketForHolder returns: Sam gets nothing.
     const dmable = [];
     for (const h of FIVE) {

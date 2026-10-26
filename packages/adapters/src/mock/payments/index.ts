@@ -161,6 +161,7 @@ export function createMockBookingPayments(
         const same =
           prior.approvalId === request.approval.approvalId &&
           prior.request.groupId === request.groupId &&
+          prior.request.groupId === request.approval.groupId &&
           prior.request.payerMemberId === request.payerMemberId &&
           prior.request.reference === request.reference &&
           isPositiveMoney(request.amount) &&
@@ -247,6 +248,7 @@ export function createMockBookingPayments(
         const same =
           prior.intentId === intentId &&
           prior.approvalId === approval.approvalId &&
+          groupByIntent.get(prior.intentId) === approval.groupId &&
           prior.requestedBy === requestedBy &&
           sameRefundAmount(prior.amount, amount);
         if (!same) {
@@ -310,15 +312,20 @@ export function createMockBookingPayments(
       };
       refundCounter += 1;
       intents.set(intentId, updated);
+      // The result names this refund's amount; the stored intent keeps only the total.
+      const result: PaymentIntent = {
+        ...updated,
+        refundAmount: money(refundAmount.amountMinor, refundAmount.currency),
+      };
       refundsByKey.set(idempotencyKey, {
         intentId,
         amount: amount === undefined ? undefined : money(amount.amountMinor, amount.currency),
         approvalId: approval.approvalId,
         requestedBy,
-        result: updated,
+        result,
       });
       approvalUse.set(approval.approvalId, `refund:${idempotencyKey}`);
-      return Promise.resolve(ok(updated));
+      return Promise.resolve(ok(result));
     },
 
     getCharge(intentId) {

@@ -459,6 +459,25 @@ describe('mock lodging: book', () => {
     expect(value(await lodging.getBooking(booking.bookingId)).status).toBe('confirmed');
   });
 
+  it('a same-key replay whose proof names another group is duplicate (book and cancel)', async () => {
+    const { lodging } = setup();
+    const booking = await bookEixample(lodging);
+    const replay = await lodging.book(bookReq({ approval: proof({ groupId: 'grp_lisbon' }) }));
+    expect(errorCode(replay)).toBe('duplicate');
+    expect(value(await lodging.book(bookReq()))).toEqual(booking);
+
+    const cancelProof = proof({ approvalId: 'grant_cancel_1' });
+    value(await lodging.cancel(booking.bookingId, cancelProof, 'cancel_1'));
+    const otherGroup = await lodging.cancel(
+      booking.bookingId,
+      proof({ approvalId: 'grant_cancel_1', groupId: 'grp_lisbon' }),
+      'cancel_1',
+    );
+    expect(errorCode(otherGroup)).toBe('duplicate');
+    expect(lodging.bookingCount()).toBe(1);
+    expect(lodging.cancellationCount()).toBe(1);
+  });
+
   it('allows spending exactly at the approval cap', async () => {
     const { lodging } = setup();
     const r = await lodging.book(bookReq({ approval: proof({ maxAmount: eur(138000) }) }));

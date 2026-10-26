@@ -7,8 +7,9 @@
  * - `getOffer` re-prices: a template with `reprice` changes its total after
  *   `afterMinutes`. The first `getOffer` that sees the new total returns
  *   `price_changed` with `newAmount`; later calls return the offer at the new total.
- * - `createOrder` checks, in order: idempotent replay, `ApprovalProof` (and
- *   that it was granted in the request's `groupId`, D-020), offer
+ * - `createOrder` checks, in order: idempotent replay, `ApprovalProof` (the
+ *   shared `payments/proof.ts` checks: expired AT `expiresAt`; granted in the
+ *   request's `groupId`, D-020; one approval funds one action), offer
  *   existence/expiry, travelers, `expectedTotal` vs current total
  *   (`price_changed`), proof currency and `maxAmount` (`approval_exceeded`).
  *   Only then does it "book" and bump `purchaseCount()`.
@@ -35,8 +36,12 @@ import type {
   FlightSearchRequest,
   FlightsAdapter,
 } from '../../interfaces/flights.js';
-import { checkRequestGroup } from '../payments/proof.js';
-import { checkApprovalProof } from './approvalProof.js';
+import {
+  checkApprovalCovers,
+  checkApprovalProofShape,
+  checkApprovalProofValidity,
+  checkRequestGroup,
+} from '../payments/proof.js';
 import { loadMockFlightInventory } from './inventory.js';
 import type { FlightOfferTemplate, MockFlightInventory, TemplateCondition } from './inventory.js';
 
@@ -91,6 +96,7 @@ interface QuoteRecord {
 interface CancellationRecord {
   readonly quoteId: string;
   readonly orderId: string;
+  readonly approvalId: string;
 }
 
 const AIRPORT_RE = /^[A-Z]{3}$/;
@@ -148,11 +154,30 @@ export function createMockFlights(options: MockFlightsOptions): MockFlightsAdapt
   const ordersByKey = new Map<string, OrderRecord>();
   const quotes = new Map<string, QuoteRecord>();
   const cancellationsByKey = new Map<string, CancellationRecord>();
+  /** approvalId => the action that consumed it (`order:<key>` / `cancel:<key>`). */
+  const approvalUse = new Map<string, string>();
   let offerSeq = 0;
   let orderSeq = 0;
   let quoteSeq = 0;
   let purchases = 0;
   let cancellations = 0;
+
+  /**
+   * The shared ApprovalProof checks (shape, validity window: expired AT
+   * `expiresAt`) plus the optional adapter-level group binding.
+   */
+  const checkProof = (proof: unknown, nowMs: number): AdapterError | undefined => {
+    const validity = checkApprovalProofValidity(proof, nowMs);
+    if (validity) return validity;
+    if (options.groupId !== undefined && (proof as ApprovalProof).groupId !== options.groupId) {
+      return {
+        code: 'approval_invalid',
+        message: 'approval proof is for another group',
+        retryable: false,
+      };
+    }
+    return undefined;
+  };
 
   const currentPerPassenger = (inst: OfferInstance, nowMs: number): Money => {
     const rp = inst.template.reprice;
@@ -315,10 +340,13 @@ export function createMockFlights(options: MockFlightsOptions): MockFlightsAdapt
       }
       const replay = ordersByKey.get(request.idempotencyKey);
       if (replay) {
+        const shapeError = checkApprovalProofShape(request.approval);
+        if (shapeError) return Promise.resolve({ ok: false, error: shapeError });
         if (
           replay.offerId === request.offerId &&
           replay.groupId === request.groupId &&
-          replay.order.approvalId === request.approval?.approvalId
+          replay.groupId === request.approval.groupId &&
+          replay.order.approvalId === request.approval.approvalId
         ) {
           return Promise.resolve(ok(replay.order));
         }
@@ -328,10 +356,16 @@ export function createMockFlights(options: MockFlightsOptions): MockFlightsAdapt
       }
 
       const nowMs = clock.nowMs();
-      const proofError = checkApprovalProof(request.approval, nowMs, options.groupId);
+      const proofError = checkProof(request.approval, nowMs);
       if (proofError) return Promise.resolve({ ok: false, error: proofError });
       const groupError = checkRequestGroup(request.groupId, request.approval);
       if (groupError) return Promise.resolve({ ok: false, error: groupError });
+      const usedBy = approvalUse.get(request.approval.approvalId);
+      if (usedBy !== undefined && usedBy !== `order:${request.idempotencyKey}`) {
+        return Promise.resolve(
+          fail('approval_invalid', 'approval already used for another action'),
+        );
+      }
 
       const inst = offers.get(request.offerId);
       if (!inst) return Promise.resolve(fail('not_found', `no offer ${request.offerId}`));
@@ -356,12 +390,8 @@ export function createMockFlights(options: MockFlightsOptions): MockFlightsAdapt
         );
       }
       const proof: ApprovalProof = request.approval;
-      if (proof.maxAmount.currency !== total.currency) {
-        return Promise.resolve(fail('approval_invalid', 'approval currency differs from offer'));
-      }
-      if (total.amountMinor > proof.maxAmount.amountMinor) {
-        return Promise.resolve(fail('approval_exceeded', 'offer total exceeds approved maxAmount'));
-      }
+      const coverError = checkApprovalCovers(proof, total);
+      if (coverError) return Promise.resolve({ ok: false, error: coverError });
 
       orderSeq += 1;
       const orderId = `ord_mock_${pad(orderSeq)}`;
@@ -384,6 +414,7 @@ export function createMockFlights(options: MockFlightsOptions): MockFlightsAdapt
       inst.orderId = orderId;
       orders.set(orderId, record);
       ordersByKey.set(request.idempotencyKey, record);
+      approvalUse.set(proof.approvalId, `order:${request.idempotencyKey}`);
       purchases += 1;
       return Promise.resolve(ok(order));
     },
@@ -428,14 +459,23 @@ export function createMockFlights(options: MockFlightsOptions): MockFlightsAdapt
       }
       const replay = cancellationsByKey.get(idempotencyKey);
       if (replay) {
+        const shapeError = checkApprovalProofShape(approval);
+        if (shapeError) return Promise.resolve({ ok: false, error: shapeError });
         const rec = orders.get(replay.orderId);
-        if (replay.quoteId === quoteId && rec) return Promise.resolve(ok(rec.order));
+        if (
+          replay.quoteId === quoteId &&
+          rec &&
+          replay.approvalId === approval.approvalId &&
+          rec.groupId === approval.groupId
+        ) {
+          return Promise.resolve(ok(rec.order));
+        }
         return Promise.resolve(
           fail('duplicate', 'idempotency key already used for a different cancellation'),
         );
       }
       const nowMs = clock.nowMs();
-      const proofError = checkApprovalProof(approval, nowMs, options.groupId);
+      const proofError = checkProof(approval, nowMs);
       if (proofError) return Promise.resolve({ ok: false, error: proofError });
 
       const q = quotes.get(quoteId);
@@ -453,17 +493,22 @@ export function createMockFlights(options: MockFlightsOptions): MockFlightsAdapt
       if (approval.groupId !== rec.groupId) {
         return Promise.resolve(fail('approval_invalid', 'approval proof is for another group'));
       }
-      const forfeited = subtract(rec.order.totalAmount, q.quote.refundAmount);
-      if (approval.maxAmount.currency !== forfeited.currency) {
-        return Promise.resolve(fail('approval_invalid', 'approval currency differs from order'));
-      }
-      if (forfeited.amountMinor > approval.maxAmount.amountMinor) {
+      const usedBy = approvalUse.get(approval.approvalId);
+      if (usedBy !== undefined && usedBy !== `cancel:${idempotencyKey}`) {
         return Promise.resolve(
-          fail('approval_exceeded', 'forfeited amount exceeds approved maxAmount'),
+          fail('approval_invalid', 'approval already used for another action'),
         );
       }
+      const forfeited = subtract(rec.order.totalAmount, q.quote.refundAmount);
+      const coverError = checkApprovalCovers(approval, forfeited);
+      if (coverError) return Promise.resolve({ ok: false, error: coverError });
       rec.order = { ...rec.order, status: 'cancelled' };
-      cancellationsByKey.set(idempotencyKey, { quoteId, orderId: rec.order.orderId });
+      cancellationsByKey.set(idempotencyKey, {
+        quoteId,
+        orderId: rec.order.orderId,
+        approvalId: approval.approvalId,
+      });
+      approvalUse.set(approval.approvalId, `cancel:${idempotencyKey}`);
       cancellations += 1;
       return Promise.resolve(ok(rec.order));
     },

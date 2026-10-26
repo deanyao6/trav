@@ -43,7 +43,9 @@ export function isSafeFixtureSegment(segment: string): boolean {
 export type FixtureDir = string | readonly string[];
 
 function segmentsOf(dir: FixtureDir): readonly string[] {
-  return typeof dir === 'string' ? [dir] : dir;
+  if (typeof dir === 'string') return [dir];
+  if (Array.isArray(dir)) return dir;
+  throw new TravError('invalid_argument', `bad fixture directory "${String(dir)}"`);
 }
 
 function fixturePath(segments: readonly string[]): string {

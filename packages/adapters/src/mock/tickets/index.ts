@@ -22,7 +22,8 @@
  *  6. holders: exactly `quantity`, unique member ids, names present;
  *  7. one approval funds one order (`approval_invalid` on reuse with another key).
  *
- * Refunds need a proof for the order's group. A refunded ticket gets
+ * Refunds need a proof for the order's group that has not funded any other
+ * action (not the purchase, not another refund). A refunded ticket gets
  * `status: 'refunded'` in the order and `getTicketForHolder` answers
  * `not_found` for it, so it is never delivered by DM.
  *
@@ -138,6 +139,7 @@ interface RefundRecord {
   readonly orderId: string;
   readonly ticketIds: string;
   readonly approvalId: string;
+  readonly approvalGroupId: string;
   readonly result: TicketOrder;
 }
 
@@ -235,7 +237,8 @@ export function createMockTickets(options: MockTicketsOptions): MockTickets {
   const holdByKey = new Map<IdempotencyKey, string>();
   const orders = new Map<string, OrderState>();
   const orderByKey = new Map<IdempotencyKey, string>();
-  const keyByApproval = new Map<string, IdempotencyKey>();
+  /** approvalId => the action that consumed it (`purchase:<key>` / `refund:<key>`). */
+  const approvalUse = new Map<string, string>();
   const refundsByKey = new Map<IdempotencyKey, RefundRecord>();
   let holdCounter = 0;
   let orderCounter = 0;
@@ -525,6 +528,7 @@ export function createMockTickets(options: MockTicketsOptions): MockTickets {
           : [];
         const same =
           prior.groupId === request.groupId &&
+          prior.groupId === request.approval.groupId &&
           prior.holdId === request.holdId &&
           prior.order.approvalId === request.approval.approvalId &&
           isMoneyValue(request.expectedTotal) &&
@@ -583,10 +587,10 @@ export function createMockTickets(options: MockTicketsOptions): MockTickets {
       const holderError = validateHolders(request.holders, h.hold.quantity);
       if (holderError) return Promise.resolve(fromError(holderError));
 
-      // 7. One approval, one order.
-      const usedBy = keyByApproval.get(approval.approvalId);
-      if (usedBy !== undefined && usedBy !== request.idempotencyKey) {
-        return Promise.resolve(err('approval_invalid', 'approval already used for another order'));
+      // 7. One approval, one action (an order or a refund).
+      const usedBy = approvalUse.get(approval.approvalId);
+      if (usedBy !== undefined && usedBy !== `purchase:${request.idempotencyKey}`) {
+        return Promise.resolve(err('approval_invalid', 'approval already used for another action'));
       }
 
       const state = offerState(h.offerId);
@@ -644,7 +648,7 @@ export function createMockTickets(options: MockTicketsOptions): MockTickets {
         refunded: new Set(),
       });
       orderByKey.set(request.idempotencyKey, orderId);
-      keyByApproval.set(approval.approvalId, request.idempotencyKey);
+      approvalUse.set(approval.approvalId, `purchase:${request.idempotencyKey}`);
       return Promise.resolve(ok(order));
     },
 
@@ -675,7 +679,8 @@ export function createMockTickets(options: MockTicketsOptions): MockTickets {
         if (
           prior.orderId !== orderId ||
           prior.ticketIds !== idsKey ||
-          prior.approvalId !== approval.approvalId
+          prior.approvalId !== approval.approvalId ||
+          prior.approvalGroupId !== approval.groupId
         ) {
           return Promise.resolve(
             err('duplicate', 'idempotency key already used for a different refund'),
@@ -717,6 +722,12 @@ export function createMockTickets(options: MockTicketsOptions): MockTickets {
       if (validity) return Promise.resolve(fromError(validity));
       const groupError = checkRequestGroup(o.groupId, approval);
       if (groupError) return Promise.resolve(fromError(groupError));
+      // One approval, one action: neither the purchase approval nor another
+      // refund's approval may fund this refund.
+      const usedBy = approvalUse.get(approval.approvalId);
+      if (usedBy !== undefined && usedBy !== `refund:${idempotencyKey}`) {
+        return Promise.resolve(err('approval_invalid', 'approval already used for another action'));
+      }
       const unit = add(o.order.offer.unitPrice, o.order.offer.unitFees);
       const refundAmount = multiply(unit, ticketIds.length);
       const covers = checkApprovalCovers(approval, refundAmount);
@@ -729,17 +740,22 @@ export function createMockTickets(options: MockTicketsOptions): MockTickets {
       o.order = {
         ...o.order,
         status: allRefunded ? 'refunded' : 'partially_refunded',
+        refundedAmount: add(o.order.refundedAmount ?? zero(refundAmount.currency), refundAmount),
         tickets: o.order.tickets.map((t) =>
           o.refunded.has(t.ticketId) ? { ...t, status: 'refunded' } : t,
         ),
       };
+      // The result names this action's amount; the stored order keeps only the total.
+      const result: TicketOrder = { ...o.order, refundAmount };
       refundsByKey.set(idempotencyKey, {
         orderId,
         ticketIds: idsKey,
         approvalId: approval.approvalId,
-        result: o.order,
+        approvalGroupId: approval.groupId,
+        result,
       });
-      return Promise.resolve(ok(o.order));
+      approvalUse.set(approval.approvalId, `refund:${idempotencyKey}`);
+      return Promise.resolve(ok(result));
     },
 
     purchaseCount: () => orderCounter,

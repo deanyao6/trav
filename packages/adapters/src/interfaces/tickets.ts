@@ -162,6 +162,14 @@ export interface TicketOrder {
   readonly tickets: readonly IssuedTicket[];
   readonly createdAt: IsoDateTime;
   readonly approvalId: string;
+  /** Cumulative amount refunded across every refund of this order; absent until the first refund. */
+  readonly refundedAmount?: Money;
+  /**
+   * Only on the result of `refund` (and its idempotent replays): the amount
+   * THIS refund returned, i.e. the `refundMinor` of its `booking.refunded`
+   * audit event. Never present on `getOrder`/`purchase` results.
+   */
+  readonly refundAmount?: Money;
 }
 
 export interface TicketsAdapter {
@@ -209,7 +217,10 @@ export interface TicketsAdapter {
    * Refund some or all tickets of an order (e.g. someone got sick before
    * entry). Requires approval for the order's group (another group's proof is
    * `approval_invalid`); "not_supported" if the refund policy forbids it.
-   * Refunded tickets carry `status: 'refunded'` in the order afterwards.
+   * One approval funds one action: the purchase approval, or an approval
+   * already used for another refund, is `approval_invalid`. Refunded tickets
+   * carry `status: 'refunded'` in the order afterwards. The result carries
+   * `refundAmount` (this refund) next to the cumulative `refundedAmount`.
    */
   refund(
     orderId: string,
