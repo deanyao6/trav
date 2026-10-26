@@ -346,7 +346,9 @@ export function createMockFlights(options: MockFlightsOptions): MockFlightsAdapt
           replay.offerId === request.offerId &&
           replay.groupId === request.groupId &&
           replay.groupId === request.approval.groupId &&
-          replay.order.approvalId === request.approval.approvalId
+          replay.order.approvalId === request.approval.approvalId &&
+          equals(replay.order.totalAmount, request.expectedTotal) &&
+          sameTravelers(replay.order.travelers, request.travelers)
         ) {
           return Promise.resolve(ok(replay.order));
         }
@@ -517,6 +519,17 @@ export function createMockFlights(options: MockFlightsOptions): MockFlightsAdapt
     cancellationCount: () => cancellations,
   };
   return adapter;
+}
+
+/** Same traveler set (by memberId and name) as the recorded order; a replay naming anyone else is `duplicate`. */
+function sameTravelers(
+  recorded: readonly Traveler[],
+  requested: readonly Traveler[] | undefined,
+): boolean {
+  if (!Array.isArray(requested) || requested.length !== recorded.length) return false;
+  const key = (t: Traveler): string => `${t.memberId}|${t.givenName ?? ''}|${t.familyName ?? ''}`;
+  const want = new Set(recorded.map(key));
+  return requested.every((t) => typeof t === 'object' && t !== null && want.has(key(t)));
 }
 
 function checkTravelers(

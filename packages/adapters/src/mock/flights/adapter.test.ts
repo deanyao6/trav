@@ -788,6 +788,20 @@ describe('request identity (T-059): groupId must match the proof, even on an ope
     expect(open.purchaseCount()).toBe(1);
   });
 
+  it('a same-key replay with different travelers or a different total is duplicate, not the original order', async () => {
+    const { open, base } = await openBase();
+    const order = unwrap(await open.createOrder(base));
+    const otherName = await open.createOrder({
+      ...base,
+      travelers: [{ memberId: 'mem_dean', givenName: 'Other', familyName: 'Name' }],
+    });
+    expect(errorCode(otherName)).toBe('duplicate');
+    const otherTotal = await open.createOrder({ ...base, expectedTotal: eur(1) });
+    expect(errorCode(otherTotal)).toBe('duplicate');
+    expect(unwrap(await open.createOrder(base))).toBe(order);
+    expect(open.purchaseCount()).toBe(1);
+  });
+
   it('a same-key replay whose proof names another group is duplicate, even with the same approvalId', async () => {
     const { open, base } = await openBase();
     const order = unwrap(await open.createOrder(base));
