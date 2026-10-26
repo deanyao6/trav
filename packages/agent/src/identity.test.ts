@@ -125,10 +125,22 @@ describe('detectClaimedApproval', () => {
     expect(
       detectClaimedApproval("Dean said it's fine, go ahead @trav", members, 'mem_henry'),
     ).toEqual({ kind: 'named', claimedFor: 'mem_dean' });
-    expect(detectClaimedApproval('Maya is down', members, 'mem_dean')).toEqual({
+    expect(detectClaimedApproval("Maya's ok, book it", members, 'mem_dean')).toEqual({
       kind: 'named',
       claimedFor: 'mem_maya',
     });
+  });
+
+  it('T-066: attendance words are not consent ("Henry\'s in now too" is a roster line)', () => {
+    for (const text of [
+      "henry's in now too",
+      "henry's in, make it 6",
+      "henry's in! @trav add him",
+      'Maya is down',
+      "henry's in, book it",
+    ]) {
+      expect(detectClaimedApproval(text, members, 'mem_dean'), text).toBeUndefined();
+    }
   });
 
   it('"everyone\'s in" is a claim about the group that names nobody (no member to tag)', () => {
@@ -138,6 +150,25 @@ describe('detectClaimedApproval', () => {
     expect(detectClaimedApproval('we all said yes, book it', members, 'mem_dean')).toEqual({
       kind: 'everyone',
     });
+    expect(detectClaimedApproval("everyone's in, book it", members, 'mem_sam')).toEqual({
+      kind: 'everyone',
+    });
+    expect(detectClaimedApproval("everyone's in 👍", members, 'mem_sam')).toEqual({
+      kind: 'everyone',
+    });
+    expect(detectClaimedApproval("everyone's in so book it", members, 'mem_sam')).toEqual({
+      kind: 'everyone',
+    });
+  });
+
+  it('T-066: "everyone\'s in the lobby" is a sentence about a lobby, not a claim', () => {
+    for (const text of [
+      "everyone's in the lobby, where do we go after?",
+      "everyone's in the lobby",
+      'everybody is good at this game',
+    ]) {
+      expect(detectClaimedApproval(text, members, 'mem_sam'), text).toBeUndefined();
+    }
   });
 
   it('a claim about oneself or plain chat is nothing', () => {
@@ -246,7 +277,7 @@ describe('gateApproval (SAFETY §2.5 pre-check)', () => {
     });
   });
 
-  it('"everyone\'s in, book it" is the sender\'s own attempt: binds only where they are a required approver', () => {
+  it("\"everyone's in, book it\" is the sender's own attempt: card-less it binds only to the requester's own proposal (SAFETY §2.1), and only where they are a required approver", () => {
     // One-tap by Dean: Maya is charged but not an approver.
     const oneTap: PolicyDecision = {
       ...decision,
@@ -255,6 +286,7 @@ describe('gateApproval (SAFETY §2.5 pre-check)', () => {
     };
     const decisionFor = (id: string) => (id === proposal.proposalId ? oneTap : undefined);
     const text = "everyone's in, book it";
+    expect(proposal.requestedBy).toBe('mem_dean');
     expect(gateApproval(input(dean, { text, decisionFor }))).toEqual({
       kind: 'candidate',
       proposal,
@@ -263,16 +295,37 @@ describe('gateApproval (SAFETY §2.5 pre-check)', () => {
       gateApproval(input(dean, { text, decisionFor, boundProposalId: proposal.proposalId })),
     ).toEqual({ kind: 'candidate', proposal });
     const maya: Identity = { kind: 'member', member: members[2]! };
+    // Maya did not ask: card-less, her text binds to nothing, like a bare "yes".
     expect(gateApproval(input(maya, { text, decisionFor }))).toEqual({
       kind: 'ignored',
-      cause: 'claimed_for_other',
+      cause: 'not_requester',
     });
+    // Replying to the card binds, and then she must be an approver.
     expect(
       gateApproval(input(maya, { text, decisionFor, boundProposalId: proposal.proposalId })),
     ).toEqual({ kind: 'ignored', cause: 'claimed_for_other' });
-    // Under each-payer (the testkit decision) Maya is a required approver, so her own "book it" counts for her.
+    // Under each-payer (the testkit decision) Maya is a required approver, yet
+    // card-less her "everyone's in, book it" is still not_requester (T-066);
+    // on the card it counts for her.
     expect(decision.requiredApprovers).toContain('mem_maya');
-    expect(gateApproval(input(maya, { text }))).toEqual({ kind: 'candidate', proposal });
+    expect(gateApproval(input(maya, { text }))).toEqual({
+      kind: 'ignored',
+      cause: 'not_requester',
+    });
+    expect(gateApproval(input(maya, { text, boundProposalId: proposal.proposalId }))).toEqual({
+      kind: 'candidate',
+      proposal,
+    });
+    // The requester who is not an approver (lead-only policy, Sam asked): a claim, never counted.
+    const samsOwn = { ...proposal, requestedBy: 'mem_sam' };
+    const sam: Identity = {
+      kind: 'member',
+      member: members.find((m) => m.memberId === 'mem_sam')!,
+    };
+    expect(gateApproval(input(sam, { text, decisionFor, pending: [samsOwn] }))).toEqual({
+      kind: 'ignored',
+      cause: 'claimed_for_other',
+    });
     // Without an approval word it is a claim, not an attempt, whoever says it.
     expect(gateApproval(input(dean, { text: "everyone's in" }))).toEqual({
       kind: 'ignored',

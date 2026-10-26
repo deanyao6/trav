@@ -75,9 +75,19 @@ export type ClaimedApproval =
   /** "everyone's in": a claim about the group that names nobody in particular. */
   | { readonly kind: 'everyone' };
 
-const SAID_YES = String.raw`(?:'s|\s+(?:said|says|is|told me|texted|confirmed))\s+(?:it'?s\s+)?(?:yes|ok(?:ay)?|fine|cool|good|go|in|down|approved|book it|do it|all good|a go)\b`;
+/**
+ * "Dean said it's fine", "Dean's ok", "Dean is good". Attendance words ("in",
+ * "down") are deliberately absent: "Henry's in now too" is a roster line for
+ * the roster handler, not Henry's consent (T-066).
+ */
+const SAID_YES = String.raw`(?:'s|\s+(?:said|says|is|told me|texted|confirmed))\s+(?:it'?s\s+)?(?:yes|ok(?:ay)?|fine|cool|good|go|approved|book it|do it|all good|a go)\b`;
+/**
+ * "everyone's in" as a whole claim: followed by the end of the text,
+ * punctuation, or an approval word ("everyone's in, book it", "we're all
+ * good 👍"). "everyone's in the lobby" is a sentence about a lobby (T-066).
+ */
 const EVERYONE_IN =
-  /\b(?:everyone|everybody|we all|all of us)(?:'s| is| are| said)?\s+(?:in|down|fine with it|ok(?:ay)? with it|said yes|good|approved?)\b/i;
+  /\b(?:everyone|everybody|we all|all of us)(?:'s| is| are| said)?\s+(?:in|down|fine with it|ok(?:ay)? with it|said yes|good|approved?)(?=\s*(?:$|[^\w\s']|(?:so\s+|and\s+|just\s+|pls\s+|please\s+)?(?:yes|yep|go ahead|go for it|book it|do it|approve|confirm|lock it in|send it)\b))/i;
 
 /**
  * Text that claims someone else's consent: "Dean said it's fine", "Henry's
@@ -156,12 +166,13 @@ export interface ApprovalGateInput {
  * yes") is ignored. "everyone's in, book it" names nobody, so it is the
  * sender's own attempt, and it counts only where the sender is a required
  * approver (D-019). Binding (SAFETY §2.1): a bound card (button, tapback,
- * quote-reply, reply-window card) wins; otherwise a bare "yes" / "no" binds
- * only to the sender's OWN pending proposal (requester), a bare "not me" to
- * the proposal the sender is charged on (an opt-out never spends and only
- * ever produces a fresh card), two or more ⇒ `ambiguous` (Trav asks which),
- * none ⇒ `not_requester` (anyone else must reference the card, so their bare
- * "yes" is chat).
+ * quote-reply, reply-window card) wins; otherwise a bare "yes" / "no" (and a
+ * card-less "everyone's in, book it", T-066) binds only to the sender's OWN
+ * pending proposal (requester), a bare "not me" to the proposal the sender
+ * is charged on (an opt-out never spends and only ever produces a fresh
+ * card), two or more ⇒ `ambiguous` (Trav asks which), none ⇒
+ * `not_requester` (anyone else must reference the card, so their bare "yes"
+ * is chat).
  */
 export function gateApproval(input: ApprovalGateInput): ApprovalGateResult {
   const { identity, now } = input;
@@ -194,12 +205,19 @@ export function gateApproval(input: ApprovalGateInput): ApprovalGateResult {
   const mine = (p: BookingProposal): boolean => p.requestedBy === me;
   const chargedOrMine = (p: BookingProposal): boolean =>
     mine(p) || p.attendees.includes(me) || p.payers.some((s) => s.memberId === me);
-  const candidates = input.pending.filter(
-    ownAsApprover ? isApprover : input.intent === 'not_me' ? chargedOrMine : mine,
-  );
-  if (candidates.length === 0) {
-    return { kind: 'ignored', cause: ownAsApprover ? 'claimed_for_other' : 'not_requester' };
+  if (ownAsApprover) {
+    // Card-less "everyone's in, book it": the same requester-only binding as
+    // a bare "yes" (SAFETY §2.1), and then only where the requester is also
+    // an approver. Anyone else must reply to the card or tap it.
+    const own = input.pending.filter(mine);
+    if (own.length === 0) return { kind: 'ignored', cause: 'not_requester' };
+    const approvable = own.filter(isApprover);
+    if (approvable.length === 0) return { kind: 'ignored', cause: 'claimed_for_other' };
+    if (approvable.length === 1) return { kind: 'candidate', proposal: approvable[0]! };
+    return { kind: 'ambiguous', candidates: approvable };
   }
+  const candidates = input.pending.filter(input.intent === 'not_me' ? chargedOrMine : mine);
+  if (candidates.length === 0) return { kind: 'ignored', cause: 'not_requester' };
   if (candidates.length === 1) return { kind: 'candidate', proposal: candidates[0]! };
   return { kind: 'ambiguous', candidates };
 }

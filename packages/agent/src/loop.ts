@@ -331,8 +331,43 @@ export interface QuoteSplit {
 }
 
 const QUOTE_LINE = /^\s*(?:>|\||»)/;
-const FWD_HEADER = /^\s*(?:fwd?|forwarded|forward|fw)\b.*:?\s*$/i;
+/**
+ * A forward header is the header and nothing else: "fwd:", "Fw", "Forwarded
+ * message", "---------- Forwarded message ----------", or "fwd from dean
+ * lol:" (a "from …" line ending in a colon). "fwd this to henry pls" is a
+ * sentence, not a header (T-066).
+ */
+const FWD_HEADER =
+  /^\s*(?:-+\s*)?(?:fwd?|fw|forwarded(?: message)?)\s*:?\s*(?:-+\s*)?$|^\s*(?:fwd?|fw|forwarded(?: message)?)\s+from\b.{0,60}:\s*$/i;
 const FAKE_CARD_LINE = /^\s*trav\s*(?:\(bot\))?\s*:/i;
+/** Marks only Trav's cards carry: a check, "👍 to …", an order number. */
+const CARD_MARKS = /✅|👍\s*to\b|\border\s*#?\s*[A-Za-z]{0,6}-?\d{3,}/i;
+/** Status words a card leads with ("booked ✅ …", "logged: …") unless the sender is the subject. */
+const CARD_WORDS = /\b(?:booked|approved|confirmed|purchased|logged)\b/i;
+/** A currency amount written the way Trav's cards write it ("€84", "84 €", "$1,860"). */
+const CARD_MONEY = /[€$£]\s?\d|\d\s?[€$£]/;
+/** "trav: who's …", "trav: get …", "trav: i paid …": the sender talking to Trav. */
+const OWN_WORDS_AFTER_NAME =
+  /^\s*(?:i|i'?m|im|i'?ll|i've|we|we're|my|our|me|us|can|could|would|will|pls|plz|please|what|who|whos|who's|how|when|where|which|why|is|are|do|does|did|log|add|book|get|grab|split|settle|put|show|find|remember|forget|leave|roast|stop|cancel|drop|make|send|tell|give|check|help|count|undo|hey|hi|yo|ok|okay|thanks|thank)\b/i;
+
+/**
+ * "trav: …" on a line is a pasted Trav card when it is not the first line, or
+ * when another line follows it, or when it carries a card mark (✅, "👍 to",
+ * an order number), or when it leads with a status word or an amount rather
+ * than the sender's own request ("trav: booked …", "trav: €1,860 …").
+ * A single first line "trav: who's in tonight?" is the sender addressing Trav
+ * (mention.ts reads "trav:" as the vocative).
+ */
+function isPastedCardLine(lines: readonly string[], i: number): boolean {
+  const line = lines[i]!;
+  if (!FAKE_CARD_LINE.test(line)) return false;
+  if (i > 0) return true;
+  if (lines.slice(1).some((l) => l.trim().length > 0)) return true;
+  if (CARD_MARKS.test(line)) return true;
+  const rest = line.replace(FAKE_CARD_LINE, '');
+  if (OWN_WORDS_AFTER_NAME.test(rest)) return false;
+  return CARD_WORDS.test(rest) || CARD_MONEY.test(rest);
+}
 
 /**
  * Splits a message into pasted/forwarded content and the sender's own words.
@@ -344,12 +379,12 @@ export function splitQuoted(text: string): QuoteSplit {
   const quoted: string[] = [];
   const remainder: string[] = [];
   let inPaste = false;
-  for (const line of lines) {
+  for (const [i, line] of lines.entries()) {
     if (inPaste || QUOTE_LINE.test(line)) {
       quoted.push(line.replace(/^\s*(?:>|\||»)\s?/, ''));
       continue;
     }
-    if (FWD_HEADER.test(line) || FAKE_CARD_LINE.test(line)) {
+    if (FWD_HEADER.test(line) || isPastedCardLine(lines, i)) {
       inPaste = true;
       quoted.push(line);
       continue;
@@ -357,6 +392,42 @@ export function splitQuoted(text: string): QuoteSplit {
     remainder.push(line);
   }
   return { quoted: quoted.join('\n').trim(), remainder: remainder.join('\n').trim() };
+}
+
+// ---------- attendance lines with a tail ----------
+
+const AT_TRAV_TOKEN = /(^|[^\w@])@trav(?![\w-])\s*[,:]?/gi;
+const TRAV_VOCATIVE_PREFIX = /^\s*(?:(?:hey|hi|yo|ok|okay|yeah)\s+)?trav\s*[,:]\s*/i;
+/** "too", "now too", "after all": filler on an attendance line. A bare "now" is not ("sam is going now" means leaving). */
+const ATTENDANCE_FILLER = /\s+(?:now\s+too|now\s+as\s+well|too|as\s+well|again|after\s+all)$/i;
+/** What may follow an attendance clause without being a separate request: "add him", "make it 6". */
+const ATTENDANCE_FOLLOW_UP =
+  /^(?:(?:so|and|then|pls|plz|please)\s+)*(?:add (?:him|her|them)(?:\s+(?:in|back))?|make it (?:for )?\d{1,2}(?:\s+tickets?)?|count (?:him|her|them) in|(?:get|grab|book) (?:him|her|them) (?:one|a ticket|in))(?:\s+(?:too|pls|plz|please|now|again|as well))?[\s!.?]*$/i;
+
+/**
+ * The texts the roster handler is offered for one message, in order: the
+ * message itself, then (only when it differs) its attendance clause with the
+ * tail dropped. "@trav henry's in now too", "@trav henry's in, make it 6" and
+ * "henry's in! @trav add him" all carry "henry's in"; the tail is either
+ * filler or a follow-up the roster change already implies (the re-proposal
+ * carries the new count and needs a fresh 👍). A tail that is a request of
+ * its own ("henry's in, can you log the taxi") is not dropped: the message
+ * goes to the model whole (T-066).
+ */
+export function rosterTexts(text: string): string[] {
+  const out = [text];
+  const t = stripInvisible(text)
+    .replace(AT_TRAV_TOKEN, '$1')
+    .replace(/\s+/g, ' ')
+    .replace(TRAV_VOCATIVE_PREFIX, '')
+    .trim();
+  const m = /^(.*?)(?:[,!.;]+|\s+-\s+)\s*(.*)$/u.exec(t);
+  const head = (m === null ? t : m[1]!).trim();
+  const tail = m === null ? '' : m[2]!.trim();
+  if (tail.length > 0 && !ATTENDANCE_FOLLOW_UP.test(tail)) return out;
+  const clause = head.replace(ATTENDANCE_FILLER, '').trim();
+  if (clause.length > 0 && clause !== text.trim()) out.push(clause);
+  return out;
 }
 
 // ---------- helpers ----------
@@ -654,6 +725,41 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     return `${i + 1}. ${shortEventName(p.description)} · ${formatMoney(money(p.totalMinor, p.currency))} · ${p.attendees.length} ticket${p.attendees.length === 1 ? '' : 's'}`;
   }
 
+  /**
+   * Who Trav may tag when a claim names nobody whose 👍 counts: the approvers
+   * still missing, never the sender. `any_one`: the requester if they may
+   * approve, else the one remaining approver (a crowd is not named).
+   * `each_payer`: everyone still missing, at most two (more is a list, not a
+   * nudge). Empty ⇒ Trav stays silent and the audit row is the record.
+   */
+  function approversToName(proposalId: string, decision: PolicyDecision, r: Resolved): Member[] {
+    const granted = new Set(
+      (stores.group.bookings.getGrantForProposal(proposalId)?.grantedBy ?? []).map(
+        (s) => s.memberId,
+      ),
+    );
+    const others = decision.requiredApprovers.filter(
+      (id) => id !== r.me?.memberId && !granted.has(id),
+    );
+    const requester = stores.group.bookings.getProposal(proposalId)?.requestedBy;
+    let ids: readonly MemberId[] = [];
+    if (decision.approvalMode === 'any_one') {
+      if (granted.size === 0) {
+        ids =
+          requester !== undefined && others.includes(requester)
+            ? [requester]
+            : others.length === 1
+              ? others
+              : [];
+      }
+    } else if (decision.approvalMode === 'each_payer') {
+      ids = others.length <= 2 ? others : [];
+    }
+    return ids
+      .map((id) => r.members.find((m) => m.memberId === id))
+      .filter((m): m is Member => m !== undefined);
+  }
+
   async function routeApproval(
     r: Resolved,
     event: InboundEvent,
@@ -720,21 +826,55 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
         const claimedFor = claim?.kind === 'named' ? claim.claimedFor : null;
         const target =
           claimedFor === null ? undefined : r.members.find((m) => m.memberId === claimedFor);
-        invalid('claimed_for_other', boundProposalId ?? pending[0]?.proposalId, {
+        const proposalId = boundProposalId ?? pending[0]?.proposalId;
+        invalid('claimed_for_other', proposalId, {
           claimedFor,
           claimKind: claim?.kind ?? null,
           addressed,
         });
-        if (target === undefined || !addressed) return finish([], 'approval:claimed_for_other');
-        const name = sanitizeInline(target.displayName, 40);
+        if (!addressed || proposalId === undefined) {
+          return finish([], 'approval:claimed_for_other');
+        }
+        // Trav only ever tags someone whose 👍 would count (T-066): the
+        // named member when they are a required approver, else the
+        // approver(s) the decision actually needs (VOICE §6.2), else nothing.
+        const decision = decisionFor(proposalId);
+        const required = decision?.requiredApprovers ?? [];
+        if (target !== undefined && required.includes(target.memberId)) {
+          const name = sanitizeInline(target.displayName, 40);
+          const sent = await send(r, [
+            message(r, `that has to come from ${name}. @${name} 👍 to book`, {
+              mentions: [target.memberId],
+            }),
+          ]);
+          return finish(sent, 'approval:claimed_for_other');
+        }
+        // An "everyone" claim is the sender's own attempt from a non-approver:
+        // silent (VOICE §6.2, D-019 §2). Only a named claim gets the nudge.
+        const needed =
+          decision === undefined || claim?.kind !== 'named'
+            ? []
+            : approversToName(proposalId, decision, r);
+        if (needed.length === 0) return finish([], 'approval:claimed_for_other');
+        const names = needed.map((m) => `@${sanitizeInline(m.displayName, 40)}`);
         const sent = await send(r, [
-          message(r, `that has to come from ${name}. @${name} 👍 to book`, {
-            mentions: [target.memberId],
+          message(r, `need a 👍 from ${names.join(' and ')} on this one`, {
+            mentions: needed.map((m) => m.memberId),
           }),
         ]);
         return finish(sent, 'approval:claimed_for_other');
       }
-      invalid(gate.cause, boundProposalId ?? pending[0]?.proposalId);
+      // A card-less "everyone's in, book it" from someone who did not ask
+      // (`not_requester`) keeps its claim kind in the audit trail.
+      const claim =
+        gate.cause === 'not_requester' && r.me !== null && text.length > 0
+          ? detectClaimedApproval(text, r.members, r.me.memberId)
+          : undefined;
+      invalid(
+        gate.cause,
+        boundProposalId ?? pending[0]?.proposalId,
+        claim === undefined ? {} : { claimKind: claim.kind },
+      );
       return finish([], `approval:${gate.cause}`);
     }
 
@@ -1161,9 +1301,12 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     // other card is not an undo of anything; past the window only 👎 or a
     // reply on the card itself undoes.
     if (me !== null && UNDO_TEXT.test(rawText)) {
-      if (boundRef !== undefined) {
+      // A reply names its target: "undo" on anything but a logged-expense
+      // card (a proposal, a plain Trav line, a member's message) undoes
+      // nothing, and never falls back to the latest expense (T-066).
+      if (event.replyToMessageId !== undefined) {
         recordInbound();
-        return isLoggedExpenseCard(boundRef)
+        return boundRef !== undefined && isLoggedExpenseCard(boundRef)
           ? undoExpense(r, boundRef, 'text', event.messageId)
           : silent('undo:not_expense');
       }
@@ -1305,32 +1448,34 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       r.trip !== null &&
       canRequest(r.identity)
     ) {
-      const roster = handleRosterMessage({
-        group: stores.group,
-        trip: r.trip,
-        members: r.members,
-        me,
-        text,
-        messageId: event.messageId,
-        now: r.now,
-      });
-      if (roster !== undefined) {
-        recordInbound();
-        return rosterTurn(r, roster);
+      for (const candidate of rosterTexts(text)) {
+        const roster = handleRosterMessage({
+          group: stores.group,
+          trip: r.trip,
+          members: r.members,
+          me,
+          text: candidate,
+          messageId: event.messageId,
+          now: r.now,
+        });
+        if (roster !== undefined) {
+          recordInbound();
+          return rosterTurn(r, roster);
+        }
       }
     }
 
     // 5. "Dean said it's fine, go ahead" while something is pending: not Dean's
-    // answer (SAFETY §2.5), but only when the message is for Trav: addressed
-    // (mention, quote-reply, reply window) or carrying an approval word.
-    // "Maya is in the shower, 10 more min" is chat: no post, no audit. Trav
-    // answers ("that has to come from Dean") only when it was addressed; an
-    // unaddressed claim is audited and nothing more (D-019).
+    // answer (SAFETY §2.5). Only a message carrying an approval word is an
+    // attempt at all, addressed or not (T-066): "@trav henry's in now too"
+    // is attendance and "@trav everyone's in the lobby, where next?" is a
+    // question, so both go on to the model. "Maya is in the shower" is
+    // chat: no post, no audit. Trav answers out loud only when it was
+    // addressed; an unaddressed claim is audited and nothing more (D-019).
     const pending = pendingFor(r);
-    if (pending.length > 0) {
+    if (pending.length > 0 && hasApprovalIntentWord(text)) {
       const addressed = mention.addressed && mention.reason !== 'thanks';
-      const forTrav = addressed || hasApprovalIntentWord(text);
-      const claim = forTrav ? detectClaimedApproval(text, r.members, me.memberId) : undefined;
+      const claim = detectClaimedApproval(text, r.members, me.memberId);
       if (claim !== undefined) {
         recordInbound();
         return routeApproval(
