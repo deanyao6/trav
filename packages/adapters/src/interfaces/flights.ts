@@ -8,6 +8,7 @@ import type {
   AdapterInfo,
   AirportCode,
   ApprovalProof,
+  GroupId,
   IdempotencyKey,
   IsoDate,
   IsoDateTime,
@@ -97,6 +98,11 @@ export interface FlightOffer {
 }
 
 export interface CreateFlightOrderRequest {
+  /**
+   * The group the flights are booked for. Must equal `approval.groupId`;
+   * a proof for another group is refused with `approval_invalid` (D-020).
+   */
+  readonly groupId: GroupId;
   readonly offerId: string;
   /** One traveler per passengerId on the offer. */
   readonly travelers: readonly Traveler[];

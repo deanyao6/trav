@@ -17,11 +17,10 @@ import {
   asObj,
   deepFreeze,
   fixtureFail,
-  listFixtureJson,
   optStr,
-  readFixtureJson,
   str,
 } from '../transactions/fixtureFiles.js';
+import { listFixtures, loadFixture } from '../fixtures.js';
 
 export interface EmailFixture {
   readonly email: InboundEmail;
@@ -94,9 +93,9 @@ export function parseEmailFixture(raw: unknown, where = 'email fixture'): EmailF
 
 /** Loads every `fixtures/<dir...>/*.json` email fixture, sorted by file name. */
 export function loadEmailFixtures(dir: readonly string[] = ['emails']): readonly EmailFixture[] {
-  return listFixtureJson(dir).map((name) => {
+  return listFixtures(dir).map((name) => {
     const fixture = parseEmailFixture(
-      readFixtureJson(dir, name),
+      loadFixture(dir, name),
       `fixtures/${dir.join('/')}/${name}.json`,
     );
     if (fixture.email.emailId !== name) {

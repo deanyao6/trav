@@ -14,11 +14,17 @@
  *     the same key with different parameters is `duplicate`;
  *  2. hold exists and is active (`hold_expired` at/after `expiresAt`;
  *     a hold already purchased under another key is `duplicate`);
- *  3. `ApprovalProof` well-formed and inside its validity window (`approval_invalid`);
+ *  3. `ApprovalProof` well-formed and inside its validity window, granted in
+ *     the request's `groupId` (`approval_invalid`; missing `groupId` is
+ *     `invalid_request`, D-020);
  *  4. `expectedTotal` equals the held total (`price_changed` + `newAmount`);
  *  5. the proof covers the total in the same currency (`approval_exceeded` / `approval_invalid`);
  *  6. holders: exactly `quantity`, unique member ids, names present;
  *  7. one approval funds one order (`approval_invalid` on reuse with another key).
+ *
+ * Refunds need a proof for the order's group. A refunded ticket gets
+ * `status: 'refunded'` in the order and `getTicketForHolder` answers
+ * `not_found` for it, so it is never delivered by DM.
  *
  * Every state change returns the full resulting object (hold, order, ticket),
  * which is what the BookingExecutor writes to the audit log; this module
@@ -56,6 +62,7 @@ import {
   checkApprovalCovers,
   checkApprovalProofShape,
   checkApprovalProofValidity,
+  checkRequestGroup,
 } from '../payments/proof.js';
 import type { InventoryEvent, InventoryOffer, TicketInventory } from './inventory.js';
 import { mockBarcodePayload } from './qr.js';
@@ -120,6 +127,7 @@ interface HoldState {
 interface OrderState {
   order: TicketOrder;
   readonly key: IdempotencyKey;
+  readonly groupId: string;
   readonly holdId: string;
   readonly holderIds: readonly MemberId[];
   readonly offerId: string;
@@ -302,6 +310,7 @@ export function createMockTickets(options: MockTicketsOptions): MockTickets {
       }
       return {
         ticketId,
+        status: 'issued',
         holderMemberId: holder.memberId,
         holderName: holder.name,
         barcode: { format: 'qr', payload: mockBarcodePayload(orderId, ticketId) },
@@ -515,6 +524,7 @@ export function createMockTickets(options: MockTicketsOptions): MockTickets {
           ? request.holders.map((h: TicketHolder | null) => h?.memberId)
           : [];
         const same =
+          prior.groupId === request.groupId &&
           prior.holdId === request.holdId &&
           prior.order.approvalId === request.approval.approvalId &&
           isMoneyValue(request.expectedTotal) &&
@@ -553,6 +563,8 @@ export function createMockTickets(options: MockTicketsOptions): MockTickets {
       const validity = checkApprovalProofValidity(request.approval, clock.nowMs());
       if (validity) return Promise.resolve(fromError(validity));
       const approval: ApprovalProof = request.approval;
+      const groupError = checkRequestGroup(request.groupId, approval);
+      if (groupError) return Promise.resolve(fromError(groupError));
 
       // 4. Expected total.
       if (!isMoneyValue(request.expectedTotal) || !equals(request.expectedTotal, h.hold.total)) {
@@ -625,6 +637,7 @@ export function createMockTickets(options: MockTicketsOptions): MockTickets {
       orders.set(orderId, {
         order,
         key: request.idempotencyKey,
+        groupId: request.groupId,
         holdId: h.hold.holdId,
         holderIds: request.holders.map((x) => x.memberId),
         offerId: h.offerId,
@@ -645,7 +658,8 @@ export function createMockTickets(options: MockTicketsOptions): MockTickets {
       if (!o) return Promise.resolve(err('not_found', `no order ${orderId}`));
       const ticket = o.order.tickets.find((t) => t.holderMemberId === memberId);
       if (!ticket) return Promise.resolve(err('not_found', 'no ticket for this member'));
-      if (o.refunded.has(ticket.ticketId)) {
+      // A refunded ticket is void: never hand it out for DM delivery.
+      if (ticket.status !== 'issued' || o.refunded.has(ticket.ticketId)) {
         return Promise.resolve(err('not_found', 'this ticket was refunded'));
       }
       return Promise.resolve(ok(ticket));
@@ -701,6 +715,8 @@ export function createMockTickets(options: MockTicketsOptions): MockTickets {
       }
       const validity = checkApprovalProofValidity(approval, clock.nowMs());
       if (validity) return Promise.resolve(fromError(validity));
+      const groupError = checkRequestGroup(o.groupId, approval);
+      if (groupError) return Promise.resolve(fromError(groupError));
       const unit = add(o.order.offer.unitPrice, o.order.offer.unitFees);
       const refundAmount = multiply(unit, ticketIds.length);
       const covers = checkApprovalCovers(approval, refundAmount);
@@ -710,7 +726,13 @@ export function createMockTickets(options: MockTicketsOptions): MockTickets {
       offerState(o.offerId).available += ticketIds.length;
       refundCounter += 1;
       const allRefunded = o.refunded.size === o.order.tickets.length;
-      o.order = { ...o.order, status: allRefunded ? 'refunded' : 'partially_refunded' };
+      o.order = {
+        ...o.order,
+        status: allRefunded ? 'refunded' : 'partially_refunded',
+        tickets: o.order.tickets.map((t) =>
+          o.refunded.has(t.ticketId) ? { ...t, status: 'refunded' } : t,
+        ),
+      };
       refundsByKey.set(idempotencyKey, {
         orderId,
         ticketIds: idsKey,

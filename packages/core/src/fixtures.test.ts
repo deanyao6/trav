@@ -6,9 +6,8 @@
  * produce. If core's rounding or policy rules change, this fails and the
  * fixtures must be regenerated (`pnpm fixtures:gen`) or the port fixed.
  */
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { fixtureExists, listFixtures, loadFixture, loadFixtureJsonl } from './testkit/fixtures.js';
 import type { BookingProposal } from './domain/booking.js';
 import type { Expense, Share } from './domain/expense.js';
 import type { GroupSpendingPolicy, MemberView } from './domain/approval.js';
@@ -19,14 +18,9 @@ import { computeBalances } from './ledger/balances.js';
 import { contextFor } from './ledger/context.js';
 import { buildLedger, computeShares } from './ledger/splits.js';
 
-const FIXTURES = fileURLToPath(new URL('../../../fixtures/', import.meta.url));
-const has = (rel: string): boolean => existsSync(`${FIXTURES}${rel}`);
-const read = <T>(rel: string): T => JSON.parse(readFileSync(`${FIXTURES}${rel}`, 'utf8')) as T;
-const readJsonl = <T>(rel: string): T[] =>
-  readFileSync(`${FIXTURES}${rel}`, 'utf8')
-    .trim()
-    .split('\n')
-    .map((l) => JSON.parse(l) as T);
+const has = fixtureExists;
+const read = loadFixture;
+const readJsonl = loadFixtureJsonl;
 
 interface GroupFixture {
   members: Member[];
@@ -137,7 +131,7 @@ describe.skipIf(!ready)('generated fixtures agree with core', () => {
   });
 
   it('receipts: expectedShares equal computeShares', () => {
-    const files = readdirSync(`${FIXTURES}receipts`).filter((f) => f.endsWith('.json'));
+    const files = listFixtures('receipts');
     let checked = 0;
     for (const f of files) {
       const r = read<{

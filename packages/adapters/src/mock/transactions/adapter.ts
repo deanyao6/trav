@@ -34,7 +34,7 @@ import type {
   RawTransactionsPage,
   TransactionsPage,
 } from './fixture.js';
-import { isSafeFixtureSegment } from './fixtureFiles.js';
+import { isSafeFixtureSegment } from '../fixtures.js';
 
 export interface MockTransactionsOptions {
   /**

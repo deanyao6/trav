@@ -2,14 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TravError, createSimulatedClock, fixedClock } from '@trav/core';
 import type { Result } from '../../interfaces/common.js';
 import type { FxRate } from '../../interfaces/context.js';
-import { readRepoFixtureJson } from '../flights/fixturePath.js';
+import { loadFixture } from '../fixtures.js';
 import { createMockFxRates, loadMockFxTable, parseMockFxTable } from './index.js';
 
 /**
  * Pinned-value tests use the T-029-a-owned table (`reference-table.json`) so
  * they hold whatever shape the shared `rates.json` has.
  */
-const raw = readRepoFixtureJson('fx', 'reference-table') as {
+const raw = loadFixture('fx', 'reference-table') as {
   base: string;
   rates: Record<string, Record<string, string>>;
 };
@@ -66,7 +66,7 @@ describe('fixtures', () => {
   );
 
   it.each(['rates', 'reference-table'])('%s.json: every labeled query matches', async (name) => {
-    const labels = (readRepoFixtureJson('fx', name) as { labels?: Label[] }).labels ?? [];
+    const labels = (loadFixture('fx', name) as { labels?: Label[] }).labels ?? [];
     expect(labels.length).toBeGreaterThanOrEqual(3);
     const fx = createMockFxRates({
       table: loadMockFxTable(name),

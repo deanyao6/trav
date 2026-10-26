@@ -9,6 +9,7 @@ import type {
   AdapterInfo,
   ApprovalProof,
   GeoPoint,
+  GroupId,
   IdempotencyKey,
   IsoDate,
   IsoDateTime,
@@ -79,6 +80,11 @@ export interface LodgingSearchResult {
 }
 
 export interface BookLodgingRequest {
+  /**
+   * The group the stay is booked for. Must equal `approval.groupId`;
+   * a proof for another group is refused with `approval_invalid` (D-020).
+   */
+  readonly groupId: GroupId;
   readonly rateId: string;
   readonly leadGuest: Traveler;
   /** All members staying, for occupancy and the ledger split. */

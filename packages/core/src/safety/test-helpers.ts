@@ -1,7 +1,7 @@
 /**
  * Builders for safety tests (synthetic data only). Not exported from the package index.
  */
-import { readFileSync } from 'node:fs';
+import { loadFixture } from '../testkit/fixtures.js';
 import type { AgeBand, Group, GroupSettings, Member, MemberRole } from '../domain/group.js';
 import { DEFAULT_GROUP_SETTINGS } from '../domain/group.js';
 import { defaultSpendingPolicy } from '../domain/approval.js';
@@ -10,10 +10,9 @@ import { defaultConsent } from '../domain/consent.js';
 import type { Trip } from '../domain/trip.js';
 import type { OutboundMessage, RecapCard, WrappedCard } from '../cards.js';
 
-/** `<repo>/fixtures/safety/<name>` read as JSON (this file lives in packages/core/src/safety). */
+/** `<repo>/fixtures/safety/<name>` read as JSON, via the core fixture loader. */
 export function loadSafetyFixture<T>(name: string): T {
-  const url = new URL(`../../../../fixtures/safety/${name}`, import.meta.url);
-  return JSON.parse(readFileSync(url, 'utf8')) as T;
+  return loadFixture<T>(`safety/${name}`);
 }
 
 export interface MemberSpec {

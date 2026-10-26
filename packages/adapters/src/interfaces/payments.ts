@@ -38,10 +38,32 @@ export interface PaymentIntent {
 }
 
 export interface ChargeRequest {
+  /**
+   * The group the booking belongs to. Must equal `approval.groupId`; a proof
+   * for another group is refused with `approval_invalid` (D-020).
+   */
+  readonly groupId: GroupId;
   /** The member whose saved (test) payment method fronts the booking. */
   readonly payerMemberId: MemberId;
   readonly amount: Money;
   readonly reference: string;
+  readonly idempotencyKey: IdempotencyKey;
+  readonly approval: ApprovalProof;
+}
+
+/**
+ * Refund of a booking charge. Carries the same identity as a charge (D-020):
+ * the approval for the refund, which must be for the charge's group, and the
+ * member who asked for it, who must be one of `approval.approvedBy`. The
+ * executor records the refund as a `booking.refunded` audit event with
+ * payload `{ providerRef: intentId, refundMinor, requestedBy }` (SAFETY §2.2).
+ */
+export interface RefundChargeRequest {
+  readonly intentId: string;
+  /** Defaults to the full remaining (not yet refunded) amount. */
+  readonly amount?: Money;
+  /** The member who asked for the refund; must be in `approval.approvedBy`. */
+  readonly requestedBy: MemberId;
   readonly idempotencyKey: IdempotencyKey;
   readonly approval: ApprovalProof;
 }
@@ -54,16 +76,20 @@ export interface BookingPaymentsAdapter {
 
   /**
    * Charge a member for an approved booking. Rejects if the ApprovalProof is
-   * invalid, expired, or below `amount`. Idempotent per idempotencyKey.
+   * invalid, expired, for another group than `groupId`, or below `amount`.
+   * Idempotent per idempotencyKey.
    */
   charge(request: ChargeRequest): Promise<Result<PaymentIntent>>;
 
-  /** Refund all or part of a charge (defaults to the full remaining amount). */
-  refund(
-    intentId: string,
-    idempotencyKey: IdempotencyKey,
-    amount?: Money,
-  ): Promise<Result<PaymentIntent>>;
+  /**
+   * Refund all or part of a charge (defaults to the full remaining amount).
+   * Like `TicketsAdapter.refund` it requires an ApprovalProof: invalid,
+   * expired, another group's, below the refund, or already used for another
+   * action ⇒ `approval_invalid`/`approval_exceeded`; a missing `requestedBy`
+   * ⇒ `invalid_request`; a `requestedBy` who did not approve ⇒
+   * `approval_invalid`. Idempotent per idempotencyKey. Never throws.
+   */
+  refund(request: RefundChargeRequest): Promise<Result<PaymentIntent>>;
 
   /** Fetch a charge. */
   getCharge(intentId: string): Promise<Result<PaymentIntent>>;

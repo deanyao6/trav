@@ -12,6 +12,7 @@ import type { ContentTag } from '@trav/core';
 import type {
   AdapterInfo,
   ApprovalProof,
+  GroupId,
   IdempotencyKey,
   IsoDate,
   IsoDateTime,
@@ -97,6 +98,11 @@ export interface TicketHolder {
 }
 
 export interface PurchaseTicketsRequest {
+  /**
+   * The group the tickets are bought for. Must equal `approval.groupId`;
+   * a proof for another group is refused with `approval_invalid` (D-020).
+   */
+  readonly groupId: GroupId;
   readonly holdId: string;
   /** Exactly `quantity` holders; one ticket is issued per holder. */
   readonly holders: readonly TicketHolder[];
@@ -111,8 +117,17 @@ export interface TicketBarcode {
   readonly payload: string;
 }
 
+/** A `refunded` ticket is void: its barcode no longer admits anyone. */
+export type IssuedTicketStatus = 'issued' | 'refunded';
+
 export interface IssuedTicket {
   readonly ticketId: string;
+  /**
+   * `issued` until the ticket is refunded. `getTicketForHolder` never returns a
+   * refunded ticket (it answers `not_found`), so the executor's DM path, which
+   * only delivers what `getTicketForHolder` returns, never DMs a void QR (D-020).
+   */
+  readonly status: IssuedTicketStatus;
   readonly holderMemberId: MemberId;
   readonly holderName: string;
   readonly barcode: TicketBarcode;
@@ -185,13 +200,16 @@ export interface TicketsAdapter {
 
   /**
    * Get the single ticket belonging to one holder, for private delivery to
-   * that member. Never returns other holders' barcodes.
+   * that member. Never returns other holders' barcodes, and never returns a
+   * refunded ticket (`not_found`). The executor DMs tickets only from here.
    */
   getTicketForHolder(orderId: string, memberId: MemberId): Promise<Result<IssuedTicket>>;
 
   /**
    * Refund some or all tickets of an order (e.g. someone got sick before
-   * entry). Requires approval; "not_supported" if the refund policy forbids it.
+   * entry). Requires approval for the order's group (another group's proof is
+   * `approval_invalid`); "not_supported" if the refund policy forbids it.
+   * Refunded tickets carry `status: 'refunded'` in the order afterwards.
    */
   refund(
     orderId: string,

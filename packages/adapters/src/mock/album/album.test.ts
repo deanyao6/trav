@@ -1,9 +1,8 @@
-import { readFileSync } from 'node:fs';
 import { createDeterministicIdGenerator, defaultConsent, fixedClock } from '@trav/core';
 import type { ConsentFlags, ConsentLookup } from '@trav/core';
 import { describe, expect, it } from 'vitest';
 import type { Photo } from '../../interfaces/album.js';
-import { listFixtureJson } from '../transactions/fixtureFiles.js';
+import { listFixtures, loadFixtureText } from '../fixtures.js';
 import { createMockAlbum } from './adapter.js';
 import type { MockAlbumAdapter } from './adapter.js';
 import { loadAlbumFixtures, parseAlbumFixture } from './fixture.js';
@@ -73,11 +72,8 @@ describe('album fixtures', () => {
   it('every album fixture (live and pinned) parses, and links point at example.test only', () => {
     for (const dir of [['album'], [...PINNED]]) {
       expect(loadAlbumFixtures(dir).length).toBeGreaterThanOrEqual(3);
-      for (const name of listFixtureJson(dir)) {
-        const text = readFileSync(
-          new URL(`../../../../../fixtures/${dir.join('/')}/${name}.json`, import.meta.url),
-          'utf8',
-        );
+      for (const name of listFixtures(dir)) {
+        const text = loadFixtureText(dir, name);
         const hosts = [...text.matchAll(/https?:\/\/([^/"]+)/g)].map((m) => m[1]);
         expect(hosts.length).toBeGreaterThan(0);
         for (const h of hosts) expect(h).toMatch(/\.example\.test$/);

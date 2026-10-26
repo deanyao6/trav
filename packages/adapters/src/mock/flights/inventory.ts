@@ -27,7 +27,7 @@ import {
 } from '@trav/core';
 import type { Money } from '@trav/core';
 import type { Carrier, FlightSegment, FlightSlice } from '../../interfaces/flights.js';
-import { readRepoFixtureJson } from './fixturePath.js';
+import { loadFixture } from '../fixtures.js';
 
 /** Per-passenger condition (penalty is per passenger, scaled on instantiation). */
 export interface TemplateCondition {
@@ -544,5 +544,5 @@ function parseDuffelWireInventory(root: Obj): MockFlightInventory {
 
 /** Loads `fixtures/flights/<name>.json` (default: the Barcelona flagship inventory). */
 export function loadMockFlightInventory(name = 'barcelona'): MockFlightInventory {
-  return parseMockFlightInventory(readRepoFixtureJson('flights', name));
+  return parseMockFlightInventory(loadFixture('flights', name));
 }

@@ -43,12 +43,11 @@ import {
   bool,
   deepFreeze,
   fixtureFail,
-  fixtureJsonExists,
   optNum,
   optStr,
-  readFixtureJson,
   str,
 } from './fixtureFiles.js';
+import { fixtureExists, loadFixture } from '../fixtures.js';
 import type { Obj } from './fixtureFiles.js';
 
 export interface TransactionsPage {
@@ -469,6 +468,6 @@ export function loadTransactionsFixture(
   memberId: MemberId,
   dir: readonly string[] = ['transactions'],
 ): MemberTransactionsFixture | undefined {
-  if (!fixtureJsonExists(dir, memberId)) return undefined;
-  return parseTransactionsFixture(readFixtureJson(dir, memberId), memberId);
+  if (!fixtureExists(dir, memberId)) return undefined;
+  return parseTransactionsFixture(loadFixture(dir, memberId), memberId);
 }

@@ -20,7 +20,8 @@
  *   (`needsRecheck: false`). `sold_out` likewise.
  * - `book` checks, in order: idempotent replay (same key + same parameters ⇒
  *   the original booking, counter unchanged; same key + different parameters ⇒
- *   `duplicate`), `ApprovalProof` shape/validity window/group, one approval per
+ *   `duplicate`), `ApprovalProof` shape/validity window/group (the proof must
+ *   be for the request's `groupId`, D-020), one approval per
  *   booking, rate exists / stay not started / not sold out, guests,
  *   `expectedTotal` vs the live total (`price_changed` + `newAmount`), proof
  *   currency and `maxAmount` (`approval_exceeded`). Only then is a booking
@@ -59,6 +60,7 @@ import {
   checkApprovalCovers,
   checkApprovalProofShape,
   checkApprovalProofValidity,
+  checkRequestGroup,
 } from '../payments/proof.js';
 import type { InventoryProperty, InventoryRate, LodgingInventory } from './inventory.js';
 import { isWholeUnit, loadLodgingInventory } from './inventory.js';
@@ -512,6 +514,7 @@ export function createMockLodging(options: MockLodgingOptions): MockLodging {
         if (shapeError) return done({ ok: false, error: shapeError });
         const ids = request.guestMemberIds as unknown;
         const same =
+          replay.groupId === request.groupId &&
           replay.rateId === request.rateId &&
           replay.approvalId === request.approval.approvalId &&
           Array.isArray(ids) &&
@@ -530,6 +533,8 @@ export function createMockLodging(options: MockLodgingOptions): MockLodging {
       const proofError = checkApprovalProofValidity(request.approval, nowMs);
       if (proofError) return done({ ok: false, error: proofError });
       const proof: ApprovalProof = request.approval;
+      const groupError = checkRequestGroup(request.groupId, proof);
+      if (groupError) return done({ ok: false, error: groupError });
       if (options.groupId !== undefined && proof.groupId !== options.groupId) {
         return done(fail('approval_invalid', 'approval proof is for another group'));
       }

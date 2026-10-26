@@ -35,6 +35,7 @@ function proof(overrides: Partial<ApprovalProof> = {}): ApprovalProof {
 
 function bookReq(overrides: Partial<BookLodgingRequest> = {}): BookLodgingRequest {
   return {
+    groupId: 'grp_barcelona',
     rateId: EIXAMPLE_FLEX,
     leadGuest: { memberId: 'mem_dean', givenName: 'Dean', familyName: 'Fictional' },
     guestMemberIds: SIX,
@@ -429,6 +430,33 @@ describe('mock lodging: book', () => {
       'approval_invalid',
     );
     expect(lodging.bookingCount()).toBe(0);
+  });
+
+  it('request identity (T-059): refuses another group even without a group-scoped adapter', async () => {
+    const { lodging } = setup(); // no options.groupId: only the request names the group
+    const cases: [string, Partial<BookLodgingRequest>, string][] = [
+      [
+        'proof from another group',
+        { approval: proof({ groupId: 'grp_lisbon' }) },
+        'approval_invalid',
+      ],
+      ['request for another group', { groupId: 'grp_lisbon' }, 'approval_invalid'],
+      ['empty groupId', { groupId: '' }, 'invalid_request'],
+      ['no groupId', { groupId: undefined as unknown as string }, 'invalid_request'],
+    ];
+    for (const [name, over, code] of cases) {
+      const r = await lodging.book(bookReq({ ...over, idempotencyKey: `idem_${name}` }));
+      expect([name, errorCode(r)]).toEqual([name, code]);
+    }
+    expect(lodging.bookingCount()).toBe(0);
+    // The right group still books; a same-key replay naming another group is duplicate.
+    const booking = await bookEixample(lodging);
+    const replay = await lodging.book(
+      bookReq({ groupId: 'grp_lisbon', approval: proof({ groupId: 'grp_lisbon' }) }),
+    );
+    expect(errorCode(replay)).toBe('duplicate');
+    expect(lodging.bookingCount()).toBe(1);
+    expect(value(await lodging.getBooking(booking.bookingId)).status).toBe('confirmed');
   });
 
   it('allows spending exactly at the approval cap', async () => {

@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { ProviderTransaction, TransactionsSyncResult } from '../../interfaces/transactions.js';
 import { createMockTransactions } from './adapter.js';
@@ -8,7 +7,7 @@ import {
   parseTransactionsFixture,
   plaidAmountToMoney,
 } from './fixture.js';
-import { listFixtureJson } from './fixtureFiles.js';
+import { listFixtures, loadFixtureText } from '../fixtures.js';
 
 /** Private copy of the generator output, so fixed-value tests survive regeneration. */
 const PINNED = ['transactions', 'pinned'] as const;
@@ -116,7 +115,7 @@ describe('mock transactions: Plaid-shaped sync over pinned fixtures', () => {
   });
 
   it('every pinned posted row with pendingTransactionId follows Plaid replace semantics', async () => {
-    for (const member of listFixtureJson(PINNED)) {
+    for (const member of listFixtures(PINNED)) {
       const { pages } = await syncAll(pinned, member);
       const seenPending = new Set<string>();
       for (const p of pages) {
@@ -149,7 +148,7 @@ describe('mock transactions: Plaid-shaped sync over pinned fixtures', () => {
 
 describe('mock transactions: strict per-member scoping', () => {
   const adapter = createMockTransactions({ fixtureDir: PINNED });
-  const members = listFixtureJson(PINNED);
+  const members = listFixtures(PINNED);
 
   it('has fixtures for several members', () => {
     expect(members.length).toBeGreaterThanOrEqual(6);
@@ -442,7 +441,7 @@ describe('mock transactions: Plaid wire shape at the adapter edge', () => {
 });
 
 describe('mock transactions: shared fixture files (value-agnostic)', () => {
-  const members = listFixtureJson(['transactions']);
+  const members = listFixtures(['transactions']);
 
   it('every fixtures/transactions/<member>.json loads, belongs to its member, and is fictional', async () => {
     const adapter = createMockTransactions();
@@ -454,18 +453,16 @@ describe('mock transactions: shared fixture files (value-agnostic)', () => {
   });
 
   it('no card-number-like digit runs in any transactions fixture; pinned copies use example.test domains only', () => {
-    const files = [
-      ...members.map((m) => `transactions/${m}`),
-      ...listFixtureJson(PINNED).map((m) => `transactions/pinned/${m}`),
+    const files: [readonly string[], string][] = [
+      ...members.map((m): [readonly string[], string] => [['transactions'], m]),
+      ...listFixtures(PINNED).map((m): [readonly string[], string] => [PINNED, m]),
     ];
-    for (const f of files) {
-      const text = readFileSync(
-        new URL(`../../../../../fixtures/${f}.json`, import.meta.url),
-        'utf8',
-      );
+    expect(files.length).toBeGreaterThan(0);
+    for (const [dir, name] of files) {
+      const text = loadFixtureText(dir, name);
       expect(text).not.toMatch(/\d{12,19}/);
       expect(text).not.toMatch(/\d{4}[ -]\d{4}[ -]\d{4}[ -]\d{1,4}/);
-      if (f.includes('/pinned/')) {
+      if (dir === PINNED) {
         const domains =
           text.match(/\b[a-z0-9-]+(\.[a-z0-9-]+)*\.(com|net|org|io|co|es|pt)\b/gi) ?? [];
         expect(domains).toEqual([]);

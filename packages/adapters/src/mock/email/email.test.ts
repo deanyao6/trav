@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { InboundEmail, ParsedEmailReceipt } from '../../interfaces/emailReceipts.js';
-import { listFixtureJson, readFixtureJson } from '../transactions/fixtureFiles.js';
+import { listFixtures, loadFixture } from '../fixtures.js';
 import { loadEmailFixtures, parseEmailFixture } from './fixture.js';
 import { htmlToText } from './html.js';
 import { detectInjectionPatterns } from './injection.js';
@@ -343,9 +343,9 @@ interface ExpectedBlock {
 }
 
 describe('offline receipt email parser: every fixture vs its labeled ground truth', () => {
-  const names = listFixtureJson(['emails']);
+  const names = listFixtures(['emails']);
   const cases = names.map((name) => {
-    const raw = readFixtureJson(['emails'], name) as { expected: ExpectedBlock };
+    const raw = loadFixture(['emails'], name) as { expected: ExpectedBlock };
     return { name, email: parseEmailFixture(raw).email, expected: raw.expected };
   });
 

@@ -8,9 +8,8 @@
  * (`barcelona.test.ts`); this file checks the same properties on the shared
  * data and skips itself if the file is missing or has moved to another shape.
  */
-import { existsSync, readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { fixtureExists, loadFixture } from '../testkit/fixtures.js';
 import { formatIso, zoneOffsetMinutes, zonedWallTimeToMs } from '../clock.js';
 import { parseDecimal } from '../money.js';
 import {
@@ -44,9 +43,7 @@ interface RawFixture {
   offers: RawOffer[];
 }
 
-const FIXTURE_PATH = fileURLToPath(
-  new URL('../../../../fixtures/flights/barcelona.json', import.meta.url),
-);
+const FIXTURE = 'flights/barcelona.json';
 
 function isRawFixture(x: unknown): x is RawFixture {
   if (typeof x !== 'object' || x === null) return false;
@@ -75,9 +72,9 @@ function isRawFixture(x: unknown): x is RawFixture {
   );
 }
 
-function loadFixture(): RawFixture | null {
-  if (!existsSync(FIXTURE_PATH)) return null;
-  const parsed: unknown = JSON.parse(readFileSync(FIXTURE_PATH, 'utf8'));
+function loadBarcelonaFlights(): RawFixture | null {
+  if (!fixtureExists(FIXTURE)) return null;
+  const parsed = loadFixture(FIXTURE);
   return isRawFixture(parsed) ? parsed : null;
 }
 
@@ -150,7 +147,7 @@ function toInput(f: RawFixture): OptimizerInput {
   };
 }
 
-const fixture = loadFixture();
+const fixture = loadBarcelonaFlights();
 
 describe.skipIf(fixture === null)('shared fixtures/flights/barcelona.json', () => {
   const input = toInput(fixture as RawFixture);

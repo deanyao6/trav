@@ -2,7 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { addMinutes, createSimulatedClock, parseIso } from '@trav/core';
 import type { Money, SimulatedClock } from '@trav/core';
 import type { ApprovalProof, Result, Traveler } from '../../interfaces/common.js';
-import type { FlightOffer, FlightSearchRequest } from '../../interfaces/flights.js';
+import type {
+  CreateFlightOrderRequest,
+  FlightOffer,
+  FlightSearchRequest,
+} from '../../interfaces/flights.js';
 import { createMockFlights } from './adapter.js';
 import type { MockFlightsAdapter } from './adapter.js';
 import { loadMockFlightInventory } from './inventory.js';
@@ -292,6 +296,7 @@ describe('createOrder', () => {
     const offer = await searchOne();
     const fresh = unwrap(await flights.getOffer(offer.offerId));
     const request = {
+      groupId: 'grp_barcelona',
       offerId: fresh.offerId,
       travelers: [traveler('mem_dean')],
       expectedTotal: fresh.totalAmount,
@@ -318,6 +323,7 @@ describe('createOrder', () => {
   it('two simultaneous calls with the same key book once', async () => {
     const offer = await searchOne();
     const request = {
+      groupId: 'grp_barcelona',
       offerId: offer.offerId,
       travelers: [traveler('mem_dean')],
       expectedTotal: offer.totalAmount,
@@ -336,6 +342,7 @@ describe('createOrder', () => {
     const approval = proofFor(clock, eur(50000));
     unwrap(
       await flights.createOrder({
+        groupId: 'grp_barcelona',
         offerId: one.offerId,
         travelers: [traveler('mem_dean')],
         expectedTotal: one.totalAmount,
@@ -344,6 +351,7 @@ describe('createOrder', () => {
       }),
     );
     const sameKey = await flights.createOrder({
+      groupId: 'grp_barcelona',
       offerId: three.offerId,
       travelers: [traveler('mem_dean')],
       expectedTotal: three.totalAmount,
@@ -352,6 +360,7 @@ describe('createOrder', () => {
     });
     expect(errorCode(sameKey)).toBe('duplicate');
     const newKey = await flights.createOrder({
+      groupId: 'grp_barcelona',
       offerId: one.offerId,
       travelers: [traveler('mem_dean')],
       expectedTotal: one.totalAmount,
@@ -366,6 +375,7 @@ describe('createOrder', () => {
     const offer = await searchOne();
     clock.advanceHours(1);
     const r = await flights.createOrder({
+      groupId: 'grp_barcelona',
       offerId: offer.offerId,
       travelers: [traveler('mem_dean')],
       expectedTotal: offer.totalAmount,
@@ -380,6 +390,7 @@ describe('createOrder', () => {
     const offer = await searchOne('bos-jfk-4');
     clock.advanceMs(12 * 60_000);
     const stale = await flights.createOrder({
+      groupId: 'grp_barcelona',
       offerId: offer.offerId,
       travelers: [traveler('mem_dean')],
       expectedTotal: offer.totalAmount,
@@ -395,6 +406,7 @@ describe('createOrder', () => {
     // Re-approved at the new price (new key, new proof): books.
     const order = unwrap(
       await flights.createOrder({
+        groupId: 'grp_barcelona',
         offerId: offer.offerId,
         travelers: [traveler('mem_dean')],
         expectedTotal: eur(40900),
@@ -409,6 +421,7 @@ describe('createOrder', () => {
   it('price_changed also covers an expectedTotal in the wrong currency', async () => {
     const offer = await searchOne();
     const r = await flights.createOrder({
+      groupId: 'grp_barcelona',
       offerId: offer.offerId,
       travelers: [traveler('mem_dean')],
       expectedTotal: { amountMinor: 41200, currency: 'USD' },
@@ -485,6 +498,7 @@ describe('createOrder', () => {
     it.each(cases)('rejects %s without booking', async (_name, makeProof, code) => {
       const offer = await searchOne();
       const r = await flights.createOrder({
+        groupId: 'grp_barcelona',
         offerId: offer.offerId,
         travelers: [traveler('mem_dean')],
         expectedTotal: offer.totalAmount,
@@ -501,6 +515,7 @@ describe('createOrder', () => {
       clock.set(approval.expiresAt);
       const order = unwrap(
         await flights.createOrder({
+          groupId: 'grp_barcelona',
           offerId: offer.offerId,
           travelers: [traveler('mem_dean')],
           expectedTotal: offer.totalAmount,
@@ -514,6 +529,7 @@ describe('createOrder', () => {
 
     it('a bad proof is rejected before the offer is even looked up', async () => {
       const r = await flights.createOrder({
+        groupId: 'grp_barcelona',
         offerId: 'off_does_not_exist',
         travelers: [traveler('mem_dean')],
         expectedTotal: eur(1),
@@ -527,6 +543,7 @@ describe('createOrder', () => {
   it('requires travelers to match the offer passengers exactly', async () => {
     const offer = await searchOne();
     const base = {
+      groupId: 'grp_barcelona',
       offerId: offer.offerId,
       expectedTotal: offer.totalAmount,
       idempotencyKey: 'k',
@@ -558,6 +575,7 @@ describe('cancellation', () => {
     const offer = byTemplate(unwrap(await flights.search(deanSearch())), templateId);
     const order = unwrap(
       await flights.createOrder({
+        groupId: 'grp_barcelona',
         offerId: offer.offerId,
         travelers: [traveler('mem_dean')],
         expectedTotal: offer.totalAmount,
@@ -627,6 +645,7 @@ describe('cancellation', () => {
     const offer = byTemplate(unwrap(await open.search(deanSearch())), 'bos-jfk-1');
     const order = unwrap(
       await open.createOrder({
+        groupId: 'grp_barcelona',
         offerId: offer.offerId,
         travelers: [traveler('mem_dean')],
         expectedTotal: offer.totalAmount,
@@ -642,5 +661,61 @@ describe('cancellation', () => {
     );
     expect(errorCode(r)).toBe('approval_invalid');
     expect(open.cancellationCount()).toBe(0);
+  });
+});
+
+describe('request identity (T-059): groupId must match the proof, even on an open adapter', () => {
+  async function openBase(): Promise<{ open: MockFlightsAdapter; base: CreateFlightOrderRequest }> {
+    const open = createMockFlights({ clock, inventory });
+    const offer = byTemplate(unwrap(await open.search(deanSearch())), 'bos-jfk-1');
+    return {
+      open,
+      base: {
+        groupId: 'grp_barcelona',
+        offerId: offer.offerId,
+        travelers: [traveler('mem_dean')],
+        expectedTotal: offer.totalAmount,
+        idempotencyKey: 'k',
+        approval: proofFor(clock, eur(50000)),
+      },
+    };
+  }
+
+  const cases: [string, () => Partial<CreateFlightOrderRequest>, string][] = [
+    [
+      'a proof granted in another group',
+      () => ({ approval: proofFor(clock, eur(50000), { groupId: 'grp_lisbon' }) }),
+      'approval_invalid',
+    ],
+    ['a request for another group', () => ({ groupId: 'grp_lisbon' }), 'approval_invalid'],
+    ['an empty groupId', () => ({ groupId: '' }), 'invalid_request'],
+    ['no groupId', () => ({ groupId: undefined as unknown as string }), 'invalid_request'],
+  ];
+
+  it.each(cases)('refuses %s and books nothing', async (_label, over, code) => {
+    const { open, base } = await openBase();
+    expect(errorCode(await open.createOrder({ ...base, ...over() }))).toBe(code);
+    expect(open.purchaseCount()).toBe(0);
+    // The same offer still books for the right group.
+    unwrap(await open.createOrder({ ...base, idempotencyKey: 'fresh' }));
+    expect(open.purchaseCount()).toBe(1);
+  });
+
+  it('a same-key replay naming another group is duplicate, not the original order', async () => {
+    const { open, base } = await openBase();
+    unwrap(await open.createOrder(base));
+    const r = await open.createOrder({
+      ...base,
+      groupId: 'grp_lisbon',
+      approval: proofFor(clock, eur(50000), { groupId: 'grp_lisbon' }),
+    });
+    expect(errorCode(r)).toBe('duplicate');
+    expect(open.purchaseCount()).toBe(1);
+  });
+
+  it('a missing request is a typed result, never a throw', async () => {
+    expect(
+      errorCode(await flights.createOrder(undefined as unknown as CreateFlightOrderRequest)),
+    ).toBe('invalid_request');
   });
 });

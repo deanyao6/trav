@@ -24,6 +24,7 @@ async function holdFive(tickets: MockTickets, key = 'hold_key_1'): Promise<Ticke
 
 function request(hold: TicketHold, overrides: Partial<PurchaseTicketsRequest> = {}) {
   return {
+    groupId: 'grp_barcelona',
     holdId: hold.holdId,
     holders: FIVE,
     expectedTotal: hold.total,
@@ -450,6 +451,40 @@ describe('mock tickets: purchase rejections (counter stays 0)', () => {
     expect(tickets.purchaseCount()).toBe(1);
   });
 
+  const groupCases: [string, Partial<PurchaseTicketsRequest>, string][] = [
+    [
+      'a proof granted in another group',
+      { approval: proof({ groupId: 'grp_lisbon' }) },
+      'approval_invalid',
+    ],
+    ['a request for another group', { groupId: 'grp_lisbon' }, 'approval_invalid'],
+    ['an empty groupId', { groupId: '' }, 'invalid_request'],
+    ['no groupId', { groupId: undefined as unknown as string }, 'invalid_request'],
+  ];
+
+  it.each(groupCases)('refuses %s (T-059)', async (_label, overrides, code) => {
+    const { tickets } = setupTickets();
+    const hold = await holdFive(tickets);
+    const r = await tickets.purchase(request(hold, overrides));
+    expect(errorCode(r)).toBe(code);
+    expect(tickets.purchaseCount()).toBe(0);
+    expect(tickets.holdStatus(hold.holdId)).toBe('active');
+    // The same hold still buys for the right group.
+    unwrap(await tickets.purchase(request(hold, { idempotencyKey: 'fresh' })));
+    expect(tickets.purchaseCount()).toBe(1);
+  });
+
+  it('a same-key replay naming another group is duplicate, not the original order', async () => {
+    const { tickets } = setupTickets();
+    const hold = await holdFive(tickets);
+    unwrap(await tickets.purchase(request(hold)));
+    const r = await tickets.purchase(
+      request(hold, { groupId: 'grp_lisbon', approval: proof({ groupId: 'grp_lisbon' }) }),
+    );
+    expect(errorCode(r)).toBe('duplicate');
+    expect(tickets.purchaseCount()).toBe(1);
+  });
+
   it('proof exactly at the total is enough', async () => {
     const { tickets } = setupTickets();
     const hold = await holdFive(tickets);
@@ -557,6 +592,7 @@ describe('mock tickets: per-holder tickets', () => {
     const hold = unwrap(await tickets.hold('off_fcb_sev_tribuna', 2, 'h'));
     const order = unwrap(
       await tickets.purchase({
+        groupId: 'grp_barcelona',
         holdId: hold.holdId,
         holders: FIVE.slice(0, 2),
         expectedTotal: hold.total,
@@ -578,6 +614,7 @@ describe('mock tickets: per-holder tickets', () => {
     const fastHold = unwrap(await tickets.hold('off_rzm_20260314_fast', 1, 'h2'));
     const fast = unwrap(
       await tickets.purchase({
+        groupId: 'grp_barcelona',
         holdId: fastHold.holdId,
         holders: FIVE.slice(0, 1),
         expectedTotal: fastHold.total,
@@ -678,11 +715,60 @@ describe('mock tickets: refunds', () => {
     expect(errorCode(late)).toBe('not_supported');
   });
 
+  it('refunded tickets are marked refunded in the order and never handed out for DM', async () => {
+    const { tickets, order } = await bought();
+    expect(order.tickets.every((t) => t.status === 'issued')).toBe(true);
+    const sam = order.tickets[4];
+    if (!sam) throw new Error('no ticket');
+    const after = unwrap(await tickets.refund(order.orderId, [sam.ticketId], refundProof(), 'r1'));
+    expect(after.tickets.map((t) => [t.holderMemberId, t.status])).toEqual([
+      ['mem_dean', 'issued'],
+      ['mem_maya', 'issued'],
+      ['mem_jordan', 'issued'],
+      ['mem_priya', 'issued'],
+      ['mem_sam', 'refunded'],
+    ]);
+    expect(unwrap(await tickets.getOrder(order.orderId))).toEqual(after);
+    // The executor DMs only what getTicketForHolder returns: Sam gets nothing.
+    const dmable = [];
+    for (const h of FIVE) {
+      const r = await tickets.getTicketForHolder(order.orderId, h.memberId);
+      if (r.ok) dmable.push(r.value);
+    }
+    expect(dmable.map((t) => t.holderMemberId)).toEqual([
+      'mem_dean',
+      'mem_maya',
+      'mem_jordan',
+      'mem_priya',
+    ]);
+    expect(dmable.every((t) => t.status === 'issued')).toBe(true);
+    // A purchase replay after the refund serves the current order, not a stale "issued" Sam.
+    const replay = unwrap(await tickets.purchase(request(await holdFive(tickets))));
+    expect(replay.tickets.find((t) => t.holderMemberId === 'mem_sam')?.status).toBe('refunded');
+  });
+
+  it('refuses a refund approved in another group, refunding nothing', async () => {
+    const { tickets, order } = await bought();
+    const id = order.tickets[0]?.ticketId ?? '';
+    const r = await tickets.refund(
+      order.orderId,
+      [id],
+      proof({ approvalId: 'grant_lis', groupId: 'grp_lisbon', maxAmount: eur(1800) }),
+      'r1',
+    );
+    expect(errorCode(r)).toBe('approval_invalid');
+    expect(tickets.refundCount()).toBe(0);
+    expect(unwrap(await tickets.getTicketForHolder(order.orderId, 'mem_dean')).status).toBe(
+      'issued',
+    );
+  });
+
   it('non-refundable VIP cannot be refunded', async () => {
     const { tickets } = setupTickets();
     const hold = unwrap(await tickets.hold('off_rzm_20260314_vip', 1, 'h'));
     const order = unwrap(
       await tickets.purchase({
+        groupId: 'grp_barcelona',
         holdId: hold.holdId,
         holders: FIVE.slice(0, 1),
         expectedTotal: hold.total,

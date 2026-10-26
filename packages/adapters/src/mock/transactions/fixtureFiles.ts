@@ -1,75 +1,9 @@
 /**
- * Fixture file access for the private-data mocks (transactions, email, album).
- * Resolves `fixtures/<segments...>` from the repo root (the directory holding
- * `pnpm-workspace.yaml`), never from `process.cwd()` (ARCHITECTURE §8). Every
- * path segment is validated, so a member id can never walk out of the
- * fixtures tree. Local file reads only; no network.
+ * Fixture *validators* shared by the private-data mocks (transactions, email,
+ * album). Reading the files is `../fixtures.ts` (`loadFixture`), the package's
+ * one fixture loader (T-059); this module only checks parsed JSON.
  */
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { TravError } from '@trav/core';
-
-let cachedRoot: string | undefined;
-
-function repoRoot(): string {
-  if (cachedRoot !== undefined) return cachedRoot;
-  let dir = dirname(fileURLToPath(import.meta.url));
-  for (let i = 0; i < 12; i += 1) {
-    if (existsSync(join(dir, 'pnpm-workspace.yaml'))) {
-      cachedRoot = dir;
-      return dir;
-    }
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  throw new TravError('not_found', 'could not locate the repo root (pnpm-workspace.yaml)');
-}
-
-/** Lowercase letters, digits, `_` and `-`; must start with a letter or digit. */
-export const FIXTURE_SEGMENT_RE = /^[a-z0-9][a-z0-9_-]{0,99}$/;
-
-export function isSafeFixtureSegment(segment: string): boolean {
-  return FIXTURE_SEGMENT_RE.test(segment);
-}
-
-function fixturePath(segments: readonly string[]): string {
-  for (const s of segments) {
-    if (!isSafeFixtureSegment(s)) {
-      throw new TravError('invalid_argument', `bad fixture path segment "${s}"`);
-    }
-  }
-  return join(repoRoot(), 'fixtures', ...segments);
-}
-
-/** True if `fixtures/<dir...>/<name>.json` exists. */
-export function fixtureJsonExists(dir: readonly string[], name: string): boolean {
-  return existsSync(`${fixturePath([...dir, name])}.json`);
-}
-
-/** Reads and JSON-parses `fixtures/<dir...>/<name>.json`. Throws on a bad segment or a missing file. */
-export function readFixtureJson(dir: readonly string[], name: string): unknown {
-  const file = `${fixturePath([...dir, name])}.json`;
-  if (!existsSync(file)) {
-    throw new TravError(
-      'not_found',
-      `fixture not found: fixtures/${[...dir, name].join('/')}.json`,
-    );
-  }
-  return JSON.parse(readFileSync(file, 'utf8')) as unknown;
-}
-
-/** Names (without `.json`) of the JSON files directly inside `fixtures/<dir...>/`, sorted. */
-export function listFixtureJson(dir: readonly string[]): readonly string[] {
-  const path = fixturePath(dir);
-  if (!existsSync(path)) return [];
-  return readdirSync(path, { withFileTypes: true })
-    .filter((e) => e.isFile() && e.name.endsWith('.json'))
-    .map((e) => e.name.slice(0, -'.json'.length))
-    .filter(isSafeFixtureSegment)
-    .sort();
-}
 
 // ---------- tiny validators shared by the three mocks (fixture errors are programmer errors) ----------
 

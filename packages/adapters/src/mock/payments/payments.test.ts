@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createSimulatedClock, money } from '@trav/core';
 import type { ApprovalProof } from '../../interfaces/common.js';
-import type { ChargeRequest } from '../../interfaces/payments.js';
+import type { ChargeRequest, RefundChargeRequest } from '../../interfaces/payments.js';
 import { createMockBookingPayments } from './index.js';
 import { checkApprovalProof } from './proof.js';
 
@@ -24,6 +24,7 @@ function proof(overrides: Partial<ApprovalProof> = {}): ApprovalProof {
 
 function charge(overrides: Partial<ChargeRequest> = {}): ChargeRequest {
   return {
+    groupId: 'grp_barcelona',
     payerMemberId: 'mem_dean',
     amount: eur(9000),
     reference: 'booking:RZ-48213',
@@ -148,24 +149,87 @@ describe('mock booking payments: charge', () => {
   });
 });
 
+describe('mock booking payments: group identity (T-059)', () => {
+  const groupRejections: [string, Partial<ChargeRequest>, string][] = [
+    [
+      'a proof granted in another group',
+      { approval: proof({ groupId: 'grp_lisbon' }) },
+      'approval_invalid',
+    ],
+    ['a request for another group', { groupId: 'grp_lisbon' }, 'approval_invalid'],
+    ['an empty groupId', { groupId: '' }, 'invalid_request'],
+    ['no groupId at all', { groupId: undefined as unknown as string }, 'invalid_request'],
+  ];
+
+  it.each(groupRejections)('refuses %s without charging', async (_l, overrides, expected) => {
+    const { payments } = setup();
+    const r = await payments.charge(charge(overrides));
+    expect(code(r)).toBe(expected);
+    expect(payments.chargeCount()).toBe(0);
+  });
+
+  it('a replay under the same key for another group is duplicate, not the original intent', async () => {
+    const { payments } = setup();
+    unwrap(await payments.charge(charge()));
+    const r = await payments.charge(
+      charge({ groupId: 'grp_lisbon', approval: proof({ groupId: 'grp_lisbon' }) }),
+    );
+    expect(code(r)).toBe('duplicate');
+    expect(payments.chargeCount()).toBe(1);
+  });
+
+  it('a malformed request is a typed result, never a throw', async () => {
+    const { payments } = setup();
+    expect(code(await payments.charge(undefined as unknown as ChargeRequest))).toBe(
+      'invalid_request',
+    );
+    expect(code(await payments.refund(null as unknown as RefundChargeRequest))).toBe(
+      'invalid_request',
+    );
+  });
+});
+
 describe('mock booking payments: refund', () => {
+  /** A refund approval of its own (one approval funds one action), signed by Dean. */
+  function refundReq(
+    intentId: string,
+    key: string,
+    overrides: Partial<RefundChargeRequest> = {},
+  ): RefundChargeRequest {
+    return {
+      intentId,
+      requestedBy: 'mem_dean',
+      idempotencyKey: key,
+      approval: proof({ approvalId: `grant_${key}`, auditEventId: `aud_${key}` }),
+      ...overrides,
+    };
+  }
+
   it('partial then full, idempotent per key, never over the charge', async () => {
     const { payments } = setup();
     const intent = unwrap(await payments.charge(charge()));
-    const part = unwrap(await payments.refund(intent.intentId, 'r1', eur(1800)));
+    const part = unwrap(
+      await payments.refund(refundReq(intent.intentId, 'r1', { amount: eur(1800) })),
+    );
     expect(part.status).toBe('partially_refunded');
     expect(part.refundedAmount).toEqual(eur(1800));
-    expect(unwrap(await payments.refund(intent.intentId, 'r1', eur(1800)))).toEqual(part);
-    expect(code(await payments.refund(intent.intentId, 'r1', eur(100)))).toBe('duplicate');
+    expect(
+      unwrap(await payments.refund(refundReq(intent.intentId, 'r1', { amount: eur(1800) }))),
+    ).toEqual(part);
+    expect(
+      code(await payments.refund(refundReq(intent.intentId, 'r1', { amount: eur(100) }))),
+    ).toBe('duplicate');
     expect(payments.refundCount()).toBe(1);
-    expect(code(await payments.refund(intent.intentId, 'r2', eur(7201)))).toBe('invalid_request');
-    expect(code(await payments.refund(intent.intentId, 'r2', money(100, 'USD')))).toBe(
-      'invalid_request',
-    );
-    const rest = unwrap(await payments.refund(intent.intentId, 'r3'));
+    expect(
+      code(await payments.refund(refundReq(intent.intentId, 'r2', { amount: eur(7201) }))),
+    ).toBe('invalid_request');
+    expect(
+      code(await payments.refund(refundReq(intent.intentId, 'r2', { amount: money(100, 'USD') }))),
+    ).toBe('invalid_request');
+    const rest = unwrap(await payments.refund(refundReq(intent.intentId, 'r3')));
     expect(rest.status).toBe('refunded');
     expect(rest.refundedAmount).toEqual(eur(9000));
-    expect(code(await payments.refund(intent.intentId, 'r4'))).toBe('invalid_request');
+    expect(code(await payments.refund(refundReq(intent.intentId, 'r4')))).toBe('invalid_request');
     expect(payments.refundCount()).toBe(2);
     expect(payments.chargeCount()).toBe(1);
     expect(unwrap(await payments.getCharge(intent.intentId)).status).toBe('refunded');
@@ -173,8 +237,102 @@ describe('mock booking payments: refund', () => {
 
   it('unknown charge is not_found', async () => {
     const { payments } = setup();
-    expect(code(await payments.refund('pi_nope', 'r'))).toBe('not_found');
+    expect(code(await payments.refund(refundReq('pi_nope', 'r')))).toBe('not_found');
     expect(code(await payments.getCharge('pi_nope'))).toBe('not_found');
+  });
+
+  const identityRejections: [string, Partial<RefundChargeRequest>, string][] = [
+    ['no requestedBy', { requestedBy: undefined as unknown as string }, 'invalid_request'],
+    ['a blank requestedBy', { requestedBy: '  ' }, 'invalid_request'],
+    ['no approval', { approval: undefined as unknown as ApprovalProof }, 'approval_invalid'],
+    [
+      'an expired approval',
+      { approval: proof({ approvalId: 'grant_late', expiresAt: '2026-03-14T21:41:00+01:00' }) },
+      'approval_invalid',
+    ],
+    [
+      'an approval from another group',
+      { approval: proof({ approvalId: 'grant_lis', groupId: 'grp_lisbon' }) },
+      'approval_invalid',
+    ],
+    ['a requester who did not approve', { requestedBy: 'mem_maya' }, 'approval_invalid'],
+    [
+      'an approval below the refund',
+      { approval: proof({ approvalId: 'grant_small', maxAmount: eur(8999) }) },
+      'approval_exceeded',
+    ],
+    [
+      'an approval in another currency',
+      { approval: proof({ approvalId: 'grant_usd', maxAmount: money(9000, 'USD') }) },
+      'approval_invalid',
+    ],
+    ["the charge's own approval", { approval: proof() }, 'approval_invalid'],
+  ];
+
+  it.each(identityRejections)(
+    'rejects a refund with %s and refunds nothing',
+    async (_l, overrides, expected) => {
+      const { payments } = setup();
+      const intent = unwrap(await payments.charge(charge()));
+      const r = await payments.refund(refundReq(intent.intentId, 'r1', overrides));
+      expect(code(r)).toBe(expected);
+      expect(payments.refundCount()).toBe(0);
+      expect(unwrap(await payments.getCharge(intent.intentId))).toEqual(intent);
+    },
+  );
+
+  it('accepts a refund approval for exactly the refunded amount, asked by a co-approver', async () => {
+    const { payments } = setup();
+    const intent = unwrap(await payments.charge(charge()));
+    const done = unwrap(
+      await payments.refund(
+        refundReq(intent.intentId, 'r1', {
+          requestedBy: 'mem_maya',
+          approval: proof({
+            approvalId: 'grant_r1',
+            approvedBy: ['mem_dean', 'mem_maya'],
+            maxAmount: eur(9000),
+          }),
+        }),
+      ),
+    );
+    expect(done.status).toBe('refunded');
+    expect(payments.refundCount()).toBe(1);
+  });
+
+  it('one refund approval funds one refund; a replay must name the same requester', async () => {
+    const { payments } = setup();
+    const intent = unwrap(await payments.charge(charge()));
+    const approval = proof({ approvalId: 'grant_once', maxAmount: eur(1000) });
+    unwrap(
+      await payments.refund(refundReq(intent.intentId, 'r1', { amount: eur(1000), approval })),
+    );
+    expect(
+      code(
+        await payments.refund(refundReq(intent.intentId, 'r2', { amount: eur(1000), approval })),
+      ),
+    ).toBe('approval_invalid');
+    expect(
+      code(
+        await payments.refund(
+          refundReq(intent.intentId, 'r1', {
+            amount: eur(1000),
+            approval,
+            requestedBy: 'mem_maya',
+          }),
+        ),
+      ),
+    ).toBe('duplicate');
+    // A refund approval cannot fund a new charge either.
+    expect(
+      code(
+        await payments.charge(
+          charge({ idempotencyKey: 'c2', reference: 'b:2', amount: eur(1000), approval }),
+        ),
+      ),
+    ).toBe('approval_invalid');
+    expect(payments.refundCount()).toBe(1);
+    expect(payments.chargeCount()).toBe(1);
   });
 });
 

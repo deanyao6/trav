@@ -24,7 +24,7 @@ import { TravError, addDays, daysBetween, localDate } from '@trav/core';
 import type { Clock, CurrencyCode, IsoDate, TimeZone } from '@trav/core';
 import type { AdapterError, AdapterInfo, Result } from '../../interfaces/common.js';
 import type { FxRate, FxRatesAdapter } from '../../interfaces/context.js';
-import { readRepoFixtureJson } from '../flights/fixturePath.js';
+import { loadFixture } from '../fixtures.js';
 
 export interface MockFxTable {
   readonly source: string;
@@ -126,7 +126,7 @@ export function parseMockFxTable(raw: unknown): MockFxTable {
 
 /** Loads `fixtures/fx/<name>.json` (default `rates`). */
 export function loadMockFxTable(name = 'rates'): MockFxTable {
-  return parseMockFxTable(readRepoFixtureJson('fx', name));
+  return parseMockFxTable(loadFixture('fx', name));
 }
 
 // ---------- exact decimal arithmetic ----------

@@ -20,12 +20,11 @@ import {
   bool,
   deepFreeze,
   fixtureFail,
-  listFixtureJson,
   optNum,
   optStr,
-  readFixtureJson,
   str,
 } from '../transactions/fixtureFiles.js';
+import { listFixtures, loadFixture } from '../fixtures.js';
 
 export interface AlbumFixture {
   readonly groupId: string;
@@ -140,7 +139,7 @@ export function parseAlbumFixture(raw: unknown, where = 'album'): AlbumFixture {
 
 /** Loads every `fixtures/<dir...>/*.json` album fixture, sorted by file name. */
 export function loadAlbumFixtures(dir: readonly string[] = ['album']): readonly AlbumFixture[] {
-  return listFixtureJson(dir).map((name) =>
-    parseAlbumFixture(readFixtureJson(dir, name), `fixtures/${dir.join('/')}/${name}.json`),
+  return listFixtures(dir).map((name) =>
+    parseAlbumFixture(loadFixture(dir, name), `fixtures/${dir.join('/')}/${name}.json`),
   );
 }

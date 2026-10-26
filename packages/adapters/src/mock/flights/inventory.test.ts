@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TravError, createSimulatedClock, parseIso } from '@trav/core';
 import { createMockFlights } from './adapter.js';
-import { readRepoFixtureJson } from './fixturePath.js';
+import { loadFixture } from '../fixtures.js';
 import { toFlightChoice } from './toFlightChoice.js';
 import {
   loadMockFlightInventory,
@@ -94,7 +94,7 @@ describe('T-029-a Duffel wire-shape fixture (barcelona-duffel.json)', () => {
   });
 
   it('uses fictional carriers only', () => {
-    const raw = readRepoFixtureJson('flights', 'barcelona-duffel') as {
+    const raw = loadFixture('flights', 'barcelona-duffel') as {
       carriers: { iata_code: string; name: string }[];
     };
     for (const c of raw.carriers) {

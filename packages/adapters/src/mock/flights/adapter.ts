@@ -7,7 +7,8 @@
  * - `getOffer` re-prices: a template with `reprice` changes its total after
  *   `afterMinutes`. The first `getOffer` that sees the new total returns
  *   `price_changed` with `newAmount`; later calls return the offer at the new total.
- * - `createOrder` checks, in order: idempotent replay, `ApprovalProof`, offer
+ * - `createOrder` checks, in order: idempotent replay, `ApprovalProof` (and
+ *   that it was granted in the request's `groupId`, D-020), offer
  *   existence/expiry, travelers, `expectedTotal` vs current total
  *   (`price_changed`), proof currency and `maxAmount` (`approval_exceeded`).
  *   Only then does it "book" and bump `purchaseCount()`.
@@ -34,6 +35,7 @@ import type {
   FlightSearchRequest,
   FlightsAdapter,
 } from '../../interfaces/flights.js';
+import { checkRequestGroup } from '../payments/proof.js';
 import { checkApprovalProof } from './approvalProof.js';
 import { loadMockFlightInventory } from './inventory.js';
 import type { FlightOfferTemplate, MockFlightInventory, TemplateCondition } from './inventory.js';
@@ -305,6 +307,9 @@ export function createMockFlights(options: MockFlightsOptions): MockFlightsAdapt
     },
 
     createOrder(request: CreateFlightOrderRequest) {
+      if (typeof request !== 'object' || (request as unknown) === null) {
+        return Promise.resolve(fail('invalid_request', 'createOrder: request required'));
+      }
       if (typeof request.idempotencyKey !== 'string' || request.idempotencyKey.length === 0) {
         return Promise.resolve(fail('invalid_request', 'createOrder: idempotencyKey required'));
       }
@@ -312,6 +317,7 @@ export function createMockFlights(options: MockFlightsOptions): MockFlightsAdapt
       if (replay) {
         if (
           replay.offerId === request.offerId &&
+          replay.groupId === request.groupId &&
           replay.order.approvalId === request.approval?.approvalId
         ) {
           return Promise.resolve(ok(replay.order));
@@ -324,6 +330,8 @@ export function createMockFlights(options: MockFlightsOptions): MockFlightsAdapt
       const nowMs = clock.nowMs();
       const proofError = checkApprovalProof(request.approval, nowMs, options.groupId);
       if (proofError) return Promise.resolve({ ok: false, error: proofError });
+      const groupError = checkRequestGroup(request.groupId, request.approval);
+      if (groupError) return Promise.resolve({ ok: false, error: groupError });
 
       const inst = offers.get(request.offerId);
       if (!inst) return Promise.resolve(fail('not_found', `no offer ${request.offerId}`));

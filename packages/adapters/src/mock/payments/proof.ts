@@ -1,6 +1,7 @@
 /**
  * ApprovalProof verification shared by the money-moving mocks (tickets
- * purchase/refund, booking payments charge). ARCHITECTURE §10.3 and the
+ * purchase/refund, booking payments charge/refund, lodging book/cancel, and
+ * the request-group check for flights). ARCHITECTURE §10.3 and the
  * `ApprovalProof` contract in `interfaces/common.ts`: reject a proof that is
  * missing or malformed, not yet valid, expired on the injected Clock, in a
  * different currency, or whose `maxAmount` is below the amount being committed.
@@ -104,6 +105,23 @@ export function checkApprovalCovers(proof: ApprovalProof, amount: Money): Adapte
   }
   if (amount.amountMinor > p.maxAmount.amountMinor) {
     return fail('approval_exceeded', 'amount exceeds ApprovalProof.maxAmount');
+  }
+  return undefined;
+}
+
+/**
+ * Request identity (D-020): every money-moving request names its `groupId`,
+ * and it must be the group the proof was granted in. A missing or blank
+ * `groupId` is `invalid_request`; a proof for another group is
+ * `approval_invalid`. Call after the proof passed its shape check.
+ */
+export function checkRequestGroup(
+  groupId: unknown,
+  proof: ApprovalProof,
+): AdapterError | undefined {
+  if (!nonEmptyString(groupId)) return fail('invalid_request', 'groupId is required');
+  if (proof.groupId !== groupId) {
+    return fail('approval_invalid', 'approval proof is for another group');
   }
   return undefined;
 }
