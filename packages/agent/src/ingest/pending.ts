@@ -174,7 +174,9 @@ const KEEP_REACTIONS = new Set(['👎', 'dislike']);
 
 /** A "looks shared?" card: pending, private, owner-only (VOICE §4.5, §5). */
 export function isLooksSharedCard(card: RichCard | undefined): boolean {
-  return card?.type === 'expense_confirm' && card.status === 'pending' && card.visibility === 'private';
+  return (
+    card?.type === 'expense_confirm' && card.status === 'pending' && card.visibility === 'private'
+  );
 }
 
 export interface ShareMatchInput {
@@ -238,7 +240,9 @@ export function matchShareAnswer(
   if (event.lane !== 'dm') return { kind: 'ignore', note: 'looks_shared:group_lane' };
   if (value !== undefined && value !== '') {
     const item = onCard.find((i) => i.id === value);
-    return item === undefined ? { kind: 'ignore', note: 'looks_shared:unknown_item' } : answer(item);
+    return item === undefined
+      ? { kind: 'ignore', note: 'looks_shared:unknown_item' }
+      : answer(item);
   }
   if (onCard.length === 1) return answer(onCard[0]!);
   // A tapback or typed reply on a digest: fine only when one line is still open.
@@ -435,7 +439,9 @@ export function answerShare(
   const owner = ctx.me;
   // Defense in depth: the lookup was the sender's own store already.
   if (item.ownerMemberId !== owner.memberId || owner.senderId !== match.sender) {
-    throw new TravError('not_owner', 'only the owner can answer a looks-shared card', { itemId: item.id });
+    throw new TravError('not_owner', 'only the owner can answer a looks-shared card', {
+      itemId: item.id,
+    });
   }
   const dmTo = { kind: 'member' as const, memberId: owner.memberId };
   const line = (text: string): OutboundMessage => ({
@@ -457,12 +463,17 @@ export function answerShare(
           },
         ]
       : [];
-  const audit = (input: Omit<Parameters<Stores['group']['audit']['append']>[0], 'groupId'>): void => {
+  const audit = (
+    input: Omit<Parameters<Stores['group']['audit']['append']>[0], 'groupId'>,
+  ): void => {
     stores.group.audit.append({ groupId: ctx.group.groupId, ...input });
   };
 
   if (match.intent === 'keep') {
-    stores.private.putPendingItem(owner.memberId, markPrivate({ ...item, status: 'dismissed' as const }));
+    stores.private.putPendingItem(
+      owner.memberId,
+      markPrivate({ ...item, status: 'dismissed' as const }),
+    );
     audit({
       tripId: item.tripId,
       type: 'private.item_dismissed',
@@ -476,7 +487,9 @@ export function answerShare(
   }
 
   const trip =
-    (item.tripId !== null ? stores.group.trips.get(item.tripId) : undefined) ?? ctx.trip ?? undefined;
+    (item.tripId !== null ? stores.group.trips.get(item.tripId) : undefined) ??
+    ctx.trip ??
+    undefined;
   if (trip === undefined) return { drafts: [line(NO_TRIP_TEXT)], note: 'looks_shared:no_trip' };
   if (item.amount.currency !== trip.currency) {
     return {
@@ -584,7 +597,12 @@ export function whichCharge(
   groupId: GroupId,
   memberId: MemberId,
 ): OutboundMessage {
-  return { id: ids.next('msg'), groupId, to: { kind: 'member', memberId }, text: WHICH_CHARGE_TEXT };
+  return {
+    id: ids.next('msg'),
+    groupId,
+    to: { kind: 'member', memberId },
+    text: WHICH_CHARGE_TEXT,
+  };
 }
 
 // ---------- dropping (consent revoked) ----------
@@ -607,7 +625,10 @@ export function dropPendingItems(
     .listPendingItems(ownerMemberId, groupId, 'pending')
     .filter((i) => i.source === source);
   for (const item of live) {
-    stores.private.putPendingItem(ownerMemberId, markPrivate({ ...item, status: 'dismissed' as const }));
+    stores.private.putPendingItem(
+      ownerMemberId,
+      markPrivate({ ...item, status: 'dismissed' as const }),
+    );
     stores.group.audit.append({
       groupId,
       tripId: item.tripId,

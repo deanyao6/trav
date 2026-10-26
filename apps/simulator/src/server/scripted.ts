@@ -46,7 +46,7 @@ import type {
   SimulatedClock,
   TicketCard,
 } from '@trav/core';
-import { createTravRuntime } from '@trav/agent';
+import { BARCELONA as SEED, createTravRuntime } from '@trav/agent';
 import type { SimGroup, SimMember } from '../shared/types.js';
 import type { ChannelBackend, RespondOutcome, ResetOptions, SimulatorBackend } from './backend.js';
 import {
@@ -409,6 +409,18 @@ function createSession(clock: SimulatedClock, delayMs: number): Session {
     if (p.state !== 'pending') return; // double tap / stale card: idempotent, silent
     if (!p.card.policy.requiresApprovalFrom.includes(sender.memberId)) return; // VOICE §6.2: ignored silently
     p.state = 'approved';
+    // The embedded runtime's roster follows the booking (the excluded are out),
+    // so a card charge from that night splits with the ones who went (T-013 `sharePlan`).
+    for (const m of p.excluded) {
+      runtime.stores.group.trips.setAttendance({
+        activityId: SEED.razzmatazzActivityId,
+        memberId: m.memberId,
+        status: 'out',
+        updatedAt: clock.now(),
+        sourceMessageId: p.messageId,
+        setBy: sender.memberId,
+      });
+    }
     booked = { orderRef: `RZ-${++orderNumber}` };
     session.bookings += 1;
     const { card, attendees, payer } = p;

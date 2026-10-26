@@ -14,7 +14,6 @@
 import { describe, expect, it } from 'vitest';
 import type { GroupView, SimState, ThreadEntry, ThreadMessage } from '../shared/types.js';
 import type { SimulatorBackend } from './backend.js';
-import { SHARE_FLOW_NOT_WIRED_STATUS } from './backend.js';
 import { BARCELONA } from './groups.js';
 import { loadBarcelonaScript, withReplay } from './replay.js';
 import { handleApi } from './routes.js';
@@ -134,16 +133,21 @@ describe.each<Kind>(['scripted', 'agent'])('demo clicked in order (%s backend)',
       cardMessageId: prompt.messageId,
       actionId: 'confirm',
     });
-    // Shared: the card in Sam's DM is now `logged` (VOICE §4.5: it reaches the group with
-    // the next recap) or a Trav line names the Uber in the group. Before the share flow
-    // was wired (T-012/T-013) the tap answered with silence and the status line said so.
-    const shared = messages(bcn(s4b).dms['mem_sam']!).some(
+    // Shared (T-013): the card in Sam's DM is now `logged`, split with the 5 who went;
+    // the group is not pinged now, it sees it in the next recap (VOICE §3.7, §4.5).
+    const logged = messages(bcn(s4b).dms['mem_sam']!).find(
       (m) => m.seq > prompt.seq && m.card?.type === 'expense_confirm' && m.card.status === 'logged',
     );
+    expect(logged, 'Sam sees it went on the tab').toBeDefined();
+    const card = logged!.card;
+    const participants = card?.type === 'expense_confirm' ? card.split.participants : [];
+    expect(participants.map((p) => p.memberId)).not.toContain('mem_henry');
+    expect(participants).toHaveLength(5);
     const named = messages(bcn(s4b).thread).some(
       (m) => m.isTrav && m.seq > prompt.seq && /uber/i.test(m.text),
     );
-    if (!shared && !named) expect(bcn(s4b).status).toBe(SHARE_FLOW_NOT_WIRED_STATUS);
+    expect(named).toBe(false);
+    expect(bcn(s4b).status).toBeUndefined();
 
     // --- state 5: next morning.
     const s5 = await post(b, '/api/clock', { step: 'morning', groupId: BARCELONA.groupId });

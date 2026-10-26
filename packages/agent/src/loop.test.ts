@@ -957,7 +957,7 @@ describe('undo (flaw 6, VOICE §4.4)', () => {
     expect(h.audit().filter((e) => e.type === 'ledger.entry_deleted')).toHaveLength(2);
   });
 
-  it('a 👎 on a pending "looks shared?" DM card is not an undo and does not drop the card', async () => {
+  it('a 👎 on a pending "looks shared?" DM card is not an undo: it means keep private (VOICE §3.6)', async () => {
     const h = harness();
     const intake = await h.runtime.agent.intakeDocument({
       groupId: G,
@@ -974,7 +974,11 @@ describe('undo (flaw 6, VOICE §4.4)', () => {
     expect(turn.note).not.toMatch(/^undo:/);
     expect(h.runtime.agent.pendingCards.byMessageId(dmCard.id)).toBeDefined();
     expect(h.audit().filter((e) => e.type === 'ledger.entry_deleted')).toEqual([]);
-    expect(h.runtime.stores.private.listPendingItems('mem_dean', G, 'pending')).toHaveLength(1);
+    // 👎 on a "looks shared?" DM is Keep private: the item is dismissed, nothing touches the tab.
+    expect(turn.note).toBe('looks_shared:kept_private');
+    expect(h.runtime.stores.private.listPendingItems('mem_dean', G, 'pending')).toHaveLength(0);
+    expect(h.runtime.stores.private.listPendingItems('mem_dean', G, 'dismissed')).toHaveLength(1);
+    expect(h.runtime.stores.group.expenses.listByTrip(T)).toEqual([]);
   });
 });
 

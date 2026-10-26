@@ -15,7 +15,7 @@
 import { describe, expect, it } from 'vitest';
 import type { GroupView, SimState, ThreadEntry, ThreadMessage } from '../shared/types.js';
 import type { SimulatorBackend } from './backend.js';
-import { SHARE_FLOW_NOT_WIRED_STATUS } from './backend.js';
+import { KEPT_PRIVATE_STATUS } from './backend.js';
 import { BARCELONA, LISBON, RAZZMATAZZ_ASK } from './groups.js';
 import { handleApi } from './routes.js';
 import { loadAgentBackend } from './runtime.js';
@@ -98,14 +98,38 @@ describe('demo states 4–6, scripted backend, in order', () => {
     }
     expect(bcn(s4).dms['mem_henry']).toEqual([]);
 
-    // Share it, as Sam: reaches the real agent; until T-012/T-013 the status line says so.
+    // Share it, as Sam (T-013): on the tab, split with the 5 who went. Sam's DM gets the
+    // logged line; the group is not pinged now, it sees it in the next recap (VOICE §3.7).
+    const groupBefore = messages(bcn(s4).thread).length;
     const s5 = await post(b, '/api/button-taps', {
       from: 'h_sam',
       cardMessageId: prompt.messageId,
       actionId: 'confirm',
     });
-    expect(bcn(s5).status).toBe(SHARE_FLOW_NOT_WIRED_STATUS);
-    expect(bcn(s5).status).not.toMatch(/€|23\.40/);
+    expect(bcn(s5).status).toBeUndefined();
+    const samAfter = messages(bcn(s5).dms['mem_sam']!);
+    const logged = samAfter.find(
+      (m) => m.seq > prompt.seq && m.card?.type === 'expense_confirm' && m.card.status === 'logged',
+    );
+    expect(logged, 'Sam sees it went on the tab').toBeDefined();
+    expect(logged!.text).toContain('€23.40');
+    const card = logged!.card;
+    if (card?.type !== 'expense_confirm') throw new Error('expected an expense_confirm card');
+    expect(card.paidBy).toBe('mem_sam');
+    expect(card.split.participants.map((p) => p.memberId)).toEqual([
+      'mem_dean',
+      'mem_maya',
+      'mem_jordan',
+      'mem_priya',
+      'mem_sam',
+    ]);
+    expect(card.split.participants.reduce((s, p) => s + (p.share?.amountMinor ?? 0), 0)).toBe(2340);
+    // The prompt's buttons are spent.
+    expect(samAfter.find((m) => m.messageId === prompt.messageId)!.cardState).toMatchObject({
+      status: 'resolved',
+      liveActionIds: [],
+    });
+    expect(messages(bcn(s5).thread)).toHaveLength(groupBefore);
     expectGroupClean(s5);
     expect(groupPayload(s5)).not.toContain('23.40');
     // The status is Barcelona's only.
@@ -122,6 +146,26 @@ describe('demo states 4–6, scripted backend, in order', () => {
     // A second feed of the same document is refused.
     const again = await handleApi(b, { method: 'POST', path: '/api/intake', body: { docId: 'doc_bcn_sam_card_1' } });
     expect(again.status).toBe(409);
+  });
+
+  it('4, the other answer: Keep private stays private, Trav says nothing, the status line says so', async () => {
+    const b = await scriptedToState3();
+    const s4 = await post(b, '/api/intake', { docId: 'doc_bcn_sam_card_1' });
+    const prompt = messages(bcn(s4).dms['mem_sam']!).find((m) => m.card?.type === 'expense_confirm')!;
+    const dmBefore = bcn(s4).dms['mem_sam']!.length;
+    const s5 = await post(b, '/api/button-taps', {
+      from: 'h_sam',
+      cardMessageId: prompt.messageId,
+      actionId: 'keep_private',
+    });
+    expect(bcn(s5).status).toBe(KEPT_PRIVATE_STATUS);
+    expect(bcn(s5).status).not.toMatch(/€|23\.40|uber/i);
+    expect(
+      messages(bcn(s5).dms['mem_sam']!).filter((m) => m.isTrav && m.seq > prompt.seq),
+    ).toEqual([]);
+    expect(bcn(s5).dms['mem_sam']!.length).toBeGreaterThanOrEqual(dmBefore);
+    expectGroupClean(s5);
+    expect(groupPayload(s5)).not.toContain('23.40');
   });
 
   it('4 → 5 → 6: next morning and end of trip move the clock and drain; the status names what is missing', async () => {

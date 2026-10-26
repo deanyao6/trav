@@ -182,11 +182,7 @@ const MAX_PLAN_MIN = 12 * 60;
 const RECURRING_MIN = 2;
 
 function fold(s: string): string {
-  return s
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .trim()
-    .toLowerCase();
+  return s.normalize('NFD').replace(/\p{M}/gu, '').trim().toLowerCase();
 }
 
 function major(m: Money): number {
@@ -247,7 +243,9 @@ function categoryBase(
   if (primary === 'TRANSPORTATION') return { score: 0.7, reason: 'getting around' };
   if (detailed === 'FOOD_AND_DRINK_GROCERIES') return { score: 0.8, reason: 'groceries' };
   if (detailed === 'FOOD_AND_DRINK_COFFEE') {
-    return a >= 15 ? { score: 0.5, reason: 'a big coffee run' } : { score: 0.15, reason: 'a coffee' };
+    return a >= 15
+      ? { score: 0.5, reason: 'a big coffee run' }
+      : { score: 0.15, reason: 'a coffee' };
   }
   if (detailed === 'FOOD_AND_DRINK_BEER_WINE_AND_LIQUOR') {
     return coversOthers(a, 7.5, n)
@@ -316,9 +314,7 @@ export function scoreLooksShared(f: CardFeatures, ctx: LooksSharedContext): Heur
     const mine = plans.filter((p) => p.inMemberIds.includes(ctx.ownerMemberId));
     const others = ctx.memberIds.filter((id) => id !== ctx.ownerMemberId);
     const busyElsewhere = new Set(
-      plans
-        .filter((p) => !p.inMemberIds.includes(ctx.ownerMemberId))
-        .flatMap((p) => p.inMemberIds),
+      plans.filter((p) => !p.inMemberIds.includes(ctx.ownerMemberId)).flatMap((p) => p.inMemberIds),
     );
     if (mine.some((p) => p.inMemberIds.length >= 2)) {
       score += 0.05;

@@ -505,9 +505,11 @@ export interface AgentBackendParts {
   readonly services?: SimServices;
 }
 
-/** A "looks shared?" card's Share it / Keep private / 👍 / 👎 got no answer. */
-export const SHARE_FLOW_NOT_WIRED_STATUS =
-  'share/keep flow not wired yet (T-012/T-013): the charge stays private and nothing went on the tab';
+/**
+ * Keep private / 👎 on a "looks shared?" card: Trav says nothing (VOICE §4.5,
+ * §3.6), so the muted status line says what happened. Never an amount or merchant.
+ */
+export const KEPT_PRIVATE_STATUS = 'kept private: it stays just yours and nothing went on the tab';
 
 function isLooksSharedCard(card: RichCard | undefined): boolean {
   return card?.type === 'expense_confirm' && card.status === 'pending';
@@ -528,7 +530,14 @@ export function silentTurnStatus(
   if (!result || !result.silent) return undefined;
   if (event.type !== 'button_tap' && event.type !== 'reaction') return undefined;
   if (isLooksSharedCard(targetCard) && !(event.type === 'reaction' && event.removed)) {
-    return SHARE_FLOW_NOT_WIRED_STATUS;
+    // T-013 (`ingest/pending.ts`): Share it answers in the DM (not silent); a
+    // silent turn is Keep private or a touch Trav ignores (someone else's
+    // card, a stale card, a ❤️). Ignored touches name the reason, nothing more.
+    if (result.note === 'looks_shared:kept_private') return KEPT_PRIVATE_STATUS;
+    if (result.note === 'looks_shared:not_an_answer') return undefined;
+    if (result.note.startsWith('looks_shared:')) {
+      return `trav stayed quiet on that ${event.type === 'reaction' ? 'tapback' : 'tap'} (${result.note})`;
+    }
   }
   if (event.type === 'reaction') {
     if (!result.note.startsWith('approval:') || result.note === 'approval:no_pending') {

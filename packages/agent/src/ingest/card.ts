@@ -3,8 +3,9 @@
  * SAFETY §2.3, §2.4, §2.6; VOICE §4.5).
  *
  * `importCardTransactions` runs for ONE owner at a time:
- *  1. Consent first: unless the owner's `cardImport` flag is on, the provider
- *     is not even called, and anything still pending from an earlier import is
+ *  1. Consent first: unless the owner's `cardImport` flag is on (and the
+ *     owner is not a minor: no card ingestion for minors), the provider is
+ *     not even called, and anything still pending from an earlier import is
  *     dropped (`dropPendingItems`, `private.item_dismissed` cause
  *     `consent_revoked`, raw descriptors blanked).
  *  2. One Plaid-shaped sync from the caller's cursor (pages capped at
@@ -88,7 +89,8 @@ export interface CardImportInput {
   readonly scenario?: string;
 }
 
-export type CardImportStatus = 'imported' | 'consent_off' | 'no_trip' | 'not_linked' | 'sync_failed';
+export type CardImportStatus =
+  'imported' | 'consent_off' | 'minor' | 'no_trip' | 'not_linked' | 'sync_failed';
 
 export interface CardImportOutcome {
   readonly status: CardImportStatus;
@@ -127,7 +129,9 @@ const EMPTY = {
 } as const;
 
 /** Plaid personal-finance category → ledger category. */
-export function cardCategory(tx: Pick<ProviderTransaction, 'personalFinanceCategory'>): ExpenseCategory {
+export function cardCategory(
+  tx: Pick<ProviderTransaction, 'personalFinanceCategory'>,
+): ExpenseCategory {
   const primary = tx.personalFinanceCategory?.primary ?? '';
   const detailed = tx.personalFinanceCategory?.detailed ?? '';
   if (detailed === 'FOOD_AND_DRINK_GROCERIES') return 'groceries';
@@ -136,7 +140,10 @@ export function cardCategory(tx: Pick<ProviderTransaction, 'personalFinanceCateg
   if (detailed === 'TRAVEL_FLIGHTS') return 'flights';
   if (primary === 'FOOD_AND_DRINK') return 'food';
   if (primary === 'TRANSPORTATION' || primary === 'TRAVEL') return 'transport';
-  if (detailed.startsWith('ENTERTAINMENT_SPORTING_EVENTS') || detailed === 'ENTERTAINMENT_MUSIC_AND_AUDIO') {
+  if (
+    detailed.startsWith('ENTERTAINMENT_SPORTING_EVENTS') ||
+    detailed === 'ENTERTAINMENT_MUSIC_AND_AUDIO'
+  ) {
     return 'tickets';
   }
   if (primary === 'ENTERTAINMENT') return 'activities';
@@ -168,16 +175,27 @@ export async function importCardTransactions(
   const now = clock.now();
   const owner = members.find((m) => m.memberId === input.ownerMemberId);
   if (owner === undefined) {
-    throw new TravError('not_found', `member ${input.ownerMemberId} is not in group ${group.groupId}`);
+    throw new TravError(
+      'not_found',
+      `member ${input.ownerMemberId} is not in group ${group.groupId}`,
+    );
   }
-  const keep = (status: CardImportStatus, extra: Partial<CardImportOutcome> = {}): CardImportOutcome => ({
+  const keep = (
+    status: CardImportStatus,
+    extra: Partial<CardImportOutcome> = {},
+  ): CardImportOutcome => ({
     ...EMPTY,
     status,
     ...(input.cursor !== undefined ? { nextCursor: input.cursor } : {}),
     ...extra,
   });
 
-  // 1. consent (SAFETY §2.6): default off; off ⇒ no provider call, and pending items go.
+  // 1. a minor's card is never ingested (fixtures README, VOICE §6.1), and
+  // consent (SAFETY §2.6) is default off; either ⇒ no provider call, and pending items go.
+  if (safety.isMinor(owner, now)) {
+    const dropped = dropPendingItems({ stores, clock }, owner.memberId, group.groupId, 'card');
+    return keep('minor', { dropped });
+  }
   const consent = stores.private.getConsent(owner.memberId, group.groupId);
   if (consent?.cardImport !== true) {
     const dropped = dropPendingItems({ stores, clock }, owner.memberId, group.groupId, 'card');
@@ -226,12 +244,24 @@ export async function importCardTransactions(
   const windowFrom = addDays(trip.startDate, -1);
   const windowTo = addDays(trip.endDate, 1);
   const logged = stores.group.expenses.listByTrip(trip.tripId).filter((e) => e.status === 'logged');
+  /** Already on the tab: same payer (the owner), same amount and currency, within 48h. */
+  const onTab = (amount: Money, at: string): boolean =>
+    logged.some(
+      (e) =>
+        e.paidBy.some((p) => p.memberId === owner.memberId) &&
+        (sameMoney(e.amount, amount) ||
+          (e.original !== undefined && sameMoney(e.original.amount, amount))) &&
+        hoursApart(e.occurredAt, at) <= DUPLICATE_WINDOW_H,
+    );
 
   const pendingItems = (): PendingPrivateItem[] => [
     ...stores.private.listPendingItems(owner.memberId, group.groupId),
   ];
   /** The pending item for a stored row (this flow), or for a provider id (the document-intake path). */
-  const itemFor = (rowId: string | undefined, providerIds: readonly string[]): PendingPrivateItem | undefined =>
+  const itemFor = (
+    rowId: string | undefined,
+    providerIds: readonly string[],
+  ): PendingPrivateItem | undefined =>
     pendingItems().find(
       (i) =>
         i.source === 'card' &&
@@ -275,7 +305,10 @@ export async function importCardTransactions(
       });
       verdicts[tx.transactionId] = verdict;
 
-      const providerIds = [tx.transactionId, ...(tx.pendingTransactionId !== undefined ? [tx.pendingTransactionId] : [])];
+      const providerIds = [
+        tx.transactionId,
+        ...(tx.pendingTransactionId !== undefined ? [tx.pendingTransactionId] : []),
+      ];
       const existing =
         stores.private.getCardTransactionByProviderId(owner.memberId, tx.transactionId) ??
         (tx.pendingTransactionId !== undefined
@@ -320,8 +353,38 @@ export async function importCardTransactions(
 
       if (item !== undefined) {
         // 6. pending → posted (or a modified row): update in place, never duplicate.
-        if (item.status === 'pending' && (!sameMoney(item.amount, tx.amount) || item.sourceItemId !== row.id)) {
+        if (
+          item.status === 'pending' &&
+          (!sameMoney(item.amount, tx.amount) || item.sourceItemId !== row.id)
+        ) {
           const amountChanged = !sameMoney(item.amount, tx.amount);
+          if (amountChanged && onTab(tx.amount, f.occurredAt)) {
+            // The final amount is already on the tab (logged in chat meanwhile): stop asking.
+            stores.private.putPendingItem(
+              owner.memberId,
+              markPrivate({
+                ...item,
+                sourceItemId: row.id,
+                amount: tx.amount,
+                status: 'dismissed' as const,
+              }),
+            );
+            stores.group.audit.append({
+              groupId: group.groupId,
+              tripId: trip.tripId,
+              type: 'private.item_dismissed',
+              actor: { kind: 'system', id: 'trav' },
+              visibility: 'owner',
+              ownerId: owner.memberId,
+              payload: { itemId: item.id, cause: 'already_on_tab' },
+            });
+            alreadyOnTab += 1;
+            for (const list of [created, changed]) {
+              const at = list.indexOf(item.id);
+              if (at >= 0) list.splice(at, 1);
+            }
+            continue;
+          }
           stores.private.putPendingItem(
             owner.memberId,
             markPrivate({
@@ -332,20 +395,15 @@ export async function importCardTransactions(
               lowConfidence: item.lowConfidence || matches.length > 0,
             }),
           );
-          if (amountChanged && !created.includes(item.id) && !changed.includes(item.id)) changed.push(item.id);
+          if (amountChanged && !created.includes(item.id) && !changed.includes(item.id))
+            changed.push(item.id);
         }
         continue;
       }
       if (verdict.label !== 'shared' || tx.direction !== 'debit') continue;
 
       // 5. already on the tab? (a chat-logged dinner, a Trav booking charge)
-      const dup = logged.some(
-        (e) =>
-          e.paidBy.some((p) => p.memberId === owner.memberId) &&
-          (sameMoney(e.amount, tx.amount) || (e.original !== undefined && sameMoney(e.original.amount, tx.amount))) &&
-          hoursApart(e.occurredAt, f.occurredAt) <= DUPLICATE_WINDOW_H,
-      );
-      if (dup) {
+      if (onTab(tx.amount, f.occurredAt)) {
         alreadyOnTab += 1;
         continue;
       }
@@ -383,7 +441,10 @@ export async function importCardTransactions(
       const row = stores.private.getCardTransactionByProviderId(owner.memberId, removedId);
       const item = itemFor(row?.id, [removedId]);
       if (item === undefined || item.status !== 'pending') continue;
-      stores.private.putPendingItem(owner.memberId, markPrivate({ ...item, status: 'expired' as const }));
+      stores.private.putPendingItem(
+        owner.memberId,
+        markPrivate({ ...item, status: 'expired' as const }),
+      );
       expired += 1;
     }
   }
@@ -439,9 +500,15 @@ export async function importCardTransactions(
     };
     const batches = toPrompt.length >= DIGEST_MIN ? [toPrompt] : toPrompt.map((i) => [i]);
     for (const batch of batches) {
-      const msg = renderLooksShared({ ownerMemberId: owner.memberId, items: batch.map(entry) }, rctx);
+      const msg = renderLooksShared(
+        { ownerMemberId: owner.memberId, items: batch.map(entry) },
+        rctx,
+      );
       for (const item of batch) {
-        stores.private.putPendingItem(owner.memberId, markPrivate({ ...item, cardMessageId: msg.id }));
+        stores.private.putPendingItem(
+          owner.memberId,
+          markPrivate({ ...item, cardMessageId: msg.id }),
+        );
       }
       drafts.push(msg);
     }

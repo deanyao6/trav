@@ -5,9 +5,14 @@
  * pending private item in the owner's store, the "looks shared?" DM to the
  * owner only).
  *
- * Simulator-only stand-ins for flows that are not built yet:
- *  - card sync + the "looks shared" classifier (T-012/T-013): the charge is
- *    picked from the curated list below, not by a classifier;
+ * Simulator-only shortcuts:
+ *  - one curated card charge instead of a card sync: the real per-owner sync
+ *    + "looks shared" classifier is `agent.importCardTransactions` (T-013,
+ *    `ingest/card.ts`), but the mock provider has no notion of the simulated
+ *    clock (it returns the whole trip's history at once, future charges
+ *    included), so the demo feeds the one charge VOICE §9.5 state 4 shows.
+ *    The answer (Share it / Keep private / 👍 / 👎) is the real flow either
+ *    way (`ingest/pending.ts`);
  *  - email ingestion (T-013): the fixture email is parsed with the offline
  *    receipt parser from `@trav/adapters`, the same one T-013 will use;
  *  - consent (privacy, CLAUDE.md §2): only members who turned the import on
