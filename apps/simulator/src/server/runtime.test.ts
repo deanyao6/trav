@@ -3,10 +3,11 @@ import type { InboundEvent } from '@trav/adapters';
 import { TravError } from '@trav/core';
 import type { TravAgent, TurnResult } from '@trav/agent';
 import type { ThreadMessage } from '../shared/types.js';
-import { HANDLER_NOT_WIRED_STATUS, silentTurnStatus } from './backend.js';
+import { silentTurnStatus } from './backend.js';
 import { RAZZMATAZZ_ASK } from './groups.js';
 import { AGENT_BACKEND_HINT, backendChoice, loadAgentBackend, selectBackend } from './runtime.js';
-import type { SimRuntimeInput } from './runtime.js';
+import type { SimRuntimeInput, SimRuntimeOutput } from './runtime.js';
+import type { MockTickets } from '@trav/adapters';
 
 const SILENT: TurnResult = {
   outbound: [],
@@ -18,8 +19,9 @@ const SILENT: TurnResult = {
 };
 
 /** The parts of `TravAgent` the simulator never calls. */
-const AGENT_REST: Pick<TravAgent, 'intakeDocument' | 'pendingCards'> = {
+const AGENT_REST: Pick<TravAgent, 'intakeDocument' | 'importCardTransactions' | 'pendingCards'> = {
   intakeDocument: () => Promise.reject(new Error('not used by the simulator backend')),
+  importCardTransactions: () => Promise.reject(new Error('not used by the simulator backend')),
   pendingCards: {
     byMessageId: () => undefined,
     pendingProposalsRequestedBy: () => [],
@@ -298,28 +300,30 @@ describe('agent backend', () => {
     const card = backend
       .state()
       .groups[0]!.thread.find((e): e is ThreadMessage => e.kind === 'message' && e.isTrav)!;
-    next = { ...SILENT, note: 'approval:handler_not_wired' };
+    next = { ...SILENT, note: 'approval:not_pending' };
     await backend.inject({
       type: 'button_tap',
       from: 'h_dean',
       cardMessageId: card.messageId,
       actionId: 'approve',
     });
-    expect(backend.state().groups[0]!.status).toBe(HANDLER_NOT_WIRED_STATUS);
+    expect(backend.state().groups[0]!.status).toBe(
+      'trav stayed quiet on that tap (approval:not_pending)',
+    );
     expect(backend.state().lastError).toBeUndefined();
 
     next = { ...SILENT, note: 'mention:not_addressed' };
     await backend.inject({ type: 'message', from: 'h_maya', text: 'lol' });
     expect(backend.state().groups[0]!.status).toBeUndefined();
 
-    next = { ...SILENT, note: 'approval:handler_not_wired' };
+    next = { ...SILENT, note: 'approval:not_required_approver' };
     await backend.inject({
       type: 'reaction',
       from: 'h_sam',
       targetMessageId: card.messageId,
       reaction: '👍',
     });
-    expect(backend.state().groups[0]!.status).toMatch(/T-030.*TRAV_SIM_BACKEND=scripted/);
+    expect(backend.state().groups[0]!.status).toMatch(/tapback.*not_required_approver/);
   });
 
   it('silentTurnStatus: only silent taps and approval tapbacks get a line', () => {
@@ -337,18 +341,14 @@ describe('agent backend', () => {
     } as unknown as InboundEvent;
     const msg = { type: 'message', sender: 'h_dean', text: 'hi' } as unknown as InboundEvent;
     const silent = (note: string) => ({ silent: true, note });
-    expect(silentTurnStatus(tap, silent('approval:handler_not_wired'))).toBe(
-      HANDLER_NOT_WIRED_STATUS,
-    );
+    expect(silentTurnStatus(tap, silent('approval:not_pending'))).toMatch(/tap.*not_pending/);
     expect(silentTurnStatus(tap, silent('approval:not_charged'))).toMatch(/not_charged/);
     expect(silentTurnStatus(tap, { silent: false, note: 'approval:handled' })).toBeUndefined();
     expect(silentTurnStatus(like, silent('approval:not_charged'))).toMatch(/tapback/);
     expect(silentTurnStatus(like, silent('approval:no_pending'))).toBeUndefined();
     expect(silentTurnStatus(like, silent('reaction:ack'))).toBeUndefined();
-    // A typed alias ("yes") takes the approval path too, so a dead handler must show there.
-    expect(silentTurnStatus(msg, silent('approval:handler_not_wired'))).toBe(
-      HANDLER_NOT_WIRED_STATUS,
-    );
+    // A silent message (a typed alias that bound to nothing, an unaddressed line) gets no status line.
+    expect(silentTurnStatus(msg, silent('approval:not_requester'))).toBeUndefined();
     expect(silentTurnStatus(msg, silent('mention:none'))).toBeUndefined();
     expect(silentTurnStatus(tap, undefined)).toBeUndefined();
   });
@@ -402,17 +402,103 @@ describe('agent backend', () => {
     });
     const after = backend.state();
     const g = after.groups[0]!;
-    // Anything Trav posted (in the group or a DM) after the proposal is a visible answer:
-    // a receipt once T-009 books, or the "couldn't book, no charge" line while it can't.
-    const answered =
-      g.thread.some((e) => e.kind === 'message' && e.isTrav && e.seq > proposal!.seq) ||
-      Object.values(g.dms).some((d) => d.some((e) => e.kind === 'message' && e.isTrav));
-    if (answered) {
-      expect(g.status).toBeUndefined();
-    } else {
-      // T-030 handler not wired: the tap must say so instead of doing nothing visibly.
-      expect(g.status).toBe(HANDLER_NOT_WIRED_STATUS);
+    // T-009: the Approve books through the real executor. The receipt lands in
+    // the group, one ticket card in each of the five DM tabs, nothing in Henry's.
+    expect(g.status).toBeUndefined();
+    expect(after.lastError).toBeUndefined();
+    const receipt = g.thread.find(
+      (e): e is ThreadMessage =>
+        e.kind === 'message' && e.isTrav && e.seq > proposal!.seq && e.card?.type === 'receipt',
+    );
+    expect(receipt?.text).toMatch(/^booked ✅ razzmatazz, 5 tickets, €90/);
+    expect(proposal!.messageId).not.toBe(receipt?.messageId);
+    const card = g.thread.find(
+      (e): e is ThreadMessage => e.kind === 'message' && e.messageId === proposal!.messageId,
+    );
+    expect(card?.cardState).toMatchObject({ status: 'approved', label: 'Approved by Dean' });
+    for (const id of ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam']) {
+      const tickets = g.dms[id]!.filter(
+        (e): e is ThreadMessage => e.kind === 'message' && e.card?.type === 'ticket',
+      );
+      expect(tickets, id).toHaveLength(1);
+      expect(tickets[0]!.card).toMatchObject({ type: 'ticket', deliveredTo: id });
     }
+    expect(g.dms['mem_henry']).toEqual([]);
+    expect(JSON.stringify(g.thread)).not.toContain('TRAV-MOCK-TICKET');
+  });
+
+  it('the real runtime: a booking that fails (sold out) marks the card resolved, not pending with live buttons', async () => {
+    const mod: Record<string, unknown> = await import('@trav/agent');
+    if (typeof mod['createTravRuntime'] !== 'function') return;
+    const backend = await loadAgentBackend({
+      createTravRuntime: async (input) => {
+        const create = mod['createTravRuntime'] as (o: Record<string, unknown>) => SimRuntimeOutput;
+        const adapters: Record<string, unknown> = await import('@trav/adapters');
+        const createMockTickets = adapters['createMockTickets'] as (o: object) => MockTickets;
+        const loadTicketInventory = adapters['loadTicketInventory'] as (n: string) => unknown;
+        const core: Record<string, unknown> = await import('@trav/core');
+        const createIds = core['createUlidIdGenerator'] as (c: unknown) => unknown;
+        const tickets = createMockTickets({
+          clock: input.clock,
+          ids: createIds(input.clock),
+          inventory: loadTicketInventory('barcelona'),
+        });
+        const runtime = create({ ...input, providers: { tickets } });
+        const inner = runtime.agent;
+        type WithStores = {
+          stores: {
+            group: {
+              bookings: { listPendingProposals(g: string): readonly { quoteRef: string }[] };
+            };
+          };
+        };
+        return {
+          ...runtime,
+          agent: {
+            ...inner,
+            async handleInbound(event: InboundEvent) {
+              if (event.type === 'button_tap') {
+                // The hold lapsed and the whole night sold out before the tap:
+                // the executor's re-read of the hold finds nothing to buy.
+                const pending = (
+                  runtime as unknown as WithStores
+                ).stores.group.bookings.listPendingProposals('grp_barcelona');
+                for (const p of pending) await tickets.releaseHold(p.quoteRef);
+                tickets.setAvailable('off_rzm_20260314_ga', 0);
+              }
+              return inner.handleInbound(event);
+            },
+          },
+        };
+      },
+    });
+    await backend.inject({ type: 'message', from: 'h_dean', text: RAZZMATAZZ_ASK });
+    const proposal = backend
+      .state()
+      .groups[0]!.thread.find(
+        (e): e is ThreadMessage => e.kind === 'message' && e.card?.type === 'booking_proposal',
+      )!;
+    await backend.inject({
+      type: 'button_tap',
+      from: 'h_dean',
+      cardMessageId: proposal.messageId,
+      actionId: 'approve',
+    });
+    const g = backend.state().groups[0]!;
+    const card = g.thread.find(
+      (e): e is ThreadMessage => e.kind === 'message' && e.messageId === proposal.messageId,
+    )!;
+    expect(card.cardState).toMatchObject({
+      status: 'failed',
+      label: 'Failed · no charge',
+      liveActionIds: [],
+    });
+    const line = g.thread.find(
+      (e): e is ThreadMessage => e.kind === 'message' && e.isTrav && e.seq > proposal.seq,
+    )!;
+    expect(line.text).toMatch(/no charge went through/);
+    expect(line.replyToMessageId).toBe(proposal.messageId);
+    expect(Object.values(g.dms).every((d) => d.length === 0)).toBe(true);
   });
 
   it('selectBackend prints the scripted-demo hint when it picks the agent runtime', async () => {

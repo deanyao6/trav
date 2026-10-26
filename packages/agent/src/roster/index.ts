@@ -250,8 +250,14 @@ export interface RollCall {
   readonly when?: RosterWhen;
 }
 
-/** The time words a roll call or override may end with; captured so "tomorrow" never means tonight. */
-const WHEN = String.raw`(?:\s+(?<when>tonight|tn|tonite|today|tomorrow|tmrw|this evening))?`;
+const WHEN_WORDS = String.raw`tonight|tn|tonite|today|tomorrow|tmrw|this evening`;
+/**
+ * The time words a roll call or override may end with, with or without "for"
+ * ("who's in for tonight?"); captured so "tomorrow" never means tonight.
+ */
+const WHEN = String.raw`(?:\s+(?:for\s+)?(?<when>${WHEN_WORDS}))?`;
+/** An activity hint ("razzmatazz", "the sagrada tour"); never a bare time word, which is `when`. */
+const HINT = String.raw`(?!(?:${WHEN_WORDS})\s*$)(?<hint>[\w' ]{2,40}?)`;
 
 function whenOf(groups: Record<string, string | undefined> | undefined): RosterWhen | undefined {
   const w = groups?.['when']?.trim().toLowerCase();
@@ -260,7 +266,7 @@ function whenOf(groups: Record<string, string | undefined> | undefined): RosterW
 }
 
 const ROLL_CALL = new RegExp(
-  String.raw`^(?:so\s+)?who(?:'s|s| is| are| all is| all are)\s+(?:all\s+)?(?:in|coming|going|down|up)(?:\s+(?:for|to)\s+(?<hint>[\w' ]{2,40}?))?${WHEN}$`,
+  String.raw`^(?:so\s+)?who(?:'s|s| is| are| all is| all are)\s+(?:all\s+)?(?:in|coming|going|down|up)(?:\s+(?:for|to)\s+${HINT})?${WHEN}$`,
   'i',
 );
 
@@ -289,7 +295,7 @@ export interface RosterUpdate {
 const OUT_WORDS = String.raw`(?:sick|ill|out|not coming|not going|staying in|staying home|skipping|can't make it|cant make it|not feeling it|gonna pass|passing|done for tonight|out tonight)`;
 const IN_WORDS = String.raw`(?:in|coming|going|down|up for it|keen)`;
 const MAYBE_WORDS = String.raw`(?:a maybe|maybe|not sure|undecided|50\/50|on the fence)`;
-const FOR = String.raw`(?:\s+(?:for|to|on)\s+(?<hint>[\w' ]{2,40}?))?${WHEN}`;
+const FOR = String.raw`(?:\s+(?:for|to|on)\s+${HINT})?${WHEN}`;
 // A name ends with a letter, so "Henry's" splits into the name and the "'s" that follows.
 const NAME = String.raw`(?<name>[\p{L}](?:[\p{L}'-]{0,29}[\p{L}])?)`;
 

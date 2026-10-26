@@ -45,8 +45,17 @@
  *  - "everyone", "all of us", "evenly", "the 6 of us", "6 ways", "6x" (= the
  *    whole roster) ⇒ equal over every active member
  *  - "everyone but/except Henry", "everyone except me" ⇒ exclude
- *  - names, "me", "for me and Priya", "just me jordan and dean", "with/w
- *    Jordan" (with ⇒ the payer is in), "50/50 with dad" ⇒ equal over the list
+ *  - a name is in the split only inside a list: "for/with/between/among/just/
+ *    only X", a run with "me"/"i" ("me and Sam", "jordan and i"), or a clause
+ *    that is nothing but names (", me priya and sam"). "with/between X" puts
+ *    the payer in too. Fixed-share and weight owners are in.
+ *  - a name next to an absence cue ("henry wasn't there", "not henry",
+ *    "henry's out", "maya skipped it", "without henry") is left out: everyone
+ *    but them. "everyone else" means everyone but those named out (with
+ *    nobody named out it is a question, unless fixed shares make it clear).
+ *  - any other name ("dinner at maya's place", "henry already paid me his
+ *    part") is a question: a stray name is never a guess at who pays.
+ *  - "evenly"/"equally" say how, not who: everyone only when nobody is listed
  *  - "the 4 of us" / "4 ways" below the roster size ⇒ the names given, or an
  *    activity roster with exactly that many "in": the one named in the
  *    message ("from razz"), else the activity that just happened (≤ 18h ago),
@@ -72,6 +81,16 @@
  * unknown payer, which is asked alone (who's in depends on who paid). An
  * answer only fills what was asked, and only when it is answer-shaped: not a
  * question, a request, or a new statement of its own.
+ *
+ * Amount checks: "€84 + €10 tip" is one total; a minus sign ("-€20") is
+ * unsure; above €2,000 (`SANITY_MAX_CENTS`) the sender says the amount again
+ * before it is logged ("yes" does not count, so a stray "yes" can never log
+ * €84,000). "we paid" makes the payer a question.
+ *
+ * Accounting guard: every money-looking token lands in a draft (a total, a
+ * share, a "+" part, a matching "6x" product, a per-person restatement or an
+ * itemized line), or the message is `unsure`. "…and he owes me 15 for the
+ * cab" beside another total is unsure, never folded into it.
  *
  * Anything with a cue and an amount that these rules cannot map (two payers
  * in one clause, a pronoun with no one before it, shares above the total) is
@@ -143,6 +162,8 @@ export interface ExpenseDraft {
   readonly amount?: DraftAmount;
   /** "venmo me 20 each": the amount is per person; the total is amount × participants. */
   readonly perPerson: boolean;
+  /** The sender restated an amount above the sanity bound. */
+  readonly amountConfirmed?: boolean;
   /** A word that points away from the trip currency ("venmo"), so a bare number's currency is asked. */
   readonly currencyDoubt?: string;
   readonly participants?: ParticipantSpec;
@@ -174,7 +195,17 @@ export interface ParsedExpense {
   readonly split: SplitSpec;
 }
 
-export type MissingFact = 'amount' | 'currency' | 'trip_currency' | 'participants' | 'payer';
+export type MissingFact =
+  | 'amount'
+  | 'currency'
+  | 'trip_currency'
+  | 'participants'
+  | 'payer'
+  /** Above `SANITY_MAX_CENTS`: the amount is said again before it is logged (r1 #9). */
+  | 'confirm_amount';
+
+/** €2,000 (or 2,000 of any two-decimal currency): above this, a typo costs real money. */
+export const SANITY_MAX_CENTS = 200_000;
 
 export type DraftsEvaluation =
   | { readonly kind: 'ready'; readonly expenses: readonly ParsedExpense[] }
@@ -365,6 +396,10 @@ interface AmountTok {
   readonly inParens: boolean;
   role: Role;
   each: boolean;
+  /** Written with a minus sign ("-€20"). */
+  readonly negative: boolean;
+  /** Folded into another token ("€84 + €10 tip" is one total). */
+  merged?: boolean;
   /** For role 'share': who it belongs to. */
   owners?: MemberId[];
 }
@@ -377,7 +412,7 @@ function parenRanges(low: string): [number, number][] {
 }
 
 const MONEY_BEFORE =
-  /(?:paid|pay|pays|paying|owe|owes|owed|was|were|is|are|cost|costs|came to|comes to|total(?:l?ed)?|log|add|put|spent|venmo me|zelle me|cash ?app me|pay me|send me|give me|charged?|=|split)\s*$/;
+  /(?:owes? me(?: back)?|paid|pay|pays|paying|owe|owes|owed|was|were|is|are|cost|costs|came to|comes to|total(?:l?ed)?|log|add|put|spent|venmo me|zelle me|cash ?app me|pay me|send me|give me|charged?|=|split)\s*$/;
 const MONEY_AFTER = /^\s*(?:for|each|total|in total|on (?:the|my|me)|split|between|with)\b/;
 const NOT_MONEY_AFTER =
   /^\s*(?:of\s+(?:us|you|them)|ways?\b|x\b|×|people|ppl|persons?|times|pm\b|am\b|h\b|hrs?\b|hours?|mins?\b|minutes?|%|\/|-\d|th\b|st\b|nd\b|rd\b|nights?|days?|tickets?\b|beers?|drinks?|waters?|rounds?|coffees?|shots?|bottles?|kebabs?|of the)/;
@@ -401,6 +436,7 @@ function scanAmounts(low: string, members: readonly ParseMember[]): AmountTok[] 
       inParens: inParens(s),
       role: 'total',
       each: false,
+      negative: /(?:^|[^\d\w])[-−]\s*$/.test(low.slice(0, s)),
     });
   };
   const NUM = '(\\d+(?:[.,]\\d+)*)';
@@ -432,7 +468,8 @@ function scanAmounts(low: string, members: readonly ParseMember[]): AmountTok[] 
     const before = low.slice(0, s);
     const after = low.slice(e);
     if (NOT_MONEY_AFTER.test(after)) continue;
-    if (/\d\s*[x×*]\s*$/.test(before) || /[/:]\s*$/.test(before)) continue;
+    if (/\d\s*[x×*]\s*$/.test(before) || /[/:]\s*$/.test(before) || /\d\s*-\s*$/.test(before))
+      continue;
     if (/\bthe\s*$/.test(before) && /^\s*of\b/.test(after)) continue;
     const hasDecimals = /[.,]\d{1,2}$/.test(m[1]!);
     const standalone = /(?:^|[,;:])\s*$/.test(before) && /^\s*(?:[,;.]|$)/.test(after);
@@ -440,9 +477,16 @@ function scanAmounts(low: string, members: readonly ParseMember[]): AmountTok[] 
     if (strongBefore || hasDecimals) push(s, e, m[1]!, undefined);
     else if (MONEY_AFTER.test(after) || standalone) weakBare.push({ s, e, raw: m[1]! });
   }
-  // "bought 6 for sat, €156": next to a written amount, a bare number with only
-  // a weak cue ("6 for", ", 6,") is a headcount, not money.
-  if (!toks.some((t) => t.explicit)) for (const w of weakBare) push(w.s, w.e, w.raw, undefined);
+  // "bought 6 for sat, €156": next to a written amount, a count of things
+  // bought ("bought 6", "got 6") is a headcount, not money. "and 20 for the
+  // cab" stays money (r1 #5).
+  const written = toks.some((t) => t.explicit);
+  for (const w of weakBare) {
+    const quantity = /\b(?:bought|got|grabbed|booked|ordered|picked up|have|had)\s*$/.test(
+      low.slice(0, w.s),
+    );
+    if (!(written && quantity)) push(w.s, w.e, w.raw, undefined);
+  }
   return toks.sort((a, b) => a.start - b.start);
 }
 
@@ -652,6 +696,10 @@ function findPayer(scan: Scan, segment?: [number, number]): ExpenseDraft['payer'
     }
   }
   if (named !== undefined && (iAt < 0 || named.at < iAt)) return named.payer;
+  // "we paid €84": several people paid, so who goes on the tab is a question (r1 #11)
+  if (iAt < 0 && new RegExp(`\\bwe\\s+(?:just\\s+|all\\s+|both\\s+)?${PAYER_VERB}\\b`).test(text)) {
+    return { kind: 'unknown', name: '' };
+  }
   return { kind: 'member', memberId: ctx.senderMemberId };
 }
 
@@ -713,6 +761,101 @@ interface ParticipantResult {
   readonly restToPayer: boolean;
 }
 
+interface PersonRun {
+  /** list: a list construction; absent: next to an absence cue; stray: anything else. */
+  readonly kind: 'list' | 'absent' | 'stray';
+  readonly ids: readonly MemberId[];
+  /** "with/between/among X": the payer is in too. */
+  readonly withPayer: boolean;
+}
+
+/**
+ * "wasn't there", "not", "without", "sick", "left", "skipped"… A member who
+ * "already paid me his part" was in but settled directly: that is not an
+ * absence (excluding them would overcharge the rest), so it stays a question.
+ */
+const ABSENCE_CUE =
+  /\b(?:not|without|wasn'?t|isn'?t|didn'?t|did not|was not|is not|out|sick|left|leaving|skipped|skip|missed|bailed|stayed (?:in|home|back)|went home|asleep|no show|no-show)\b/;
+const SETTLED_CUE = /\b(?:already paid|paid (?:me )?(?:back|his|her|their)|paid me)\b/;
+/** What may sit right before a list: "for", "with", "between", "just", "only"… */
+const LIST_LEAD =
+  /\b(?:for|with|between|among|amongst|just|only|including|incl|plus|and also)\s+(?:the\s+)?$/;
+const WITH_LEAD = /\b(?:with|between|among|amongst)\s+(?:the\s+)?$/;
+
+/**
+ * Groups the people a span names into runs ("me, maya and sam", "jordan and
+ * i", "henry") and classifies each (T-010 r1 #1, #4). Payers ("Jordan got")
+ * and creditors ("i owe Dean") are not people in the split and are skipped.
+ * "i" counts only inside a run of two or more ("jordan and i").
+ */
+function personRuns(scan: Scan, span: [number, number]): PersonRun[] {
+  const { ctx } = scan;
+  const low = scan.low;
+  const spans = payerSpans(low);
+  type Tok = { start: number; end: number; id: MemberId; self: boolean; word: string };
+  const toks: Tok[] = scan.names
+    .filter((h) => h.start >= span[0] && h.end <= span[1])
+    .filter((h) => !spans.some(([a, b]) => h.start >= a && h.end <= b + 2))
+    .map((h) => ({ start: h.start, end: h.end, id: h.memberId, self: false, word: 'name' }));
+  for (const m of low.slice(span[0], span[1]).matchAll(/\b(me|myself|i)\b/g)) {
+    const start = span[0] + m.index;
+    toks.push({ start, end: start + m[0].length, id: ctx.senderMemberId, self: true, word: m[1]! });
+  }
+  toks.sort((a, b) => a.start - b.start);
+  const groups: Tok[][] = [];
+  for (const t of toks) {
+    const last = groups[groups.length - 1];
+    const prev = last?.[last.length - 1];
+    if (
+      prev !== undefined &&
+      !last!.some((x) => x.id === t.id) && // "me and sam, sam wasn't there": a new clause
+      /^\s*(?:,\s*(?:and\s+)?|and|&|\+|)\s*$/.test(low.slice(prev.end, t.start))
+    ) {
+      last!.push(t);
+    } else groups.push([t]);
+  }
+  const out: PersonRun[] = [];
+  for (const g of groups) {
+    // a lone "i"/"me" is the speaker talking ("i paid", "on me"), not a list
+    const names = g.filter((t) => !t.self);
+    const selves = g.filter((t) => t.self);
+    if (names.length === 0 && (selves.length === 0 || selves.some((t) => t.word === 'i'))) continue;
+    const start = g[0]!.start;
+    const end = g[g.length - 1]!.end;
+    // "i" right before a payment verb ("jordan and i paid") is a payer, handled elsewhere
+    const before = low.slice(0, start);
+    const after = low.slice(end);
+    const clauseStart = Math.max(
+      ...[',', ';', '.', ':', '('].map((c) => before.lastIndexOf(c)),
+      before.lastIndexOf(' but '),
+    );
+    const nextStop = after.search(/[,;.:()]|\sbut\s/);
+    const clause = low.slice(clauseStart + 1, nextStop < 0 ? low.length : end + nextStop);
+    const runText = low.slice(start, end);
+    const clauseOnly =
+      clause
+        .trim()
+        .replace(/^(?:and|just|only|plus|so)\s+/, '')
+        .replace(/\s+(?:too|as well)$/, '') === runText.trim();
+    const ids = uniq(g.map((t) => t.id));
+    const hasSelf = selves.length > 0;
+    if (names.length === 0) {
+      // "for me", "just me": the speaker alone, only after a list lead
+      if (LIST_LEAD.test(before))
+        out.push({ kind: 'list', ids, withPayer: WITH_LEAD.test(before) });
+      continue;
+    }
+    if (LIST_LEAD.test(before) || clauseOnly || (hasSelf && g.length >= 2)) {
+      out.push({ kind: 'list', ids, withPayer: WITH_LEAD.test(before) });
+    } else if (!SETTLED_CUE.test(clause) && (ABSENCE_CUE.test(clause) || /n't\b/.test(clause))) {
+      out.push({ kind: 'absent', ids: names.map((t) => t.id), withPayer: false });
+    } else {
+      out.push({ kind: 'stray', ids: names.map((t) => t.id), withPayer: false });
+    }
+  }
+  return out;
+}
+
 /** Who is in, from one span of the text (the whole message or one expense's part of it). */
 function parseParticipants(
   scan: Scan,
@@ -772,37 +915,66 @@ function parseParticipants(
     n ??= 2;
   }
 
-  const everyone =
-    /\b(?:everyone|everybody|all of us|all of you|the whole group|whole group|the group|evenly|equally|split it all|for all|every one of us)\b/.test(
-      low,
-    ) ||
-    (n !== undefined && n === size);
-
-  // the explicit list: names outside payer/creditor positions, plus "me" in a list
-  const spans = payerSpans(scan.low);
-  const names = scan.names
-    .filter((h) => h.start >= span[0] && h.end <= span[1])
-    .filter((h) => !spans.some(([a, b]) => h.start >= a && h.end <= b + 2))
-    .map((h) => h.memberId);
-  const nameAlt = ctx.members
-    .map((m) => escapeRe(m.displayName.trim().toLowerCase()))
-    .filter((x) => x.length > 0)
-    .join('|');
-  const meInList =
-    /\b(?:me|myself)\s*(?:,|\band\b|&)\s*\S/.test(low) ||
-    /(?:,|\band\b|&)\s*(?:me|myself)\b(?!\s*(?:back|\d))/.test(low) ||
-    /\b(?:for|with|between|among|just|only)\s+(?:me|myself)\b(?!\s*\d)/.test(low) ||
-    (nameAlt.length > 0 && new RegExp(`\\bme\\s+(?:${nameAlt})\\b`).test(low)) ||
-    /\b(?:both of us|the two of us|us two)\b/.test(low);
-  const withPayer =
-    nameAlt.length > 0 && new RegExp(`\\b(?:with|between|among)\\s+(?:${nameAlt}|me)\\b`).test(low);
+  // Who the message names, and how (T-010 r1 #1): a name is in the split only
+  // inside a list construction; a name next to an absence cue is left out; a
+  // name anywhere else is a question, never a guess.
+  const runs = personRuns(scan, span);
+  const listed: MemberId[] = [];
+  const absent: MemberId[] = [];
+  const stray: MemberId[] = [];
+  let withPayer = false;
+  for (const run of runs) {
+    if (run.kind === 'list') {
+      listed.push(...run.ids);
+      if (run.withPayer) withPayer = true;
+    } else if (run.kind === 'absent') absent.push(...run.ids);
+    else stray.push(...run.ids);
+  }
+  const owners = uniq(shareOwners);
   const listIds = uniq([
-    ...names,
-    ...shareOwners,
-    ...(meInList ? [sender] : []),
+    ...listed,
+    ...owners,
+    ...(/\b(?:both of us|the two of us|us two)\b/.test(low) ? [sender] : []),
     ...(withPayer && payerId !== undefined ? [payerId] : []),
-    ...(restToPayer && payerId !== undefined ? [payerId] : []),
+    ...(restToPayer && (listed.length > 0 || owners.length > 0) && payerId !== undefined
+      ? [payerId]
+      : []),
   ]);
+  const known = new Set([...listIds, ...(payerId !== undefined ? [payerId] : [])]);
+  const unexplained = uniq(stray).filter((id) => !known.has(id));
+  const absentIds = uniq(absent).filter((id) => !owners.includes(id));
+  if (unexplained.length > 0) {
+    return { spec: { kind: 'vague', phrase: 'names' }, restToPayer };
+  }
+  if (absentIds.some((id) => listIds.includes(id))) {
+    return { spec: { kind: 'vague', phrase: 'names' }, restToPayer };
+  }
+
+  const everyElse = /\beveryone else\b|\beverybody else\b|\bthe rest of us\b/.test(low);
+  const everyoneWord =
+    /\b(?:everyone|everybody|all of us|all of you|the whole group|whole group|the group|split it all|for all|every one of us)\b/.test(
+      low,
+    );
+  // "evenly"/"equally" says how, not who: everyone only when nobody is listed (r1 #2)
+  const evenly = /\b(?:evenly|equally)\b/.test(low) && listIds.length === 0;
+  if (absentIds.length > 0) {
+    // "henry wasn't there", "everyone else", "not henry": everyone but them
+    if (listIds.length > 0) return { spec: { kind: 'list', ids: listIds }, restToPayer };
+    if (n === undefined || n === size - absentIds.length) {
+      return absentIds.length < size
+        ? { spec: { kind: 'except', ids: absentIds }, restToPayer }
+        : { spec: { kind: 'vague', phrase: 'names' }, restToPayer };
+    }
+    return { spec: { kind: 'vague', phrase: 'names' }, restToPayer };
+  }
+  if (everyElse) {
+    // "everyone else" without anyone left out by name (r1 #3): only with
+    // fixed shares ("Dean pays 20, everyone else splits the rest") is it everyone.
+    return owners.length > 0
+      ? { spec: { kind: 'everyone' }, restToPayer }
+      : { spec: { kind: 'vague', phrase: 'everyone else' }, restToPayer };
+  }
+  const everyone = everyoneWord || evenly || (n !== undefined && n === size);
 
   if (everyone) return { spec: { kind: 'everyone' }, restToPayer };
   if (n !== undefined) {
@@ -823,18 +995,39 @@ const DESC_STOP =
   /\s*(?:,|;|:|\.|\(|\?|!|\s(?:(?:and|with|split|between|among|but|except|so|since|because|on|for|me|just|only|each|was|were|is|cost|came|i|we|plus|then|x|evenly|equally|everyone|everybody|half|the \d+ of us)(?=\s|$|[,.;:!?])|=|50\/50|\d|[€$£]))/;
 const ARTICLE = /^(?:the|a|an|our|my|some|his|her|their|us)\s+/;
 const NOT_DESC =
-  /^(?:me|us|you|everyone|everybody|all|the group|both|each|it|that|this|them|him|her|the tab|tab|my card|my|i|the \d+ of us|\d+ of us|today|tonight|tomorrow|yesterday|mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday|later|earlier|before|after)\b/;
+  /^(?:me|us|you|everyone|everybody|all|the group|both|each|it|that|this|them|him|her|the tab|tab|my card|my|i|the \d+ of us|\d+ of us|today|tonight|tomorrow|yesterday|mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday|later|earlier|before|after|tip|tips|tax|vat|service|gratuity|fee|fees)\b/;
 
 function phraseAt(text: string): string | undefined {
   let t = text.trimStart().replace(ARTICLE, '');
   const countLead = new RegExp(`^(?:the\\s+)?${COUNT_WORD}\\s+of\\s+us(?:\\s+|$)`);
   t = t.replace(countLead, '');
+  // "2 waters at razz": a leading count stays with its noun (r1 #10)
+  const count = /^(\d{1,2})\s+(?=[a-z])/.exec(t);
+  if (count !== null) t = t.slice(count[0].length);
   const stop = DESC_STOP.exec(` ${t}`);
-  const phrase = (stop === null ? t : ` ${t}`.slice(1, stop.index)).trim();
-  if (phrase.length === 0 || NOT_DESC.test(phrase)) return undefined;
+  let phrase = (stop === null ? t : ` ${t}`.slice(1, stop.index)).trim();
+  // "dinner at 9", "the uber tonight": no dangling preposition or time word
+  for (;;) {
+    const trimmed = phrase.replace(DESC_TAIL, '').trim();
+    if (trimmed === phrase) break;
+    phrase = trimmed;
+  }
+  if (phrase.length === 0 || !/[a-z]/.test(phrase) || NOT_DESC.test(phrase)) return undefined;
   const words = phrase.split(/\s+/).slice(0, 4);
   if (words.length === 0 || /^\d/.test(words[0]!)) return undefined;
-  return words.join(' ');
+  return `${count !== null ? `${count[1]!} ` : ''}${words.join(' ')}`;
+}
+
+const DESC_TAIL =
+  /\s+(?:at|in|on|from|to|of|the|a|an|by|near|tonight|today|yesterday|last|night|earlier|this|morning|afternoon|evening|again|too)$/;
+
+/** The noun that set the category ("cab", "cava"), for when nothing better was said. */
+function categoryWord(text: string): string | undefined {
+  for (const [, re] of CATEGORY_WORDS) {
+    const m = re.exec(text);
+    if (m !== null) return m[1];
+  }
+  return undefined;
 }
 
 /** What the expense was for, from its part of the message. */
@@ -845,11 +1038,17 @@ function describe(low: string, scan: Scan): string | undefined {
   for (const m of low.matchAll(/\bfor\s+/g)) tries.push(phraseAt(low.slice(m.index + m[0].length)));
   // "the taxi was €32", "kebabs were on me"
   const was =
-    /(?:^|[,;:]\s*|\s)((?:the |our |my )?[a-z][a-z' ]{1,40}?)\s+(?:was|were|is|came to|cost|costs)\b/.exec(
+    /(?:^|[,;:]\s*|\s)((?:the |our |my )?(?:\d{1,2} )?[a-z][a-z' ]{1,40}?)\s+(?:was|were|is|came to|cost|costs)\b/.exec(
       low,
     );
   if (was !== null) {
-    const p = was[1]!.replace(ARTICLE, '').trim().split(/\s+/).slice(-4).join(' ');
+    const p = was[1]!
+      .replace(ARTICLE, '')
+      .trim()
+      .split(/\s+/)
+      .slice(/^\d/.test(was[1]!.replace(ARTICLE, '')) ? 0 : -4)
+      .slice(0, 5)
+      .join(' ');
     const cleaned = p.replace(/^(?:and|so|then|ok|okay|yeah)\s+/, '');
     tries.push(cleaned.length > 0 && !NOT_DESC.test(cleaned) ? cleaned : undefined);
   }
@@ -861,13 +1060,13 @@ function describe(low: string, scan: Scan): string | undefined {
   if (onMe !== null) tries.push(NOT_DESC.test(onMe[1]!) ? undefined : onMe[1]!.trim());
   // "got the metro cards", "got everyone coffee", "covered groceries at the supermarket"
   for (const m of low.matchAll(
-    /\b(?:got|bought|covered|grabbed|picked up|paid for|treated (?:everyone|us) to)\s+(?:everyone\s+|us\s+|the group\s+|all of us\s+)?/g,
+    /\b(?:got|bought|covered|grabbed|picked up|paid for|split|treated (?:everyone|us) to)\s+(?:everyone\s+|us\s+|the group\s+|all of us\s+)?/g,
   )) {
     tries.push(phraseAt(low.slice(m.index + m[0].length).replace(/\s+at\s+.*$/, '')));
   }
   // "the €25 laundromat", "€18.50 ice cream for", "$142 dinner at conch corner"
   for (const t of scan.amounts) {
-    if (t.start < 0) continue;
+    if (t.start < 0 || t.merged === true) continue; // "+ €10 tip" describes nothing on its own
     const rel = low.indexOf(scan.low.slice(t.start, t.end));
     if (rel < 0) continue;
     const after = low.slice(rel + (t.end - t.start));
@@ -906,9 +1105,9 @@ function describe(low: string, scan: Scan): string | undefined {
 
 function cleanDescription(d: string | undefined, low: string): string {
   const base = (d ?? '').replace(/\s+/g, ' ').trim();
-  if (base.length > 0) return base.slice(0, 40);
-  const cat = categoryFor(low);
-  return cat === 'other' ? 'expense' : cat;
+  if (base.length > 0 && /[a-z]/.test(base)) return base.slice(0, 40);
+  // the noun the sender used, never the category name ("€32 transport", r1 #10)
+  return categoryWord(low) ?? 'expense';
 }
 
 /** Splits "84 for dinner and 20 for the cab" at the separator before each later total. */
@@ -1049,6 +1248,8 @@ export function parseExpenseText(text: string, ctx: ExpenseTextContext): Expense
   }
   if (NO_LOG.test(low)) return { kind: 'no_log' };
 
+  // "-€20": a refund or a correction, not something to log blind (r1 #9).
+  if (amounts.some((t) => t.negative)) return { kind: 'unsure', reason: 'negative_amount' };
   const roles = assignRoles(scan);
   if (roles.unsure !== undefined) return { kind: 'unsure', reason: roles.unsure };
   const doubt = CURRENCY_DOUBT.exec(low)?.[1];
@@ -1058,6 +1259,37 @@ export function parseExpenseText(text: string, ctx: ExpenseTextContext): Expense
   if (totals.some((t) => !t.each) && totals.some((t) => t.each)) {
     for (const t of totals) if (t.each) t.role = 'paren';
     totals = totals.filter((t) => !t.each);
+  }
+  // "dinner €84 + €10 tip": one total (r1 #6).
+  for (let i = totals.length - 1; i > 0; i -= 1) {
+    const a = totals[i - 1]!;
+    const b = totals[i]!;
+    if (!/^\s*(?:\+|plus)\s*$/.test(low.slice(a.end, b.start))) continue;
+    if (a.currency !== undefined && b.currency !== undefined && a.currency !== b.currency) {
+      return { kind: 'unsure', reason: 'mixed_currencies' };
+    }
+    const sum = centsToDecimal(decimalToCents(a.decimal) + decimalToCents(b.decimal));
+    const cur = a.currency ?? b.currency;
+    a.merged = true;
+    totals[i - 1] = {
+      ...a,
+      end: b.end,
+      decimal: sum,
+      ...(cur !== undefined ? { currency: cur } : {}),
+      explicit: a.explicit || b.explicit,
+    };
+    b.merged = true;
+    totals.splice(i, 1);
+  }
+  // "…and he owes me 15 for the cab" beside another total is its own expense,
+  // not a share of that one: past these rules (r1 #5).
+  if (
+    totals.length > 0 &&
+    shares.some((s) =>
+      /^\s*(?:each\s+)?(?:for|on)\s+(?:the\s+|a\s+|my\s+)?[a-z]/.test(low.slice(s.end)),
+    )
+  ) {
+    return { kind: 'unsure', reason: 'owed_for_something_else' };
   }
 
   // "me and sam paid €30": two payers in one clause is past these rules.
@@ -1121,13 +1353,41 @@ export function parseExpenseText(text: string, ctx: ExpenseTextContext): Expense
     }
   }
 
+  // Accounting guard (r1 #5): every money-looking token lands in a draft, or
+  // the message is unsure. Allowed asides: a per-person restatement ("€14
+  // each"), an itemized line, a "+" part, arithmetic that matches its total.
+  if (lineItems === undefined) {
+    for (const t of amounts) {
+      if (t.role === 'total' && !totals.includes(t) && !t.merged) {
+        return { kind: 'unsure', reason: 'unaccounted_amount' };
+      }
+      if (t.role === 'paren' && t.explicit && !t.each && t.inParens) {
+        return { kind: 'unsure', reason: 'unaccounted_amount' };
+      }
+      if (t.role === 'operand' || t.role === 'unit') {
+        const mult = /(\d+)\s*[x×*]\s*$/.exec(low.slice(0, t.start));
+        if (mult === null) continue; // the "6" in "6x": a count
+        const product = decimalToCents(t.decimal) * Number(mult[1]);
+        const matches =
+          totals.some((x) => decimalToCents(x.decimal) === product) ||
+          (totals.length === 0 && t.role === 'unit');
+        if (!matches) return { kind: 'unsure', reason: 'arithmetic_mismatch' };
+      }
+    }
+  }
+
   const segments: [number, number][] =
     totals.length <= 1 ? [[0, low.length]] : segmentsFor(low, totals);
   const shareOwners = uniq(shares.flatMap((s) => s.owners ?? []));
   const parts = segments.map((seg, i) => {
     const segLow = low.slice(seg[0], seg[1]);
     const payer = roles.payer ?? findPayer(scan, totals.length <= 1 ? undefined : seg);
-    const p = parseParticipants(scan, seg, payer, totals.length <= 1 ? shareOwners : []);
+    const p = parseParticipants(
+      scan,
+      seg,
+      payer,
+      totals.length <= 1 ? uniq([...shareOwners, ...roles.weights.map((w) => w.memberId)]) : [],
+    );
     return { seg, segLow, payer, p, total: totals[i] };
   });
   // Several expenses: who's in, said once, applies to all.
@@ -1209,6 +1469,13 @@ function missingOf(d: ExpenseDraft, ctx: ExpenseTextContext): MissingFact[] {
     if (ctx.tripCurrency === null || d.currencyDoubt !== undefined) out.push('currency');
   } else if (ctx.tripCurrency !== null && d.amount.currency !== ctx.tripCurrency) {
     out.push('trip_currency');
+  }
+  if (
+    d.amount !== undefined &&
+    d.amountConfirmed !== true &&
+    decimalToCents(d.amount.decimal) > SANITY_MAX_CENTS
+  ) {
+    out.push('confirm_amount');
   }
   const p = d.participants;
   const single = ctx.members.length === 1;
@@ -1378,7 +1645,9 @@ export function evaluateDrafts(
  */
 export function askedFacts(missing: readonly (readonly MissingFact[])[]): MissingFact[] {
   const all = [...new Set(missing.flat())];
-  return all.includes('payer') ? ['payer'] : all;
+  if (all.includes('payer')) return ['payer'];
+  if (all.includes('confirm_amount')) return ['confirm_amount'];
+  return all;
 }
 
 const MEALS = /^(?:dinner|lunch|breakfast|brunch|drinks|groceries|coffee|food)$/;
@@ -1438,8 +1707,15 @@ function questionFor(
   const parts: string[] = [];
   if (all.has('payer')) {
     // asked alone (see `askedFacts`); anything else missing is the next question
+    if (d.payer.kind === 'unknown' && d.payer.name.length === 0) {
+      return `who paid for ${theThing(d)}? i put each one on one person`;
+    }
     const who = d.payer.kind === 'unknown' ? `, not ${d.payer.name}` : '';
     return `who paid for ${theThing(d)}? i can only put it on someone on this trip${who}`;
+  }
+  if (all.has('confirm_amount')) {
+    const cd = drafts[missing.findIndex((m) => m.includes('confirm_amount'))]!;
+    return `${shown(cd, ctx) ?? cd.amount?.decimal ?? 'that'} for ${theThing(cd)}? say the amount again and i'll log it`;
   }
   // currency first: "was that €20 or $20?"
   if (all.has('currency') && d.amount !== undefined) {
@@ -1541,8 +1817,10 @@ export function mergeAnswer(
       inParens: false,
       role: 'total',
       each: false,
+      negative: false,
     });
   }
+  if (amounts.some((t) => t.negative)) return undefined;
   scan.amounts.push(...amounts);
   const currencyWord =
     /(?:^|[\s,])([€$£]|euros?|eur|dollars?|usd|bucks|quid|pounds?|gbp)(?=$|[\s,.])/.exec(low);
@@ -1592,9 +1870,32 @@ export function mergeAnswer(
       next = { ...next, participants: p.spec };
       filled = true;
     }
-    if (need.includes('payer') && scan.names.length === 1) {
-      next = { ...next, payer: { kind: 'member', memberId: scan.names[0]!.memberId } };
+    if (need.includes('confirm_amount') && amounts.length === 1) {
+      // the amount said again (or a corrected one) is the confirmation; "yes" is not
+      const a = amounts[0]!;
+      next = {
+        ...next,
+        amount: {
+          decimal: a.decimal,
+          ...(a.currency !== undefined
+            ? { currency: a.currency }
+            : next.amount?.currency !== undefined
+              ? { currency: next.amount.currency }
+              : {}),
+        },
+        amountConfirmed: true,
+      };
       filled = true;
+    }
+    if (need.includes('payer')) {
+      const self = /^(?:(?:it was |that was )?me|i did|i paid|mine|i)\b/.test(low);
+      if (scan.names.length === 1 && !self) {
+        next = { ...next, payer: { kind: 'member', memberId: scan.names[0]!.memberId } };
+        filled = true;
+      } else if (self && scan.names.length === 0) {
+        next = { ...next, payer: { kind: 'member', memberId: ctx.senderMemberId } };
+        filled = true;
+      }
     }
     return next;
   });

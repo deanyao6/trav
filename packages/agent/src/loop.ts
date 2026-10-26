@@ -72,11 +72,23 @@ import type {
   PendingCardIndex,
   PendingCardRef,
 } from './approval/events.js';
+import { followSupersededBy } from './approval/events.js';
+import {
+  AUTO_APPROVE_FAILED_TEXT,
+  TURN_FAILED_AFTER_PURCHASE_TEXT,
+  TURN_FAILED_TEXT,
+} from './approval/text.js';
 import type { ProposalService, ProposeResult } from './booking/proposals.js';
 import { shortEventName } from './booking/proposals.js';
 import type { BookingExecutor, ProviderRegistry } from './booking/executor.js';
 import { buildGroupContext, renderGroupPrompt, sanitizeInline } from './context/groupContext.js';
 import { createChatExpenseFlow } from './ingest/chatExpense.js';
+import {
+  importCardTransactions as importCards,
+  type CardImportInput,
+  type CardImportOutcome,
+} from './ingest/card.js';
+import { answerShare, matchShareAnswer, whichCharge, type ShareMatch } from './ingest/pending.js';
 import {
   intakeDocument as screenDocument,
   type DocumentIntake,
@@ -190,9 +202,23 @@ export interface DocumentIntakeResult extends TurnResult {
   readonly pendingItemId?: string;
 }
 
+/** One card-transaction import for one owner in one group (T-013, `ingest/card.ts`). */
+export interface CardImportRequest extends CardImportInput {
+  readonly groupId: GroupId;
+}
+
+export interface CardImportResult extends TurnResult, CardImportOutcome {}
+
 export interface TravAgent {
   /** Handles one channel event end to end (identity → mention → approval event or model loop → send). */
   handleInbound(event: InboundEvent): Promise<TurnResult>;
+  /**
+   * Pulls an owner's card transactions through the "looks shared" classifier
+   * (SAFETY §2.6): rows land only in the owner's private store, prompts go out
+   * as DMs to the owner, and nothing reaches the group ledger until the owner
+   * answers Share it on the card. Zero tools, zero proposals.
+   */
+  importCardTransactions(input: CardImportRequest): Promise<CardImportResult>;
   /** Handles a due scheduled job (recap, settle-up, expiry, digest, Wrapped). */
   runScheduled(job: ScheduledJob): Promise<TurnResult>;
   /**
@@ -214,15 +240,12 @@ export const GUEST_REFUSAL_TEXT = 'i only book for people on this trip. ask one 
 export const PASTED_TEXT_LINE =
   "pasted messages don't count as instructions, so i'm not acting on that. if you want it done, say it yourself";
 export const NOTHING_TO_ADD_TEXT = 'nothing to add on that';
-/** VOICE §4.10: two lines, no emoji, says whether money moved and what happens next. */
-export const TURN_FAILED_TEXT =
-  "something went wrong on my end. no charge went through\n@ me again in a minute and i'll retry";
-/** Same shape, for a turn that failed AFTER `booking.completed` was written: money did move. */
-export const TURN_FAILED_AFTER_PURCHASE_TEXT =
-  "something went wrong on my end after the purchase. the charge went through and the booking stands\n@ me in a minute and i'll sort out the receipt and tickets";
-/** The auto-approve path could not hand the proposal to the approval handler; nothing was bought. */
-export const AUTO_APPROVE_FAILED_TEXT =
-  "couldn't complete that one. no charge went through\n@ me again in a minute and i'll retry";
+/** VOICE §4.10 failure lines live in `approval/text.ts` (a leaf, T-030 note c); re-exported for callers. */
+export {
+  AUTO_APPROVE_FAILED_TEXT,
+  TURN_FAILED_AFTER_PURCHASE_TEXT,
+  TURN_FAILED_TEXT,
+} from './approval/text.js';
 /**
  * What the `recent` transcript keeps instead of untrusted text (SAFETY §2.4):
  * pasted or forwarded lines, and anything a guest says, never reach a
@@ -797,13 +820,20 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     intent: ApprovalIntent,
     text: string,
     via: 'button' | 'reaction' | 'text',
-    boundProposalId: string | undefined,
+    boundProposalIdAsBound: string | undefined,
     messageId: MessageId,
     /** The message was for Trav (mention, quote-reply, reply window): only then may Trav answer a claim out loud. */
     addressed = false,
   ): Promise<TurnResult> {
     const before = snapshotAudit(r.group.groupId);
     const pending = pendingFor(r);
+    // A "not me" on a superseded card lands on the card that replaced it
+    // (D-021), so the gate sees the live proposal instead of answering
+    // `no_pending`. A 👍 or 👎 on the old card stays dead.
+    const boundProposalId =
+      intent === 'not_me' && boundProposalIdAsBound !== undefined
+        ? followSupersededBy((id) => stores.group.bookings.getProposal(id), boundProposalIdAsBound)
+        : boundProposalIdAsBound;
     const finish = (outbound: readonly Outbound[], note: string): TurnResult => ({
       outbound,
       toolCalls: [],
@@ -1540,7 +1570,45 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     }
 
     recordInbound();
-    if (!mention.addressed) return silent(`mention:${mention.reason}`);
+    // 5b. an expense stated in chat (T-010, `ingest/chatExpense.ts`): logged
+    // from the parser (VOICE §4.4) or one question (§4.11); the model only
+    // for what the parser cannot settle. Group lane, members, a current trip.
+    const expenseTurn = async (answerOnly: boolean): Promise<TurnResult | undefined> => {
+      if (r.lane !== 'group' || r.trip === null || !canRequest(r.identity)) return undefined;
+      const before = snapshotAudit(r.group.groupId);
+      const res = await chatExpenses.handle(
+        {
+          group: r.group,
+          members: r.members,
+          trip: r.trip,
+          me,
+          messageId: event.messageId,
+          text,
+          at: event.receivedAt,
+        },
+        { answerOnly },
+      );
+      if (res === undefined) return undefined;
+      const sent = await send(r, res.drafts);
+      return {
+        outbound: sent,
+        toolCalls: [],
+        auditEventIds: auditIdsSince(r.group.groupId, before),
+        silent: sent.length === 0,
+        modelSources: res.modelSources,
+        note: res.note,
+      };
+    };
+    if (!mention.addressed) {
+      // T-010 r1 #7: Trav's open expense question to this member stays
+      // answerable past the 2-minute reply window (its own TTL); only a short
+      // reply to it is taken, nothing unaddressed is parsed fresh.
+      if (chatExpenses.awaiting(r.group.groupId, me.memberId)) {
+        const answered = await expenseTurn(true);
+        if (answered !== undefined) return answered;
+      }
+      return silent(`mention:${mention.reason}`);
+    }
     if (mention.reason === 'thanks') {
       const reaction: Outbound = {
         id: ids.next('msg'),
@@ -1561,32 +1629,8 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       };
     }
 
-    // 5b. an expense stated in chat (T-010, `ingest/chatExpense.ts`): logged
-    // from the parser (VOICE §4.4) or one question (§4.11); the model only
-    // for what the parser cannot settle. Group lane, members, a current trip.
-    if (r.lane === 'group' && r.trip !== null && canRequest(r.identity)) {
-      const before = snapshotAudit(r.group.groupId);
-      const res = await chatExpenses.handle({
-        group: r.group,
-        members: r.members,
-        trip: r.trip,
-        me,
-        messageId: event.messageId,
-        text,
-        at: event.receivedAt,
-      });
-      if (res !== undefined) {
-        const sent = await send(r, res.drafts);
-        return {
-          outbound: sent,
-          toolCalls: [],
-          auditEventIds: auditIdsSince(r.group.groupId, before),
-          silent: sent.length === 0,
-          modelSources: res.modelSources,
-          note: res.note,
-        };
-      }
-    }
+    const expense = await expenseTurn(false);
+    if (expense !== undefined) return expense;
 
     // 6. the model.
     return modelTurn(r, event, text, mention.reason);
@@ -1676,6 +1720,13 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     const trip = r.trip;
     if (trip === null || live.some((e) => e.tripId !== trip.tripId))
       return silent('undo:trip_over');
+    // The card's Undo is for the payer and whoever logged it (`allowedMemberIds`
+    // in render/expenseConfirm.ts); a 👎, a tap or "undo" from anyone else does
+    // nothing (T-010 r1 #12).
+    const me = r.me;
+    const mayUndo = (e: Expense): boolean =>
+      e.createdBy === me.memberId || e.paidBy.some((p) => p.memberId === me.memberId);
+    if (!live.every(mayUndo)) return silent('undo:not_allowed');
 
     const before = snapshotAudit(r.group.groupId);
     const order = r.members.map((m) => m.memberId);
@@ -1787,6 +1838,16 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
   // ---------- public ----------
 
   async function dispatch(r: Resolved, event: InboundEvent): Promise<TurnResult> {
+    // 0. an answer to a "looks shared?" DM card (T-013, `ingest/pending.ts`):
+    // the owner's Share it / Keep private / 👍 / 👎 / typed reply. Anyone
+    // else touching the card is ignored silently.
+    const share = matchShareAnswer(stores, {
+      event,
+      me: r.me,
+      groupId: r.group.groupId,
+      cardOf: (id) => cards.get(id)?.card,
+    });
+    if (share !== undefined) return shareTurn(r, share);
     switch (event.type) {
       case 'member_joined':
       case 'member_left':
@@ -1961,5 +2022,64 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     };
   }
 
-  return { handleInbound, runScheduled, intakeDocument, pendingCards };
+  // ---------- card charges and "looks shared?" answers (T-013, `ingest/card.ts`, `ingest/pending.ts`) ----------
+
+  async function shareTurn(r: Resolved, share: ShareMatch): Promise<TurnResult> {
+    if (share.kind === 'ignore') return silent(share.note);
+    if (r.me === null) return silent('looks_shared:guest');
+    const before = snapshotAudit(r.group.groupId);
+    const res =
+      share.kind === 'which'
+        ? { drafts: [whichCharge(ids, r.group.groupId, r.me.memberId)], note: 'looks_shared:which' }
+        : answerShare({ stores, clock, ids }, share, {
+            group: r.group,
+            members: r.members,
+            trip: r.trip,
+            me: r.me,
+          });
+    const sent = await send(r, res.drafts);
+    return {
+      outbound: sent,
+      toolCalls: [],
+      auditEventIds: auditIdsSince(r.group.groupId, before),
+      silent: sent.length === 0,
+      modelSources: [],
+      note: res.note,
+    };
+  }
+
+  async function importCardTransactions(input: CardImportRequest): Promise<CardImportResult> {
+    const group = stores.group.groups.get(input.groupId);
+    if (group === undefined) throw new TravError('not_found', `group ${input.groupId} not found`);
+    const now = clock.now();
+    const members = stores.group.members.listByGroup(group.groupId);
+    const owner = members.find((m) => m.memberId === input.ownerMemberId);
+    if (owner === undefined) {
+      throw new TravError('not_found', `member ${input.ownerMemberId} is not in group ${input.groupId}`);
+    }
+    const before = snapshotAudit(group.groupId);
+    const trip = stores.group.trips.current(group.groupId, now) ?? null;
+    const outcome = await importCards(input, { stores, clock, ids, model, group, members, trip });
+    const r: Resolved = {
+      group,
+      members,
+      trip,
+      identity: { kind: 'member', member: owner },
+      me: owner,
+      lane: 'dm',
+      now,
+    };
+    const sent = await send(r, outcome.drafts);
+    return {
+      ...outcome,
+      outbound: sent,
+      toolCalls: [],
+      auditEventIds: auditIdsSince(group.groupId, before),
+      silent: sent.length === 0,
+      modelSources: [],
+      note: `cards:${outcome.status}`,
+    };
+  }
+
+  return { handleInbound, runScheduled, intakeDocument, importCardTransactions, pendingCards };
 }

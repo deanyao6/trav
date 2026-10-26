@@ -8,7 +8,13 @@
  *  1. A pending question from Trav to this member (≤ 15 min old) is answered
  *     first: "84", "euros", "me maya and sam" fill the missing facts
  *     (`mergeAnswer`). Still incomplete ⇒ Trav waits silently (it never asks
- *     the same thing twice). "nvm" drops it with a 👍.
+ *     the same thing twice). "nvm" drops it with a 👍. The question stays
+ *     answerable past the loop's 2-minute reply window: the loop hands an
+ *     unaddressed short reply here with `answerOnly` while `awaiting()` is
+ *     true. One open question per member: a statement logged on its own
+ *     leaves it open, and a statement that needs a second question is
+ *     acknowledged with a 👍 and queued; its question rides as the last line
+ *     of the post that settles the first (or replaces the 👍 on "nvm").
  *  2. `parseExpenseText` (deterministic) settles the message, or
  *  3. when it cannot (`unsure`), one zero-tool JSON extraction call
  *     (`expense_text_v1`, scripted in `fixtures/scripts/expenses.json` for
@@ -19,8 +25,8 @@
  * payer, amount, currency and who's-in are all clear is LOGGED IMMEDIATELY and
  * the posted card is the confirmation ("logged: €84 dinner on Dean, 5 ways (not
  * Henry) → €16.80 each / 👎 to undo or tell me what to change"). A 👍 on it is
- * a no-op; 👎, the Undo button or "undo" reverses it through the loop's undo
- * path for the rest of the trip. When any money fact is missing, Trav asks
+ * a no-op; 👎, the Undo button or "undo" from the payer or whoever logged it
+ * reverses it through the loop's undo path for the rest of the trip. When any money fact is missing, Trav asks
  * exactly ONE question (VOICE §4.11) and writes nothing until it is answered.
  * Money facts are never assumed; the trip currency is the stated default for a
  * bare number (it is set at trip creation, VOICE §3.4).
@@ -47,7 +53,7 @@ import type {
   Stores,
   Trip,
 } from '@trav/core';
-import { formatMoney, ledger, parseIso } from '@trav/core';
+import { formatMoney, isReaction, ledger, parseIso } from '@trav/core';
 import { buildGroupContext, sanitizeInline } from '../context/groupContext.js';
 import type { ModelClient, ResponseSource } from '../model/client.js';
 import {
@@ -72,6 +78,8 @@ import {
 
 /** How long Trav's one question stays answerable. */
 export const EXPENSE_QUESTION_TTL_MS = 15 * 60 * 1000;
+/** An unaddressed reply to an open question is taken only when it is this short ("84", "me maya and sam"). */
+export const ANSWER_ONLY_MAX_WORDS = 8;
 /** More than this many expenses in one message is not something to log blind. */
 export const MAX_EXPENSES_PER_MESSAGE = 4;
 
@@ -107,8 +115,17 @@ export interface ChatExpenseOutcome {
 }
 
 export interface ChatExpenseFlow {
-  /** `undefined` ⇒ not an expense this flow can settle; the chat loop takes it. */
-  handle(input: ChatExpenseInput): Promise<ChatExpenseOutcome | undefined>;
+  /**
+   * `undefined` ⇒ not an expense this flow can settle; the chat loop takes it.
+   * `answerOnly`: the message was not addressed to Trav; only a short reply to
+   * this member's open question is taken (r1 #7), nothing is parsed fresh.
+   */
+  handle(
+    input: ChatExpenseInput,
+    opts?: { readonly answerOnly?: boolean },
+  ): Promise<ChatExpenseOutcome | undefined>;
+  /** True while Trav's question to this member is open (≤ `EXPENSE_QUESTION_TTL_MS`). */
+  awaiting(groupId: string, memberId: string): boolean;
   /** Drops any pending question (tests, group reset). */
   reset(): void;
 }
@@ -128,6 +145,11 @@ interface PendingQuestion {
 export function createChatExpenseFlow(deps: ChatExpenseDeps): ChatExpenseFlow {
   const { stores, model, ids, clock } = deps;
   const pending = new Map<string, PendingQuestion>();
+  /** Statements that need a question while another is open (r1 #8), oldest first. */
+  const queued = new Map<
+    string,
+    (Omit<PendingQuestion, 'asked' | 'askedAt'> & { readonly question: string })[]
+  >();
   const keyOf = (input: ChatExpenseInput): string => `${input.group.groupId}:${input.me.memberId}`;
 
   function parseContext(input: ChatExpenseInput): ExpenseTextContext {
@@ -304,6 +326,40 @@ export function createChatExpenseFlow(deps: ChatExpenseDeps): ChatExpenseFlow {
     return draftsFromModelJson(res.json, ctx);
   }
 
+  /** The next queued statement becomes the open question; its question text, if any. */
+  function promoteQueued(key: string): string | undefined {
+    const q = queued.get(key)?.shift();
+    if (q === undefined) return undefined;
+    pending.set(key, {
+      drafts: q.drafts,
+      missing: q.missing,
+      asked: askedFacts(q.missing),
+      askedAt: clock.now(),
+      messageId: q.messageId,
+      at: q.at,
+      tripId: q.tripId,
+    });
+    return q.question;
+  }
+
+  /** Appends the next question as the last line of a logged message (one post per turn, VOICE §2). */
+  function withQuestion(drafts: readonly Outbound[], q: string): readonly Outbound[] {
+    const [first, ...rest] = drafts;
+    if (first === undefined || isReaction(first)) return drafts;
+    const text = `${first.text}\n${q}`;
+    const card = first.card === undefined ? undefined : { ...first.card, fallbackText: text };
+    return [{ ...first, text, ...(card !== undefined ? { card } : {}) }, ...rest];
+  }
+
+  function isOpen(key: string, tripId: string): boolean {
+    const open = pending.get(key);
+    return (
+      open !== undefined &&
+      open.tripId === tripId &&
+      parseIso(clock.now()) - parseIso(open.askedAt) <= EXPENSE_QUESTION_TTL_MS
+    );
+  }
+
   function act(
     input: ChatExpenseInput,
     ctx: ExpenseTextContext,
@@ -313,22 +369,48 @@ export function createChatExpenseFlow(deps: ChatExpenseDeps): ChatExpenseFlow {
     sources: readonly ResponseSource[],
     via: string,
     prevAsked: readonly MissingFact[] = [],
+    fromAnswer = false,
   ): ChatExpenseOutcome | undefined {
     if (ev.kind === 'unsure') return undefined;
+    const key = keyOf(input);
     if (ev.kind === 'ready') {
       if (ev.expenses.length > MAX_EXPENSES_PER_MESSAGE) return undefined;
-      pending.delete(keyOf(input));
       const out = log(input, ctx, ev.expenses, source);
+      // Only the answered question closes (r1 #8); a statement logged on its
+      // own leaves an open question alone.
+      if (fromAnswer) {
+        pending.delete(key);
+        const next = promoteQueued(key);
+        if (next !== undefined) {
+          return {
+            drafts: withQuestion(out.drafts, next),
+            note: `${out.note}${via}:next_question`,
+            modelSources: sources,
+          };
+        }
+      }
       return { drafts: out.drafts, note: `${out.note}${via}`, modelSources: sources };
     }
-    pending.set(keyOf(input), {
+    const entry = {
       drafts,
       missing: ev.missing,
-      asked: [...new Set([...prevAsked, ...askedFacts(ev.missing)])],
-      askedAt: clock.now(),
       messageId: source.messageId,
       at: source.at,
       tripId: input.trip.tripId,
+    };
+    // A second question while one is open waits its turn (r1 #8): one open
+    // question per member, the new statement is acknowledged with a 👍 and
+    // asked about once the first is settled.
+    if (!fromAnswer && isOpen(key, input.trip.tripId)) {
+      const list = queued.get(key) ?? [];
+      list.push({ ...entry, question: ev.question });
+      queued.set(key, list);
+      return { drafts: [reaction(input, '👍')], note: 'expense:queued', modelSources: sources };
+    }
+    pending.set(key, {
+      ...entry,
+      asked: [...new Set([...prevAsked, ...askedFacts(ev.missing)])],
+      askedAt: clock.now(),
     });
     return {
       drafts: [question(input, ev.question)],
@@ -337,24 +419,37 @@ export function createChatExpenseFlow(deps: ChatExpenseDeps): ChatExpenseFlow {
     };
   }
 
-  async function handle(input: ChatExpenseInput): Promise<ChatExpenseOutcome | undefined> {
+  async function handle(
+    input: ChatExpenseInput,
+    opts: { readonly answerOnly?: boolean } = {},
+  ): Promise<ChatExpenseOutcome | undefined> {
     const ctx = parseContext(input);
     if (ctx.members.length === 0 || !ctx.members.some((m) => m.memberId === input.me.memberId)) {
       return undefined;
     }
     const key = keyOf(input);
     const sources: ResponseSource[] = [];
+    if (opts.answerOnly === true) {
+      // unaddressed (after the 2-minute window): only a short reply to the open question
+      if (!isOpen(key, input.trip.tripId)) return undefined;
+      if (input.text.trim().split(/\s+/).length > ANSWER_ONLY_MAX_WORDS) return undefined;
+    }
 
     // 1. the answer to Trav's one question
     const open = pending.get(key);
     if (open !== undefined) {
-      const fresh =
-        open.tripId === input.trip.tripId &&
-        parseIso(clock.now()) - parseIso(open.askedAt) <= EXPENSE_QUESTION_TTL_MS;
-      if (!fresh) pending.delete(key);
-      else if (DROP_WORDS.test(input.text.replace(/@trav\b/gi, ''))) {
+      const fresh = isOpen(key, input.trip.tripId);
+      if (!fresh) {
         pending.delete(key);
-        return { drafts: [reaction(input, '👍')], note: 'expense:dropped', modelSources: [] };
+        queued.delete(key);
+      } else if (DROP_WORDS.test(input.text.replace(/@trav\b/gi, ''))) {
+        pending.delete(key);
+        const next = promoteQueued(key);
+        return {
+          drafts: [next !== undefined ? question(input, next) : reaction(input, '👍')],
+          note: next !== undefined ? 'expense:dropped:next_question' : 'expense:dropped',
+          modelSources: [],
+        };
       } else {
         // Only what the question asked about can be answered.
         const askedNow = open.missing.map((m) => m.filter((f) => open.asked.includes(f)));
@@ -368,13 +463,21 @@ export function createChatExpenseFlow(deps: ChatExpenseDeps): ChatExpenseFlow {
           }
           if (ev.kind === 'unsure') {
             pending.delete(key);
-            return undefined;
+            const next = promoteQueued(key);
+            return next === undefined
+              ? undefined
+              : {
+                  drafts: [question(input, next)],
+                  note: 'expense:next_question',
+                  modelSources: [],
+                };
           }
           // ready, or a fact not asked yet (who's in, once the payer is known)
-          return act(input, ctx, merged, ev, open, sources, ':answer', open.asked);
+          return act(input, ctx, merged, ev, open, sources, ':answer', open.asked, true);
         }
       }
     }
+    if (opts.answerOnly === true) return undefined;
 
     // 2. the parser
     const source = { messageId: input.messageId, at: input.at };
@@ -396,8 +499,14 @@ export function createChatExpenseFlow(deps: ChatExpenseDeps): ChatExpenseFlow {
 
   return {
     handle,
+    awaiting: (groupId, memberId) => {
+      const key = `${groupId}:${memberId}`;
+      const open = pending.get(key);
+      return open !== undefined && isOpen(key, open.tripId);
+    },
     reset: () => {
       pending.clear();
+      queued.clear();
     },
   };
 }

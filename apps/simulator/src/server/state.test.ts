@@ -9,6 +9,7 @@ import {
   buildState,
   cardVisibleTo,
   summarizeReactions,
+  terminalReplyState,
 } from './state.js';
 
 const AT = '2026-03-14T21:40:00+01:00';
@@ -120,6 +121,75 @@ describe('group thread payload never contains a private card', () => {
     };
     const thread = buildGroupThread(BARCELONA, view([msg({ text: 'hi', outbound })]), AT);
     expect(Object.keys(thread[0]!)).not.toContain('outbound');
+  });
+});
+
+describe('a proposal card ends when Trav quote-replies it with a terminal line (T-009)', () => {
+  function proposalCard(): RichCard {
+    return {
+      cardId: 'card_prop_1',
+      type: 'booking_proposal',
+      title: 'Razzmatazz',
+      fallbackText: 'razzmatazz tonight, 5 tickets',
+      proposalId: 'prop_1',
+      category: 'event',
+      item: { name: 'Razzmatazz', venue: 'Razzmatazz', startsAt: '2026-03-15T00:00:00+01:00' },
+      quantity: 5,
+      charged: [{ memberId: 'mem_dean', name: 'Dean', share: eur(1800) }],
+      excluded: [],
+      pricePerPerson: eur(1800),
+      total: eur(9000),
+      refundable: true,
+      paidBy: { kind: 'member_card', memberId: 'mem_dean' },
+      policy: {
+        requiresApprovalFrom: ['mem_dean'],
+        approvalMode: 'any_one',
+        overCap: false,
+        capPerPerson: eur(6000),
+        ruleId: 'C1',
+      },
+      holdExpiresAt: '2026-03-14T21:55:00+01:00',
+      status: 'pending',
+    };
+  }
+  const actions = [
+    { id: 'approve' as const, label: 'Approve', style: 'primary' as const, textAliases: [] },
+  ];
+
+  function stateAfter(reply: Partial<TranscriptMessage> | undefined) {
+    const card = msg({ card: proposalCard(), actions });
+    const entries: TranscriptEntry[] = [card];
+    if (reply) entries.push(msg({ ...reply, replyToMessageId: card.messageId }));
+    const thread = buildGroupThread(BARCELONA, view(entries), AT);
+    return thread[0]!.kind === 'message' ? thread[0]!.cardState : undefined;
+  }
+
+  it('a failed booking: "Failed · no charge", buttons dead; without the reply the card stays live', () => {
+    expect(stateAfter(undefined)).toEqual({ status: 'pending', liveActionIds: ['approve'] });
+    expect(
+      stateAfter({
+        text: "couldn't book razzmatazz. no charge went through\n@ me again in a few and i'll retry",
+      }),
+    ).toMatchObject({ status: 'failed', label: 'Failed · no charge', liveActionIds: [] });
+    // An unrelated later Trav line (no reply-to) changes nothing.
+    const card = msg({ card: proposalCard(), actions });
+    const thread = buildGroupThread(BARCELONA, view([card, msg({ text: 'see you there' })]), AT);
+    expect(thread[0]!.kind === 'message' ? thread[0]!.cardState?.status : '').toBe('pending');
+  });
+
+  it('expiry and a typed decline resolve the card too', () => {
+    expect(
+      stateAfter({ text: 'razzmatazz proposal expired, no charge. @ me if you still want it' }),
+    ).toMatchObject({ status: 'expired', label: 'Expired', liveActionIds: [] });
+    expect(stateAfter({ text: 'dropped razzmatazz. no charge' })).toMatchObject({
+      status: 'declined',
+      label: 'Declined',
+      liveActionIds: [],
+    });
+    expect(terminalReplyState("couldn't complete that one. no charge went through")).toEqual({
+      status: 'failed',
+      label: 'Failed · no charge',
+    });
   });
 });
 

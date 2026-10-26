@@ -231,6 +231,27 @@ export function renderExpenseLogged(
   );
 }
 
+/** VOICE §3.7: a private item the owner shared reaches the group with the next recap, not as a ping. */
+export const SHARED_NEXT_RECAP_LINE = "it'll show up in the group with the next recap";
+
+/**
+ * The owner's 👍 on a "looks shared?" DM (T-013): the VOICE §4.4 logged line
+ * for the new tab entry, sent to the OWNER's DM only (VOICE §3.7: no group
+ * ping), plus where it will surface. The card is the ordinary `logged`
+ * expense card (group-safe data: the promoted expense), so 👎 / Undo on it
+ * undoes the tab entry through the same path as a chat-logged expense.
+ */
+export function renderSharedToTab(
+  input: ExpenseLoggedRenderInput & { readonly ownerMemberId: MemberId },
+  ctx: RenderContext,
+): OutboundMessage & { readonly card: ExpenseConfirmCard } {
+  const base = renderExpenseLogged(input, ctx);
+  const lines = base.text.split('\n');
+  lines.splice(Math.max(1, lines.length - 1), 0, SHARED_NEXT_RECAP_LINE);
+  const text = lines.join('\n');
+  return { ...base, to: dm(input.ownerMemberId), text, card: { ...base.card, fallbackText: text } };
+}
+
 // ---------- looks shared? (private DM) ----------
 
 export interface LooksSharedItem {

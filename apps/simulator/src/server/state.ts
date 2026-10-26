@@ -184,6 +184,18 @@ function deriveProposalState(msg: TranscriptMessage, ctx: DeriveContext): CardSt
       liveActionIds: [],
     };
   }
+  // A booking that failed, expired or was dropped: Trav's line quote-replies
+  // the card, so the buttons go dead instead of looking like a slow Approve.
+  const ended = ctx.messages.find(
+    (m) =>
+      m.seq > msg.seq &&
+      m.direction === 'outbound' &&
+      m.card === undefined &&
+      m.replyToMessageId === msg.messageId,
+  );
+  if (ended) {
+    return { ...terminalReplyState(ended.text), at: ended.at, liveActionIds: [] };
+  }
   if (parseIso(ctx.now) > parseIso(card.holdExpiresAt)) {
     return { status: 'expired', label: 'Expired', at: card.holdExpiresAt, liveActionIds: [] };
   }
@@ -192,6 +204,19 @@ function deriveProposalState(msg: TranscriptMessage, ctx: DeriveContext): CardSt
 
 function capitalize(s: string): string {
   return s.length === 0 ? s : s[0]!.toUpperCase() + s.slice(1);
+}
+
+/**
+ * The state a Trav line that quote-replies a proposal card leaves it in
+ * (T-019-b review note, T-009): the approval handler replies to the card with
+ * its terminal lines only (VOICE §4.10 "couldn't book … no charge went
+ * through", §6.4 "… proposal expired, no charge", "dropped …"), never with a
+ * partial-grant line, so any card-less reply from Trav ends the card.
+ */
+export function terminalReplyState(text: string): Pick<CardStateView, 'status' | 'label'> {
+  if (/\bexpired\b/i.test(text)) return { status: 'expired', label: 'Expired' };
+  if (/^dropped\b/i.test(text)) return { status: 'declined', label: 'Declined' };
+  return { status: 'failed', label: 'Failed · no charge' };
 }
 
 function deriveGenericState(msg: TranscriptMessage, ctx: DeriveContext): CardStateView | undefined {

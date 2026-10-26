@@ -271,6 +271,93 @@ describe('exactly one clarifying question when a money fact is missing (VOICE §
     expect(questionsAsked(h)).toBe(2); // two different facts, each asked once
   });
 
+  it('r1 #7: the open question outlives the 2-minute reply window; a bare "84" five minutes later is the answer', async () => {
+    const h = harness();
+    await h.say('h_dean', '@trav i paid for dinner, everyone');
+    h.clock.advanceMs(5 * 60 * 1000);
+    const answer = await h.say('h_dean', '84');
+    expect(answer.note).toBe('expense:logged:answer');
+    expect(logged(h)[0]!.amount).toEqual({ amountMinor: 8400, currency: 'EUR' });
+    // unaddressed chatter from the same member is not parsed as a new expense
+    await h.say('h_dean', '@trav i paid for lunch, everyone');
+    h.clock.advanceMs(5 * 60 * 1000);
+    const chatter = await h.say('h_dean', 'i paid €20 for the cab lol, everyone');
+    expect(chatter.note).not.toMatch(/^expense:logged/);
+    // and past the TTL the question is gone
+    h.clock.advanceMs(20 * 60 * 1000);
+    const late = await h.say('h_dean', '12');
+    expect(late.note).toBe('mention:none');
+    expect(logged(h)).toHaveLength(1);
+  });
+
+  it('r1 #8: logging a cab never drops the open dinner question; a second question waits its turn', async () => {
+    const h = harness();
+    await h.say('h_dean', '@trav i paid for dinner, everyone');
+    const cab = await h.say('h_dean', '@trav i paid €20 for the cab, everyone');
+    expect(cab.note).toBe('expense:logged');
+    const lunch = await h.say('h_dean', '@trav i paid for lunch, me and maya');
+    expect(lunch.note).toBe('expense:queued');
+    expect(isReaction(lunch.outbound[0]!)).toBe(true);
+    // the dinner question is still the open one
+    const dinner = await h.say('h_dean', '84');
+    expect(dinner.note).toBe('expense:logged:answer:next_question');
+    const msg = only(dinner);
+    expect(msg.text).toBe(
+      [
+        'logged: €84 dinner on Dean, 6 ways → €14 each',
+        '👎 to undo or tell me what to change',
+        'how much was lunch?',
+      ].join('\n'),
+    );
+    expect((msg.card as ExpenseConfirmCard).fallbackText).toBe(msg.text);
+    expectVoice(msg.text, 'expense');
+    const lunchAnswer = await h.say('h_dean', '30');
+    expect(lunchAnswer.note).toBe('expense:logged:answer');
+    expect(logged(h).map((e) => [e.description, e.amount.amountMinor])).toEqual([
+      ['cab', 2000],
+      ['dinner', 8400],
+      ['lunch', 3000],
+    ]);
+  });
+
+  it('r1 #9: above €2,000 the amount is said again before anything is logged; "yes" is not enough', async () => {
+    const h = harness();
+    const ask = await h.say('h_dean', '@trav i paid €84000 for dinner, everyone');
+    expect(only(ask).text).toBe("€84,000 for dinner? say the amount again and i'll log it");
+    expectVoice(only(ask).text, 'reply');
+    const yes = await h.say('h_dean', 'yes');
+    expect(yes.note).not.toMatch(/^expense:logged/);
+    expect(expenses(h)).toEqual([]);
+    const fixed = await h.say('h_dean', '84');
+    expect(fixed.note).toBe('expense:logged:answer');
+    expect(logged(h)[0]!.amount).toEqual({ amountMinor: 8400, currency: 'EUR' });
+  });
+
+  it('r1 #9: a minus sign is never logged', async () => {
+    const h = harness();
+    const turn = await h.say('h_dean', '@trav i paid -€20 for the taxi, everyone');
+    expect(turn.note).not.toMatch(/^expense:/);
+    expect(expenses(h)).toEqual([]);
+  });
+
+  it('r1 #11: "we paid" asks who paid; "me" answers it', async () => {
+    const h = harness();
+    const ask = await h.say('h_dean', '@trav we paid €84 for dinner, everyone');
+    expect(only(ask).text).toBe('who paid for dinner? i put each one on one person');
+    const me = await h.say('h_dean', 'me');
+    expect(me.note).toBe('expense:logged:answer');
+    expect(logged(h)[0]!.paidBy[0]!.memberId).toBe('mem_dean');
+  });
+
+  it('r1 #1: "henry wasn\'t there" leaves Henry out instead of charging him everything', async () => {
+    const h = harness();
+    const turn = await h.say('h_dean', "@trav i paid €84 for dinner, henry wasn't there");
+    expect(only(turn).text.split('\n')[0]).toBe(
+      'logged: €84 dinner on Dean, 5 ways (not Henry) → €16.80 each',
+    );
+    expect(balances(h)['mem_henry']).toBe(0);
+  });
+
   it('"leave it off" is a 👍 and no ledger write', async () => {
     const h = harness();
     const turn = await h.say(
@@ -371,7 +458,9 @@ describe('one message, two expenses: per-expense sub-ids (T-005 review note)', (
       ['m_boat#1', 'mem_dean'],
       ['m_boat#2', 'mem_jordan'],
     ]);
-    const undo = await h.react('h_maya', only(turn).id, '👎');
+    // Maya neither paid nor logged either one (T-010 r1 #12); Dean logged both
+    expect((await h.react('h_maya', only(turn).id, '👎')).note).toBe('undo:not_allowed');
+    const undo = await h.react('h_dean', only(turn).id, '👎');
     expect(only(undo).text).toBe(
       "undone: €60 boat on Dean and €40 boat on Jordan, they're off the tab",
     );

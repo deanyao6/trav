@@ -6,8 +6,8 @@
  *   - `createAgentBackend(parts)`: the real `TravAgent` over the simulator
  *     channel (parts come from `runtime.ts`, which wraps `createTravRuntime`).
  *   - `createScriptedBackend()` (`scripted.ts`): a deterministic Barcelona
- *     replay of VOICE §9.5 demo states 1–3 for the UI while the approval
- *     handler and executor are still being built.
+ *     replay of VOICE §9.5 demo states 1–3 for the UI (kept until T-021
+ *     retires it; the agent backend runs the real flow since T-009).
  *
  * Both record through the same in-memory simulator channel, so transcripts,
  * lanes and the DM-only card refusal are identical; only the responder that
@@ -17,13 +17,7 @@
  * demo documents run the product's code in either mode.
  */
 import type { InboundEvent, SimulatorChannel, TranscriptEntry, Unsubscribe } from '@trav/adapters';
-import type {
-  Clock,
-  IsoDateTime,
-  RichCard,
-  ScheduledJob,
-  SimulatedClock,
-} from '@trav/core';
+import type { Clock, IsoDateTime, RichCard, ScheduledJob, SimulatedClock } from '@trav/core';
 import { TravError, parseIso } from '@trav/core';
 import type { DocumentIntake, DocumentIntakeResult, TravAgent, TurnResult } from '@trav/agent';
 import type {
@@ -411,7 +405,9 @@ export function createChannelBackend(options: ChannelBackendOptions): ChannelBac
               try {
                 const result = await intakeDocument(await buildIntake(doc));
                 if (!result.silent) return undefined;
-                return { status: `trav sent nothing for that ${doc.kind} document (${result.note})` };
+                return {
+                  status: `trav sent nothing for that ${doc.kind} document (${result.note})`,
+                };
               } catch (e) {
                 fed.delete(docId); // nothing was ingested: it can be fed again
                 throw e;
@@ -509,12 +505,6 @@ export interface AgentBackendParts {
   readonly services?: SimServices;
 }
 
-/** The agent's note when an approval passed the gate but T-030's handler is not wired. */
-export const HANDLER_NOT_WIRED_NOTE = 'approval:handler_not_wired';
-
-export const HANDLER_NOT_WIRED_STATUS =
-  'approval handler not wired yet (T-030), use TRAV_SIM_BACKEND=scripted for the full demo';
-
 /** A "looks shared?" card's Share it / Keep private / 👍 / 👎 got no answer. */
 export const SHARE_FLOW_NOT_WIRED_STATUS =
   'share/keep flow not wired yet (T-012/T-013): the charge stays private and nothing went on the tab';
@@ -536,8 +526,6 @@ export function silentTurnStatus(
   targetCard?: RichCard,
 ): string | undefined {
   if (!result || !result.silent) return undefined;
-  // A typed alias ("yes", "book it") takes the same approval path as a tap.
-  if (result.note === HANDLER_NOT_WIRED_NOTE) return HANDLER_NOT_WIRED_STATUS;
   if (event.type !== 'button_tap' && event.type !== 'reaction') return undefined;
   if (isLooksSharedCard(targetCard) && !(event.type === 'reaction' && event.removed)) {
     return SHARE_FLOW_NOT_WIRED_STATUS;

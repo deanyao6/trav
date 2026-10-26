@@ -87,6 +87,7 @@ export function recapRuntime(): {
         return { ...SILENT_TURN, silent: false, note: `scheduled:${job.kind}` };
       },
       intakeDocument: () => Promise.reject(new Error('not used here')),
+      importCardTransactions: () => Promise.reject(new Error('not used here')),
       pendingCards: {
         byMessageId: () => undefined,
         pendingProposalsRequestedBy: () => [],

@@ -86,7 +86,6 @@ import {
   type ProposeResult,
 } from '../booking/proposals.js';
 import { sanitizeInline } from '../context/groupContext.js';
-import { TURN_FAILED_AFTER_PURCHASE_TEXT } from '../loop.js';
 import { renderBookingProposal } from '../render/bookingProposal.js';
 import type { RenderContext } from '../render/common.js';
 import { renderReceipt } from '../render/receipt.js';
@@ -104,6 +103,7 @@ import {
   type ApprovalHandler,
   type RosterChangeNotice,
 } from './events.js';
+import { TURN_FAILED_AFTER_PURCHASE_TEXT } from './text.js';
 
 export interface ApprovalHandlerDeps {
   readonly stores: Stores;
@@ -174,6 +174,26 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
 
   function text(groupId: string, body: string): OutboundMessage {
     return { id: ids.next('msg'), groupId, to: { kind: 'group' }, text: body };
+  }
+
+  /** The group message that carried the proposal card (`approval.requested.cardMessageId`), if one was posted. */
+  function cardMessageIdOf(proposalId: ProposalId): MessageId | undefined {
+    const requested = group.audit
+      .listByProposal(proposalId)
+      .filter((e) => e.type === 'approval.requested')
+      .at(-1);
+    const id = requested?.payload['cardMessageId'];
+    return typeof id === 'string' && id.length > 0 ? id : undefined;
+  }
+
+  /**
+   * A line that ends a card (failed, refused, expired, dropped) quote-replies
+   * it, so a channel that threads replies (the simulator) can show the card
+   * as resolved instead of leaving live buttons on it (T-019-b review).
+   */
+  function terminalLine(proposal: BookingProposal, body: string): OutboundMessage {
+    const replyTo = cardMessageIdOf(proposal.proposalId);
+    return { ...text(proposal.groupId, body), ...(replyTo !== undefined ? { replyTo } : {}) };
   }
 
   function nameOf(members: readonly Member[], id: MemberId): string {
@@ -450,7 +470,7 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
     setStatus(proposal.proposalId, 'failed');
     scheduler.cancel(expiryJobId(proposal.proposalId));
     await proposals.releaseHold(proposal);
-    return [text(proposal.groupId, EXECUTOR_REFUSED_TEXT)];
+    return [terminalLine(proposal, EXECUTOR_REFUSED_TEXT)];
   }
 
   // ---------- expiry (VOICE §6.4: exactly one line) ----------
@@ -471,7 +491,7 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
     });
     scheduler.cancel(expiryJobId(proposal.proposalId));
     await proposals.releaseHold(proposal);
-    return [text(proposal.groupId, proposalExpiredText(proposal.description))];
+    return [terminalLine(proposal, proposalExpiredText(proposal.description))];
   }
 
   // ---------- THE executor call ----------
@@ -528,11 +548,9 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
       scheduler.cancel(expiryJobId(proposal.proposalId));
       inFlight.delete(proposal.proposalId);
       return [
-        text(
-          proposal.groupId,
-          bought
-            ? TURN_FAILED_AFTER_PURCHASE_TEXT
-            : bookingFailedText(proposal.description, true),
+        terminalLine(
+          proposal,
+          bought ? TURN_FAILED_AFTER_PURCHASE_TEXT : bookingFailedText(proposal.description, true),
         ),
       ];
     }
@@ -587,12 +605,12 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
         }
         setStatus(proposal.proposalId, 'failed');
         scheduler.cancel(expiryJobId(proposal.proposalId));
-        return [text(proposal.groupId, EXECUTOR_REFUSED_TEXT)];
+        return [terminalLine(proposal, EXECUTOR_REFUSED_TEXT)];
       }
       case 'failed': {
         setStatus(proposal.proposalId, 'failed');
         scheduler.cancel(expiryJobId(proposal.proposalId));
-        return [text(proposal.groupId, bookingFailedText(proposal.description, result.retriable))];
+        return [terminalLine(proposal, bookingFailedText(proposal.description, result.retriable))];
       }
     }
   }
@@ -814,7 +832,7 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
     });
     scheduler.cancel(expiryJobId(proposal.proposalId));
     await proposals.releaseHold(proposal);
-    return [text(proposal.groupId, line)];
+    return [terminalLine(proposal, line)];
   }
 
   async function notMe(

@@ -309,6 +309,11 @@ describe('natural language: roll calls and overrides', () => {
     ["who's in this evening", { when: 'tonight' }],
     ["who's in for razzmatazz tomorrow", { hint: 'razzmatazz', when: 'tomorrow' }],
     ["who's down for the sagrada tour", { hint: 'the sagrada tour' }],
+    // T-009 (T-030 note d): "for tonight/tomorrow" is the night, never an activity named "tonight".
+    ["@trav who's in for tonight?", { when: 'tonight' }],
+    ["who's in for tomorrow", { when: 'tomorrow' }],
+    ["who's coming for tmrw?", { when: 'tomorrow' }],
+    ["who's in for razzmatazz for tomorrow", { hint: 'razzmatazz', when: 'tomorrow' }],
   ])('detectRollCall(%j)', (text, expected) => {
     expect(detectRollCall(text)).toEqual(expected);
   });
@@ -335,6 +340,9 @@ describe('natural language: roll calls and overrides', () => {
       { who: 'me', status: 'maybe', hint: 'apolo', when: 'tomorrow' },
     ],
     ["i'm out this evening", { who: 'me', status: 'out', when: 'tonight' }],
+    // T-009 (T-030 note d): "for tonight" is the night, not an activity hint.
+    ["i'm out for tonight", { who: 'me', status: 'out', when: 'tonight' }],
+    ["Maya's sick for tomorrow", { who: 'Maya', status: 'out', when: 'tomorrow' }],
     ["i'm sick", { who: 'me', status: 'out' }],
     ["can't make it", undefined],
     ['count me in', { who: 'me', status: 'in' }],

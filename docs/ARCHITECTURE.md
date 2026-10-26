@@ -118,7 +118,7 @@ Document text (OCR, email bodies, provider descriptions) never enters step 5. It
 5. ledger     already written in 3 (idempotent on sourceRef). Balances: ledger.computeBalances; shown in the next settle-up/recap.
 ```
 
-Invariants with tests: exactly one `.purchase(`/`.createOrder(`/`.book(`/`.charge(` call site (T-054 grep); purchase counter = 1 after double approval + retry (T-009); audit order `policy.evaluated` → `approval.granted` → `booking.completed` → `ledger.written` (`audit.verifyAuditChain`).
+Invariants with tests: exactly one `.purchase(`/`.createOrder(`/`.book(`/`.charge(` call site (T-054 grep); purchase counter = 1 after double approval + retry (T-009); audit order `policy.evaluated` → `approval.granted` → `booking.completed` is enforced by `audit.verifyAuditChain` (`completed_without_evaluation` / `completed_without_grant` / `duplicate_completion`), and `booking.attempted` → `booking.completed` → `ledger.written` by the T-009 integration test (`packages/agent/src/booking/executor.test.ts`); extending the verifier to `ledger.written` is T-063.
 
 ### Flow 3: daily recap (Morning After + settle-up)
 

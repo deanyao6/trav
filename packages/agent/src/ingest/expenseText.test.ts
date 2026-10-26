@@ -508,6 +508,42 @@ describe('parseExpenseText rules', () => {
     expect(centsToDecimal(6810)).toBe('68.10');
   });
 
+  it('accounting guard (r1 #5): every written amount lands in a draft, or the message is unsure', () => {
+    for (const t of [
+      '@trav dinner was €90 (€30 of it was wine), everyone',
+      '@trav i got the metro cards, 6x €11.35 = 70, everyone',
+      '@trav sam owes me 20 and maya owes me 30 for the cab',
+      '@trav i paid €84 for dinner, everyone but henry, and he owes me 15 for the cab',
+    ]) {
+      expect(parseExpenseText(t, BCN()).kind, t).toBe('unsure');
+    }
+    // asides that ARE accounted for still log: a per-person restatement, a matching product, a "+" part
+    expect(ready('@trav 2 waters were €28, €14 EACH, me and maya', BCN('mem_sam'))).toHaveLength(1);
+    expect(ready('@trav i got the metro cards, 6x €11.35 = 68.10, everyone', BCN())).toHaveLength(
+      1,
+    );
+    expect(ready('@trav dinner €84 + €10 tip on me, everyone', BCN())[0]!.amount.amountMinor).toBe(
+      9400,
+    );
+  });
+
+  it('a name is a participant only inside a list (r1 #1, #4): stray names ask, absent names are left out', () => {
+    const c = clarify('@trav i paid €84 for dinner, sam picked the place', BCN());
+    expect(c.missing[0]).toEqual(['participants']);
+    expect(ready("@trav i paid €84 for dinner, henry's out", BCN())[0]!.split).toEqual({
+      method: 'exclude',
+      excluded: ['mem_henry'],
+    });
+    expect(ready('@trav i paid €32 for the cab, jordan and i', BCN())[0]!.split).toEqual({
+      method: 'equal',
+      participants: ['mem_dean', 'mem_jordan'],
+    });
+    // a member both listed and named absent is a contradiction: ask
+    expect(clarify("@trav i paid €40 for the cab, me and sam, sam wasn't there", BCN()).kind).toBe(
+      'clarify',
+    );
+  });
+
   it('a pronoun with nobody before it is unsure', () => {
     expect(parseExpenseText('@trav i paid €40 for the cab, he pays 10', BCN()).kind).toBe('unsure');
   });

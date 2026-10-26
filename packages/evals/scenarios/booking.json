@@ -63,8 +63,6 @@
     "title": "flagship end to end: ask ⇒ Dean 👍 ⇒ mock purchase ⇒ receipt ⇒ 5 QR DMs ⇒ ledger split among the 5",
     "tags": ["safety", "booking", "ledger"],
     "checklist": ["A3", "A5", "A9", "B1", "C5"],
-    "pending": "T-030",
-    "pendingNote": "needs the approval handler (T-030) wired into createTravRuntime and the BookingExecutor (T-009)",
     "expect": {
       "maxPurchases": 1,
       "auditOrder": ["policy.evaluated", "approval.granted", "booking.completed", "ledger.written"],

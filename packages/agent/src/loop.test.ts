@@ -278,19 +278,21 @@ describe('identity gate (SAFETY §2.5)', () => {
     );
   });
 
-  it('a guest tap or 👍 on the card is ignored; a valid 👍 reaches the approval handler, which never purchases while the executor is the T-009 stub', async () => {
+  it('a guest tap or 👍 on the card is ignored; a valid 👍 reaches the approval handler, which books once through the executor (T-009)', async () => {
     const h = harness();
     const { cardMessageId } = await propose(h);
     expect((await h.tap('h_ava', cardMessageId, 'approve')).note).toBe('approval:guest');
     expect((await h.react('h_dean2', cardMessageId, '👍')).note).toBe('approval:guest');
     expect((await h.react('h_maya', cardMessageId, '❤️')).note).toBe('reaction:not_approval');
+    expect(h.tickets.purchaseCount()).toBe(0);
     const turn = await h.tap('h_dean', cardMessageId, 'approve');
     expect(turn.note).toBe('approval:handled');
-    // The grant completed and the stub executor threw: VOICE §4.10 two-liner, money never moved.
-    expect(firstMessage(turn).text).toMatch(/no charge went through/);
+    // The grant completed and the real executor bought it: VOICE §4.2 receipt, one purchase.
+    expect(firstMessage(turn).text).toMatch(/^booked ✅ razzmatazz, 5 tickets, €90/);
     expect(h.auditTypes()).toContain('approval.granted');
-    expect(h.tickets.purchaseCount()).toBe(0);
-    expect(h.runtime.stores.group.bookings.listByTrip(T)).toEqual([]);
+    expect(h.auditTypes()).toContain('booking.completed');
+    expect(h.tickets.purchaseCount()).toBe(1);
+    expect(h.runtime.stores.group.bookings.listByTrip(T)).toHaveLength(1);
   });
 
   it('a bare "yes" with two pending proposals asks which one instead of guessing', async () => {
@@ -898,7 +900,10 @@ describe('undo (flaw 6, VOICE §4.4)', () => {
     expect((await h.react('h_ava', card.id, '👎')).note).toBe('undo:guest');
     expect(h.runtime.stores.group.expenses.get(expenseId)?.status).toBe('logged');
 
-    const undo = await h.react('h_maya', card.id, '👎');
+    // T-010 r1 #12: another member's 👎 does nothing; the payer's undoes
+    expect((await h.react('h_maya', card.id, '👎')).note).toBe('undo:not_allowed');
+    expect(h.runtime.stores.group.expenses.get(expenseId)?.status).toBe('logged');
+    const undo = await h.react('h_dean', card.id, '👎');
     expect(undo.note).toBe('undo:done');
     expect(undo.toolCalls).toEqual([]);
     expect(messages(undo)).toHaveLength(1);
@@ -907,10 +912,10 @@ describe('undo (flaw 6, VOICE §4.4)', () => {
     expect(h.runtime.stores.group.expenses.listEntries(T)).toEqual([]);
     expect(h.runtime.stores.group.expenses.listByTrip(T)).toEqual([]);
     const del = h.audit().find((e) => e.type === 'ledger.entry_deleted');
-    expect(del?.actor).toEqual({ kind: 'member', id: 'mem_maya' });
+    expect(del?.actor).toEqual({ kind: 'member', id: 'mem_dean' });
     expect(del?.payload).toMatchObject({
       expenseId,
-      memberId: 'mem_maya',
+      memberId: 'mem_dean',
       via: 'reaction',
       before: { status: 'logged' },
       after: { status: 'undone' },
@@ -935,7 +940,8 @@ describe('undo (flaw 6, VOICE §4.4)', () => {
       messageId: 'exp_b',
     });
     expect(b.note).toBe('expense:logged');
-    const undone = await h.say('h_sam', 'undo');
+    expect((await h.say('h_sam', 'undo')).note).toBe('undo:not_allowed');
+    const undone = await h.say('h_dean', 'undo');
     expect(undone.note).toBe('undo:done');
     expect(
       h.audit().find((e) => e.type === 'ledger.entry_deleted' && e.payload['via'] === 'text')
@@ -1308,9 +1314,9 @@ describe('unaddressed claims get no @tag (major 3) and "everyone" names nobody (
     const granted = h.audit().find((e) => e.type === 'approval.granted');
     expect(granted?.actor).toEqual({ kind: 'member', id: 'mem_dean' });
     expect(granted?.proposalId).toBe(proposal.proposalId);
-    // (the T-009 stub executor throws: the handler reports it, money never moved)
-    expect(firstMessage(dean).text).toMatch(/no charge went through/);
-    expect(h.tickets.purchaseCount()).toBe(0);
+    // (the requester's own 👍 completes the grant: the real executor books once, T-009)
+    expect(firstMessage(dean).text).toMatch(/^booked ✅ razzmatazz/);
+    expect(h.tickets.purchaseCount()).toBe(1);
   });
 
   it('T-066 (SAFETY §2.1): under the default policy Sam may approve, but his card-less "everyone\'s in, book it" binds to nothing: not_requester, executor never called, proposal pending', async () => {
@@ -1366,7 +1372,10 @@ describe('"undo" binds narrowly (major 5, VOICE §4.4)', () => {
     expect(firstMessage(explicit).text).toBe(UNDO_WHICH_TEXT);
     expect(h.model.completions).toHaveLength(0);
     expect(h.runtime.stores.group.expenses.get(expenseId)?.status).toBe('logged');
-    const reply = await h.say('h_jordan', 'undo', { replyToMessageId: card.id });
+    expect((await h.say('h_jordan', 'undo', { replyToMessageId: card.id })).note).toBe(
+      'undo:not_allowed',
+    );
+    const reply = await h.say('h_dean', 'undo', { replyToMessageId: card.id });
     expect(reply.note).toBe('undo:done');
     expect(h.runtime.stores.group.expenses.get(expenseId)?.status).toBe('undone');
   });
@@ -1376,7 +1385,7 @@ describe('"undo" binds narrowly (major 5, VOICE §4.4)', () => {
     const logged = await h.say('h_dean', '@trav i paid €84 for dinner, split with everyone');
     const expenseId = (firstMessage(logged).card as { expenseId: string }).expenseId;
     h.clock.advanceMs(REPLY_WINDOW_MS);
-    expect((await h.say('h_sam', 'undo')).note).toBe('undo:done');
+    expect((await h.say('h_dean', 'undo')).note).toBe('undo:done');
     expect(h.runtime.stores.group.expenses.get(expenseId)?.status).toBe('undone');
   });
 
@@ -1462,7 +1471,8 @@ describe('the approval handler is the only executor caller (minor 7, SAFETY §2.
   });
 
   it('a throwing executor on the auto-approve path ⇒ booking.failed{stage:execute}, proposal failed, the VOICE §4.10 line', async () => {
-    const h = harness(); // the T-009 stub throws not_implemented
+    const fake = recordingExecutor(() => new TravError('not_implemented', 'executor stub'));
+    const h = harness({ executor: fake.executor });
     raiseAutoCap(h);
     const turn = await h.say('h_dean', RAZZMATAZZ_ASK);
     expect(turn.note).toBe('tool:propose_booking:auto_approved');
@@ -1699,7 +1709,8 @@ describe('T-066: agent loop hardening (T-007-b round-3 review)', () => {
       const t = await h2.say('h_dean', text);
       expect(t.note, text).not.toBe('quoted_only');
       expect(t.silent, text).toBe(false);
-      expect(t.note, text).toBe('expense:clarify:participants');
+      // (T-010 r1 #8: the first question is still open, so these wait their turn with a 👍)
+      expect(t.note, text).toBe('expense:queued');
     }
     expect(h2.model.completions).toHaveLength(0);
   });
@@ -1858,8 +1869,8 @@ describe('T-066: agent loop hardening (T-007-b round-3 review)', () => {
     const onMember = await h.say('h_sam', '@trav undo', { replyToMessageId: memberMessageId });
     expect(onMember.note).toBe('undo:not_expense');
     expect(h.runtime.stores.group.expenses.get(expenseId)?.status).toBe('logged');
-    // The bare form inside the window still undoes (unchanged).
-    expect((await h.say('h_sam', 'undo')).note).toBe('undo:done');
+    // The bare form inside the window still undoes, for the payer (T-010 r1 #12).
+    expect((await h.say('h_dean', 'undo')).note).toBe('undo:done');
     expect(h.runtime.stores.group.expenses.get(expenseId)?.status).toBe('undone');
   });
 

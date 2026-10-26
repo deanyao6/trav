@@ -68,19 +68,16 @@ describe('architectural checks on the repo', () => {
     }
   });
 
-  it('A1: the real executor.ts, once it calls .purchase(, is accepted (its doc comment counts for nothing)', () => {
+  it('A1: the real executor.ts (T-009) is accepted in strict mode with exactly one call site per method (its doc comment counts for nothing)', () => {
     const [executor] = readRepoFiles(repoRoot(), (p) => p === BOOKING_EXECUTOR_PATH);
-    const implemented = {
-      path: BOOKING_EXECUTOR_PATH,
-      content: `${executor!.content}\nconst order = await this.deps.providers.tickets.purchase(req);\n`,
-    };
-    const r = checkSinglePurchaseCallSite([implemented]);
+    expect(isExecutorStub(executor!.content)).toBe(false);
+    const r = checkSinglePurchaseCallSite([executor!], { requireExactlyOne: true });
     expect(r.violations).toEqual([]);
-    expect(r.callSites.map((s) => s.method)).toEqual(['purchase']);
-    // ...and a second one in the same file is not.
+    expect(r.callSites.map((s) => s.method).sort()).toEqual([...MONEY_METHODS].sort());
+    // ...and a second purchase call in the same file is not.
     const twice = {
-      ...implemented,
-      content: `${implemented.content}await p.tickets.purchase(r);\n`,
+      ...executor!,
+      content: `${executor!.content}\nconst order = await this.deps.providers.tickets.purchase(req);\n`,
     };
     expect(checkSinglePurchaseCallSite([twice]).violations).toHaveLength(1);
   });

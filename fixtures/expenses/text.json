@@ -397,6 +397,448 @@
           }
         ]
       }
+    },
+    {
+      "id": "r1_01",
+      "note": "T-010 r1 #1: a name next to an absence cue is left out, never charged everything",
+      "sender": "mem_dean",
+      "text": "@trav i paid €84 for dinner, henry wasn't there",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_dean",
+            "amountMinor": 8400,
+            "currency": "EUR",
+            "method": "exclude",
+            "description": "dinner",
+            "shares": {
+              "mem_dean": 1680,
+              "mem_maya": 1680,
+              "mem_jordan": 1680,
+              "mem_priya": 1680,
+              "mem_sam": 1680
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "r1_02",
+      "note": "T-010 r1 #1",
+      "sender": "mem_dean",
+      "text": "@trav i paid €84 for dinner, not henry",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_dean",
+            "amountMinor": 8400,
+            "currency": "EUR",
+            "method": "exclude",
+            "shares": {
+              "mem_dean": 1680,
+              "mem_maya": 1680,
+              "mem_jordan": 1680,
+              "mem_priya": 1680,
+              "mem_sam": 1680
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "r1_03",
+      "note": "T-010 r1 #1",
+      "sender": "mem_dean",
+      "text": "@trav i paid €84 for dinner, henry's out",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_dean",
+            "amountMinor": 8400,
+            "currency": "EUR",
+            "method": "exclude",
+            "shares": {
+              "mem_dean": 1680,
+              "mem_maya": 1680,
+              "mem_jordan": 1680,
+              "mem_priya": 1680,
+              "mem_sam": 1680
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "r1_04",
+      "note": "T-010 r1 #1",
+      "sender": "mem_dean",
+      "text": "@trav i paid €84 for dinner, henry left before dessert",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_dean",
+            "amountMinor": 8400,
+            "currency": "EUR",
+            "method": "exclude",
+            "description": "dinner",
+            "shares": {
+              "mem_dean": 1680,
+              "mem_maya": 1680,
+              "mem_jordan": 1680,
+              "mem_priya": 1680,
+              "mem_sam": 1680
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "r1_05",
+      "note": "T-010 r1 #1",
+      "sender": "mem_dean",
+      "text": "@trav i paid €60 for the boat, maya skipped it",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_dean",
+            "amountMinor": 6000,
+            "currency": "EUR",
+            "method": "exclude",
+            "description": "boat",
+            "shares": {
+              "mem_dean": 1200,
+              "mem_henry": 1200,
+              "mem_jordan": 1200,
+              "mem_priya": 1200,
+              "mem_sam": 1200
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "r1_06",
+      "note": "T-010 r1 #1: Henry was in but settled directly; leaving him out would overcharge the rest, so ask",
+      "sender": "mem_dean",
+      "text": "@trav i paid €84 for dinner, but henry already paid me his part",
+      "expect": {
+        "action": "clarify",
+        "about": ["participants"],
+        "question": "who's in on the €84 dinner, by name?"
+      }
+    },
+    {
+      "id": "r1_07",
+      "note": "T-010 r1 #1",
+      "sender": "mem_dean",
+      "text": "@trav i paid €84 for dinner without henry",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_dean",
+            "amountMinor": 8400,
+            "currency": "EUR",
+            "method": "exclude",
+            "shares": {
+              "mem_dean": 1680,
+              "mem_maya": 1680,
+              "mem_jordan": 1680,
+              "mem_priya": 1680,
+              "mem_sam": 1680
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "r1_08",
+      "note": "T-010 r1 #1: a stray name with no list and no absence cue is a question, not a list",
+      "sender": "mem_dean",
+      "text": "@trav i paid €84 for dinner at maya's place",
+      "expect": {
+        "action": "clarify",
+        "about": ["participants"],
+        "question": "who's in on the €84 dinner at maya's place, by name?"
+      }
+    },
+    {
+      "id": "r1_09",
+      "note": "T-010 r1 #2: evenly says how, the list says who",
+      "sender": "mem_dean",
+      "text": "@trav i paid €45 for the taxi, split evenly between me, maya and sam",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_dean",
+            "amountMinor": 4500,
+            "currency": "EUR",
+            "method": "equal",
+            "description": "taxi",
+            "shares": { "mem_dean": 1500, "mem_maya": 1500, "mem_sam": 1500 }
+          }
+        ]
+      }
+    },
+    {
+      "id": "r1_10",
+      "note": "T-010 r1 #3: everyone else = everyone but who was named out",
+      "sender": "mem_dean",
+      "text": "@trav henry's sick, i paid €84 for dinner, everyone else",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_dean",
+            "amountMinor": 8400,
+            "currency": "EUR",
+            "method": "exclude",
+            "description": "dinner",
+            "shares": {
+              "mem_dean": 1680,
+              "mem_maya": 1680,
+              "mem_jordan": 1680,
+              "mem_priya": 1680,
+              "mem_sam": 1680
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "r1_11",
+      "note": "T-010 r1 #3: everyone else with nobody named out is a question",
+      "sender": "mem_dean",
+      "text": "@trav i paid €84 for dinner, everyone else",
+      "expect": {
+        "action": "clarify",
+        "about": ["participants"],
+        "question": "who's in on the €84 dinner, by name?"
+      }
+    },
+    {
+      "id": "r1_12",
+      "note": "T-010 r1 #4: \"jordan and i\" is the sender plus Jordan",
+      "sender": "mem_dean",
+      "text": "@trav i paid €32 for the cab, jordan and i",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_dean",
+            "amountMinor": 3200,
+            "currency": "EUR",
+            "method": "equal",
+            "description": "cab",
+            "shares": { "mem_dean": 1600, "mem_jordan": 1600 }
+          }
+        ]
+      }
+    },
+    {
+      "id": "r1_13",
+      "note": "T-010 r1 #4",
+      "sender": "mem_dean",
+      "text": "@trav jordan and i split the cab 50/50, it was 32",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_dean",
+            "amountMinor": 3200,
+            "currency": "EUR",
+            "method": "equal",
+            "description": "cab",
+            "shares": { "mem_dean": 1600, "mem_jordan": 1600 }
+          }
+        ]
+      }
+    },
+    {
+      "id": "r1_14",
+      "note": "T-010 r1 #5: both amounts are logged, the list applies to both",
+      "sender": "mem_dean",
+      "text": "@trav 84 euros for dinner and 20 for the cab, me and maya",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_dean",
+            "amountMinor": 8400,
+            "currency": "EUR",
+            "method": "equal",
+            "description": "dinner",
+            "shares": { "mem_dean": 4200, "mem_maya": 4200 }
+          },
+          {
+            "payer": "mem_dean",
+            "amountMinor": 2000,
+            "currency": "EUR",
+            "method": "equal",
+            "description": "cab",
+            "shares": { "mem_dean": 1000, "mem_maya": 1000 }
+          }
+        ]
+      }
+    },
+    {
+      "id": "r1_15",
+      "note": "T-010 r1 #5: two debts and no total, never one of them folded into the other",
+      "sender": "mem_dean",
+      "text": "@trav sam owes me 20 and maya owes me 30 for the cab",
+      "expect": { "action": "unsure" }
+    },
+    {
+      "id": "r1_16",
+      "note": "T-010 r1 #5: an owed amount for something else is its own expense",
+      "sender": "mem_dean",
+      "text": "@trav i paid €84 for dinner, everyone but henry, and he owes me 15 for the cab",
+      "expect": { "action": "unsure" }
+    },
+    {
+      "id": "r1_17",
+      "note": "T-010 r1 #5",
+      "sender": "mem_dean",
+      "text": "@trav henry owes me 15 for the cab, and i paid €84 for dinner for everyone",
+      "expect": { "action": "unsure" }
+    },
+    {
+      "id": "r1_18",
+      "note": "T-010 r1 #6: A + B is one total",
+      "sender": "mem_dean",
+      "text": "@trav dinner €84 + €10 tip on me",
+      "expect": {
+        "action": "clarify",
+        "about": ["participants"],
+        "question": "who's in on the €94 dinner, everyone or just some of you?"
+      }
+    },
+    {
+      "id": "r1_19",
+      "note": "T-010 r1 #6",
+      "sender": "mem_dean",
+      "text": "@trav dinner €84 + €10 tip on me, everyone",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_dean",
+            "amountMinor": 9400,
+            "currency": "EUR",
+            "method": "equal",
+            "description": "dinner",
+            "shares": {
+              "mem_dean": 1567,
+              "mem_henry": 1567,
+              "mem_maya": 1567,
+              "mem_jordan": 1567,
+              "mem_priya": 1566,
+              "mem_sam": 1566
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "r1_20",
+      "note": "T-010 r1 #9: a minus sign is a correction or refund, not a charge",
+      "sender": "mem_dean",
+      "text": "@trav i paid -€20 for the taxi, everyone",
+      "expect": { "action": "unsure" }
+    },
+    {
+      "id": "r1_21",
+      "note": "T-010 r1 #9: above €2,000 the amount is said again first",
+      "sender": "mem_dean",
+      "text": "@trav i paid €84000 for dinner, everyone",
+      "expect": {
+        "action": "clarify",
+        "about": ["confirm_amount"],
+        "question": "€84,000 for dinner? say the amount again and i'll log it"
+      }
+    },
+    {
+      "id": "r1_22",
+      "note": "T-010 r1 #10: no dangling time word",
+      "sender": "mem_dean",
+      "text": "@trav i paid €84 for dinner at 9, everyone",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_dean",
+            "amountMinor": 8400,
+            "currency": "EUR",
+            "method": "equal",
+            "description": "dinner",
+            "shares": {
+              "mem_dean": 1400,
+              "mem_henry": 1400,
+              "mem_maya": 1400,
+              "mem_jordan": 1400,
+              "mem_priya": 1400,
+              "mem_sam": 1400
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "r1_23",
+      "note": "T-010 r1 #10: the sender's noun, never the category name",
+      "sender": "mem_dean",
+      "text": "@trav put €32 on the tab for me and maya, airport cab",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_dean",
+            "amountMinor": 3200,
+            "currency": "EUR",
+            "method": "equal",
+            "description": "cab",
+            "category": "transport",
+            "shares": { "mem_dean": 1600, "mem_maya": 1600 }
+          }
+        ]
+      }
+    },
+    {
+      "id": "r1_24",
+      "note": "T-010 r1 #10: a leading count stays",
+      "sender": "mem_sam",
+      "text": "@trav 2 waters at razz were €28, me and maya",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_sam",
+            "amountMinor": 2800,
+            "currency": "EUR",
+            "method": "equal",
+            "description": "2 waters at razz",
+            "category": "drinks",
+            "shares": { "mem_maya": 1400, "mem_sam": 1400 }
+          }
+        ]
+      }
+    },
+    {
+      "id": "r1_25",
+      "note": "T-010 r1 #11: we paid ⇒ who paid is a question",
+      "sender": "mem_dean",
+      "text": "@trav we paid €84 for dinner, everyone",
+      "expect": {
+        "action": "clarify",
+        "about": ["payer"],
+        "question": "who paid for dinner? i put each one on one person"
+      }
     }
   ]
 }

@@ -94,8 +94,8 @@ export interface TravRuntimeOptions {
   readonly voice?: SendDeps['voice'];
   readonly onLintViolation?: SendDeps['onLintViolation'];
   /**
-   * The booking executor (THE purchase call site). Default: T-009's
-   * `createBookingExecutor` over `providers`, built lazily. Tests inject a
+   * The booking executor (THE purchase call site). Default:
+   * `createBookingExecutor` over `providers` (T-009). Tests inject a
    * recording fake; the approval handler is its only caller.
    */
   readonly executor?: BookingExecutor;
@@ -242,8 +242,13 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
   };
 }
 
-// ---------- executor (T-009 implements `createBookingExecutor`; until then its stub throws on first use) ----------
+// ---------- executor ----------
 
+/**
+ * The real executor behind one delegating `execute` (the A1b arch check
+ * allows exactly this one delegation outside the approval handler). Built on
+ * first use so a runtime that never books never constructs it.
+ */
 function createLazyExecutor(deps: Parameters<typeof createBookingExecutor>[0]): BookingExecutor {
   let real: BookingExecutor | undefined;
   return {

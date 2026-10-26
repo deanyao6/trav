@@ -34,6 +34,7 @@ import type {
 import { markPrivate, safety, TravError } from '@trav/core';
 import { renderLooksShared } from '../render/expenseConfirm.js';
 import { sanitizeInline } from '../context/groupContext.js';
+import { sharePlan } from './pending.js';
 import {
   detectInjection,
   stripInvisible,
@@ -153,8 +154,19 @@ export function intakeDocument(
   }
   // VOICE §6.1: a minor never gets a "looks shared?" prompt; the item is still kept for a guardian flow.
   const promptable = !safety.isMinor(owner, now);
-  const active = members.filter((m) => m.active && m.leftAt === undefined && m.role !== 'guest');
-  const item: PendingPrivateItem = markPrivate({
+  const occurredAt = input.extracted.occurredAt ?? now;
+  const category = input.extracted.category ?? 'other';
+  // T-013: the same split rule the card flow uses (the plan's roster, else everyone), so the
+  // DM says who it would be split with and the owner's 👍 shares exactly that.
+  const plan = sharePlan({
+    trips: stores.group.trips,
+    trip,
+    members,
+    ownerMemberId: owner.memberId,
+    occurredAt,
+    category,
+  });
+  const drafted: PendingPrivateItem = markPrivate({
     id: deps.ids.next('priv'),
     ownerMemberId: owner.memberId,
     groupId: group.groupId,
@@ -164,13 +176,31 @@ export function intakeDocument(
     sourceItemId: input.itemId,
     status: 'pending' as const,
     amount: { amountMinor: input.extracted.amountMinor, currency: input.extracted.currency },
-    occurredAt: input.extracted.occurredAt ?? now,
+    occurredAt,
     merchantDisplay: sanitizeInline(input.extracted.merchantDisplay, 60),
-    category: input.extracted.category ?? 'other',
+    category,
     ...(input.extracted.lineItems !== undefined ? { lineItems: input.extracted.lineItems } : {}),
     lowConfidence,
-    suggestedParticipants: active.map((m) => m.memberId),
+    suggestedParticipants: plan.participants,
   });
+  const dm = promptable
+    ? renderLooksShared(
+        {
+          ownerMemberId: owner.memberId,
+          items: [
+            {
+              item: drafted,
+              ...(plan.guess !== undefined ? { guess: plan.guess } : {}),
+              ...(plan.label !== undefined ? { splitWithLabel: plan.label } : {}),
+            },
+          ],
+        },
+        { groupId: group.groupId, members, timeZone: trip?.timeZone ?? 'UTC', now, ids: deps.ids },
+      )
+    : undefined;
+  // The card the owner answers on (`ingest/pending.ts` finds the item by it).
+  const item: PendingPrivateItem =
+    dm === undefined ? drafted : markPrivate({ ...drafted, cardMessageId: dm.id });
   stores.private.putPendingItem(owner.memberId, item);
   auditIds.push(
     stores.group.audit.append({
@@ -191,7 +221,7 @@ export function intakeDocument(
       },
     }).id,
   );
-  if (!promptable) {
+  if (dm === undefined) {
     return {
       matches,
       lowConfidence,
@@ -201,10 +231,6 @@ export function intakeDocument(
       drafts: [],
     };
   }
-  const dm = renderLooksShared(
-    { ownerMemberId: owner.memberId, items: [{ item }] },
-    { groupId: group.groupId, members, timeZone: trip?.timeZone ?? 'UTC', now, ids: deps.ids },
-  );
   return {
     matches,
     lowConfidence,

@@ -51,7 +51,11 @@ function expectGroupClean(state: SimState): void {
   expect(group).not.toContain('vegetarian');
 }
 
-async function post(backend: SimulatorBackend, path: string, body: unknown = {}): Promise<SimState> {
+async function post(
+  backend: SimulatorBackend,
+  path: string,
+  body: unknown = {},
+): Promise<SimState> {
   const res = await handleApi(backend, { method: 'POST', path, body });
   expect(res.status, `${path} ${JSON.stringify(res.body).slice(0, 300)}`).toBe(200);
   const state = (res.body as { state: SimState }).state;
@@ -81,7 +85,12 @@ async function servedBackend(kind: Kind) {
 describe.each<Kind>(['scripted', 'agent'])('demo clicked in order (%s backend)', (kind) => {
   it('replay → Sam shares the Uber → next morning → end of trip', async () => {
     const b = await servedBackend(kind);
-    expect(b.state().controls).toMatchObject({ replay: true, clock: true, scheduler: true, intake: true });
+    expect(b.state().controls).toMatchObject({
+      replay: true,
+      clock: true,
+      scheduler: true,
+      intake: true,
+    });
 
     // --- replay up to the Razzmatazz ask; snapshot Henry's DM tab.
     const beforeAsk = await replayTo(b, FLAGSHIP_ASK);
@@ -97,12 +106,17 @@ describe.each<Kind>(['scripted', 'agent'])('demo clicked in order (%s backend)',
     // The Razzmatazz booking adds nothing to Henry's tab (no ticket, no prompt).
     expect(bcn(s3).dms['mem_henry']!.length).toBe(henryBefore);
     expect(messages(bcn(s3).dms['mem_henry']!).some((m) => m.card?.type === 'ticket')).toBe(false);
-    if (kind === 'scripted') {
-      expect(proposal!.cardState?.label).toBe('Approved by Dean');
-      expect(thread.some((m) => m.seq > proposal!.seq && m.card?.type === 'receipt')).toBe(true);
-      for (const id of ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam']) {
-        expect(messages(bcn(s3).dms[id]!).filter((m) => m.card?.type === 'ticket'), id).toHaveLength(1);
-      }
+    // On both backends (the agent one since T-009): Dean's 👍 books, the receipt lands in the
+    // group, one ticket card per attendee in their DM tab, the late taps change nothing.
+    expect(proposal!.cardState?.label).toBe('Approved by Dean');
+    const receipt = thread.find((m) => m.seq > proposal!.seq && m.card?.type === 'receipt');
+    expect(receipt?.text).toMatch(/^booked ✅ razzmatazz, 5 tickets, €90/);
+    expect(thread.filter((m) => m.card?.type === 'receipt')).toHaveLength(1);
+    for (const id of ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam']) {
+      expect(
+        messages(bcn(s3).dms[id]!).filter((m) => m.card?.type === 'ticket'),
+        id,
+      ).toHaveLength(1);
     }
 
     // --- state 4: send as Sam; his DM rail offers his own card charge; feed it.
@@ -121,7 +135,9 @@ describe.each<Kind>(['scripted', 'agent'])('demo clicked in order (%s backend)',
       actionId: 'confirm',
     });
     // Until T-012/T-013 the share flow answers with silence: the status line says so.
-    const shared = messages(bcn(s4b).thread).some((m) => m.isTrav && m.seq > prompt.seq && /uber/i.test(m.text));
+    const shared = messages(bcn(s4b).thread).some(
+      (m) => m.isTrav && m.seq > prompt.seq && /uber/i.test(m.text),
+    );
     if (!shared) expect(bcn(s4b).status).toBe(SHARE_FLOW_NOT_WIRED_STATUS);
 
     // --- state 5: next morning.
@@ -151,7 +167,11 @@ describe.each<Kind>(['scripted', 'agent'])('demo clicked in order (%s backend)',
     // --- the rest of the script still runs after the manual clock moves: the
     // clock never rewinds, lines already covered are skipped with a reason.
     const end = await post(b, '/api/replay/all');
-    expect(end.replay).toMatchObject({ cursor: SCRIPT.length, total: SCRIPT.length, running: false });
+    expect(end.replay).toMatchObject({
+      cursor: SCRIPT.length,
+      total: SCRIPT.length,
+      running: false,
+    });
     // Never rewound (the scripted backend ticks 30s per inject, so it may be a bit later).
     expect(Date.parse(end.now)).toBeGreaterThanOrEqual(Date.parse('2026-03-18T10:00:00+01:00'));
     expect(end.now.startsWith('2026-03-18T10:')).toBe(true);
@@ -173,6 +193,7 @@ describe.each<Kind>(['scripted', 'agent'])('demo clicked in order (%s backend)',
       expect(bcn(s6).status).toContain('T-016');
     }
     // Other trips never show Barcelona's line.
-    for (const g of s6.groups) if (g.group.groupId !== BARCELONA.groupId) expect(g.status).toBeUndefined();
+    for (const g of s6.groups)
+      if (g.group.groupId !== BARCELONA.groupId) expect(g.status).toBeUndefined();
   });
 });

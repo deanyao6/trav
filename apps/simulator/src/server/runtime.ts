@@ -5,18 +5,17 @@
  *   TRAV_SIM_BACKEND=agent     the real Trav runtime; fails loudly if it can't load
  *   (unset)                    the agent runtime if it loads, else the script
  *
- * `auto` prefers the real runtime because it is the product. The approval
- * handler (T-030) is wired; until the booking executor lands (T-009) an
- * Approve/👍 ends in Trav's own "couldn't book, no charge" line, so the
- * startup log points at `TRAV_SIM_BACKEND=scripted` for the full demo. A
- * runtime without the handler still gets the `approval:handler_not_wired`
- * status line in the UI.
+ * `auto` prefers the real runtime because it is the product: the approval
+ * handler (T-030) and the booking executor (T-009) are wired, so an
+ * Approve/👍 on the Razzmatazz card books through the mock providers and
+ * posts the receipt and the five ticket DMs. The scripted backend remains an
+ * explicit choice for a canned replay.
  *
  * The agent runtime comes from `createTravRuntime` in `@trav/agent`
- * (packages/agent/src/compose.ts, T-009/T-021). It is looked up at runtime
- * through a dynamic import so this file typechecks and runs before that
- * export exists; until then `loadAgentBackend` throws `TravError` with a
- * `not_configured:` message and the default mode falls back to the script.
+ * (packages/agent/src/compose.ts). It is looked up at runtime through a
+ * dynamic import so this file typechecks and runs without it; if the export
+ * is missing `loadAgentBackend` throws `TravError` with a `not_configured:`
+ * message and the default mode falls back to the script.
  */
 import { createSimulatorChannel } from '@trav/adapters';
 import type { SimulatorChannel } from '@trav/adapters';
@@ -66,10 +65,9 @@ export interface SimRuntimeOutput {
 
 /** Printed at startup whenever the simulator runs the real agent runtime. */
 export const AGENT_BACKEND_HINT =
-  'backend agent: the real Trav runtime. until the booking executor lands (T-009), ' +
-  'Approve and 👍 on a proposal end in "couldn\'t book, no charge" here. ' +
-  'for the full Barcelona demo (chat → proposal → receipt + tickets) run ' +
-  'TRAV_SIM_BACKEND=scripted pnpm sim';
+  'backend agent: the real Trav runtime over mock providers. ' +
+  'Approve or 👍 on a proposal books it (mock purchase, receipt in the group, one ticket DM each); ' +
+  'TRAV_SIM_BACKEND=scripted pnpm sim replays the canned Barcelona script instead';
 
 type CreateTravRuntime = (input: SimRuntimeInput) => SimRuntimeOutput | Promise<SimRuntimeOutput>;
 
@@ -82,7 +80,7 @@ async function importCreateTravRuntime(): Promise<CreateTravRuntime> {
   const mod: Record<string, unknown> = await import('@trav/agent');
   const create = mod['createTravRuntime'];
   if (typeof create !== 'function') {
-    throw notConfigured('@trav/agent does not export createTravRuntime yet (T-009/T-021)');
+    throw notConfigured('@trav/agent does not export createTravRuntime');
   }
   return create as CreateTravRuntime;
 }
