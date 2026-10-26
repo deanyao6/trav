@@ -78,9 +78,21 @@ export type ClaimedApproval =
 /**
  * "Dean said it's fine", "Dean's ok", "Dean is good". Attendance words ("in",
  * "down") are deliberately absent: "Henry's in now too" is a roster line for
- * the roster handler, not Henry's consent (T-066).
+ * the roster handler, not Henry's consent (T-066). The consent word must end
+ * the claim: the end of the text, punctuation, "with it/that", "to go", or
+ * an approval word ("dean said yes, book it", "dean says yes book it").
+ * "dean is ok right? he was sick" and "dean said it's good to meet at 9"
+ * are about Dean, not his consent.
  */
-const SAID_YES = String.raw`(?:'s|\s+(?:said|says|is|told me|texted|confirmed))\s+(?:it'?s\s+)?(?:yes|ok(?:ay)?|fine|cool|good|go|approved|book it|do it|all good|a go)\b`;
+const CONSENT_END = String.raw`(?=\s*(?:$|[^\w\s']|with (?:it|that|this)\b|to go\b|(?:so\s+|and\s+|just\s+|pls\s+|please\s+)?(?:yes|yep|go ahead|go for it|book it|do it|approve|confirm|lock it in|send it)\b))`;
+/**
+ * Strong consent words ("yes", "go ahead", "go for it", "approved", "book it",
+ * "do it") are a claim whatever follows ("dean said yes to the razzmatazz
+ * tickets", "dean said go for it, he is paying"); weak ones ("ok", "fine",
+ * "cool", "good", "go") only when they end the claim (`CONSENT_END`), so
+ * "dean is ok right?" and "dean said it's good to meet at 9" are not claims.
+ */
+const SAID_YES = String.raw`(?:'s|\s+(?:said|says|is|told me|texted|confirmed))\s+(?:it'?s\s+)?(?:(?:yes|go ahead|go for it|approved|book it|do it|all good|a go)\b|(?:ok(?:ay)?|fine|cool|good|go)\b${CONSENT_END})`;
 /**
  * "everyone's in" as a whole claim: followed by the end of the text,
  * punctuation, or an approval word ("everyone's in, book it", "we're all

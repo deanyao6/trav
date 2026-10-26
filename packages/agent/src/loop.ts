@@ -76,6 +76,7 @@ import type { ProposalService, ProposeResult } from './booking/proposals.js';
 import { shortEventName } from './booking/proposals.js';
 import type { BookingExecutor, ProviderRegistry } from './booking/executor.js';
 import { buildGroupContext, renderGroupPrompt, sanitizeInline } from './context/groupContext.js';
+import { createChatExpenseFlow } from './ingest/chatExpense.js';
 import {
   intakeDocument as screenDocument,
   type DocumentIntake,
@@ -112,7 +113,6 @@ import {
   type MentionReason,
   type MentionResult,
 } from './mention.js';
-import { parseRosterUpdate, resolveActivity, resolveMemberName, rosterOf } from './roster/index.js';
 import { handleRosterMessage, type RosterTurn } from './roster/turn.js';
 import type { ToolRegistry } from './tools/registry.js';
 import type { TurnToolContext } from './tools/shared.js';
@@ -334,26 +334,32 @@ export interface QuoteSplit {
 const QUOTE_LINE = /^\s*(?:>|\||»)/;
 /**
  * A forward header: a header word followed by a colon ("fwd:", "FWD: re:
- * tickets", "Forwarded message:"), a header word alone on its line ("Fwd",
- * "---------- Forwarded message ----------"), or a "from …" / "by …" line
- * ending in a colon ("fwd from dean lol:", "forwarded by maya:"). "fwd this
- * to henry pls" is a sentence, not a header (T-066).
+ * tickets", "Forwarded message:", Apple Mail's "Begin forwarded message:"), a
+ * header word alone on its line ("Fwd", "---------- Forwarded message
+ * ----------"), or a "from …" / "by …" line ending in a colon ("fwd from dean
+ * lol:", "forwarded by maya:"). "fwd this to henry pls" is a sentence, not a
+ * header (T-066).
  */
 const FWD_HEADER =
-  /^\s*(?:-+\s*)?(?:fwd?|fw|forwarded(?: message)?)\s*:|^\s*(?:-+\s*)?(?:fwd?|fw|forwarded(?: message)?)\s*(?:-+\s*)?$|^\s*(?:fwd?|fw|forwarded)\s+(?:from|by)\b.{0,60}:\s*$/i;
+  /^\s*(?:-+\s*)?(?:begin\s+)?(?:fwd?|fw|forwarded(?: message)?)\s*:|^\s*(?:-+\s*)?(?:fwd?|fw|forwarded(?: message)?)\s*(?:-+\s*)?$|^\s*(?:fwd?|fw|forwarded)\s+(?:from|by)\b.{0,60}:\s*$/i;
 const FAKE_CARD_LINE = /^\s*trav\s*(?:\(bot\))?\s*:/i;
-/** Marks only Trav's cards carry: a check, "👍 to …", an order number. */
-const CARD_MARKS = /✅|👍\s*to\b|\border\s*#?\s*[A-Za-z]{0,6}-?\d{3,}/i;
-/** Status words Trav's cards really lead with ("booked ✅ …", "logged …"). */
-const CARD_LEAD = /^\s*(?:booked|logged)\b/i;
+/**
+ * Marks only Trav's cards carry: a check (every receipt leads "booked ✅"),
+ * "👍 to …" (proposals), "👎 to undo" (logged expenses), an order number.
+ */
+const CARD_MARKS = /booked\s*✅|👍\s*to\s+book\b|👎\s*to\s+undo\b/iu;
+/** Marks that count only on a line AFTER the first: a member's own "ok ✅ done" or "order 12345 is mine" opener is their words. */
+const LATER_LINE_MARKS = /✅|\border\s*#?\s*[A-Za-z]{0,6}-?\d{3,}/iu;
+/** The one lead Trav's cards use that a member would not type: "logged: €84 dinner …" (VOICE §4.4). */
+const CARD_LEAD = /^\s*logged\s*:/i;
 
 /**
  * "trav: …" is a pasted Trav card when it is not the first line, or when it
  * is the first line and the message carries a card mark on any line (✅,
- * "👍 to", an order number) or the line leads with a status word Trav really
- * emits ("trav: booked …", "trav: logged …"). Anything else on the first
- * line ("trav: who's in tonight?", "trav: €20 taxi on me", "trav: approved,
- * book it", a multi-line "trav: log these\n€20 taxi") is the sender
+ * "👍 to", "👎 to", an order number) or the line leads with Trav's own
+ * "logged:". Anything else on the first line ("trav: who's in tonight?",
+ * "trav: €20 taxi on me", "trav: approved, book it", "trav: booked it, see
+ * you at 11", a multi-line "trav: log these\n€20 taxi") is the sender
  * addressing Trav (mention.ts reads "trav:" as the vocative).
  */
 function isPastedCardLine(lines: readonly string[], i: number): boolean {
@@ -361,6 +367,7 @@ function isPastedCardLine(lines: readonly string[], i: number): boolean {
   if (!FAKE_CARD_LINE.test(line)) return false;
   if (i > 0) return true;
   if (lines.some((l) => CARD_MARKS.test(l))) return true;
+  if (lines.some((l, j) => j > 0 && LATER_LINE_MARKS.test(l))) return true;
   return CARD_LEAD.test(line.replace(FAKE_CARD_LINE, ''));
 }
 
@@ -512,6 +519,8 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
   /** Which group each card was sent in: the index never answers across groups. */
   const cardGroup = new Map<MessageId, GroupId>();
   const guestsTold = new Set<string>();
+  /** Expense from chat text (T-010): parser first, one question when a money fact is missing. */
+  const chatExpenses = createChatExpenseFlow({ stores, model, ids, clock });
 
   const remember = (key: string): boolean => {
     if (seen.has(key)) return false;
@@ -738,45 +747,7 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     return `${i + 1}. ${shortEventName(p.description)} · ${formatMoney(money(p.totalMinor, p.currency))} · ${p.attendees.length} ticket${p.attendees.length === 1 ? '' : 's'}`;
   }
 
-  /**
-   * Who Trav may tag when a claim names nobody whose 👍 counts: the approvers
-   * still missing, never the sender. `any_one`: the requester if they may
-   * approve, else the one remaining approver (a crowd is not named).
-   * `each_payer`: everyone still missing, at most two (more is a list, not a
-   * nudge). Empty ⇒ Trav stays silent and the audit row is the record.
-   */
-  /**
-   * The in-count an attendance line would leave its activity with, read
-   * before anything is written (the same activity and member resolution as
-   * `handleRosterMessage`); undefined when the line does not resolve.
-   */
-  function predictInCount(
-    trip: Trip,
-    members: readonly Member[],
-    me: Member,
-    line: string,
-    now: IsoDateTime,
-  ): number | undefined {
-    const update = parseRosterUpdate(line);
-    if (update === undefined) return undefined;
-    const activity = resolveActivity(
-      stores.group.trips.listActivities(trip.tripId),
-      trip.timeZone,
-      now,
-      update.hint,
-      update.when,
-    );
-    if (activity === undefined) return undefined;
-    const memberId = update.who === 'me' ? me.memberId : resolveMemberName(members, update.who);
-    if (memberId === undefined) return undefined;
-    const inIds = new Set(
-      rosterOf(stores.group.trips, activity.activityId, members, now).inMemberIds,
-    );
-    if (update.status === 'in') inIds.add(memberId);
-    else inIds.delete(memberId);
-    return inIds.size;
-  }
-
+  /** Members who have already 👍'd this proposal (the grant's signatures). */
   function grantedBy(proposalId: string): Set<MemberId> {
     return new Set(
       (stores.group.bookings.getGrantForProposal(proposalId)?.grantedBy ?? []).map(
@@ -785,6 +756,13 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     );
   }
 
+  /**
+   * Who Trav may tag when a claim names nobody whose 👍 counts: the approvers
+   * still missing, never the sender. `any_one`: the requester if they may
+   * approve, else the one remaining approver (a crowd is not named).
+   * `each_payer`: everyone still missing, at most two (more is a list, not a
+   * nudge). Empty ⇒ Trav stays silent and the audit row is the record.
+   */
   function approversToName(
     proposalId: string,
     decision: PolicyDecision,
@@ -1508,12 +1486,9 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     ) {
       const wantCount = rosterFollowUpCount(text);
       for (const [i, candidate] of rosterTexts(text).entries()) {
-        // "henry's in, make it 7" when the change makes 6: the clause alone
-        // would drop the 7, so the whole message goes to the model (T-066).
-        if (i > 0 && wantCount !== undefined) {
-          const predicted = predictInCount(r.trip, r.members, me, candidate, r.now);
-          if (predicted !== wantCount) continue;
-        }
+        // "henry's in, make it 7" when the change makes 6: the roster handler
+        // declines before writing (`expectInCount`), so the clause alone never
+        // drops the 7 and the whole message goes to the model (T-066).
         const roster = handleRosterMessage({
           group: stores.group,
           trip: r.trip,
@@ -1522,6 +1497,7 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
           text: candidate,
           messageId: event.messageId,
           now: r.now,
+          ...(i > 0 && wantCount !== undefined ? { expectInCount: wantCount } : {}),
         });
         if (roster !== undefined) {
           recordInbound();
@@ -1583,6 +1559,33 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
         modelSources: [],
         note: 'mention:thanks',
       };
+    }
+
+    // 5b. an expense stated in chat (T-010, `ingest/chatExpense.ts`): logged
+    // from the parser (VOICE §4.4) or one question (§4.11); the model only
+    // for what the parser cannot settle. Group lane, members, a current trip.
+    if (r.lane === 'group' && r.trip !== null && canRequest(r.identity)) {
+      const before = snapshotAudit(r.group.groupId);
+      const res = await chatExpenses.handle({
+        group: r.group,
+        members: r.members,
+        trip: r.trip,
+        me,
+        messageId: event.messageId,
+        text,
+        at: event.receivedAt,
+      });
+      if (res !== undefined) {
+        const sent = await send(r, res.drafts);
+        return {
+          outbound: sent,
+          toolCalls: [],
+          auditEventIds: auditIdsSince(r.group.groupId, before),
+          silent: sent.length === 0,
+          modelSources: res.modelSources,
+          note: res.note,
+        };
+      }
     }
 
     // 6. the model.
@@ -1657,44 +1660,63 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       return silent('undo:not_expense');
     if (r.me === null || !canRequest(r.identity)) return silent('undo:guest');
     if (cardGroup.get(ref.messageId) !== r.group.groupId) return silent('undo:wrong_group');
-    const expense = stores.group.expenses.get(ref.card.expenseId);
-    if (expense === undefined || expense.status !== 'logged') {
+    // One message that logged several expenses (T-010) carries them all in
+    // `digestItems`; its one 👎 undoes every one still logged.
+    const digest = ref.card.digestItems ?? [];
+    const expenseIds = digest.length > 0 ? digest.map((d) => d.expenseId) : [ref.card.expenseId];
+    const live = expenseIds
+      .map((id) => stores.group.expenses.get(id))
+      .filter((e): e is Expense => e !== undefined && e.status === 'logged');
+    const expense = live[0];
+    if (expense === undefined) {
       cards.delete(ref.messageId);
       cardGroup.delete(ref.messageId);
       return silent('undo:not_logged');
     }
-    if (r.trip === null || expense.tripId !== r.trip.tripId) return silent('undo:trip_over');
+    const trip = r.trip;
+    if (trip === null || live.some((e) => e.tripId !== trip.tripId))
+      return silent('undo:trip_over');
 
     const before = snapshotAudit(r.group.groupId);
-    const undone: Expense = { ...expense, status: 'undone' };
     const order = r.members.map((m) => m.memberId);
-    stores.group.expenses.replace(
-      undone,
-      ledger.buildLedgerEntries(undone, { memberOrder: order, participantsUniverse: order }),
-    );
+    for (const e of live) {
+      const undone: Expense = { ...e, status: 'undone' };
+      stores.group.expenses.replace(
+        undone,
+        ledger.buildLedgerEntries(undone, { memberOrder: order, participantsUniverse: order }),
+      );
+    }
     cards.delete(ref.messageId);
     cardGroup.delete(ref.messageId);
-    audit(r, {
-      type: 'ledger.entry_deleted',
-      actor: { kind: 'member', id: r.me.memberId },
-      visibility: 'group',
-      payload: {
-        expenseId: expense.expenseId,
-        memberId: r.me.memberId,
-        before: { status: 'logged', amountMinor: expense.amount.amountMinor },
-        after: { status: 'undone' },
-        messageId,
-        cardMessageId: ref.messageId,
-        via,
-      },
-    });
-    const payerId = expense.paidBy[0]?.memberId;
-    const payer = r.members.find((m) => m.memberId === payerId);
+    for (const e of live) {
+      audit(r, {
+        type: 'ledger.entry_deleted',
+        actor: { kind: 'member', id: r.me.memberId },
+        visibility: 'group',
+        payload: {
+          expenseId: e.expenseId,
+          memberId: r.me.memberId,
+          before: { status: 'logged', amountMinor: e.amount.amountMinor },
+          after: { status: 'undone' },
+          messageId,
+          cardMessageId: ref.messageId,
+          via,
+        },
+      });
+    }
+    const payerOf = (e: Expense): string =>
+      sanitizeInline(
+        r.members.find((m) => m.memberId === e.paidBy[0]?.memberId)?.displayName ?? 'someone',
+        40,
+      );
+    const item = (e: Expense): string =>
+      `${formatMoney(e.amount)} ${sanitizeInline(e.description, 40).toLowerCase()}`;
+    const onePayer = live.every((e) => payerOf(e) === payerOf(expense));
+    const what = onePayer
+      ? `${live.map(item).join(' and ')} on ${payerOf(expense)}`
+      : live.map((e) => `${item(e)} on ${payerOf(e)}`).join(' and ');
     const sent = await send(r, [
-      message(
-        r,
-        `undone: ${formatMoney(expense.amount)} ${sanitizeInline(expense.description, 40).toLowerCase()} on ${sanitizeInline(payer?.displayName ?? 'someone', 40)}, it's off the tab`,
-      ),
+      message(r, `undone: ${what}, ${live.length > 1 ? "they're" : "it's"} off the tab`),
     ]);
     return {
       outbound: sent,

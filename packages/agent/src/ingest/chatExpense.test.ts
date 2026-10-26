@@ -1,0 +1,453 @@
+import { describe, expect, it } from 'vitest';
+import type { Expense, ExpenseConfirmCard, Member, OutboundMessage } from '@trav/core';
+import { isReaction, ledger, safety } from '@trav/core';
+import { BARCELONA } from '../compose.js';
+import type { TurnResult } from '../loop.js';
+import { deriveScriptKey } from '../model/client.js';
+import { harness, offlineModel, type Harness } from '../runtime.testkit.js';
+import { createChatExpenseFlow } from './chatExpense.js';
+
+const T = BARCELONA.tripId;
+const G = BARCELONA.groupId;
+const PROPER = ['Dean', 'Henry', 'Maya', 'Jordan', 'Priya', 'Sam', 'EUR', 'USD'];
+
+function messages(r: TurnResult): OutboundMessage[] {
+  return r.outbound.filter((o): o is OutboundMessage => !isReaction(o));
+}
+
+function only(r: TurnResult): OutboundMessage {
+  const m = messages(r);
+  expect(m, `note ${r.note}`).toHaveLength(1);
+  return m[0]!;
+}
+
+function expenses(h: Harness): readonly Expense[] {
+  return h.runtime.stores.group.expenses.listByTrip(T);
+}
+
+function logged(h: Harness): readonly Expense[] {
+  return expenses(h).filter((e) => e.status === 'logged');
+}
+
+function balances(h: Harness): Record<string, number> {
+  const order = h.runtime.stores.group.members.listByGroup(G).map((m) => m.memberId);
+  const out: Record<string, number> = {};
+  for (const b of ledger.computeBalances(
+    h.runtime.stores.group.expenses.listEntries(T),
+    'EUR',
+    order,
+  ))
+    out[b.memberId] = b.net.amountMinor;
+  return out;
+}
+
+/** Trav's group messages that ask something. */
+function questionsAsked(h: Harness): number {
+  return h.channel
+    .groupTranscript()
+    .filter((x) => x.direction === 'outbound' && 'text' in x && /\?/.test(String(x.text))).length;
+}
+
+function expectVoice(text: string, kind: 'reply' | 'expense'): void {
+  const lint = safety.lintVoice(text, { kind, properNouns: PROPER });
+  expect(lint.violations, text).toEqual([]);
+}
+
+describe('expense from chat text: logged straight away when every money fact is clear (VOICE §4.4)', () => {
+  it('"@trav I paid €84 for dinner, split w everyone but Henry" ⇒ one logged card, the ledger entry, no model call', async () => {
+    const h = harness();
+    const turn = await h.say('h_dean', '@trav I paid €84 for dinner, split w everyone but Henry', {
+      messageId: 'm_dinner',
+    });
+    expect(turn.note).toBe('expense:logged');
+    expect(turn.toolCalls).toEqual([]);
+    expect(h.model.completions).toEqual([]);
+    const msg = only(turn);
+    expect(msg.to).toEqual({ kind: 'group' });
+    expect(msg.text).toBe(
+      'logged: €84 dinner on Dean, 5 ways (not Henry) → €16.80 each\n👎 to undo or tell me what to change',
+    );
+    expectVoice(msg.text, 'expense');
+    const card = msg.card as ExpenseConfirmCard;
+    expect(card).toMatchObject({
+      type: 'expense_confirm',
+      status: 'logged',
+      source: 'chat',
+      visibility: 'group',
+    });
+    expect(card.fallbackText).toBe(msg.text);
+    expect(msg.actions?.map((a) => a.id)).toEqual(['undo']);
+
+    const [e] = expenses(h);
+    expect(e).toMatchObject({
+      paidBy: [{ memberId: 'mem_dean', amount: { amountMinor: 8400, currency: 'EUR' } }],
+      split: { method: 'exclude', excluded: ['mem_henry'] },
+      source: 'chat',
+      sourceRef: { kind: 'message', id: 'm_dinner' },
+      category: 'food',
+      createdBy: 'mem_dean',
+      status: 'logged',
+    });
+    // occurredAt is the message's time
+    expect(e!.occurredAt).toBe(h.last.message!.receivedAt);
+    expect(balances(h)).toMatchObject({
+      mem_dean: 6720,
+      mem_henry: 0,
+      mem_maya: -1680,
+      mem_sam: -1680,
+    });
+    const created = h.audit().filter((a) => a.type === 'ledger.entry_created');
+    expect(created).toHaveLength(1);
+    expect(created[0]!.payload).toMatchObject({
+      expenseId: e!.expenseId,
+      sourceMessageId: 'm_dinner',
+    });
+    expect(turn.auditEventIds).toContain(created[0]!.id);
+  });
+
+  it('custom shares (VOICE §4.4 B): "trav the taxi was €32, me and Sam, Sam had the suitcase so he pays 20"', async () => {
+    const h = harness();
+    const turn = await h.say(
+      'h_maya',
+      'trav the taxi was €32, me and Sam, Sam had the suitcase so he pays 20',
+    );
+    expect(turn.note).toBe('expense:logged');
+    expect(only(turn).text).toBe('logged: €32 taxi on Maya · Sam €20 · Maya €12\n👎 to undo');
+    expect(balances(h)).toMatchObject({ mem_maya: 2000, mem_sam: -2000 });
+  });
+
+  it('"the 5 of us from razz" resolves through the activity roster, not a guess by count', async () => {
+    const h = harness();
+    for (const id of ['mem_dean', 'mem_henry', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam']) {
+      h.runtime.stores.group.trips.setAttendance({
+        activityId: BARCELONA.razzmatazzActivityId,
+        memberId: id,
+        status: id === 'mem_henry' ? 'out' : 'in',
+        updatedAt: h.clock.now(),
+        sourceMessageId: 'msg_prior',
+        setBy: id,
+      });
+    }
+    const turn = await h.say('h_sam', '@trav kebabs were on me, 62 euros, the 5 of us from razz');
+    expect(turn.note).toBe('expense:logged');
+    expect(only(turn).text.split('\n')[0]).toBe(
+      'logged: €62 kebabs on Sam, 5 ways (not Henry) → €12.40 each',
+    );
+  });
+
+  it('a guest cannot put anything on the tab', async () => {
+    const h = harness();
+    const turn = await h.say('h_ava', '@trav i paid €84 for dinner, everyone');
+    expect(turn.note).not.toMatch(/^expense:/);
+    expect(expenses(h)).toEqual([]);
+  });
+});
+
+describe('exactly one clarifying question when a money fact is missing (VOICE §4.11)', () => {
+  it('missing amount: one question, nothing logged; the answer logs it against the original message', async () => {
+    const h = harness();
+    const ask = await h.say('h_henry', '@trav i paid for lunch, everyone', {
+      messageId: 'm_lunch',
+    });
+    expect(ask.note).toBe('expense:clarify:amount');
+    const q = only(ask);
+    expect(q.text).toBe('how much was lunch?');
+    expectVoice(q.text, 'reply');
+    expect(q.card).toBeUndefined();
+    expect(expenses(h)).toEqual([]);
+    expect(h.model.completions).toEqual([]);
+
+    // The answer lands inside the reply window, no @trav needed.
+    const answer = await h.say('h_henry', '42.60');
+    expect(answer.note).toBe('expense:logged:answer');
+    expect(only(answer).text.split('\n')[0]).toBe(
+      'logged: €42.60 lunch on Henry, 6 ways → €7.10 each',
+    );
+    const [e] = expenses(h);
+    expect(e!.sourceRef).toEqual({ kind: 'message', id: 'm_lunch' });
+    expect(e!.amount).toEqual({ amountMinor: 4260, currency: 'EUR' });
+    expect(questionsAsked(h)).toBe(1);
+  });
+
+  it('missing who is in: one question, nothing logged; a partial answer waits silently instead of asking again', async () => {
+    const h = harness();
+    const ask = await h.say('h_dean', '@trav i paid for dinner');
+    expect(ask.note).toBe('expense:clarify:amount+participants');
+    expect(only(ask).text).toBe("how much was dinner, and who's in on it?");
+    expect(expenses(h)).toEqual([]);
+
+    const part = await h.say('h_dean', '84');
+    expect(part.note).toBe('expense:waiting');
+    expect(part.outbound).toEqual([]);
+    expect(expenses(h)).toEqual([]);
+
+    const rest = await h.say('h_dean', 'everyone but henry');
+    expect(rest.note).toBe('expense:logged:answer');
+    expect(only(rest).text.split('\n')[0]).toBe(
+      'logged: €84 dinner on Dean, 5 ways (not Henry) → €16.80 each',
+    );
+    expect(questionsAsked(h)).toBe(1);
+  });
+
+  it('"me and the girls" is never guessed: one question by name', async () => {
+    const h = harness();
+    const ask = await h.say('h_maya', '@trav €40 for the club entry, me and the girls');
+    expect(only(ask).text).toBe("who's in on the €40 club entry, by name?");
+    expect(expenses(h)).toEqual([]);
+    const answer = await h.say('h_maya', 'me priya and sam');
+    expect(answer.note).toBe('expense:logged:answer');
+    expect(logged(h)[0]!.split).toEqual({
+      method: 'equal',
+      participants: ['mem_maya', 'mem_priya', 'mem_sam'],
+    });
+  });
+
+  it('"venmo me 20 each" asks currency and who in one question; "euros, me maya and dean" logs €60', async () => {
+    const h = harness();
+    const ask = await h.say('h_sam', '@trav venmo me 20 each for the cab');
+    expect(only(ask).text).toBe("was that €20 or $20 each, and who's in on it?");
+    const answer = await h.say('h_sam', 'euros, me maya and dean');
+    expect(answer.note).toBe('expense:logged:answer');
+    expect(logged(h)[0]!.amount).toEqual({ amountMinor: 6000, currency: 'EUR' });
+  });
+
+  it('a foreign amount is not converted: one question for the trip-currency amount', async () => {
+    const h = harness();
+    const ask = await h.say('h_dean', '@trav $40 USD for the museum, everyone');
+    expect(only(ask).text).toBe(
+      "what was the museum in euros? the tab's in EUR and i can't convert $40 yet",
+    );
+    expect(expenses(h)).toEqual([]);
+    const answer = await h.say('h_dean', '37');
+    expect(answer.note).toBe('expense:logged:answer');
+    expect(logged(h)[0]!.amount).toEqual({ amountMinor: 3700, currency: 'EUR' });
+  });
+
+  it('someone else\'s reply never answers Dean\'s question; "nvm" drops it with a 👍', async () => {
+    const h = harness();
+    await h.say('h_dean', '@trav i paid for dinner, everyone');
+    const other = await h.say('h_maya', '84');
+    expect(other.note).not.toMatch(/^expense:logged/);
+    expect(expenses(h)).toEqual([]);
+    const drop = await h.say('h_dean', 'nvm');
+    expect(drop.note).toBe('expense:dropped');
+    expect(drop.outbound).toHaveLength(1);
+    expect(isReaction(drop.outbound[0]!)).toBe(true);
+    // the question is gone: a later "84" from Dean is not an answer
+    const late = await h.say('h_dean', '@trav 84');
+    expect(late.note).not.toMatch(/^expense:logged/);
+    expect(expenses(h)).toEqual([]);
+  });
+
+  it('an open question never swallows the next request or a new statement', async () => {
+    const h = harness();
+    await h.say('h_dean', '@trav i paid for dinner');
+    const ask = await h.say('h_dean', "@trav get the 5 of us Razzmatazz tickets, Henry's sick");
+    expect(ask.toolCalls).toEqual(['propose_booking']);
+    expect(expenses(h)).toEqual([]);
+    const cab = await h.say('h_dean', '@trav i paid €20 for the cab, everyone');
+    expect(cab.note).toBe('expense:logged');
+    expect(logged(h).map((e) => [e.description, e.amount.amountMinor])).toEqual([['cab', 2000]]);
+  });
+
+  it('an unknown payer is asked alone; the answer fills only the payer, and who-is-in is asked once after', async () => {
+    const h = harness();
+    const ask = await h.say('h_maya', '@trav Alex paid €40 for the cab');
+    expect(only(ask).text).toBe(
+      'who paid for the cab? i can only put it on someone on this trip, not Alex',
+    );
+    expectVoice(only(ask).text, 'reply');
+    const payer = await h.say('h_maya', 'jordan');
+    expect(payer.note).toBe('expense:clarify:participants:answer');
+    expect(only(payer).text).toBe("who's in on the €40 cab, everyone or just some of you?");
+    expect(expenses(h)).toEqual([]);
+    const who = await h.say('h_maya', 'everyone');
+    expect(who.note).toBe('expense:logged:answer');
+    expect(logged(h)[0]!.paidBy[0]!.memberId).toBe('mem_jordan');
+    expect(logged(h)[0]!.split).toEqual({
+      method: 'equal',
+      participants: ['mem_dean', 'mem_henry', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam'],
+    });
+    expect(questionsAsked(h)).toBe(2); // two different facts, each asked once
+  });
+
+  it('"leave it off" is a 👍 and no ledger write', async () => {
+    const h = harness();
+    const turn = await h.say(
+      'h_priya',
+      "@trav I paid €38 for lunch but i'll expense it, leave it off",
+    );
+    expect(turn.note).toBe('expense:no_log');
+    expect(isReaction(turn.outbound[0]!)).toBe(true);
+    expect(expenses(h)).toEqual([]);
+  });
+});
+
+describe("undo within the window reverses the ledger entry (the loop's undo path)", () => {
+  it('👎 on the logged card voids it and the balances return to where they were', async () => {
+    const h = harness();
+    const before = balances(h);
+    const turn = await h.say('h_dean', '@trav I paid €84 for dinner, split w everyone but Henry');
+    const card = only(turn);
+    const expenseId = (card.card as ExpenseConfirmCard).expenseId;
+    expect(balances(h)).not.toEqual(before);
+    const undo = await h.react('h_dean', card.id, '👎');
+    expect(undo.note).toBe('undo:done');
+    expect(only(undo).text).toBe("undone: €84 dinner on Dean, it's off the tab");
+    expectVoice(only(undo).text, 'reply');
+    expect(h.runtime.stores.group.expenses.get(expenseId)?.status).toBe('undone');
+    expect(expenses(h)).toEqual([]);
+    expect(h.runtime.stores.group.expenses.listEntries(T)).toEqual([]);
+    expect(balances(h)).toEqual(before);
+    expect(h.audit().filter((a) => a.type === 'ledger.entry_deleted')).toHaveLength(1);
+  });
+
+  it('a bare "undo" inside the reply window does the same', async () => {
+    const h = harness();
+    await h.say('h_dean', '@trav add €45.50 for groceries, everyone');
+    const undo = await h.say('h_dean', 'undo');
+    expect(undo.note).toBe('undo:done');
+    expect(logged(h)).toEqual([]);
+  });
+});
+
+describe('one message, two expenses: per-expense sub-ids (T-005 review note)', () => {
+  it('"84 for dinner and 20 for the cab" ⇒ message:<id>#1 and #2, one post, one 👎 undoes both', async () => {
+    const h = harness();
+    const turn = await h.say('h_dean', '@trav i paid 84 for dinner and 20 for the cab, everyone', {
+      messageId: 'm_two',
+    });
+    expect(turn.note).toBe('expense:logged:2');
+    const msg = only(turn);
+    expect(msg.text).toBe(
+      [
+        'logged: €84 dinner on Dean, 6 ways → €14 each',
+        'logged: €20 cab on Dean, 6 ways → €3.33 each',
+        '👎 to undo both',
+      ].join('\n'),
+    );
+    expectVoice(msg.text, 'expense');
+    const card = msg.card as ExpenseConfirmCard;
+    expect(card.fallbackText).toBe(msg.text);
+    expect(card.digestItems).toHaveLength(2);
+    const all = expenses(h);
+    expect(all.map((e) => e.sourceRef)).toEqual([
+      { kind: 'message', id: 'm_two#1' },
+      { kind: 'message', id: 'm_two#2' },
+    ]);
+    expect(all.map((e) => e.amount.amountMinor)).toEqual([8400, 2000]);
+    expect(card.digestItems!.map((d) => d.expenseId)).toEqual(all.map((e) => e.expenseId));
+    expect(h.audit().filter((a) => a.type === 'ledger.entry_created')).toHaveLength(2);
+
+    const undo = await h.react('h_dean', msg.id, '👎');
+    expect(undo.note).toBe('undo:done');
+    expect(only(undo).text).toBe("undone: €84 dinner and €20 cab on Dean, they're off the tab");
+    expect(logged(h)).toEqual([]);
+    expect(h.audit().filter((a) => a.type === 'ledger.entry_deleted')).toHaveLength(2);
+  });
+
+  it('two payers in one clause go to the scripted expense_text_v1 extraction (offline) and still log with sub-ids', async () => {
+    const h = harness();
+    const text = '@trav i paid 60 and jordan paid 40 for the boat, split with everyone';
+    const turn = await h.say('h_dean', text, { messageId: 'm_boat' });
+    expect(turn.modelSources).toEqual(['script']);
+    expect(turn.note).toBe('expense:logged:2:model');
+    expect(h.model.completions).toHaveLength(1);
+    const req = h.model.completions[0]!;
+    expect(req.systemPromptId).toBe('expense_text_v1');
+    expect(req.tools).toEqual([]);
+    expect(req.jsonSchema).toBeDefined();
+    expect(deriveScriptKey(req)).toBe(
+      'ba2cc391cefca500962a076d4cc24dd911db22cecf8e5d83471d7f1f7ba7e108',
+    );
+    expect(only(turn).text).toBe(
+      [
+        'logged: €60 boat on Dean, 6 ways → €10 each',
+        'logged: €40 boat on Jordan, 6 ways → €6.67 each',
+        '👎 to undo both',
+      ].join('\n'),
+    );
+    expect(expenses(h).map((e) => [e.sourceRef.id, e.paidBy[0]!.memberId])).toEqual([
+      ['m_boat#1', 'mem_dean'],
+      ['m_boat#2', 'mem_jordan'],
+    ]);
+    const undo = await h.react('h_maya', only(turn).id, '👎');
+    expect(only(undo).text).toBe(
+      "undone: €60 boat on Dean and €40 boat on Jordan, they're off the tab",
+    );
+  });
+
+  it('an unscripted unsure phrasing falls back to the chat loop, never a guess', async () => {
+    const h = harness();
+    const turn = await h.say(
+      'h_dean',
+      '@trav i paid 30 and maya paid 50 for the bikes, split with everyone',
+    );
+    expect(turn.note).not.toMatch(/^expense:/);
+    expect(expenses(h)).toEqual([]);
+  });
+});
+
+describe('duplicates and untrusted text', () => {
+  it('the same message delivered twice logs once', async () => {
+    const h = harness();
+    await h.say('h_dean', '@trav add €45.50 for groceries, everyone', { messageId: 'm_dup' });
+    const again = await h.say('h_dean', '@trav add €45.50 for groceries, everyone', {
+      messageId: 'm_dup',
+    });
+    expect(again.note).toBe('duplicate');
+    expect(expenses(h)).toHaveLength(1);
+  });
+
+  it('a replay past the channel dedupe hits the sourceRef guard: "already got that one", no second write', async () => {
+    const h = harness();
+    const flow = createChatExpenseFlow({
+      stores: h.runtime.stores,
+      model: offlineModel(h.clock),
+      ids: h.ids,
+      clock: h.clock,
+    });
+    const members = h.runtime.stores.group.members.listByGroup(G);
+    const input = {
+      group: h.runtime.stores.group.groups.get(G)!,
+      members,
+      trip: h.runtime.stores.group.trips.get(T)!,
+      me: members.find((m: Member) => m.memberId === 'mem_dean')!,
+      messageId: 'm_replay',
+      text: '@trav i paid 84 for dinner and 20 for the cab, everyone',
+      at: '2026-03-14T20:15:00+01:00',
+    };
+    const first = await flow.handle(input);
+    expect(first?.note).toBe('expense:logged:2');
+    expect(expenses(h).every((e) => e.occurredAt === '2026-03-14T20:15:00+01:00')).toBe(true);
+    const second = await flow.handle(input);
+    expect(second?.note).toBe('expense:already_logged');
+    expect((second?.drafts[0] as OutboundMessage).text).toBe('already got that one: €84 dinner');
+    expect(expenses(h)).toHaveLength(2);
+  });
+
+  it('a quoted "I paid €500" is never logged (SAFETY §2.4)', async () => {
+    const h = harness();
+    const quoted = await h.say(
+      'h_sam',
+      '> I paid €500 for the villa, split with everyone\n@trav lol remember this',
+    );
+    expect(quoted.note).not.toMatch(/^expense:/);
+    const forwarded = await h.say('h_sam', 'fwd:\nI paid €500 for the villa, split with everyone');
+    expect(forwarded.note).not.toMatch(/^expense:/);
+    const onlyQuote = await h.say(
+      'h_sam',
+      '> @trav I paid €500 for the villa, split with everyone',
+    );
+    expect(onlyQuote.note).not.toMatch(/^expense:/);
+    expect(expenses(h)).toEqual([]);
+    expect(h.audit().filter((a) => a.type === 'ledger.entry_created')).toEqual([]);
+  });
+
+  it('a booking ask is not an expense: the Razzmatazz moment still goes to the model', async () => {
+    const h = harness();
+    const turn = await h.say('h_dean', "@trav get the 5 of us Razzmatazz tickets, Henry's sick");
+    expect(turn.toolCalls).toEqual(['propose_booking']);
+    expect(expenses(h)).toEqual([]);
+  });
+});

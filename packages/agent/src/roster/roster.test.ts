@@ -330,7 +330,10 @@ describe('natural language: roll calls and overrides', () => {
     ['Maya is out tomorrow', { who: 'Maya', status: 'out', when: 'tomorrow' }],
     ["Maya's sick tmrw", { who: 'Maya', status: 'out', when: 'tomorrow' }],
     ['count me in tomorrow', { who: 'me', status: 'in', when: 'tomorrow' }],
-    ["i'm a maybe for apolo tomorrow", { who: 'me', status: 'maybe', hint: 'apolo', when: 'tomorrow' }],
+    [
+      "i'm a maybe for apolo tomorrow",
+      { who: 'me', status: 'maybe', hint: 'apolo', when: 'tomorrow' },
+    ],
     ["i'm out this evening", { who: 'me', status: 'out', when: 'tonight' }],
     ["i'm sick", { who: 'me', status: 'out' }],
     ["can't make it", undefined],
@@ -456,6 +459,35 @@ describe('handleRosterMessage (the roster turn)', () => {
       now: BARCELONA_NOW,
     });
   }
+
+  it('expectInCount (T-066): a mismatching headcount returns undefined before any write; a matching one is handled', () => {
+    const { stores } = world();
+    mark(stores, 'mem_henry', 'out');
+    const members = stores.group.members.listByGroup(G);
+    const input = (text: string, expectInCount: number) => ({
+      group: stores.group,
+      trip: stores.group.trips.get(BARCELONA.tripId)!,
+      members,
+      me: members.find((m) => m.memberId === 'mem_dean')!,
+      text,
+      messageId: 'msg_t',
+      now: BARCELONA_NOW,
+      expectInCount,
+    });
+    const henry = () =>
+      stores.group.trips.listAttendance(ACT).find((a) => a.memberId === 'mem_henry')?.status;
+    const auditBefore = stores.group.audit.listByGroup(G).length;
+    // Henry back in makes 6, not 7: nothing is written.
+    expect(handleRosterMessage(input("henry's in", 7))).toBeUndefined();
+    expect(henry()).toBe('out');
+    expect(stores.group.audit.listByGroup(G).length).toBe(auditBefore);
+    // A roll call never satisfies a headcount.
+    expect(handleRosterMessage(input("who's in tonight?", 5))).toBeUndefined();
+    // 6 matches: the usual change.
+    const ok = handleRosterMessage(input("henry's in", 6));
+    expect(ok?.kind).toBe('changed');
+    expect(henry()).toBe('in');
+  });
 
   it("a roll call renders the roster of tonight's activity and writes nothing", () => {
     const { stores } = world();

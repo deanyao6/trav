@@ -1,0 +1,402 @@
+{
+  "fixtureVersion": 1,
+  "note": "T-010 chat-text expense phrasings for the deterministic parser (packages/agent/src/ingest/expenseText.ts), Barcelona group (member order Dean, Henry, Maya, Jordan, Priya, Sam; trip currency EUR). expect.action: log (expenses with shares in minor units, remainders to the payer then member order), clarify (exactly one question; about = the missing money facts), none (not an expense statement), no_log (a payment the sender keeps off the tab), unsure (the parser hands it to the model). Rosters are activity attendance at parse time; parse time is 2026-03-15T01:30:00+01:00.",
+  "rows": [
+    {
+      "id": "tx_001",
+      "sender": "mem_dean",
+      "text": "@trav I paid €84 for dinner, split w everyone but Henry",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_dean",
+            "amountMinor": 8400,
+            "currency": "EUR",
+            "method": "exclude",
+            "description": "dinner",
+            "category": "food",
+            "shares": {
+              "mem_dean": 1680,
+              "mem_maya": 1680,
+              "mem_jordan": 1680,
+              "mem_priya": 1680,
+              "mem_sam": 1680
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "tx_002",
+      "sender": "mem_sam",
+      "text": "@trav venmo me 20 each for the cab",
+      "expect": {
+        "action": "clarify",
+        "about": ["currency", "participants"],
+        "question": "was that €20 or $20 each, and who's in on it?"
+      }
+    },
+    {
+      "id": "tx_003",
+      "sender": "mem_maya",
+      "text": "@trav Jordan got the taxi, 32 euro, just the 4 of us",
+      "expect": {
+        "action": "clarify",
+        "about": ["participants"],
+        "question": "which 4 are in on the €32 taxi?"
+      }
+    },
+    {
+      "id": "tx_004",
+      "sender": "mem_maya",
+      "text": "@trav Jordan got the taxi, 32 euro, just the 4 of us",
+      "rosters": [
+        {
+          "activityId": "act_bcn_razzmatazz",
+          "name": "Razzmatazz",
+          "startsAt": "2026-03-15T00:00:00+01:00",
+          "inMemberIds": ["mem_dean", "mem_maya", "mem_jordan", "mem_sam"]
+        }
+      ],
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_jordan",
+            "amountMinor": 3200,
+            "currency": "EUR",
+            "method": "equal",
+            "description": "taxi",
+            "category": "transport",
+            "shares": { "mem_dean": 800, "mem_maya": 800, "mem_jordan": 800, "mem_sam": 800 }
+          }
+        ]
+      }
+    },
+    {
+      "id": "tx_005",
+      "sender": "mem_dean",
+      "text": "@trav i paid 84 for dinner and 20 for the cab, everyone",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_dean",
+            "amountMinor": 8400,
+            "currency": "EUR",
+            "method": "equal",
+            "description": "dinner",
+            "category": "food",
+            "shares": {
+              "mem_dean": 1400,
+              "mem_henry": 1400,
+              "mem_maya": 1400,
+              "mem_jordan": 1400,
+              "mem_priya": 1400,
+              "mem_sam": 1400
+            }
+          },
+          {
+            "payer": "mem_dean",
+            "amountMinor": 2000,
+            "currency": "EUR",
+            "method": "equal",
+            "description": "cab",
+            "category": "transport",
+            "shares": {
+              "mem_dean": 334,
+              "mem_henry": 334,
+              "mem_maya": 333,
+              "mem_jordan": 333,
+              "mem_priya": 333,
+              "mem_sam": 333
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "tx_006",
+      "sender": "mem_dean",
+      "text": "@trav $40 USD for the museum, everyone",
+      "expect": {
+        "action": "clarify",
+        "about": ["trip_currency"],
+        "question": "what was the museum in euros? the tab's in EUR and i can't convert $40 yet"
+      }
+    },
+    {
+      "id": "tx_007",
+      "sender": "mem_priya",
+      "text": "@trav paid 20 quid for the bus, me and sam",
+      "expect": {
+        "action": "clarify",
+        "about": ["trip_currency"],
+        "question": "what was the bus in euros? the tab's in EUR and i can't convert £20 yet"
+      }
+    },
+    {
+      "id": "tx_008",
+      "sender": "mem_henry",
+      "text": "@trav i paid for lunch",
+      "expect": {
+        "action": "clarify",
+        "about": ["amount", "participants"],
+        "question": "how much was lunch, and who's in on it?"
+      }
+    },
+    {
+      "id": "tx_009",
+      "sender": "mem_maya",
+      "text": "@trav €40 for the club entry, me and the girls",
+      "expect": {
+        "action": "clarify",
+        "about": ["participants"],
+        "question": "who's in on the €40 club entry, by name?"
+      }
+    },
+    {
+      "id": "tx_010",
+      "sender": "mem_dean",
+      "text": "@trav taxi €18 split with everyone except me",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_dean",
+            "amountMinor": 1800,
+            "currency": "EUR",
+            "method": "exclude",
+            "description": "taxi",
+            "category": "transport",
+            "shares": {
+              "mem_henry": 360,
+              "mem_maya": 360,
+              "mem_jordan": 360,
+              "mem_priya": 360,
+              "mem_sam": 360
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "tx_011",
+      "sender": "mem_jordan",
+      "text": "@trav i got everyone churros, 13.20",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_jordan",
+            "amountMinor": 1320,
+            "currency": "EUR",
+            "method": "equal",
+            "description": "churros",
+            "category": "food",
+            "shares": {
+              "mem_dean": 220,
+              "mem_henry": 220,
+              "mem_maya": 220,
+              "mem_jordan": 220,
+              "mem_priya": 220,
+              "mem_sam": 220
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "tx_012",
+      "sender": "mem_sam",
+      "text": "@trav kebabs were on me, 62 euros, the 5 of us from razz",
+      "rosters": [
+        {
+          "activityId": "act_bcn_razzmatazz",
+          "name": "Razzmatazz",
+          "startsAt": "2026-03-15T00:00:00+01:00",
+          "inMemberIds": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"]
+        }
+      ],
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_sam",
+            "amountMinor": 6200,
+            "currency": "EUR",
+            "method": "equal",
+            "description": "kebabs",
+            "category": "food",
+            "shares": {
+              "mem_dean": 1240,
+              "mem_maya": 1240,
+              "mem_jordan": 1240,
+              "mem_priya": 1240,
+              "mem_sam": 1240
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "tx_013",
+      "sender": "mem_maya",
+      "text": "trav the taxi was €32, me and Sam, Sam had the suitcase so he pays 20",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_maya",
+            "amountMinor": 3200,
+            "currency": "EUR",
+            "method": "exact",
+            "description": "taxi",
+            "category": "transport",
+            "shares": { "mem_maya": 1200, "mem_sam": 2000 }
+          }
+        ]
+      }
+    },
+    {
+      "id": "tx_014",
+      "sender": "mem_dean",
+      "text": "@trav dinner was €90: i had the steak (€30), maya and priya split the paella (€40), wine €20 for the three of us",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_dean",
+            "amountMinor": 9000,
+            "currency": "EUR",
+            "method": "itemized",
+            "description": "dinner",
+            "category": "food",
+            "shares": { "mem_dean": 3667, "mem_maya": 2667, "mem_priya": 2666 }
+          }
+        ]
+      }
+    },
+    {
+      "id": "tx_015",
+      "sender": "mem_priya",
+      "text": "@trav I paid €38 for lunch but i'll expense it, leave it off",
+      "expect": { "action": "no_log" }
+    },
+    {
+      "id": "tx_016",
+      "sender": "mem_dean",
+      "text": "@trav how much do we owe for dinner?",
+      "expect": { "action": "none" }
+    },
+    {
+      "id": "tx_017",
+      "sender": "mem_jordan",
+      "text": "@trav weighted split for the bike tour €90: dean 1 maya 1 sam 2",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_jordan",
+            "amountMinor": 9000,
+            "currency": "EUR",
+            "method": "weighted",
+            "description": "bike tour",
+            "category": "activities",
+            "shares": { "mem_dean": 2250, "mem_maya": 2250, "mem_sam": 4500 }
+          }
+        ]
+      }
+    },
+    {
+      "id": "tx_018",
+      "sender": "mem_dean",
+      "text": "@trav i owe Maya €15 for the tickets",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_maya",
+            "amountMinor": 1500,
+            "currency": "EUR",
+            "method": "exact",
+            "description": "tickets",
+            "category": "tickets",
+            "shares": { "mem_dean": 1500 }
+          }
+        ]
+      }
+    },
+    {
+      "id": "tx_019",
+      "sender": "mem_sam",
+      "text": "@trav Priya owes me 12 for the metro",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_sam",
+            "amountMinor": 1200,
+            "currency": "EUR",
+            "method": "exact",
+            "description": "metro",
+            "category": "transport",
+            "shares": { "mem_priya": 1200 }
+          }
+        ]
+      }
+    },
+    {
+      "id": "tx_020",
+      "sender": "mem_dean",
+      "text": "@trav add €45.50 for groceries, everyone",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_dean",
+            "amountMinor": 4550,
+            "currency": "EUR",
+            "method": "equal",
+            "description": "groceries",
+            "category": "groceries",
+            "shares": {
+              "mem_dean": 759,
+              "mem_henry": 759,
+              "mem_maya": 758,
+              "mem_jordan": 758,
+              "mem_priya": 758,
+              "mem_sam": 758
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "tx_021",
+      "sender": "mem_dean",
+      "text": "@trav i paid 60 and jordan paid 40 for the boat, split with everyone",
+      "expect": { "action": "unsure" }
+    },
+    {
+      "id": "tx_022",
+      "sender": "mem_priya",
+      "text": "@trav add €30 for the cava, me maya and jordan",
+      "expect": {
+        "action": "log",
+        "expenses": [
+          {
+            "payer": "mem_priya",
+            "amountMinor": 3000,
+            "currency": "EUR",
+            "method": "equal",
+            "description": "cava",
+            "category": "drinks",
+            "shares": { "mem_maya": 1000, "mem_jordan": 1000, "mem_priya": 1000 }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,49 @@
+[
+  {
+    "key": "ba2cc391cefca500962a076d4cc24dd911db22cecf8e5d83471d7f1f7ba7e108",
+    "model": "main",
+    "systemPromptId": "expense_text_v1",
+    "lastUserText": "Dean: @trav i paid 60 and jordan paid 40 for the boat, split with everyone",
+    "toolNames": [],
+    "response": {
+      "kind": "completion",
+      "text": "",
+      "json": {
+        "isExpense": true,
+        "expenses": [
+          {
+            "description": "boat",
+            "category": "activities",
+            "amount": "60",
+            "currency": null,
+            "paidBy": "me",
+            "split": { "kind": "everyone", "members": [] }
+          },
+          {
+            "description": "boat",
+            "category": "activities",
+            "amount": "40",
+            "currency": null,
+            "paidBy": "Jordan",
+            "split": { "kind": "everyone", "members": [] }
+          }
+        ]
+      }
+    },
+    "note": "T-010: two payers in one clause is past the deterministic parser (ingest/expenseText.ts returns unsure), so the flow makes one zero-tool expense_text_v1 extraction call. The JSON is two expenses (Dean €60, Jordan €40, both split with everyone); they go through the same checks as a parsed message and are logged as message:<id>#1 and #2."
+  },
+  {
+    "key": "ca17dd563db0ea4ef4e81b08f2b1b3aff8fe9656337334193cba7effa3319fa4",
+    "model": "fast",
+    "systemPromptId": "mention_v1",
+    "lastUserText": "trav the taxi was €32, me and Sam, Sam had the suitcase so he pays 20",
+    "toolNames": [],
+    "response": {
+      "kind": "classify",
+      "label": "mention",
+      "score": 0.9,
+      "reason": "a tab statement opened with the name, VOICE §4.4 example B"
+    },
+    "note": "T-010: VOICE §4.4 example B opens with a bare \"trav\" (no comma), which the mention rules leave to the classifier. Scripted so the offline demo and the chat_expense_phrasings eval treat it as addressed, as a live classifier would."
+  }
+]

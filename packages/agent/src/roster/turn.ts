@@ -44,6 +44,14 @@ export interface RosterTurnInput {
   readonly text: string;
   readonly messageId: MessageId;
   readonly now: IsoDateTime;
+  /**
+   * The headcount the message asked for ("henry's in, make it 7" ⇒ 7, T-066).
+   * When set, only an attendance update whose resulting in-count equals it is
+   * handled; anything else (a mismatch, a roll call, nothing on the plan)
+   * returns `undefined` before any write, and the loop sends the whole
+   * message to the model.
+   */
+  readonly expectInCount?: number;
 }
 
 export type RosterTurn =
@@ -81,6 +89,9 @@ export function handleRosterMessage(input: RosterTurnInput): RosterTurn | undefi
     hint,
     when,
   );
+  if (input.expectInCount !== undefined && (roll !== undefined || activity === undefined)) {
+    return undefined;
+  }
   if (activity === undefined) {
     // A named activity that is not on the plan is not ours to answer.
     if (hint !== undefined) return undefined;
@@ -102,6 +113,12 @@ export function handleRosterMessage(input: RosterTurnInput): RosterTurn | undefi
   const memberId = update!.who === 'me' ? me.memberId : resolveMemberName(members, update!.who);
   if (memberId === undefined) return undefined;
   const status = update!.status;
+  if (input.expectInCount !== undefined) {
+    const inIds = new Set(rosterOf(group.trips, activity.activityId, members, now).inMemberIds);
+    if (status === 'in') inIds.add(memberId);
+    else inIds.delete(memberId);
+    if (inIds.size !== input.expectInCount) return undefined;
+  }
   const write = setAttendance(
     group,
     {

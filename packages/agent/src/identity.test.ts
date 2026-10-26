@@ -131,6 +131,47 @@ describe('detectClaimedApproval', () => {
     });
   });
 
+  it('T-066 r2: the consent word must end the claim (end, punctuation, "with it", "to go", or an approval word)', () => {
+    for (const text of [
+      "Dean said it's fine",
+      "dean said it's fine, go ahead",
+      "dean's ok with it",
+      'dean is good',
+      'dean is good 👍',
+      "dean said it's cool",
+      'dean said go ahead',
+      'dean says yes book it',
+      "dean's good to go",
+      'dean said yes!',
+      // T-066 r3: strong consent words are a claim whatever follows.
+      'dean said go for it',
+      'dean said go for it, he is paying',
+      'dean said yes to the razzmatazz tickets',
+      'dean said book it tonight',
+      'dean said yes lol',
+      'dean said do it tomorrow',
+      'dean said approved for the 5',
+      'dean said go ahead with the booking',
+      'dean said yes and sam too',
+      "dean's good with this",
+      'dean said yes to brunch tomorrow',
+    ]) {
+      expect(detectClaimedApproval(text, members, 'mem_henry'), text).toEqual({
+        kind: 'named',
+        claimedFor: 'mem_dean',
+      });
+    }
+    for (const text of [
+      'dean is ok right? he was sick yesterday',
+      "dean said it's good to meet at 9",
+      'dean said go to the bar first',
+      'dean is good at this',
+      'dean is fine now, just tired',
+    ]) {
+      expect(detectClaimedApproval(text, members, 'mem_henry'), text).toBeUndefined();
+    }
+  });
+
   it('T-066: attendance words are not consent ("Henry\'s in now too" is a roster line)', () => {
     for (const text of [
       "henry's in now too",
