@@ -7,6 +7,8 @@
  *                 buildLedgerEntries, buildLedger, totalSpent
  * - `balances.ts` computeBalances
  * - `settle.ts`   settle, incrementalTransfers
+ * - `family.ts`   minor-share folding + family tab (T-058): minorFolding,
+ *                 foldShares, foldLedgerEntries, spendByCategory, tripLedger
  */
 export type { SplitContext } from './context.js';
 export { contextFor } from './context.js';
@@ -20,3 +22,13 @@ export {
 } from './splits.js';
 export { computeBalances } from './balances.js';
 export { incrementalTransfers, settle } from './settle.js';
+export type { CategoryTotal, MinorFolding, TripLedger, TripLedgerInput } from './family.js';
+export {
+  MINOR_WITHOUT_GUARDIAN,
+  foldLedgerEntries,
+  foldShares,
+  isMinorWithoutGuardianError,
+  minorFolding,
+  spendByCategory,
+  tripLedger,
+} from './family.js';

@@ -1,0 +1,298 @@
+/**
+ * Family tab and minor-share folding (T-058, VOICE §8 "Money").
+ *
+ * Two rules, both applied AFTER the split math (`computeShares` is unchanged,
+ * so every remainder rule from T-003 still holds; folding only ever adds whole
+ * minor units together, it never re-rounds):
+ *
+ * 1. Minor folding. A minor (`safety.isMinor(member, now)`: birthDate under 18
+ *    OR `ageBand === 'under18'`) is never charged and never appears as a debtor
+ *    or creditor. Their share of every expense is added to their guardian's
+ *    (`Member.guardianMemberId`), and anything they paid is credited to the
+ *    guardian. Balances and transfers are computed over the non-minor members
+ *    only, so a minor can never be listed. The UI shows "Lily (under Dad)" from
+ *    `TripLedger.folded`.
+ *
+ *    No valid guardian (missing, unknown id, the minor themself, or another
+ *    minor): we REFUSE rather than guess. Charging the payer or an arbitrary
+ *    adult would silently put a child's costs on someone who never agreed to
+ *    it. The refusal is lazy: it throws only when the minor actually has a
+ *    share or a payment to fold, so a guardian-less minor who spent nothing
+ *    does not block settle-up. Error: `TravError('invalid_argument')` with
+ *    `details.reason === 'minor_without_guardian'` (see
+ *    `isMinorWithoutGuardianError`).
+ *
+ * 2. Family tab (`Trip.familyTab === true`). All expenses go into one pot:
+ *    nobody owes anybody, every balance is zero and settle-up is empty. The
+ *    expenses are still validated (bad splits and duplicate ids still throw),
+ *    and totals, per-category totals and "who fronted what" (folded) still work.
+ *
+ * Non-family trips with no minors produce exactly what
+ * `buildLedger` → `computeBalances` → `settle` produce on their own.
+ */
+import type { CurrencyCode, IsoDateTime, MemberId } from '../primitives.js';
+import type { Money } from '../money.js';
+import { money } from '../money.js';
+import type {
+  Balance,
+  Expense,
+  ExpenseCategory,
+  LedgerEntry,
+  Share,
+  Transfer,
+} from '../domain/expense.js';
+import type { Member } from '../domain/group.js';
+import type { Trip } from '../domain/trip.js';
+import { TravError } from '../errors.js';
+import { isMinor } from '../safety/minors.js';
+import type { SplitContext } from './context.js';
+import { assertUniqueMembers } from './context.js';
+import { computeBalances } from './balances.js';
+import { settle } from './settle.js';
+import { buildLedger, totalSpent } from './splits.js';
+
+// ---------- minor folding ----------
+
+/** Who absorbs each minor's money. `null` = the minor has no valid guardian. */
+export interface MinorFolding {
+  /** Every minor in the group (at `now`), in member order. */
+  readonly minors: readonly MemberId[];
+  readonly guardianOf: ReadonlyMap<MemberId, MemberId | null>;
+}
+
+export const MINOR_WITHOUT_GUARDIAN = 'minor_without_guardian';
+
+/** True for the error the fold functions throw when a minor with money to fold has no guardian. */
+export function isMinorWithoutGuardianError(e: unknown): e is TravError {
+  return e instanceof TravError && e.details?.['reason'] === MINOR_WITHOUT_GUARDIAN;
+}
+
+/**
+ * Work out which members are minors at `now` and who their guardian is. A
+ * guardian is valid only if it is another member of `members` who is not
+ * themself a minor; otherwise the minor maps to `null` (fold functions throw
+ * if such a minor has anything to fold). An inactive guardian (left the group)
+ * still carries the minor: past expenses must keep balancing. Inactive minors
+ * are still folded for the same reason. Throws `invalid_argument` on
+ * duplicate member ids.
+ */
+export function minorFolding(members: readonly Member[], now: IsoDateTime): MinorFolding {
+  assertUniqueMembers(
+    members.map((m) => m.memberId),
+    'members',
+  );
+  const byId = new Map(members.map((m) => [m.memberId, m] as const));
+  const minorSet = new Set(members.filter((m) => isMinor(m, now)).map((m) => m.memberId));
+  const guardianOf = new Map<MemberId, MemberId | null>();
+  for (const m of members) {
+    if (!minorSet.has(m.memberId)) continue;
+    const g = m.guardianMemberId;
+    const valid = g !== undefined && g !== m.memberId && byId.has(g) && !minorSet.has(g);
+    guardianOf.set(m.memberId, valid ? g : null);
+  }
+  return { minors: members.map((m) => m.memberId).filter((id) => minorSet.has(id)), guardianOf };
+}
+
+/** The member who carries `memberId`'s money: their guardian for a minor, else themself. */
+function carrier(memberId: MemberId, folding: MinorFolding): MemberId {
+  if (!folding.guardianOf.has(memberId)) return memberId;
+  const guardian = folding.guardianOf.get(memberId) ?? null;
+  if (guardian === null) {
+    throw new TravError(
+      'invalid_argument',
+      `member ${memberId} is a minor with no valid guardian; set guardianMemberId before logging their share`,
+      { reason: MINOR_WITHOUT_GUARDIAN, memberId },
+    );
+  }
+  return guardian;
+}
+
+/**
+ * Fold minors' shares into their guardians'. Returns one share per carrier, in
+ * `memberOrder`, with Σ unchanged (integer addition only, no re-rounding). A
+ * guardian who was not a participant gains a share equal to the minor's. Zero
+ * shares stay listed (as in `computeShares`). A zero-share minor with no
+ * guardian is simply dropped; a non-zero one throws `minor_without_guardian`.
+ */
+export function foldShares(
+  shares: readonly Share[],
+  folding: MinorFolding,
+  memberOrder: readonly MemberId[],
+): Share[] {
+  const first = shares[0];
+  if (first === undefined) return [];
+  const currency = first.amount.currency;
+  const total = new Map<MemberId, number>();
+  for (const s of shares) {
+    if (s.amount.currency !== currency) {
+      throw new TravError('currency_mismatch', `foldShares: ${s.amount.currency} vs ${currency}`, {
+        memberId: s.memberId,
+        left: s.amount.currency,
+        right: currency,
+      });
+    }
+    // A guardian-less minor who owes nothing has nothing to move (and is never listed).
+    const unguarded =
+      folding.guardianOf.has(s.memberId) && (folding.guardianOf.get(s.memberId) ?? null) === null;
+    if (unguarded && s.amount.amountMinor === 0) continue;
+    const to = carrier(s.memberId, folding);
+    total.set(to, (total.get(to) ?? 0) + s.amount.amountMinor);
+  }
+  const ordered = memberOrder.filter((id) => total.has(id));
+  if (ordered.length !== total.size) {
+    const missing = [...total.keys()].find((id) => !memberOrder.includes(id));
+    throw new TravError('invalid_argument', `foldShares: ${String(missing)} not in memberOrder`, {
+      memberId: missing,
+    });
+  }
+  return ordered.map((memberId) => ({
+    memberId,
+    amount: money(total.get(memberId) ?? 0, currency),
+  }));
+}
+
+/**
+ * Re-attribute ledger entries: a minor's `paid` and `owes` rows move to their
+ * guardian. Rows that land on the same (expense, member, kind) are merged so
+ * the "one row per participant per expense" shape of `buildLedgerEntries`
+ * holds; merged `owes` rows that net to zero are dropped (as
+ * `buildLedgerEntries` drops zero shares). Order: first occurrence.
+ * Throws `minor_without_guardian` for a guardian-less minor with any row.
+ */
+export function foldLedgerEntries(
+  entries: readonly LedgerEntry[],
+  folding: MinorFolding,
+): LedgerEntry[] {
+  const merged = new Map<string, LedgerEntry>();
+  for (const e of entries) {
+    const memberId = carrier(e.memberId, folding);
+    const key = `${e.expenseId}\u0000${memberId}\u0000${e.kind}`;
+    const prev = merged.get(key);
+    if (prev === undefined) {
+      merged.set(key, { ...e, memberId });
+      continue;
+    }
+    if (prev.amount.currency !== e.amount.currency) {
+      throw new TravError(
+        'currency_mismatch',
+        `ledger entry ${e.expenseId}: ${e.amount.currency} vs ${prev.amount.currency}`,
+        { expenseId: e.expenseId, left: e.amount.currency, right: prev.amount.currency },
+      );
+    }
+    merged.set(key, {
+      ...prev,
+      amount: money(prev.amount.amountMinor + e.amount.amountMinor, prev.amount.currency),
+    });
+  }
+  return [...merged.values()].filter((e) => !(e.kind === 'owes' && e.amount.amountMinor === 0));
+}
+
+// ---------- trip view ----------
+
+export interface CategoryTotal {
+  readonly category: ExpenseCategory;
+  readonly amount: Money;
+}
+
+/**
+ * Per-category totals of `logged` expenses (undone skipped), largest first,
+ * ties by category name. Categories with nothing spent are omitted. Throws
+ * `currency_mismatch` if an expense is not in `currency`.
+ */
+export function spendByCategory(
+  expenses: readonly Expense[],
+  currency: CurrencyCode,
+): CategoryTotal[] {
+  const totals = new Map<ExpenseCategory, number>();
+  for (const e of expenses) {
+    if (e.status === 'undone') continue;
+    const amount = totalSpent([e], currency); // validates currency + integer
+    totals.set(e.category, (totals.get(e.category) ?? 0) + amount.amountMinor);
+  }
+  return [...totals.entries()]
+    .filter(([, minor]) => minor !== 0)
+    .sort(([ca, a], [cb, b]) => b - a || (ca < cb ? -1 : ca > cb ? 1 : 0))
+    .map(([category, minor]) => ({ category, amount: money(minor, currency) }));
+}
+
+export interface TripLedgerInput {
+  readonly trip: Pick<Trip, 'familyTab' | 'currency'>;
+  /** Every group member, in group member order (minors included; ages are read here). */
+  readonly members: readonly Member[];
+  readonly expenses: readonly Expense[];
+  /** Split context for each expense, as for `buildLedger`. */
+  readonly ctx: SplitContext | ((expense: Expense) => SplitContext);
+  /** Age is evaluated at this instant (`safety.isMinor`). */
+  readonly now: IsoDateTime;
+  /** Small-amount floor passed to `settle` (T-049). Ignored for a family tab. */
+  readonly floorMinor?: number;
+}
+
+export interface TripLedger {
+  readonly mode: 'split' | 'family_tab';
+  /** One row per NON-minor member, in member order. All zero for a family tab. */
+  readonly balances: Balance[];
+  /** Minimal settle-up. Always empty for a family tab; never names a minor. */
+  readonly transfers: Transfer[];
+  /** Σ logged expenses. */
+  readonly total: Money;
+  readonly byCategory: CategoryTotal[];
+  /** Who put money in (minors' payments credited to their guardian), member order, > 0 only. */
+  readonly frontedBy: Share[];
+  /** Minors and the guardian who carries them ("Lily (under Dad)"), member order. */
+  readonly folded: readonly { readonly minor: MemberId; readonly guardian: MemberId | null }[];
+}
+
+/**
+ * The trip's money picture with both T-058 rules applied (see the module doc).
+ * Throws what `buildLedger` throws (invalid split, `duplicate` expense id,
+ * currency mismatch) and `minor_without_guardian` when a guardian-less minor
+ * has a share or payment.
+ */
+export function tripLedger(input: TripLedgerInput): TripLedger {
+  const { trip, members, expenses, ctx, now } = input;
+  const currency = trip.currency;
+  const folding = minorFolding(members, now);
+  const entries = foldLedgerEntries(buildLedger(expenses, ctx), folding);
+  const order = members.map((m) => m.memberId).filter((id) => !folding.guardianOf.has(id));
+  if (order.length === 0) {
+    throw new TravError(
+      'invalid_argument',
+      'tripLedger: the group has no adult member to carry the tab',
+    );
+  }
+
+  const paid = new Map<MemberId, number>();
+  for (const e of entries) {
+    if (e.kind === 'paid') paid.set(e.memberId, (paid.get(e.memberId) ?? 0) + e.amount.amountMinor);
+  }
+  const balances = computeBalances(entries, currency, order);
+  const frontedBy: Share[] = order
+    .filter((id) => (paid.get(id) ?? 0) > 0)
+    .map((memberId) => ({ memberId, amount: money(paid.get(memberId) ?? 0, currency) }));
+  const common = {
+    total: totalSpent(expenses, currency),
+    byCategory: spendByCategory(expenses, currency),
+    frontedBy,
+    folded: folding.minors.map((minor) => ({
+      minor,
+      guardian: folding.guardianOf.get(minor) ?? null,
+    })),
+  };
+
+  if (trip.familyTab) {
+    return {
+      mode: 'family_tab',
+      balances: order.map((memberId) => ({ memberId, net: money(0, currency) })),
+      transfers: [],
+      ...common,
+    };
+  }
+  const floorMinor = input.floorMinor;
+  return {
+    mode: 'split',
+    balances,
+    transfers: settle(balances, floorMinor === undefined ? undefined : { floorMinor }),
+    ...common,
+  };
+}

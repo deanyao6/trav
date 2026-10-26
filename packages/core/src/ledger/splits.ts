@@ -425,8 +425,9 @@ function itemizedShares(
  * their own items ("my €15 voucher" on a €10 dish): that member is owed the
  * difference and the others' shares still sum with it to the total.
  *
- * T-058 hook: minor-share folding into `guardianMemberId` belongs AFTER this
- * function (fold the returned shares), so the split math stays unchanged.
+ * Minors are folded AFTER this function (T-058): `foldShares` / `tripLedger`
+ * in `family.ts` move a minor's share to their `guardianMemberId`, so the split
+ * math and remainder rules here stay unchanged.
  */
 export function computeShares(expense: Expense, ctx: SplitContext): Share[] {
   validateExpense(expense, ctx);
