@@ -634,3 +634,87 @@ describe('mergeAnswer', () => {
     expect(ev.expenses[0]!.amount).toEqual({ amountMinor: 5500, currency: 'EUR' });
   });
 });
+
+// ---------- round 2 review (Orchestrator fixes after the round cap) ----------
+
+describe('T-010 r2 review cases', () => {
+  const ctx = BCN();
+  type Ready = Extract<DraftsEvaluation, { kind: 'ready' }>;
+  type Clarify = Extract<DraftsEvaluation, { kind: 'clarify' }>;
+  const ids = (e: ParsedExpense): string[] =>
+    Object.entries(sharesOf(e, ctx))
+      .filter(([, v]) => v > 0)
+      .map(([k]) => k)
+      .sort();
+
+  it.each([
+    "i paid €84 for dinner with maya, henry's paying next time",
+    "i paid €84 for dinner with maya, sam's getting the cab",
+    'i paid €84 for dinner with maya, jordan said thanks',
+    "i paid €84 for dinner with sam, maya you're next",
+    'i paid €84 for dinner with sam and maya, priya where are you',
+    'i paid €84 for dinner, sam and i, henry owes me for lunch',
+  ])('#1 a name in its own later clause never joins the split: %s', (text) => {
+    const r = run(text, ctx);
+    expect(r.kind, JSON.stringify(r)).not.toBe('ready');
+  });
+
+  it('#1 a comma list of bare names still works', () => {
+    expect(ids(ready('i paid €84 for dinner with maya, sam and jordan', ctx)[0]!)).toEqual([
+      'mem_dean',
+      'mem_jordan',
+      'mem_maya',
+      'mem_sam',
+    ]);
+  });
+
+  it.each(['i paid €84 for dinner, maya too', 'i paid €84 for dinner, maya as well'])(
+    '#2 "too" adds to the payer: %s',
+    (text) => {
+      const r = run(text, ctx);
+      expect(r.kind, JSON.stringify(r)).toBe('ready');
+      expect(ids((r as Ready).expenses[0]!)).toEqual(['mem_dean', 'mem_maya']);
+    },
+  );
+
+  it.each([
+    'i paid 84 for dinner plus 10 tip, everyone',
+    'i paid €84 for dinner plus 10 tip, everyone',
+    'i paid 84 + 10 tip for dinner, everyone',
+    'i paid 84 for dinner and 10 tip, everyone',
+    'i paid 84 for dinner for everyone and tipped 10',
+  ])('#3 a bare tip figure is never dropped: %s', (text) => {
+    const r = run(text, ctx);
+    expect(r.kind, JSON.stringify(r)).toBe('ready');
+    {
+      const e = (r as Ready).expenses;
+      expect(e).toHaveLength(1);
+      expect(e[0]!.amount.amountMinor).toBe(9400);
+    }
+  });
+
+  it.each(['dinner was 84 + 10', 'dinner was 84 plus 10 tip'])(
+    '#3 never asks about an €84 dinner: %s',
+    (text) => {
+      const r = run(text, ctx);
+      expect(r.kind).not.toBe('ready');
+      if (r.kind === 'clarify') expect((r as Clarify).question).not.toContain('€84');
+    },
+  );
+
+  it('#4 an each figure that contradicts the total is not logged', () => {
+    expect(run('i paid €84 for dinner for everyone, 15 each', ctx).kind).not.toBe('ready');
+    expect(ready('i paid €84 for dinner for everyone, 14 each', ctx)[0]!.amount.amountMinor).toBe(
+      8400,
+    );
+  });
+
+  it('#5 a leading count stays out of the question', () => {
+    const r = run('i paid €84 for 2 dinners', ctx);
+    if (r.kind === 'clarify') expect((r as Clarify).question).not.toContain('€84 2 ');
+  });
+
+  it('#6 "+ tip" with no figure is never logged', () => {
+    expect(run('i paid €84 for dinner + tip, everyone', ctx).kind).not.toBe('ready');
+  });
+});

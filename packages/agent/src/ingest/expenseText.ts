@@ -473,7 +473,12 @@ function scanAmounts(low: string, members: readonly ParseMember[]): AmountTok[] 
     if (/\bthe\s*$/.test(before) && /^\s*of\b/.test(after)) continue;
     const hasDecimals = /[.,]\d{1,2}$/.test(m[1]!);
     const standalone = /(?:^|[,;:])\s*$/.test(before) && /^\s*(?:[,;.]|$)/.test(after);
-    const strongBefore = MONEY_BEFORE.test(before) || (nameBefore?.test(before) ?? false);
+    // "84 plus 10 tip", "tipped 10": the second figure is money too (T-010 r2 #3)
+    const extraFigure =
+      (toks.length > 0 && /(?:\+|\bplus|\btipped|\btip(?:ped)? of)\s*$/.test(before)) ||
+      /^\s*(?:tips?|tax|vat|service|gratuity)\b/.test(after);
+    const strongBefore =
+      MONEY_BEFORE.test(before) || extraFigure || (nameBefore?.test(before) ?? false);
     if (strongBefore || hasDecimals) push(s, e, m[1]!, undefined);
     else if (MONEY_AFTER.test(after) || standalone) weakBare.push({ s, e, raw: m[1]! });
   }
@@ -777,6 +782,17 @@ interface PersonRun {
 const ABSENCE_CUE =
   /\b(?:not|without|wasn'?t|isn'?t|didn'?t|did not|was not|is not|out|sick|left|leaving|skipped|skip|missed|bailed|stayed (?:in|home|back)|went home|asleep|no show|no-show)\b/;
 const SETTLED_CUE = /\b(?:already paid|paid (?:me )?(?:back|his|her|their)|paid me)\b/;
+/** True when a clause holds only names, "i"/"me", joiners and "too"/"as well". */
+function onlyNames(clause: string, members: readonly ParseMember[]): boolean {
+  const words = clause
+    .replace(/\bas well\b/g, ' ')
+    .split(/[\s&+]+/)
+    .filter((w) => w.length > 0);
+  return words.every(
+    (w) => /^(?:and|i|me|myself|too|also)$/.test(w) || memberByWord(w, members) !== undefined,
+  );
+}
+
 /** What may sit right before a list: "for", "with", "between", "just", "only"… */
 const LIST_LEAD =
   /\b(?:for|with|between|among|amongst|just|only|including|incl|plus|and also)\s+(?:the\s+)?$/;
@@ -812,10 +828,15 @@ function personRuns(scan: Scan, span: [number, number]): PersonRun[] {
     const ownClause = low.slice(t.end).split(/[,;.:()]|\sbut\s/)[0] ?? '';
     const absentAfterComma =
       /,/.test(gap) && (ABSENCE_CUE.test(ownClause) || /n't\b/.test(ownClause));
+    // "with maya, henry's paying next time": past a comma, a name joins the
+    // list only when its own clause is more names ("and i", "too"), never a
+    // clause of its own (T-010 r2 #1).
+    const clauseAfterComma = /,/.test(gap) && !onlyNames(ownClause, ctx.members);
     if (
       prev !== undefined &&
       !last!.some((x) => x.id === t.id) && // "me and sam, sam wasn't there": a new clause
       !absentAfterComma &&
+      !clauseAfterComma &&
       /^\s*(?:,\s*(?:and\s+)?|and|&|\+|)\s*$/.test(gap)
     ) {
       last!.push(t);
@@ -839,11 +860,10 @@ function personRuns(scan: Scan, span: [number, number]): PersonRun[] {
     const nextStop = after.search(/[,;.:()]|\sbut\s/);
     const clause = low.slice(clauseStart + 1, nextStop < 0 ? low.length : end + nextStop);
     const runText = low.slice(start, end);
-    const clauseOnly =
-      clause
-        .trim()
-        .replace(/^(?:and|just|only|plus|so)\s+/, '')
-        .replace(/\s+(?:too|as well)$/, '') === runText.trim();
+    const trimmed = clause.trim().replace(/^(?:and|just|only|plus|so)\s+/, '');
+    const clauseOnly = trimmed.replace(/\s+(?:too|as well|also)$/, '') === runText.trim();
+    // "maya too": adds to the payer, never the whole list (T-010 r2 #2)
+    const adds = clauseOnly && /\s(?:too|as well|also)$/.test(trimmed);
     const ids = uniq(g.map((t) => t.id));
     const hasSelf = selves.length > 0;
     if (names.length === 0) {
@@ -853,7 +873,7 @@ function personRuns(scan: Scan, span: [number, number]): PersonRun[] {
       continue;
     }
     if (LIST_LEAD.test(before) || clauseOnly || (hasSelf && g.length >= 2)) {
-      out.push({ kind: 'list', ids, withPayer: WITH_LEAD.test(before) });
+      out.push({ kind: 'list', ids, withPayer: adds || WITH_LEAD.test(before) });
     } else if (!SETTLED_CUE.test(clause) && (ABSENCE_CUE.test(clause) || /n't\b/.test(clause))) {
       out.push({ kind: 'absent', ids: names.map((t) => t.id), withPayer: false });
     } else {
@@ -1266,16 +1286,24 @@ export function parseExpenseText(text: string, ctx: ExpenseTextContext): Expense
   const shares = amounts.filter((t) => t.role === 'share');
   let totals = amounts.filter((t) => t.role === 'total');
   // "were €28, €14 EACH": a per-person figure next to the total restates it.
+  // It is checked against the headcount once that is known (T-010 r2 #4).
+  const restated: AmountTok[] = [];
   if (totals.some((t) => !t.each) && totals.some((t) => t.each)) {
-    for (const t of totals) if (t.each) t.role = 'paren';
+    for (const t of totals) {
+      if (!t.each) continue;
+      t.role = 'paren';
+      restated.push(t);
+    }
     totals = totals.filter((t) => !t.each);
   }
-  // "€84 + tip", "€84 +": an extra with no amount is a money fact missing,
-  // never logged as the first figure alone (r1 #6).
+  // "€84 + tip", "€84 +", "€84 for dinner + tip": an extra with no amount is a
+  // money fact missing, never logged as the first figure alone (r1 #6, r2 #6).
   for (const t of totals) {
     if (/^\s*(?:\+|plus\b)\s*(?:$|[,;.!?)]|(?:the |a |an )?[a-z])/.test(low.slice(t.end)))
       return { kind: 'unsure', reason: 'unstated_extra' };
   }
+  if (/(?:\+|\bplus)\s*(?:the |a |an )?(?:tips?|tax|vat|service|gratuity)\b/.test(low))
+    return { kind: 'unsure', reason: 'unstated_extra' };
   // "dinner €84 + €10 tip", "€84 for dinner plus €10 tip": one total (r1 #6).
   // The second figure folds in only when nothing describes it as its own thing.
   const EXTRA = /^\s*(?:(?:the|a|an)\s+)?(?:tips?|tax|vat|service(?: charge)?|gratuity|fees?)\b/;
@@ -1283,8 +1311,10 @@ export function parseExpenseText(text: string, ctx: ExpenseTextContext): Expense
     const a = totals[i - 1]!;
     const b = totals[i]!;
     const gap = low.slice(a.end, b.start);
-    if (!/(?:\+|\bplus)\s*$/.test(gap)) continue;
     const afterB = low.slice(b.end);
+    // "84 for dinner and 10 tip", "…and tipped 10": the extra folds in too (r2 #3)
+    const tipJoin = /\btipped\s*$/.test(gap) || (/\band\s*$/.test(gap) && EXTRA.test(afterB));
+    if (!/(?:\+|\bplus)\s*$/.test(gap) && !tipJoin) continue;
     const extraOnly = EXTRA.test(afterB) || /^\s*(?:$|[,;.!?)]|(?:for|on)\b)/.test(afterB);
     if (!extraOnly) {
       // "€84 + €20 cab": two things joined by a plus is past these rules
@@ -1498,6 +1528,27 @@ export function parseExpenseText(text: string, ctx: ExpenseTextContext): Expense
       restToPayer: x.p.restToPayer,
       ...(lineItems !== undefined ? { lineItems } : {}),
     });
+  }
+  // "€84 for everyone, 15 each": the each figure restates the total only when
+  // the arithmetic agrees (to a cent a head); otherwise ask (T-010 r2 #4).
+  if (restated.length > 0) {
+    const d = drafts[0];
+    const p = d?.participants;
+    const n =
+      d === undefined || p === undefined || p.kind === 'vague'
+        ? 0
+        : p.kind === 'count'
+          ? p.n
+          : participantsOf(d, ctx).length;
+    if (drafts.length !== 1) return { kind: 'unsure', reason: 'each_mismatch' };
+    // with nobody named yet, the participants question comes first
+    if (d?.amount !== undefined && n > 0) {
+      const total = decimalToCents(d.amount.decimal);
+      for (const r of restated) {
+        if (Math.abs(decimalToCents(r.decimal) * n - total) > n)
+          return { kind: 'unsure', reason: 'each_mismatch' };
+      }
+    }
   }
   return { kind: 'drafts', drafts };
 }
@@ -1735,7 +1786,7 @@ function labelOf(d: ExpenseDraft, ctx: ExpenseTextContext): string {
   if (amt === undefined) return theThing(d);
   return d.description === 'expense'
     ? `the ${amt}`
-    : `the ${amt}${d.perPerson ? ' each' : ''} ${d.description}`;
+    : `the ${amt}${d.perPerson ? ' each' : ''} ${d.description.replace(/^\d+\s+/, '')}`;
 }
 
 const CURRENCY_NAMES: Readonly<Record<string, string>> = {
