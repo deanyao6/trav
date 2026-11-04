@@ -258,7 +258,13 @@ export async function importCardTransactions(
     owner.role !== 'guest' &&
     safety.isConfirmedAdult(owner, now);
   if (!eligible) {
-    const dropped = dropPendingItems({ stores, clock }, owner.memberId, group.groupId, 'card');
+    const dropped = dropPendingItems(
+      { stores, clock },
+      owner.memberId,
+      group.groupId,
+      'card',
+      'not_eligible',
+    );
     return keep('not_eligible', { dropped });
   }
   const consent = stores.private.getConsent(owner.memberId, group.groupId);

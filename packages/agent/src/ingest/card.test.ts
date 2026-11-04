@@ -933,7 +933,11 @@ describe('T-013 r1 fixes', () => {
     h.clock.set('2026-03-17T21:01:00+01:00');
     setConsent(h, SAM, false);
     const tap = await h.tap('h_sam', card.id, 'confirm');
-    expect(tap).toMatchObject({ silent: true, note: 'looks_shared:consent_off' });
+    expect(tap).toMatchObject({ silent: false, note: 'looks_shared:consent_off' });
+    // one DM line to the owner only, so the tap doesn't look ignored
+    expect(tap.outbound).toHaveLength(1);
+    expect(msg(tap.outbound[0]).to).toEqual({ kind: 'member', memberId: SAM });
+    expect(msg(tap.outbound[0]).text).toMatch(/card import is off/);
     expect(cardExpenses(h)).toEqual([]);
     expect(samItems(h, 'pending')).toEqual([]);
     expect(samItems(h, 'dismissed')).toHaveLength(1);

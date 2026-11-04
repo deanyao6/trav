@@ -489,7 +489,11 @@ export function answerShare(
   if (consentRevokedSince(stores, item)) {
     // SAFETY §2.6: the import was turned off after this card went out; the item goes, whatever the answer.
     dropPendingItems({ stores, clock }, owner.memberId, ctx.group.groupId, item.source);
-    return { drafts: [], note: 'looks_shared:consent_off' };
+    // one line so the tap doesn't look ignored (T-013 r2 #2)
+    return {
+      drafts: [line('card import is off, so i dropped that charge. nothing went on the tab')],
+      note: 'looks_shared:consent_off',
+    };
   }
 
   if (match.intent === 'keep') {
@@ -637,6 +641,7 @@ export function dropPendingItems(
   ownerMemberId: MemberId,
   groupId: GroupId,
   source: PendingPrivateItem['source'],
+  cause: 'consent_revoked' | 'not_eligible' = 'consent_revoked',
 ): number {
   const { stores, clock } = deps;
   const now = clock.now();
@@ -655,7 +660,7 @@ export function dropPendingItems(
       actor: { kind: 'system', id: 'trav' },
       visibility: 'owner',
       ownerId: ownerMemberId,
-      payload: { itemId: item.id, cause: 'consent_revoked' },
+      payload: { itemId: item.id, cause },
     });
   }
   if (source === 'card') {
