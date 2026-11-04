@@ -88,7 +88,7 @@
     "transactions/mem_sam.json": "8d0e58923261ded86cd04c9e2a2bcc25d66f0e9d9d4b7c489dd261067986fa1f",
     "transactions/mem_tci_dad.json": "ba1a18ef7a577f2d4e4327fcc3d2a90e5994b07e111214d37dd1c00d0e041c87",
     "transactions/mem_tci_mom.json": "de870c6809ab5f02d7703a130151113b0db961da4b7e124509539f12a76545ee",
-    "wrapped/barcelona.json": "801d4378b06dbcc7d1a0bb2f8b4aa4feb1ef5f7286a9cf21ed466fbae037a952"
+    "wrapped/barcelona.json": "dbcfc65c55ab4b75f64c00f282cb5c2188a08574edfcd3531532a094d16f5e0c"
   },
   "preserved": []
 }

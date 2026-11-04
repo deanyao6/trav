@@ -185,6 +185,10 @@ describe('demo states 4–6, scripted backend, in order', () => {
     expect(wrapped).toHaveLength(1);
     expect(wrapped[0]!.isTrav).toBe(true);
     expect(bcn(s6).status).toBeUndefined();
+    // Sam never tapped Share it, so his €23.40 card charge is still private and
+    // the Wrapped must not carry it (the recap/Wrapped exemption in
+    // expectGroupClean only covers a shared item; T-016 review #2).
+    expect(JSON.stringify(wrapped)).not.toContain('23.40');
 
     // Pressing it again moves nothing.
     const s7 = await post(b, '/api/clock', { step: 'end_of_trip', groupId: BARCELONA.groupId });

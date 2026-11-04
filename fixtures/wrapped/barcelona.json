@@ -212,7 +212,7 @@
     },
     {
       "award": "Night Owl",
-      "basis": "nights (18:00–06:00) on which this member fronted the latest expense",
+      "basis": "nights (18:00–06:00) on which this member fronted the latest expense; tie-break: later latest expense, then member order",
       "stats": [
         {
           "memberId": "mem_dean",
@@ -244,13 +244,13 @@
         "mem_priya",
         "mem_sam"
       ],
-      "referenceWinner": "mem_jordan",
+      "referenceWinner": "mem_priya",
       "runnerUpBecauseTopAlreadyAwarded": false,
       "repeatWinner": false,
       "acceptableWinners": [
-        "mem_jordan",
+        "mem_sam",
         "mem_priya",
-        "mem_sam"
+        "mem_jordan"
       ]
     },
     {
@@ -358,14 +358,15 @@
         "mem_priya",
         "mem_sam"
       ],
-      "referenceWinner": "mem_priya",
-      "runnerUpBecauseTopAlreadyAwarded": false,
+      "referenceWinner": "mem_jordan",
+      "runnerUpBecauseTopAlreadyAwarded": true,
       "repeatWinner": false,
       "acceptableWinners": [
         "mem_dean",
         "mem_maya",
         "mem_priya",
-        "mem_sam"
+        "mem_sam",
+        "mem_jordan"
       ]
     }
   ],

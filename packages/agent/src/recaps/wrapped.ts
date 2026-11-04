@@ -155,10 +155,15 @@ function statsFor(
   familyMode: boolean,
 ): { label: string; value: string }[] {
   const out: { label: string; value: string }[] = [];
-  if (totals.topCategory !== null) {
+  // In family mode drinks is never a highlight (SAFETY §2.7 rule 4, VOICE §8;
+  // T-016 review #1): the top non-drinks category stands in.
+  const top = familyMode
+    ? (totals.byCategory.find((c) => c.category !== 'drinks') ?? null)
+    : totals.topCategory;
+  if (top !== null) {
     out.push({
-      value: formatMoney(totals.topCategory.amount),
-      label: `on ${totals.topCategory.category}, the top category`,
+      value: formatMoney(top.amount),
+      label: `on ${top.category}, the top category`,
     });
   }
   if (!familyMode && groupAwards.bigNight !== null) {
@@ -359,6 +364,7 @@ export async function buildWrappedInput(
       photoId: c.photoId,
       ownerMemberId: c.ownerMemberId,
       ...(c.qualityTag !== undefined ? { qualityTag: c.qualityTag } : {}),
+      ...(c.mimeType !== undefined ? { mimeType: c.mimeType } : {}),
     })),
     optedOut: group.settings.awardsOptOut ?? [],
     familyMode,

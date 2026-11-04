@@ -283,7 +283,7 @@ describe('Wrapped composer on the Barcelona world (T-016)', () => {
       3 rides, €74
       3 nights on the tab · latest receipt 2:14am
       €184 on the biggest meal (dinner at Taverna del Gat Blau)
-      awards 🏆 MVP Spender: Dean (€2,065.20) · Uber Captain: Sam (1 ride) · Night Owl: Jordan
+      awards 🏆 MVP Spender: Dean (€2,065.20) · Uber Captain: Sam (1 ride) · Night Owl: Priya
       final settle is in the card, 5 transfers and you're done 💸
       6 photos in the card, from everyone who shared
       next trip? add trav to the new group chat, i'll take it from there"
@@ -590,13 +590,21 @@ describe('opt-out via request_settings_change (awardsOptOut, self only)', () => 
 });
 
 describe('Turks and Caicos Wrapped: family tab, the minor, photos of a minor', () => {
-  function tciWorld(album?: AlbumAdapter) {
+  function tciWorld(
+    album?: AlbumAdapter,
+    opts: { familyTab?: boolean; noGuardian?: boolean; extra?: Expense[] } = {},
+  ) {
     const clock = createSimulatedClock('2026-06-28T10:00:00-04:00');
     const ids = createDeterministicIdGenerator('w');
     const stores = createMemoryStores({ clock, ids });
     stores.group.groups.create(TCI.group);
-    for (const m of TCI.members) stores.group.members.upsert(m);
-    stores.group.trips.create(TCI.trip);
+    for (const m of TCI.members) {
+      if (opts.noGuardian === true && m.memberId === 'mem_tci_lily') {
+        const { guardianMemberId: _g, ...rest } = m;
+        stores.group.members.upsert(rest);
+      } else stores.group.members.upsert(m);
+    }
+    stores.group.trips.create({ ...TCI.trip, familyTab: opts.familyTab ?? TCI.trip.familyTab });
     for (const a of TCI.activities) stores.group.trips.upsertActivity(a);
     const raw = fixture<{
       expenses: {
@@ -626,7 +634,7 @@ describe('Turks and Caicos Wrapped: family tab, the minor, photos of a minor', (
       createdBy: e.paidBy,
       status: 'logged',
     }));
-    writeExpenses(stores, expenses, TCI.members);
+    writeExpenses(stores, [...expenses, ...(opts.extra ?? [])], TCI.members);
     // Lily asked for the snorkel tour; someone also logged the adults' nightcap as "her" ask.
     addBooking(stores, TCI.trip, {
       requestedBy: 'mem_tci_lily',
@@ -668,6 +676,45 @@ describe('Turks and Caicos Wrapped: family tab, the minor, photos of a minor', (
     expect(voiceViolations(m, members, TCI.trip)).toEqual([]);
     // The mock album has no subject tags, so in a group with a minor nothing can be shown.
     expect(m.card.photos).toEqual([]);
+  });
+
+  it('family mode never names drinks as the top category, family tab on or off (T-016 review #1)', async () => {
+    const drinks: Expense = {
+      expenseId: 'exp_tci_drinks_big',
+      groupId: TCI.group.groupId,
+      tripId: TCI.trip.tripId,
+      description: 'rum punch',
+      category: 'drinks',
+      amount: { amountMinor: 500000, currency: 'USD' },
+      paidBy: [{ memberId: 'mem_tci_dad', amount: { amountMinor: 500000, currency: 'USD' } }],
+      split: { method: 'exclude', excluded: [] },
+      source: 'chat',
+      sourceRef: { kind: 'message', id: 'exp_tci_drinks_big' },
+      occurredAt: '2026-06-24T15:00:00-04:00',
+      createdAt: '2026-06-24T15:00:00-04:00',
+      createdBy: 'mem_tci_dad',
+      status: 'logged',
+    };
+    for (const familyTab of [true, false]) {
+      const { deps } = tciWorld(undefined, { familyTab, extra: [drinks] });
+      const r = await composeWrapped(deps, TCI.group.groupId, TCI.trip.tripId);
+      if (r.kind !== 'ok') throw new Error(r.kind);
+      const m = r.render.message;
+      expect(m.text).not.toMatch(/drinks/);
+      expect(JSON.stringify(m.card.stats)).not.toMatch(/drinks/);
+      expect(m.card.stats.some((s) => s.label.endsWith('the top category'))).toBe(true);
+    }
+  });
+
+  it('a guardian-less minor with money: the guardian question, never a broken card (T-016 review #3)', async () => {
+    // composeWrapped is what the scheduled job sends: a plain group question, no card.
+    const { deps } = tciWorld(undefined, { familyTab: false, noGuardian: true });
+    const r = await composeWrapped(deps, TCI.group.groupId, TCI.trip.tripId);
+    expect(r.kind).toBe('needs_guardian');
+    if (r.kind !== 'needs_guardian') return;
+    expect(r.message.to).toEqual({ kind: 'group' });
+    expect(r.message.card).toBeUndefined();
+    expect(r.message.text).toMatch(/who's covering Lily/);
   });
 
   it('with tagged photos: the share card never holds a photo of Lily, by Lily, or from the adults-only night', async () => {

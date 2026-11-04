@@ -115,6 +115,7 @@ export interface AlbumPhotoFact {
   readonly photoId: string;
   readonly ownerMemberId: MemberId;
   readonly qualityTag?: string;
+  readonly mimeType?: string;
 }
 
 export interface WrappedAwardsInput {
@@ -280,8 +281,12 @@ function tallies(
     if (payer !== undefined && isRide(e))
       bump(t.uber_captain, payer, 1, e.expenseId, e.amount.amountMinor);
   }
-  for (const { expense, memberId } of latestByNight(expenses, input.trip).values()) {
-    bump(t.night_owl, memberId, 1, expense.expenseId);
+  for (const [night, { expense, memberId }] of latestByNight(expenses, input.trip)) {
+    // Ties go to the later night, not member order (T-016 review #4): how far
+    // past that night's 18:00 the last expense landed (the zone offset is the
+    // same for every night, so it cancels out in the comparison).
+    const late = Math.max(0, parseIso(expense.occurredAt) - Date.parse(`${night}T18:00:00Z`));
+    bump(t.night_owl, memberId, 1, expense.expenseId, Math.round(late / 60_000));
   }
   for (const { expense, memberId } of firstByMorning(expenses, input.trip).values()) {
     bump(t.early_bird, memberId, 1, expense.expenseId);
@@ -295,6 +300,8 @@ function tallies(
   }
   for (const p of input.photos) {
     if (p.qualityTag !== undefined && NOT_A_PHOTO.has(p.qualityTag)) continue;
+    // "N photos" counts photos only, never videos (T-016 review #5)
+    if (p.mimeType !== undefined && !p.mimeType.startsWith('image/')) continue;
     bump(t.photographer, p.ownerMemberId, 1, p.photoId);
   }
   return t;

@@ -239,7 +239,13 @@ export function buildWrappedAwards(chat, trip, ledger, album, rosters, recaps) {
     if (!lateByNight[key] || t > lateByNight[key].t) lateByNight[key] = { t, memberId: e.paidBy[0].memberId, expenseId: e.expenseId, at: e.occurredAt };
   }
   const owl = {};
-  for (const v of Object.values(lateByNight)) owl[v.memberId] = (owl[v.memberId] ?? 0) + 1;
+  // tie-break: how far past that night's 18:00 the latest expense landed (later wins; T-016 review #4)
+  const owlLate = {};
+  for (const [night, v] of Object.entries(lateByNight)) {
+    owl[v.memberId] = (owl[v.memberId] ?? 0) + 1;
+    const late = Math.max(0, Date.parse(v.at) - Date.parse(`${night}T18:00:00Z`));
+    owlLate[v.memberId] = (owlLate[v.memberId] ?? 0) + Math.round(late / 60000);
+  }
   // early bird: per trip day, who fronted the first expense between 06:00 and 14:00
   const firstByDay = {};
   for (const e of ledger.expenses) {
@@ -271,7 +277,7 @@ export function buildWrappedAwards(chat, trip, ledger, album, rosters, recaps) {
     award('MVP Spender', paid, { members, basis: 'total fronted for the group on the ledger (paidBy), minor units; an honor, never a roast' }),
     award('The Planner', planner, { members, basis: 'completed bookings whose proposal this member requested in the group chat' }),
     award('Uber Captain', rides, { members, basis: 'ride expenses (uber/lyft/taxi/cab) this member fronted on the group ledger; tie-break: larger ride total, then member order' }),
-    award('Night Owl', owl, { members, basis: 'nights (18:00–06:00) on which this member fronted the latest expense' }),
+    award('Night Owl', owl, { members, basis: 'nights (18:00–06:00) on which this member fronted the latest expense; tie-break: later latest expense, then member order' }),
     award('Early Bird', bird, { members, basis: 'trip days on which this member fronted the first expense between 06:00 and 14:00' }),
     award('The Photographer', photos, { members, basis: 'album photos/videos still visible with final consent (screenshots and receipts excluded)', eligible: (m) => consenting.has(m) }),
     award('Always In', inCount, { members, basis: 'activities on which this member is "in" on the final roster (groups/barcelona.json labels.expectedFinalRosters)' }),
@@ -283,7 +289,8 @@ export function buildWrappedAwards(chat, trip, ledger, album, rosters, recaps) {
   const given = new Set();
   for (const a of awards) {
     const val = Object.fromEntries(a.stats.map((s) => [s.memberId, s.value]));
-    const rank = (x, y) => val[y] - val[x] || (a.award === 'Uber Captain' ? (rideTotal[y] ?? 0) - (rideTotal[x] ?? 0) : 0) || order(x) - order(y);
+    const tie = a.award === 'Uber Captain' ? rideTotal : a.award === 'Night Owl' ? owlLate : {};
+    const rank = (x, y) => val[y] - val[x] || (tie[y] ?? 0) - (tie[x] ?? 0) || order(x) - order(y);
     const ranked = a.stats.map((s) => s.memberId).filter((m) => val[m] > 0).sort(rank);
     const fresh = ranked.find((m) => !given.has(m));
     a.referenceWinner = fresh ?? ranked[0] ?? null;
