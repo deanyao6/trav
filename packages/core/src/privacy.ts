@@ -182,6 +182,10 @@ export type PendingPrivateItem = Private<
     readonly suggestedActivityId?: ActivityId;
     readonly promotedExpenseId?: ExpenseId;
     readonly cardMessageId?: MessageId;
+    /** `false` when the source gave only a date and `occurredAt` is a placeholder (local noon). */
+    readonly timeKnown?: false;
+    /** Set when Trav dropped the item (the owner never answered it); absent for an owner's "keep private". */
+    readonly droppedBy?: 'consent_revoked' | 'not_eligible';
   }
 >;
 

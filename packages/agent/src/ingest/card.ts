@@ -332,7 +332,13 @@ export async function importCardTransactions(
    * A shared email receipt for the same ride in another currency counts too
    * (`sameCharge`: same category within 15 minutes; a USD card paying a EUR Uber).
    */
-  const onTab = (amount: Money, at: string, rowId: string, category: ExpenseCategory): boolean =>
+  const onTab = (
+    amount: Money,
+    at: string,
+    rowId: string,
+    category: ExpenseCategory,
+    timeKnown: boolean,
+  ): boolean =>
     logged.some(
       (e) =>
         !(e.source === 'card_transaction' && e.sourceRef.id !== rowId) &&
@@ -340,7 +346,7 @@ export async function importCardTransactions(
         (((sameMoney(e.amount, amount) ||
           (e.original !== undefined && sameMoney(e.original.amount, amount))) &&
           hoursApart(e.occurredAt, at) <= DUPLICATE_WINDOW_H) ||
-          expenseIsCharge(e, 'email_receipt', { amount, occurredAt: at, category })),
+          expenseIsCharge(e, 'email_receipt', { amount, occurredAt: at, category, timeKnown })),
     );
 
   const pendingItems = (): PendingPrivateItem[] => [
@@ -447,7 +453,7 @@ export async function importCardTransactions(
         (!sameMoney(item.amount, tx.amount) || item.sourceItemId !== row.id)
       ) {
         const amountChanged = !sameMoney(item.amount, tx.amount);
-        if (amountChanged && onTab(tx.amount, f.occurredAt, row.id, category)) {
+        if (amountChanged && onTab(tx.amount, f.occurredAt, row.id, category, f.hasTime)) {
           // The final amount is already on the tab (logged in chat meanwhile): stop asking.
           stores.private.putPendingItem(
             owner.memberId,
@@ -492,7 +498,7 @@ export async function importCardTransactions(
     if (verdict.label !== 'shared' || tx.direction !== 'debit') continue;
 
     // 5. already on the tab? (a chat-logged dinner, a Trav booking charge)
-    if (onTab(tx.amount, f.occurredAt, row.id, category)) {
+    if (onTab(tx.amount, f.occurredAt, row.id, category, f.hasTime)) {
       alreadyOnTab += 1;
       continue;
     }
@@ -502,6 +508,7 @@ export async function importCardTransactions(
         amount: tx.amount,
         occurredAt: f.occurredAt,
         category,
+        timeKnown: f.hasTime,
       })
     ) {
       duplicates += 1;
@@ -532,6 +539,7 @@ export async function importCardTransactions(
       lowConfidence: matches.length > 0,
       suggestedParticipants: plan.participants,
       ...(plan.activityId !== undefined ? { suggestedActivityId: plan.activityId } : {}),
+      ...(f.hasTime ? {} : { timeKnown: false as const }),
     });
     stores.private.putPendingItem(owner.memberId, pending);
     created.push(pending.id);

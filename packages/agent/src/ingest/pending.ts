@@ -153,21 +153,40 @@ export function sharePlan(input: SharePlanInput): SharePlan {
 /** Same amount and currency this close together: one charge (the rule both flows always used). */
 export const SAME_CHARGE_WINDOW_H = 48;
 /**
- * A charge in another currency (a USD card paying a EUR ride) can't be matched
- * on amount without FX: same ledger category this close together is one charge.
+ * A charge in another currency (a USD card paying a EUR ride): same ledger
+ * category this close together, with real times on both sides and amounts
+ * that agree at a rough rate, is one charge.
  */
 export const CROSS_CURRENCY_WINDOW_MIN = 15;
+/** How far a converted amount may be from the other one (card FX fees, rate drift). */
+export const CROSS_CURRENCY_TOLERANCE = 0.12;
+/**
+ * Rough units per 1 EUR, only for telling one charge from another (never for
+ * money on the tab). A currency not listed never matches across currencies.
+ */
+const ROUGH_PER_EUR: Readonly<Record<string, number>> = {
+  EUR: 1,
+  USD: 1.08,
+  GBP: 0.86,
+  CAD: 1.46,
+  CHF: 0.95,
+};
 
 export interface ChargeFacts {
   readonly amount: Money;
   readonly occurredAt: IsoDateTime;
   readonly category: ExpenseCategory;
+  /** `false` when `occurredAt` is a date-only placeholder. */
+  readonly timeKnown?: boolean;
 }
 
 /**
  * Card charge and email receipt for one purchase (the owner's own store, so
  * the owner is always the same): the same money within 48h, or, when the
- * currencies differ, the same category within 15 minutes.
+ * currencies differ, the same category within 15 minutes with real times on
+ * both sides and amounts within 12% at a rough rate. Two different charges
+ * must never merge (that would drop a shared expense), so anything unsure
+ * stays two (T-012 r2 review #1, #3).
  */
 export function sameCharge(a: ChargeFacts, b: ChargeFacts): boolean {
   const apartMs = Math.abs(parseIso(a.occurredAt) - parseIso(b.occurredAt));
@@ -176,7 +195,15 @@ export function sameCharge(a: ChargeFacts, b: ChargeFacts): boolean {
       a.amount.amountMinor === b.amount.amountMinor && apartMs <= SAME_CHARGE_WINDOW_H * 3_600_000
     );
   }
-  return a.category === b.category && apartMs <= CROSS_CURRENCY_WINDOW_MIN * 60_000;
+  if (a.timeKnown === false || b.timeKnown === false) return false;
+  if (a.category !== b.category || apartMs > CROSS_CURRENCY_WINDOW_MIN * 60_000) return false;
+  const ra = ROUGH_PER_EUR[a.amount.currency];
+  const rb = ROUGH_PER_EUR[b.amount.currency];
+  if (ra === undefined || rb === undefined) return false;
+  const aEur = a.amount.amountMinor / ra;
+  const bEur = b.amount.amountMinor / rb;
+  if (aEur <= 0 || bEur <= 0) return false;
+  return Math.abs(aEur - bEur) / Math.max(aEur, bEur) <= CROSS_CURRENCY_TOLERANCE;
 }
 
 /** The expense's own charge facts, in both its amount and its original currency. */
@@ -209,9 +236,12 @@ export function alreadyAskedElsewhere(
   otherSource: PendingPrivateItem['source'],
   facts: ChargeFacts,
 ): boolean {
-  return stores.private
-    .listPendingItems(ownerMemberId, groupId)
-    .some((i) => i.source === otherSource && sameCharge(i, facts));
+  return (
+    stores.private
+      .listPendingItems(ownerMemberId, groupId)
+      // An item Trav dropped (consent off, owner not eligible) was never answered (r2 review #2).
+      .some((i) => i.source === otherSource && i.droppedBy === undefined && sameCharge(i, facts))
+  );
 }
 
 // ---------- matching an inbound event to a pending item ----------
@@ -741,7 +771,7 @@ export function dropPendingItems(
   for (const item of live) {
     stores.private.putPendingItem(
       ownerMemberId,
-      markPrivate({ ...item, status: 'dismissed' as const }),
+      markPrivate({ ...item, status: 'dismissed' as const, droppedBy: cause }),
     );
     stores.group.audit.append({
       groupId,

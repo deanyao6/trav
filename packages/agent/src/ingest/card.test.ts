@@ -40,7 +40,13 @@ import { BARCELONA } from '../compose.js';
 import { repoRoot } from '../model/paths.js';
 import { harness, type Harness } from '../runtime.testkit.js';
 import { MAX_SYNC_PAGES, mergePages } from './card.js';
-import { NO_TRIP_TEXT, WHICH_CHARGE_TEXT, needsConversionText, sameCharge } from './pending.js';
+import {
+  NO_TRIP_TEXT,
+  WHICH_CHARGE_TEXT,
+  alreadyAskedElsewhere,
+  needsConversionText,
+  sameCharge,
+} from './pending.js';
 
 const G = BARCELONA.groupId;
 const T = BARCELONA.tripId;
@@ -1022,6 +1028,52 @@ describe('T-012 r1 fixes: a charge already asked about as an email receipt', () 
       sameCharge(ride, { ...ride, amount: usd(1999), occurredAt: '2026-03-15T02:30:00+01:00' }),
     ).toBe(false);
     expect(sameCharge(ride, { ...ride, amount: usd(1999), category: 'food' })).toBe(false);
+  });
+
+  it('T-012 r2 review: two different charges never merge across currencies', () => {
+    const ride = { amount: eur(1860), occurredAt: at, category: 'transport' as const };
+    // #1 a $45 taxi 8 minutes after a €18.60 Uber is another ride
+    const taxi = { ...ride, amount: usd(4500), occurredAt: '2026-03-15T02:22:00+01:00' };
+    expect(sameCharge(ride, taxi)).toBe(false);
+    expect(sameCharge({ ...ride, amount: usd(8000) }, { ...ride, amount: eur(500) })).toBe(false);
+    // a currency without a rough rate never matches across currencies
+    expect(sameCharge(ride, { ...ride, amount: { amountMinor: 1860, currency: 'JPY' } })).toBe(
+      false,
+    );
+    // #3 a date-only card row (placeholder noon) never matches on time
+    expect(sameCharge(ride, { ...ride, amount: usd(1999), timeKnown: false })).toBe(false);
+    // the real pair still does
+    expect(sameCharge(ride, { ...ride, amount: usd(1999), timeKnown: true })).toBe(true);
+  });
+
+  it('T-012 r2 review #2: an email item Trav dropped (consent off) is not "already asked"', async () => {
+    const h = setup({ at: MORNING_AFTER });
+    h.runtime.stores.private.putPendingItem(
+      SAM,
+      markPrivate({
+        id: 'priv_email_dropped',
+        ownerMemberId: SAM,
+        groupId: G,
+        tripId: T,
+        createdAt: h.clock.now(),
+        source: 'email' as const,
+        sourceItemId: 'priv_email_row',
+        status: 'dismissed' as const,
+        droppedBy: 'consent_revoked' as const,
+        amount: eur(2340),
+        occurredAt: '2026-03-15T02:14:00+01:00',
+        merchantDisplay: 'Uber',
+        category: 'transport' as const,
+        lowConfidence: false,
+      }),
+    );
+    expect(
+      alreadyAskedElsewhere(h.runtime.stores, SAM, G, 'email', {
+        amount: eur(2340),
+        occurredAt: '2026-03-15T02:14:00+01:00',
+        category: 'transport',
+      }),
+    ).toBe(false);
   });
 
   for (const status of ['pending', 'promoted', 'dismissed', 'expired'] as const) {
