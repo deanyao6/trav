@@ -132,3 +132,109 @@ The TypeScript interfaces in `packages/adapters/src/interfaces/` already encode 
 - Open-Meteo terms: https://open-meteo.com/en/terms ; Frankfurter: https://frankfurter.app/docs
 
 No prompt-injection text was encountered in pages read during this pass.
+
+---
+
+## iMessage group access (2026-11-04)
+
+Follow-up to row 8 above. Everything here was read from public pages on 2026-11-04. Vendor claims are marked "(vendor-stated)". Nothing was signed up for or called.
+
+### Bottom line
+
+- **No company is in consumer iMessage groups through an official Apple path.** Apple Messages for Business is still 1:1 and user-initiated. Poke's June 2026 approval is for 1:1 business chat only. Every agent that sits in a friend group does it with a **phone-number or Apple-ID identity on Apple hardware**: a managed relay (Photon, Linq, Sendblue, ...) or the company's own Macs.
+- **Flip (Flip Labs, fliptexts.com) runs on Photon.** Confidence is high: both Photon's own case study and TechCrunch's Photon funding coverage say so. Users add Flip's number to a group like any contact and address it with "@Flip". It splits bills in the thread, which overlaps with Trav's ledger.
+- **Instinct's method is not disclosed.** Confidence is low. It is added to a group "like a contact" on iMessage and does read receipts, emoji reactions and threaded replies. Its privacy policy names no messaging vendor, and no relay vendor lists it as a customer. My inference is a dedicated iMessage identity on Apple hardware, either its own fleet or an unnamed relay. This is **not confirmed**.
+- **For Trav's pilot, the realistic picks are (1) Photon Business and (2) Linq.** Sendblue's AI Agent plan is the cheaper fallback if its beta group API is enabled for that plan. Self-hosting on our own Mac is fine for a developer prototype but is the riskiest path for real friends.
+
+### 1. Instinct
+
+| Item | Finding | Status |
+|---|---|---|
+| What it is | Invite-only personal AI agent from Spear Street Technology, Inc. (San Francisco), founded by Noah Shinn. Reached by text (iMessage, WhatsApp) and voice. Reported $1B Series C at a $10B valuation. | confirmed (TechCrunch, messagingagents.com) |
+| Group chats | Early access 2026-10-05. Shinn's X post says it opened "to everyone on iMessage" (runtimewire dates this 2026-10-27). "Add Instinct to a group chat, and it works for the whole group, including for friends who don't use Instinct yet." The group gets its own Instinct that "only knows what's in the chat". Personal Instincts ask their owner before sharing anything into a group, and pending replies are held when new members join. | confirmed (founder post via search snippet and runtimewire; the X page itself returned 402) |
+| How it's added | "Add Instinct to a group chat", meaning you add its iMessage contact. No public phone number is published. An Instinct member gives invites (5 each). Each agent also has its own email address, but that is used for outbound tasks, not as the iMessage handle. Phone number vs Apple-ID email: **unknown**. | partly confirmed |
+| Observed iMessage features | "Instinct shows read receipts, reacts with emoji, and replies in threads" (user blog, 2026-09-12). Threaded replies and tapbacks need private-API-level control of Messages, which managed relays (Photon, Linq) and BlueBubbles with Private API provide. | confirmed (1 user report) |
+| Tech / vendor | Privacy policy (revised 2026-08-26) names no messaging subprocessor, only "vendors and other service providers". Not on Linq's, Photon's or Sendblue's named-customer lists. A Mac app was leaked in beta on 2026-08-29: it reads recent iMessage conversations and sends from the **user's own Mac**, plus runs a local browser. That is a personal-agent feature, not the group bot. Shinn says it is "actively bringing up more compute". No job posts about messaging infrastructure turned up. | confirmed: absence of disclosure. **inferred:** own Apple-hardware fleet or an unnamed relay |
+| Android / green bubble | Not addressed anywhere I found. GA is described as "on iMessage". | unknown |
+
+**Confidence: low on the mechanism, high on the user-facing behaviour.**
+
+### 2. Flip / Flip Labs
+
+| Item | Finding | Status |
+|---|---|---|
+| Identity | **Flip Labs**, product "Flip" at fliptexts.com, an "AI money manager in iMessage". $1.4M pre-seed led by The House Fund; a16z speedrun. Photon also lists Pear VC and Z Fellows as backers. (The voice-AI "Flip" named in row 8 is unrelated.) | confirmed |
+| How users reach it | Text **+1 (628) 264-7696**. Buttons on the site open an `sms:` link with a pre-filled opener. No app, no account needed to start. Beta, waitlist. | confirmed (fliptexts.com) |
+| Groups | Photon's case study: Flip is added to a group "like any contact". You address it with "@Flip" (e.g. split an Airbnb and car rental). It reads the thread, does the math, and sends each person their share with one-tap settle. A testimonial on fliptexts.com says it "splits dinner in the gc". | vendor-stated (Photon, 2026-10-01) + site testimonial |
+| Messaging vendor | **Photon**, on a "Photon-managed iMessage line". Photon's write-up says bridging from a personal Mac is wrong for a money product. Photon also mentions tappable confirmation cards, typing indicators, receipt images, voice notes and RCS/SMS fallback. TechCrunch's Photon seed coverage lists "finance AI assistant Fliptexts" as a customer. Flip's own privacy policy (updated 2026-09-09) names Dwolla, Natural, Plaid, Spinwheel, OpenAI, Anthropic, PostHog and Meta, but **not Photon**. Messaging falls under generic "third-party service providers". | confirmed by two independent sources |
+| Money movement | ACH through Dwolla and Natural; bank data through Plaid. "No trade ever executes without an explicit yes." | confirmed (privacy policy, Photon) |
+
+**Confidence: high on the vendor (Photon), medium on group behaviour details (vendor marketing).** Product note: Flip already does @-mention bill splitting in iMessage groups, so it is the closest competitor to Trav's ledger. Trav's edge has to be the trip context: bookings, approval policy, recaps and the album.
+
+### 3. Other consumer agents in iMessage groups
+
+| Agent | Groups? | How | Source quality |
+|---|---|---|---|
+| **Poke** (Interaction Co.) | Yes, since ~2025-12-06: "you can now add the Poke.com number to your iMessage group chats" | Number-based relay. **Linq lists Poke as a customer** (vendor-stated). Separately, Apple approved Poke on **Messages for Business** (2026-06-04) for 1:1. That required live-support capability, labelling the agent as an AI, Apple's button style and a couple of months of review. Poke pays its messaging service provider, not Apple. | X post (snippet), TechCrunch, 9to5Mac |
+| **Lindy** | 1:1 focus | Swift daemon on a Mac mini, then BlueBubbles, then **banned by Apple within ~12 h of launch (≈10K messages)** with no appeal, then Linq (8 numbers load-balanced, daily per-number cap, text-first onboarding, contact cards). | Lindy engineering blog, 2026-03-16 (first-hand) |
+| **Tomo** | Yes ("can become part of group conversations") | Linq lists Tomo as a customer (vendor-stated) | TechCrunch 2026-10-24 + messagingagents.com |
+| **Boardy, Ditto, Slashy, Rho** | various | Photon customers (TechCrunch; Slashy's security page names Photon) | secondary |
+| **Continua** | Yes (SMS / iMessage / Discord groups) | Not disclosed | TechCrunch 2025 |
+| Maverick, Wajo | Groups mentioned | Not disclosed | TechCrunch 2026-10-24 |
+
+The pattern: the funded consumer group agents that disclose a vendor use **Linq or Photon**. None uses Apple's official program for groups, because that program doesn't support them.
+
+### 4. Options for a small startup, Nov 2026
+
+| Option | Group support | Cost (as found) | Apple-ban / ToS risk | 5-friend-group pilot |
+|---|---|---|---|---|
+| **Photon Business** (photon.codes) | "Full group messaging iMessage API access" on Business and Enterprise. Free and Pro (shared lines) show group API as "Limited". Docs list group rename, avatar, membership add/remove/list/leave, inbound group events, tapbacks, read receipts (inbound), polls, contact-card sharing, effects. Typing and RCS/SMS fallback are claimed in marketing. Open-source local mode can run on your own Mac for development. | Free (shared, up to 10 users), Pro $25/mo (shared, up to 100 users), **Business $250/line/mo dedicated**, Enterprise custom. Cold outreach capped at 50 new contacts/day. | Same underlying risk as any relay. The vendor absorbs the hardware and line management. | 1 dedicated line, $250/mo. Friends add the number to their group. No setup fee published. |
+| **Linq** (linqapp.com) | v3 API: groups of 2+ recipients, max 31 handles, "requires iMessage or RCS". MMS groups are mentioned in the guide. Add/remove participants via API. For **cross-service changes (adding an Android user to an iMessage group) you must create a new chat**. The older v2 FAQ said you can't add participants to existing groups. Tapbacks, typing, read receipts, media up to 100 MB, participant-change webhooks. | Flat per-line monthly, **not published**. 7-day trial; sandbox capped at 100 msgs/day. Sendblue's (competitor) blog claims ~$250/mo + $1,000+ setup. Guidance is 7,000 msgs/line/day ("lines that go past it do occasionally get flagged"); burst limit 30 msgs/60 s per sender-recipient pair. | Same. SOC 2 Type II (vendor-stated). Largest named customer list (Poke, Lindy, Tomo). | Trial, then a quote. Likely the most battle-tested for groups. |
+| **Sendblue** | Group API is **beta, "select plans only"**. The **AI Agent (inbound) plan "can only respond to group chats that the number has been added to"**, which is exactly Trav's case. Creating outbound groups needs Blue Ocean. iMessage groups only (no SMS/MMS groups). Removing someone needs 4+ members. Inline replies on V2 lines. Media in groups is supported. | Free sandbox (shared, 10 verified contacts, no webhooks). **AI Agent $100/line/mo** (dedicated, 1,000 inbound contacts/day, typing, reactions, media). Enterprise custom. | Same | Cheapest dedicated line, but **confirm with sales that group beta is enabled on AI Agent** before relying on it. |
+| LoopMessage, Blooio, Tuco, Claw Messenger, Chert, Inkbox | Mixed / "not stated". LoopMessage is reported to support groups (secondary). | LoopMessage $0 sandbox / $20 shared / $59.99 / $99.99. Blooio $289/line dedicated. Tuco $149+/mo + $335 setup per line (dedicated Mac mini + Apple ID). (All from messagingagents.com comparison, checked 2026-09/10; not verified on vendor pages.) | Same | Backups only |
+| **Self-hosted** (Mac mini + Apple ID + phone number, BlueBubbles server or AppleScript + chat.db) | Full participant once the identity is in the group. **Private API (requires disabling SIP)** gives tapbacks, typing, read marking, group rename and add/remove. AppleScript alone gives text and attachments only. | Hardware (~one Mac mini) + a phone line + ops time; software free | **Highest.** Uses a consumer Apple ID for a commercial bot. Lindy's account was permanently banned within half a day at launch volume, with no appeal. Apple's spam signals (new account, low recipient diversity, high send:receive ratio) are opaque. One person must keep the Mac awake and patched. | OK for a **developer-only prototype**. Not recommended for real friends' groups (single point of failure, and a ban kills every group at once). |
+| **Apple Messages for Business** | **No groups** (Apple FAQ, row 3). 1:1, user-initiated. | MSP fees | Sanctioned | Not usable for groups. Possible future 1:1 DM channel (Poke precedent: about 2 months of review, live support required, AI disclosure). |
+| Apple iOS 27 / anything new | Found **nothing** shipped for third-party agents in consumer groups | n/a | n/a | n/a |
+
+**Behaviour Trav must design for, whatever the vendor:**
+
+1. **Being added to an existing group.** A relay or self-hosted line is just another iMessage participant, so any member can add Trav's contact to an existing iMessage group. Sendblue's AI Agent plan only works this way. Apple only allows adding people to groups that already have 3+ members.
+2. **It sees every message.** iMessage has no bot "privacy mode" like Telegram. The relay webhook delivers every group message (Sendblue includes a `group_id`). Mention filtering is Trav's job, and the group must be told up front that Trav can read the thread. This is inferred from how all the vendors' webhooks are described; no vendor offers a mention-only filter.
+3. **Media and tapbacks** are supported by Photon, Linq and Sendblue (dedicated plans), and by self-hosted only with the Private API.
+4. **Rate and ratio.** Keep sends low relative to receives. Lindy's rough rule is no more than ~10 outbound per inbound. Trav's mention-only replies, tapback acknowledgements (T-042) and batched digests (T-038) already help. Debounce bursts (Lindy used 3 s).
+5. **Private DMs.** Card, email and QR-code DMs work best once each member has texted Trav's number 1:1 first. That doubles as consent and keeps the line "inbound-first" for the vendor plans.
+
+### 5. Blue vs green bubbles
+
+- If **any member is on Android**, the thread isn't an iMessage group. It becomes RCS (iOS 18+, carrier-dependent) or MMS. MMS groups lose naming, member management and reactions (Apple Community, secondary). Users on iOS 26 report mixed groups falling back to SMS unpredictably.
+- **Sendblue can't modify SMS/MMS groups at all.** Linq's groups "require iMessage or RCS", and adding an Android user to an iMessage group means creating a new chat. Photon claims RCS/SMS fallback but documents no group detail for it.
+- **Pilot implication:** recruit **all-iPhone friend groups** for the iMessage pilot. For mixed groups, Trav should say so once and offer WhatsApp (official Groups API, max 8, row 4) or Telegram.
+
+### What a 5-group pilot takes (estimate)
+
+- 1 dedicated line: Photon Business $250/mo, Sendblue AI Agent $100/mo (if group beta is enabled), or Linq on quote. About 25–40 people and a few hundred messages a day, far under every vendor's per-line guidance.
+- A contact card (vCard) for Trav's number. Each member texts Trav once 1:1 (consent and DM channel), then someone adds Trav to the existing all-iPhone group.
+- An intro and consent message on join, mention-only replies, and "@trav leave" to remove it.
+- Kill switch and fallback: if the line is flagged, Trav must fail visibly (and the group can move to WhatsApp/Telegram), not silently.
+
+### Hard blockers (plain)
+
+1. **No sanctioned way into consumer iMessage groups exists.** Every option is a relay on Apple hardware that Apple can shut off with no appeal (Lindy). This is the same blocker as above, now confirmed across vendors and competitors.
+2. **Android members break the iMessage path.** Mixed groups become RCS or MMS, which most relays don't support for groups.
+3. **Group API is plan-gated at every vendor:** Photon Business, Sendblue beta "select plans", Linq on quote. Pricing for the cheapest group-capable dedicated line ranges from $100 to $250+/mo.
+
+### Sources (read 2026-11-04)
+
+- Instinct: https://techcrunch.com/2026/10/05/instinct-brings-its-ai-agent-to-group-chats-even-for-friends-without-an-account/ ; https://x.com/noahrshinn/status/2115143830924341534 (text via search snippet; page returned 402) ; https://runtimewire.com/article/instinct-group-ai-agent-imessage ; https://runtimewire.com/article/instinct-mac-app-imessage-local-browser-whoop ; https://instinct.com/privacy-policy ; https://messagingagents.com/agents/instinct ; https://mager.co/blog/2026-09-12-instinct/ ; https://www.eesel.ai/blog/instinct-ai-review
+- Flip: https://fliptexts.com/ ; https://fliptexts.com/privacy ; https://photon.codes/blog/flip-brings-ai-powered-finance-into-imessage-with-photon ; https://cryptorank.io/insights/deals/flip-labs-pre-seed-led-by-the-house-fund ; Photon seed coverage (customer list): https://techcrunch.com/?p=3169890 , https://runtimewire.com/article/photon-raises-4-5m-messaging-agents
+- Poke / Apple MfB: https://x.com/yuris/status/1997372676080603624 ; https://techcrunch.com/2026/06/04/apple-approves-poke-as-the-first-ai-agent-on-its-messages-for-business-platform/ ; https://9to5mac.com/2026/06/04/apples-messages-app-on-iphone-now-has-a-third-party-ai-agent/
+- Agent roundup: https://techcrunch.com/2026/10/24/all-the-ai-agents-that-can-live-in-your-text-messages/
+- Lindy: https://www.lindy.ai/blog/imessage-api-three-rewrites-one-apple-ban-and-what-actually-works
+- Provider comparison (secondary): https://messagingagents.com/tools/imessage-api
+- Photon: https://photon.codes/pricing ; https://photon.codes/docs/spectrum-ts/providers/imessage/messaging-features.md
+- Linq: https://linqapp.com/blog/imessage-for-agents ; https://v3-api-docs.pages.dev/getting-started/key-concepts/index.md ; https://docs.linqapp.com/v2/faqs/general/
+- Sendblue: https://docs.sendblue.com/getting-started/groups/ ; https://www.sendblue.com/pricing ; https://www.sendblue.com/blog/imessage-api-pricing-comparison (vendor blog)
+- BlueBubbles Private API: https://docs.bluebubbles.app/private-api/
+- Mixed groups (secondary): https://bgr.com/2227111/can-android-phone-users-participate-imessage-group-chat/ ; https://discussions.apple.com/thread/256150676
+
+Injection-like text seen in this pass is logged in `research/INJECTION_LOG.md` (Photon docs "Agent Instructions" block, Inkbox self-signup prompt, Linq "For AI assistants" page). None of it was acted on.
