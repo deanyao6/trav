@@ -176,7 +176,11 @@ describe('top bar: clock and replay', () => {
       body: { step: 'end_of_trip', groupId: BARCELONA.groupId },
     });
     const endHtml = html(props((end.body as { state: SimState }).state, 'h_dean'));
-    expect(endHtml).toContain('no Wrapped yet: the Wrapped job lands with T-016');
+    // T-016: the Wrapped card posts as a Trav bubble, so no status line under the thread.
+    expect(endHtml).not.toContain('no Wrapped yet');
+    expect(endHtml).toContain('data-testid="card-wrapped"');
+    expect(endHtml).toContain('2026-03-12 → 2026-03-17');
+    expect(endHtml).toContain('data-testid="wrapped-closing"');
     expect(endHtml).toContain('wed mar 18 · 10am · trip over');
   });
 });

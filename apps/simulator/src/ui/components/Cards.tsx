@@ -478,6 +478,11 @@ function WrappedBody({ card, group }: { card: WrappedCard; group: SimGroup }) {
         <div>
           {card.trip.days} days · {card.trip.people} people
         </div>
+        {card.trip.startDate !== undefined && card.trip.endDate !== undefined ? (
+          <div className="muted small" data-testid="wrapped-dates">
+            {card.trip.startDate} → {card.trip.endDate}
+          </div>
+        ) : null}
       </div>
       <div className="stats">
         <div className="stat">
@@ -518,6 +523,11 @@ function WrappedBody({ card, group }: { card: WrappedCard; group: SimGroup }) {
       </div>
       <Photos photos={card.photos} max={6} />
       <SettleBody card={card.finalSettle} group={group} compact />
+      {card.closing !== undefined ? (
+        <div className="muted small" data-testid="wrapped-closing">
+          {card.closing.text}
+        </div>
+      ) : null}
     </>
   );
 }

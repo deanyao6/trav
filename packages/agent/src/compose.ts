@@ -36,7 +36,7 @@ import {
   TravError,
 } from '@trav/core';
 import { createMemoryStores } from '@trav/core/storage';
-import type { ChannelAdapter } from '@trav/adapters';
+import type { AlbumAdapter, ChannelAdapter } from '@trav/adapters';
 import {
   createMockBookingPayments,
   createMockFlights,
@@ -68,6 +68,7 @@ import {
 } from './memory/index.js';
 import { createModelClient, readModelEnv, type ModelClient } from './model/client.js';
 import { sendTurn as sendTurnViaSendPath, type SendDeps } from './outbound/send.js';
+import { wrappedJobFor } from './recaps/wrapped.js';
 import { createV0ToolRegistry } from './tools/index.js';
 import type { ToolRegistry } from './tools/registry.js';
 
@@ -87,6 +88,8 @@ export interface TravRuntimeOptions {
   /** Environment for the model client; default `process.env`. Never logged. */
   readonly env?: Readonly<Record<string, string | undefined>>;
   readonly providers?: Partial<ProviderRegistry>;
+  /** Shared album for Wrapped's photos (T-016/T-029). Default: none (no photos). */
+  readonly album?: AlbumAdapter;
   readonly scheduler?: Scheduler;
   /** Default: `outbound/send.ts` (screen → voice lint → lane → audit). */
   readonly sendTurn?: TurnSender;
@@ -138,9 +141,8 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
   const ids = options.ids ?? createUlidIdGenerator(clock);
   const stores = options.stores ?? createMemoryStores({ clock, ids });
   const seed = options.seed ?? (options.stores === undefined ? 'barcelona' : 'none');
-  if (seed === 'barcelona' && stores.group.groups.get(BARCELONA.groupId) === undefined) {
-    seedBarcelona(stores);
-  }
+  const seeded = seed === 'barcelona' && stores.group.groups.get(BARCELONA.groupId) === undefined;
+  if (seeded) seedBarcelona(stores);
   const env = readModelEnv({
     ...(options.env ?? process.env),
     ...(options.offline === true ? { TRAV_OFFLINE: '1' } : {}),
@@ -155,6 +157,11 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
     payments: options.providers?.payments ?? createMockBookingPayments({ clock }),
   };
   const scheduler = options.scheduler ?? createInMemoryScheduler();
+  if (seeded) {
+    // The seeded trip's end-of-trip Wrapped (T-016): 10am the day after it ends.
+    const trip = stores.group.trips.get(BARCELONA.tripId);
+    if (trip !== undefined) scheduler.schedule(wrappedJobFor(trip));
+  }
   const groupMemory = createGroupMemory({ repo: stores.group.groupMemory, ids });
   const memberMemory = createMemberMemory({ store: stores.private, ids });
   const proposals = createProposalService({ stores, tickets: providers.tickets, clock, ids });
@@ -195,6 +202,7 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
     proposals,
     sendTurn,
     approval: { normalize: normalizeApprovalEvent, handler: approvalHandler },
+    ...(options.album !== undefined ? { album: options.album } : {}),
     ...(options.maxToolRounds !== undefined ? { maxToolRounds: options.maxToolRounds } : {}),
   };
   const agent = createTravAgent(deps);
@@ -269,17 +277,21 @@ export function createSendPathSender(
   extra: Pick<SendDeps, 'ids' | 'voice' | 'onLintViolation'> = {},
 ): TurnSender {
   return (outbounds, ctx) =>
-    sendTurnViaSendPath(outbounds, {
-      channel,
-      group: ctx.group,
-      members: ctx.members,
-      trip: ctx.trip,
-      consent: (memberId) => stores.private.getConsent(memberId, ctx.group.groupId),
-      audit: stores.group.audit,
-      clock,
-      handleFor: ctx.handleFor,
-      ...extra,
-    });
+    sendTurnViaSendPath(
+      outbounds,
+      {
+        channel,
+        group: ctx.group,
+        members: ctx.members,
+        trip: ctx.trip,
+        consent: (memberId) => stores.private.getConsent(memberId, ctx.group.groupId),
+        audit: stores.group.audit,
+        clock,
+        handleFor: ctx.handleFor,
+        ...extra,
+      },
+      ctx.optionsFor,
+    );
 }
 
 // ---------- the Barcelona seed (ids and handles follow fixtures/_gen/trips.mjs) ----------

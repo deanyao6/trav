@@ -76,14 +76,24 @@ const CAP_SETTINGS = [
 type BooleanSetting = (typeof BOOLEAN_SETTINGS)[number];
 type CapSetting = (typeof CAP_SETTINGS)[number];
 
+/** Per-member, for the requester only: "@trav no awards for me" (T-016). */
+const SELF_SETTINGS = ['awardsOptOut'] as const;
+type SelfSetting = (typeof SELF_SETTINGS)[number];
+
 export type SettingsChangeInput =
+  | { readonly setting: SelfSetting; readonly value: boolean }
   | { readonly setting: BooleanSetting; readonly value: boolean }
   | { readonly setting: CapSetting; readonly value: number | null };
 
-type BooleanChange = Extract<SettingsChangeInput, { readonly value: boolean }>;
+type BooleanChange = Extract<SettingsChangeInput, { readonly setting: BooleanSetting }>;
+type SelfChange = Extract<SettingsChangeInput, { readonly setting: SelfSetting }>;
 
 function isBooleanChange(input: SettingsChangeInput): input is BooleanChange {
   return (BOOLEAN_SETTINGS as readonly string[]).includes(input.setting);
+}
+
+function isSelfChange(input: SettingsChangeInput): input is SelfChange {
+  return (SELF_SETTINGS as readonly string[]).includes(input.setting);
 }
 
 export interface SettingsChangeResult {
@@ -98,11 +108,14 @@ export const requestSettingsChangeTool: ToolDefinition<SettingsChangeInput, Sett
   {
     name: 'request_settings_change',
     description:
-      "Change a group setting on a member's request. roastMode on, allAdultsConfirmed and every cap need a lead; roastMode off and quietMode can come from any member. Roast mode is refused while anyone in the group is under 18 or of unconfirmed age. Returns the line to say.",
+      'Change a group setting on a member\'s request. roastMode on, allAdultsConfirmed and every cap need a lead; roastMode off and quietMode can come from any member. awardsOptOut applies to the requester only ("no awards for me" = true). Roast mode is refused while anyone in the group is under 18 or of unconfirmed age. Returns the line to say.',
     inputSchema: {
       type: 'object',
       properties: {
-        setting: { type: 'string', enum: [...BOOLEAN_SETTINGS, ...CAP_SETTINGS] },
+        setting: {
+          type: 'string',
+          enum: [...BOOLEAN_SETTINGS, ...SELF_SETTINGS, ...CAP_SETTINGS],
+        },
         value: { description: 'boolean for mode settings; integer minor units (or null) for caps' },
       },
       required: ['setting', 'value'],
@@ -110,9 +123,17 @@ export const requestSettingsChangeTool: ToolDefinition<SettingsChangeInput, Sett
     },
     parse(raw) {
       const r = asRecord(raw);
-      const setting = optEnum(r, 'setting', [...BOOLEAN_SETTINGS, ...CAP_SETTINGS]);
+      const setting = optEnum(r, 'setting', [
+        ...BOOLEAN_SETTINGS,
+        ...SELF_SETTINGS,
+        ...CAP_SETTINGS,
+      ]);
       if (setting === undefined) bad('setting is required');
       const value = r['value'];
+      if ((SELF_SETTINGS as readonly string[]).includes(setting)) {
+        if (typeof value !== 'boolean') bad(`${setting} takes true or false`);
+        return { setting: setting as SelfSetting, value };
+      }
       if ((BOOLEAN_SETTINGS as readonly string[]).includes(setting)) {
         if (typeof value !== 'boolean') bad(`${setting} takes true or false`);
         return { setting: setting as BooleanSetting, value };
@@ -139,6 +160,42 @@ export const requestSettingsChangeTool: ToolDefinition<SettingsChangeInput, Sett
         after: before,
         text,
       });
+
+      if (isSelfChange(input)) {
+        const list = group.settings.awardsOptOut ?? [];
+        const before = list.includes(me.memberId);
+        if (before === input.value) {
+          return {
+            kind: 'unchanged',
+            setting: input.setting,
+            before,
+            after: before,
+            text: input.value ? "you're already out of the awards" : "you're already in the awards",
+          };
+        }
+        const after = input.value
+          ? [...list, me.memberId]
+          : list.filter((id) => id !== me.memberId);
+        ctx.stores.group.groups.update({
+          ...group,
+          settings: { ...group.settings, awardsOptOut: after },
+        });
+        ctx.stores.group.audit.append({
+          groupId: ctx.groupId,
+          tripId: ctx.tripId,
+          type: 'settings.changed',
+          actor: { kind: 'member', id: me.memberId },
+          visibility: 'group',
+          payload: { memberId: me.memberId, setting: input.setting, before, after: input.value },
+        });
+        return {
+          kind: 'changed',
+          setting: input.setting,
+          before,
+          after: input.value,
+          text: input.value ? "you're out of the awards" : "you're back in the awards",
+        };
+      }
 
       if (isBooleanChange(input)) {
         const before = group.settings[input.setting];

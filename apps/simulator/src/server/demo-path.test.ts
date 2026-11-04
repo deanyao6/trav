@@ -6,7 +6,7 @@
  *   replay ▸ (step by step up to the Razzmatazz booking)
  *   → switch to Sam: "simulate a card charge" → the "looks shared?" Uber prompt → Share it
  *   → next morning → the Morning After card, or (until T-015) the status line naming it
- *   → end of trip  → Wrapped, or (until T-016) the status line naming it
+ *   → end of trip  → the Wrapped card (T-016): trip name, dates, final settle
  *
  * Every step is a POST a button in the UI makes. Privacy is checked on the
  * group payload after every step.
@@ -45,8 +45,14 @@ function expectGroupClean(state: SimState): void {
     }
   }
   const group = JSON.stringify(state.groups.map((g) => g.thread));
-  // Sam's private Uber charge and Priya's DM-only diet note never reach the group.
-  expect(group).not.toContain('23.40');
+  // Sam's private Uber charge and Priya's DM-only diet note never reach the group
+  // as themselves. Once Sam taps Share it, the €23.40 is on the group tab, so the
+  // end-of-trip recap / Wrapped totals may carry it (VOICE §3.7: "the group sees
+  // it in the next recap"); no other group message ever does.
+  const live = state.groups.map((g) =>
+    messages(g.thread).filter((m) => m.card?.type !== 'recap' && m.card?.type !== 'wrapped'),
+  );
+  expect(JSON.stringify(live)).not.toContain('23.40');
   expect(group).not.toContain('vegetarian');
 }
 
@@ -192,12 +198,29 @@ describe.each<Kind>(['scripted', 'agent'])('demo clicked in order (%s backend)',
     // --- state 6: end of trip.
     const s6 = await post(b, '/api/clock', { step: 'end_of_trip', groupId: BARCELONA.groupId });
     expect(s6.now).toBe('2026-03-18T10:00:00+01:00');
+    // T-016: the scheduled Wrapped posts in the group, built from the stores.
     const wrapped = messages(bcn(s6).thread).find((m) => m.card?.type === 'wrapped');
-    if (wrapped === undefined) {
-      expect(bcn(s6).status).toContain('trip over');
-      expect(bcn(s6).status).toContain('no Wrapped yet');
-      expect(bcn(s6).status).toContain('T-016');
-    }
+    expect(wrapped, 'end of trip posts the Wrapped card').toBeDefined();
+    expect(wrapped!.isTrav).toBe(true);
+    expect(wrapped!.lane).toBe('group');
+    const wcard = wrapped!.card?.type === 'wrapped' ? wrapped!.card : undefined;
+    expect(wcard?.trip).toMatchObject({
+      name: 'Barcelona spring break',
+      days: 6,
+      startDate: '2026-03-12',
+      endDate: '2026-03-17',
+    });
+    expect(wrapped!.text.split('\n')[0]).toBe('barcelona spring break wrapped 🎉');
+    expect(wrapped!.text).toMatch(/^6 days · 6 people · €/m);
+    expect(wcard?.shareable).toBe(true);
+    expect(wcard?.closing?.text).toMatch(/^next trip\?/);
+    // Every award names a member and says where its number came from.
+    for (const a of wcard?.awards ?? [])
+      expect(['ledger', 'booking', 'attendance', 'album']).toContain(a.basis);
+    // Henry's sick day never shows up as a stat or an award.
+    expect(wrapped!.text).not.toMatch(/sick|pharmacy/i);
+    // A Trav post speaks for itself: no status line.
+    expect(bcn(s6).status).toBeUndefined();
     // Status lines never carry amounts or merchants, and never become Trav messages.
     for (const s of [s4b, s5, s6]) expect(bcn(s).status ?? '').not.toMatch(/€|23\.40|uber/i);
 
@@ -226,9 +249,11 @@ describe.each<Kind>(['scripted', 'agent'])('demo clicked in order (%s backend)',
     }
     const s6 = await replayTo(b, SCRIPT.length);
     expect(s6.now).toBe('2026-03-18T10:00:00+01:00');
-    if (!messages(bcn(s6).thread).some((m) => m.card?.type === 'wrapped')) {
-      expect(bcn(s6).status).toContain('T-016');
-    }
+    // The script's end-of-trip clock line drains the scheduled Wrapped (T-016).
+    const posted = messages(bcn(s6).thread).filter((m) => m.card?.type === 'wrapped');
+    expect(posted).toHaveLength(1);
+    expect(posted[0]!.text.split('\n')[0]).toBe('barcelona spring break wrapped 🎉');
+    expect(bcn(s6).status ?? '').not.toContain('T-016');
     // Other trips never show Barcelona's line.
     for (const g of s6.groups)
       if (g.group.groupId !== BARCELONA.groupId) expect(g.status).toBeUndefined();

@@ -23,6 +23,9 @@ export interface WrappedRenderInput {
     readonly currency: string;
     /** Family tab: one pot, nothing to split (VOICE §8). */
     readonly familyTab?: boolean;
+    /** First and last trip day, carried on the card (the share card shows them). */
+    readonly startDate?: string;
+    readonly endDate?: string;
   };
   readonly totals: {
     readonly spent: Money;
@@ -35,10 +38,14 @@ export interface WrappedRenderInput {
   readonly roastLines?: readonly string[];
   readonly photos?: readonly RecapPhoto[];
   readonly finalSettle: Omit<SettleUpRenderInput, 'mode'>;
+  /** The closing "next trip?" line (IDEAS idea 8), last in the text and on the card. */
+  readonly closing?: string;
 }
 
 const MAX_STAT_LINES = 5;
+/** Awards named in the text; the card carries up to `MAX_CARD_AWARDS`. */
 const MAX_AWARDS = 3;
+const MAX_CARD_AWARDS = 9;
 const MAX_WRAPPED_PHOTOS = 6;
 /** Evidence short enough to ride inline after the name ("(14 photos)"). */
 const INLINE_EVIDENCE_CHARS = 12;
@@ -98,13 +105,14 @@ export function renderWrappedForSend(
     .filter((l) => l.length > 0);
   lines.push(...roastLines);
 
-  const awards = input.awards
+  const cardAwards = input.awards
     .filter((a) => {
       const m = ctx.members.find((x) => x.memberId === a.memberId);
       if (m === undefined) return false;
       return !safety.isMinor(m, ctx.now) || /\bpick\b/i.test(a.title);
     })
-    .slice(0, MAX_AWARDS);
+    .slice(0, MAX_CARD_AWARDS);
+  const awards = cardAwards.slice(0, MAX_AWARDS);
   if (awards.length > 0) {
     lines.push(
       `awards 🏆 ${awards
@@ -144,6 +152,8 @@ export function renderWrappedForSend(
   if (photos.length > 0) {
     lines.push(`${plural(photos.length, 'photo')} in the card, from everyone who shared`);
   }
+  const closing = input.closing?.trim() ?? '';
+  if (closing.length > 0) lines.push(closing);
 
   const message = cardMessage<WrappedCard>(
     ctx,
@@ -152,17 +162,25 @@ export function renderWrappedForSend(
     {
       type: 'wrapped',
       title: `${trip.name.toLowerCase()} wrapped`,
-      trip: { name: trip.name, days: trip.days, people: trip.people, currency: trip.currency },
+      trip: {
+        name: trip.name,
+        days: trip.days,
+        people: trip.people,
+        currency: trip.currency,
+        ...(trip.startDate !== undefined ? { startDate: trip.startDate } : {}),
+        ...(trip.endDate !== undefined ? { endDate: trip.endDate } : {}),
+      },
       totals: {
         spent: totals.spent,
         perPerson: totals.perPerson,
         byCategory: totals.byCategory.map((c) => ({ ...c })),
       },
       stats: input.stats.map((s) => ({ ...s })),
-      awards: awards.map((a) => ({ ...a })),
+      awards: cardAwards.map((a) => ({ ...a })),
       photos,
       finalSettle: settle.card,
       shareable: true,
+      ...(closing.length > 0 ? { closing: { text: closing } } : {}),
     },
     {
       images: photos.map((p) => ({ url: p.url, alt: p.alt })),

@@ -5,7 +5,7 @@
  *   4. switch to Sam → Sam's DM shows the "looks shared?" Uber prompt → Share it
  *   5. next morning → the clock moves, `scheduler.drain` runs, whatever Trav
  *      sends lands in the group (the Morning After once T-015 sends it)
- *   6. end of trip → same, for Wrapped (T-016)
+ *   6. end of trip → same; the scheduled Wrapped (T-016) posts in the group
  *
  * The Morning After / Wrapped rendering hooks are in `ui/scheduled.test.tsx`.
  *
@@ -168,7 +168,7 @@ describe('demo states 4–6, scripted backend, in order', () => {
     expect(groupPayload(s5)).not.toContain('23.40');
   });
 
-  it('4 → 5 → 6: next morning and end of trip move the clock and drain; the status names what is missing', async () => {
+  it('4 → 5 → 6: next morning and end of trip move the clock and drain; Wrapped posts at the end', async () => {
     const b = await scriptedToState3();
     await post(b, '/api/intake', { docId: 'doc_bcn_sam_card_1' });
     const s5 = await post(b, '/api/clock', { step: 'morning', groupId: BARCELONA.groupId });
@@ -180,8 +180,11 @@ describe('demo states 4–6, scripted backend, in order', () => {
 
     const s6 = await post(b, '/api/clock', { step: 'end_of_trip', groupId: BARCELONA.groupId });
     expect(s6.now).toBe('2026-03-18T10:00:00+01:00');
-    expect(bcn(s6).status).toContain('trip over');
-    expect(bcn(s6).status).toContain('T-016');
+    // T-016: the scheduled Wrapped posts, so there is no status line to read.
+    const wrapped = messages(bcn(s6).thread).filter((m) => m.card?.type === 'wrapped');
+    expect(wrapped).toHaveLength(1);
+    expect(wrapped[0]!.isTrav).toBe(true);
+    expect(bcn(s6).status).toBeUndefined();
 
     // Pressing it again moves nothing.
     const s7 = await post(b, '/api/clock', { step: 'end_of_trip', groupId: BARCELONA.groupId });

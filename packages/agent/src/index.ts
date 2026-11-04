@@ -26,5 +26,6 @@ export * from './ingest/looksShared.js';
 export * from './ingest/pending.js';
 export * from './outbound/send.js';
 export * from './render/index.js';
+export * from './recaps/wrapped.js';
 export * from './loop.js';
 export * from './compose.js';

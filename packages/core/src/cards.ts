@@ -12,6 +12,7 @@ import type {
   CardId,
   ExpenseId,
   GroupId,
+  IsoDate,
   IsoDateTime,
   MemberId,
   MessageId,
@@ -285,6 +286,9 @@ export interface WrappedCard extends CardBase {
     readonly days: number;
     readonly people: number;
     readonly currency: string;
+    /** First and last trip day (local dates), when known. */
+    readonly startDate?: IsoDate;
+    readonly endDate?: IsoDate;
   };
   readonly totals: {
     readonly spent: Money;
@@ -296,7 +300,8 @@ export interface WrappedCard extends CardBase {
     readonly title: string;
     readonly memberId: MemberId;
     readonly evidence: string;
-    readonly basis: 'ledger' | 'booking' | 'attendance';
+    /** Where the number comes from; `album` = consent-filtered shared album (T-016). */
+    readonly basis: 'ledger' | 'booking' | 'attendance' | 'album';
   }[];
   readonly photos: readonly {
     readonly url: string;
@@ -305,6 +310,8 @@ export interface WrappedCard extends CardBase {
   }[];
   readonly finalSettle: SettleUpCard;
   readonly shareable: true;
+  /** The closing "next trip?" line (IDEAS idea 8): an invite, never a data share. */
+  readonly closing?: { readonly text: string };
 }
 
 export interface OptionsCard extends CardBase {

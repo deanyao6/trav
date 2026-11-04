@@ -20,3 +20,4 @@ export * as audit from './audit/index.js';
 export * as flights from './flights/index.js';
 export * as safety from './safety/index.js';
 export * as recaps from './recaps/index.js';
+export * as wrapped from './wrapped/index.js';

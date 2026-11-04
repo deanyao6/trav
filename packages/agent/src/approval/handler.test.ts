@@ -357,7 +357,11 @@ function attempts(h: Harness) {
 }
 
 function expiryJobs(h: Harness): string[] {
-  return h.runtime.scheduler.list().map((j) => j.jobId);
+  // Only expiry jobs: the seeded trip also carries its end-of-trip Wrapped job (T-016).
+  return h.runtime.scheduler
+    .list()
+    .filter((j) => j.kind === 'proposal_expiry')
+    .map((j) => j.jobId);
 }
 
 describe('the Razzmatazz moment: 5 of 6, one tap, one purchase (CLAUDE.md §8)', () => {
@@ -1217,9 +1221,12 @@ describe('expiry is the shorter of the grant TTL and the provider hold (VOICE §
     const expected = proposalExpiresAt(decisionOf(h, next.proposalId), next);
     expect(expected).toBe(next.holdExpiresAt);
     expect(groupMessages(turn)[0]?.expiresAt).toBe(expected);
-    expect(h.runtime.scheduler.list().map((j) => [j.jobId, j.runAt])).toEqual([
-      [expiryJobId(next.proposalId), expected],
-    ]);
+    expect(
+      h.runtime.scheduler
+        .list()
+        .filter((j) => j.kind === 'proposal_expiry')
+        .map((j) => [j.jobId, j.runAt]),
+    ).toEqual([[expiryJobId(next.proposalId), expected]]);
   });
 });
 

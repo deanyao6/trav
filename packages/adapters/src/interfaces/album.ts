@@ -39,6 +39,12 @@ export interface Photo {
   /** Fixture hint for the highlight scorer: 'good' | 'ok' | 'bad' | 'screenshot' | 'receipt' | 'blurry'. */
   readonly qualityTag?: string;
   readonly addedAt: IsoDateTime;
+  /**
+   * Members tagged in the shot (by the uploader). Absent = unknown: Wrapped's
+   * shareable card then treats it as possibly showing a minor in any group
+   * that has one (T-016, fail closed).
+   */
+  readonly subjects?: readonly MemberId[];
   /** Hidden group-wide via "@trav drop that one" (any member). */
   readonly hidden: boolean;
 }

@@ -55,6 +55,11 @@ export interface GroupSettings {
   readonly familyModeForced: boolean;
   /** `@trav quieter` (T-041). */
   readonly quietMode: boolean;
+  /**
+   * Members who said "@trav no awards for me" (T-016): Wrapped skips them
+   * silently. Group-visible by design (it only removes a name). Absent = nobody.
+   */
+  readonly awardsOptOut?: readonly MemberId[];
 }
 
 export interface Group {

@@ -64,7 +64,13 @@ import type {
   Trip,
 } from '@trav/core';
 import { approval, formatMoney, isReaction, ledger, money, parseIso, TravError } from '@trav/core';
-import type { ChannelAdapter, ChannelHandle, InboundEvent, InboundMessage } from '@trav/adapters';
+import type {
+  AlbumAdapter,
+  ChannelAdapter,
+  ChannelHandle,
+  InboundEvent,
+  InboundMessage,
+} from '@trav/adapters';
 import type {
   ApprovalEvent,
   ApprovalHandler,
@@ -119,7 +125,8 @@ import {
   type ModelMessage,
   type ResponseSource,
 } from './model/client.js';
-import type { SendOutcome } from './outbound/send.js';
+import type { OutboundSendOptions, SendOutcome } from './outbound/send.js';
+import { composeWrapped } from './recaps/wrapped.js';
 import { DM_CHAT_PROMPT, GROUP_CHAT_PROMPT, type PromptTemplate } from './prompts/index.js';
 import {
   detectMention,
@@ -144,6 +151,8 @@ export interface TurnSendContext {
   readonly lane: 'group' | 'dm';
   /** Channel handle for a member's DM lane. */
   handleFor(memberId: MemberId): ChannelHandle | undefined;
+  /** Per-message screen facts (e.g. Wrapped's `roastLines`, T-016); optional for senders that ignore it. */
+  optionsFor?(outbound: Outbound): OutboundSendOptions | undefined;
 }
 
 /** The single send path, injected: `outbound/send.ts` in production, a direct channel sender in tests. */
@@ -178,6 +187,8 @@ export interface AgentDeps {
   readonly proposals: ProposalService;
   readonly sendTurn: TurnSender;
   readonly approval?: ApprovalRouting;
+  /** Shared album (T-029) for Wrapped's photos and The Photographer; absent ⇒ no photos. */
+  readonly album?: AlbumAdapter;
   /** Prompt templates; default `GROUP_CHAT_PROMPT` / `DM_CHAT_PROMPT`. */
   readonly prompts?: { readonly group: PromptTemplate; readonly dm: PromptTemplate };
   /** Max model round-trips per turn (tool loop cap). Default 6. */
@@ -719,9 +730,16 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     };
   }
 
-  async function send(r: Resolved, drafts: readonly Outbound[]): Promise<readonly Outbound[]> {
+  async function send(
+    r: Resolved,
+    drafts: readonly Outbound[],
+    optionsFor?: TurnSendContext['optionsFor'],
+  ): Promise<readonly Outbound[]> {
     if (drafts.length === 0) return [];
-    const outcomes = await deps.sendTurn(drafts, sendCtx(r));
+    const outcomes = await deps.sendTurn(drafts, {
+      ...sendCtx(r),
+      ...(optionsFor !== undefined ? { optionsFor } : {}),
+    });
     const sent: Outbound[] = [];
     for (const o of outcomes) {
       if (o.suppressed || o.sent === null) continue;
@@ -1966,7 +1984,42 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     }
   }
 
+  /** End-of-trip Wrapped (T-016): compose from the stores, send with its roast lines declared. */
+  async function runWrappedJob(job: ScheduledJob): Promise<TurnResult> {
+    const group = stores.group.groups.get(job.groupId);
+    const trip = job.tripId === null ? undefined : stores.group.trips.get(job.tripId);
+    if (group === undefined || trip === undefined) return silent('scheduled:wrapped:no_trip');
+    const before = snapshotAudit(group.groupId);
+    const composed = await composeWrapped(
+      { stores, clock, ids, ...(deps.album !== undefined ? { album: deps.album } : {}) },
+      group.groupId,
+      trip.tripId,
+    );
+    if (composed.kind === 'no_trip') return silent('scheduled:wrapped:no_trip');
+    const r: Resolved = {
+      group,
+      members: stores.group.members.listByGroup(group.groupId),
+      trip,
+      identity: { kind: 'guest', senderId: 'scheduler' },
+      me: null,
+      lane: 'group',
+      now: clock.now(),
+    };
+    const draft = composed.kind === 'ok' ? composed.render.message : composed.message;
+    const roastLines = composed.kind === 'ok' ? composed.render.roastLines : [];
+    const sent = await send(r, [draft], (o) => (o.id === draft.id ? { roastLines } : undefined));
+    return {
+      outbound: sent,
+      toolCalls: [],
+      auditEventIds: auditIdsSince(group.groupId, before),
+      silent: sent.length === 0,
+      modelSources: [],
+      note: composed.kind === 'ok' ? 'scheduled:wrapped' : 'scheduled:wrapped:needs_guardian',
+    };
+  }
+
   async function runScheduledJob(job: ScheduledJob): Promise<TurnResult> {
+    if (job.kind === 'wrapped') return runWrappedJob(job);
     if (job.kind !== 'proposal_expiry') return silent(`scheduled:${job.kind}:not_handled`);
     const proposalId =
       typeof job.payload['proposalId'] === 'string' ? job.payload['proposalId'] : undefined;
