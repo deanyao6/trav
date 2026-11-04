@@ -19,7 +19,7 @@ import type {
   Participant,
   PendingPrivateItem,
 } from '@trav/core';
-import { TravError, formatMoney, ledger, safety, sum } from '@trav/core';
+import { TravError, formatClockTime, formatMoney, ledger, safety, sum } from '@trav/core';
 import type { RenderContext } from './common.js';
 import {
   GROUP,
@@ -329,7 +329,15 @@ function singleLines(entry: LooksSharedItem, ctx: RenderContext): string[] {
     );
     lines.push(`split with ${splitWithText(entry, ctx)}? 👍 yes · 👎 just me`);
   } else {
-    const when = whenShort(item.occurredAt, ctx.timeZone, ctx.now);
+    // VOICE §4.5 "at 2:14am"; an older charge keeps its day after the time ("at 2:14am on sun mar 15").
+    const time = formatClockTime(item.occurredAt, ctx.timeZone);
+    const full = whenShort(item.occurredAt, ctx.timeZone, ctx.now);
+    const when =
+      full === time
+        ? time
+        : full.endsWith(` ${time}`)
+          ? `${time} on ${full.slice(0, -(time.length + 1))}`
+          : full;
     lines.push(
       `saw ${amount} from ${item.merchantDisplay} at ${when}${entry.guess !== undefined ? `, ${entry.guess}` : ''}`,
     );

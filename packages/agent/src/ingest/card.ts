@@ -7,7 +7,11 @@
  *     owner is not a minor: no card ingestion for minors), the provider is
  *     not even called, and anything still pending from an earlier import is
  *     dropped (`dropPendingItems`, `private.item_dismissed` cause
- *     `consent_revoked`, raw descriptors blanked).
+ *     `consent_revoked`, raw descriptors blanked). The same happens for an
+ *     owner who could never answer the DM (`not_eligible`: a guest, an
+ *     inactive or departed member, or anyone not known to be 18+). A pending
+ *     item whose consent was revoked is also dropped at answer time
+ *     (`consentRevokedSince` in `pending.ts`).
  *  2. One Plaid-shaped sync from the caller's cursor (pages capped at
  *     `MAX_SYNC_PAGES`; any failed page ⇒ nothing is applied and the caller
  *     keeps its old cursor, Plaid's restart rule).
@@ -90,7 +94,14 @@ export interface CardImportInput {
 }
 
 export type CardImportStatus =
-  'imported' | 'consent_off' | 'minor' | 'no_trip' | 'not_linked' | 'sync_failed';
+  | 'imported'
+  | 'consent_off'
+  | 'minor'
+  /** Not an active, non-guest member known to be 18+: nobody who could answer the DM. */
+  | 'not_eligible'
+  | 'no_trip'
+  | 'not_linked'
+  | 'sync_failed';
 
 export interface CardImportOutcome {
   readonly status: CardImportStatus;
@@ -150,13 +161,57 @@ export function cardCategory(
   return 'other';
 }
 
-/** The only merchant string the owner (and, once shared, the group) sees. Never the raw descriptor when it looks like an instruction. */
-function displayName(tx: ProviderTransaction, injected: boolean): string {
+/**
+ * The only merchant string the owner (and, once shared, the group) sees. When
+ * the detector flagged the row, neither the enriched merchant name nor the raw
+ * descriptor is used (either can carry the instruction): always 'card charge'.
+ */
+export function displayName(tx: ProviderTransaction, injected: boolean): string {
+  if (injected) return 'card charge';
   const name = sanitizeInline(tx.merchantName ?? '', 60);
   if (name !== '') return name;
-  if (injected) return 'card charge';
   const raw = sanitizeInline(stripInvisible(tx.rawName), 40);
   return raw === '' ? 'card charge' : raw;
+}
+
+interface SyncPage {
+  readonly added: readonly ProviderTransaction[];
+  readonly removed: readonly string[];
+}
+
+/**
+ * All pages of one sync as one batch (Plaid: a pending row can be removed on
+ * one page and its posted row added on a later one). Added and modified rows
+ * are applied first (a later page's version of a row wins); a removed id is
+ * kept only if no posted row in the batch supersedes it (`pendingTransactionId`)
+ * and no later page re-adds it.
+ */
+export function mergePages(pages: readonly SyncPage[]): {
+  readonly added: ProviderTransaction[];
+  readonly removed: string[];
+} {
+  const added = new Map<string, ProviderTransaction>();
+  const removed = new Set<string>();
+  for (const p of pages) {
+    for (const id of p.removed) {
+      removed.add(id);
+      added.delete(id);
+    }
+    for (const tx of p.added) {
+      added.delete(tx.transactionId); // re-insert: batch order follows the latest version
+      added.set(tx.transactionId, tx);
+      removed.delete(tx.transactionId);
+    }
+  }
+  const superseded = new Set(
+    [...added.values()]
+      .map((tx) => tx.pendingTransactionId)
+      .filter((id): id is string => id !== undefined),
+  );
+  return {
+    added: [...added.values()],
+    removed: [...removed].filter((id) => !superseded.has(id)),
+  };
 }
 
 function sameMoney(a: Money, b: Money): boolean {
@@ -196,6 +251,16 @@ export async function importCardTransactions(
     const dropped = dropPendingItems({ stores, clock }, owner.memberId, group.groupId, 'card');
     return keep('minor', { dropped });
   }
+  // Only someone who can answer the DM: an active, non-guest member known to be 18+.
+  const eligible =
+    owner.active &&
+    owner.leftAt === undefined &&
+    owner.role !== 'guest' &&
+    safety.isConfirmedAdult(owner, now);
+  if (!eligible) {
+    const dropped = dropPendingItems({ stores, clock }, owner.memberId, group.groupId, 'card');
+    return keep('not_eligible', { dropped });
+  }
   const consent = stores.private.getConsent(owner.memberId, group.groupId);
   if (consent?.cardImport !== true) {
     const dropped = dropPendingItems({ stores, clock }, owner.memberId, group.groupId, 'card');
@@ -204,7 +269,7 @@ export async function importCardTransactions(
   if (trip === null) return keep('no_trip');
 
   // 2. sync (all pages first; a failure applies nothing).
-  const pages: { added: ProviderTransaction[]; removed: string[] }[] = [];
+  const pages: SyncPage[] = [];
   let cursor = input.cursor;
   for (let page = 0; ; page += 1) {
     if (page >= MAX_SYNC_PAGES) return keep('sync_failed');
@@ -217,6 +282,7 @@ export async function importCardTransactions(
     cursor = res.value.nextCursor;
     if (!res.value.hasMore) break;
   }
+  const batch = mergePages(pages);
   const accounts = await input.adapter.listAccounts(owner.memberId);
   const maskOf = new Map(
     (accounts.ok ? accounts.value : []).map((a) => [a.accountId, a.mask.slice(-4)] as const),
@@ -225,7 +291,7 @@ export async function importCardTransactions(
   // Classifier context: the trip, who is on it, the plans with their rosters,
   // and the owner's merchants from home (this batch only; never stored).
   const tz = trip.timeZone;
-  const rows = pages.flatMap((p) => p.added).filter((tx) => tx.ownerMemberId === owner.memberId);
+  const rows = batch.added.filter((tx) => tx.ownerMemberId === owner.memberId);
   const home = new Map<string, number>();
   for (const tx of rows) {
     const f = cardFeatures(tx, tz);
@@ -244,10 +310,15 @@ export async function importCardTransactions(
   const windowFrom = addDays(trip.startDate, -1);
   const windowTo = addDays(trip.endDate, 1);
   const logged = stores.group.expenses.listByTrip(trip.tripId).filter((e) => e.status === 'logged');
-  /** Already on the tab: same payer (the owner), same amount and currency, within 48h. */
-  const onTab = (amount: Money, at: string): boolean =>
+  /**
+   * Already on the tab: same payer (the owner), same amount and currency, within 48h.
+   * An expense promoted from a DIFFERENT card charge is never this charge (two
+   * €23.40 rides are two rides); chat, booking, email and receipt entries can be.
+   */
+  const onTab = (amount: Money, at: string, rowId: string): boolean =>
     logged.some(
       (e) =>
+        !(e.source === 'card_transaction' && e.sourceRef.id !== rowId) &&
         e.paidBy.some((p) => p.memberId === owner.memberId) &&
         (sameMoney(e.amount, amount) ||
           (e.original !== undefined && sameMoney(e.original.amount, amount))) &&
@@ -276,177 +347,176 @@ export async function importCardTransactions(
   const injected: string[] = [];
   const verdicts: Record<string, LooksSharedVerdict> = {};
 
-  for (const page of pages) {
-    for (const tx of page.added) {
-      if (tx.ownerMemberId !== owner.memberId) continue; // defense in depth (adapter re-checks too)
-      const f = cardFeatures(tx, tz);
-      const matches = detectInjection(`${tx.rawName}\n${tx.merchantName ?? ''}`);
-      if (matches.length > 0) {
-        injected.push(tx.transactionId);
-        stores.group.audit.append({
-          groupId: group.groupId,
-          tripId: trip.tripId,
-          type: 'injection.detected',
-          actor: { kind: 'system', id: 'trav' },
-          visibility: 'owner',
-          ownerId: owner.memberId,
-          payload: {
-            source: 'card_descriptor',
-            itemId: tx.transactionId,
-            matchedPattern: matches[0]!.pattern,
-            patterns: matches.map((m) => m.pattern),
-            excerpt: matches[0]!.excerpt.replace(/\s+/g, ' ').trim().slice(0, 200),
-          },
-        });
-      }
-      const verdict = await classifyLooksShared(f, ctx, {
-        ...(deps.model !== undefined ? { model: deps.model } : {}),
-        ...(input.scenario !== undefined ? { scenario: input.scenario } : {}),
-      });
-      verdicts[tx.transactionId] = verdict;
-
-      const providerIds = [
-        tx.transactionId,
-        ...(tx.pendingTransactionId !== undefined ? [tx.pendingTransactionId] : []),
-      ];
-      const existing =
-        stores.private.getCardTransactionByProviderId(owner.memberId, tx.transactionId) ??
-        (tx.pendingTransactionId !== undefined
-          ? stores.private.getCardTransactionByProviderId(owner.memberId, tx.pendingTransactionId)
-          : undefined);
-      const day = localDate(f.occurredAt, tz);
-      const inWindow = day >= windowFrom && day <= windowTo;
-      const item = itemFor(existing?.id, providerIds);
-      if (!inWindow && verdict.label !== 'shared' && existing === undefined && item === undefined) {
-        continue; // not trip data: never stored
-      }
-      const category = cardCategory(tx);
-      const row: CardTransaction = markPrivate({
-        id: existing?.id ?? ids.next('priv'),
-        ownerMemberId: owner.memberId,
+  for (const tx of batch.added) {
+    if (tx.ownerMemberId !== owner.memberId) continue; // defense in depth (adapter re-checks too)
+    const f = cardFeatures(tx, tz);
+    const matches = detectInjection(`${tx.rawName}\n${tx.merchantName ?? ''}`);
+    if (matches.length > 0) {
+      injected.push(tx.transactionId);
+      stores.group.audit.append({
         groupId: group.groupId,
         tripId: trip.tripId,
-        createdAt: existing?.createdAt ?? now,
-        providerTransactionId: tx.transactionId,
-        accountId: tx.accountId,
-        last4: maskOf.get(tx.accountId) ?? '',
-        postedAt: f.occurredAt,
-        amount: tx.amount,
-        direction: tx.direction,
-        pending: tx.pending,
-        merchantRaw: tx.rawName,
-        merchantDisplay: displayName(tx, matches.length > 0),
-        category,
-        ...(tx.location !== undefined
-          ? {
-              location: {
-                ...(tx.location.city !== undefined ? { city: tx.location.city } : {}),
-                ...(tx.location.country !== undefined ? { country: tx.location.country } : {}),
-              },
-            }
-          : {}),
-        classifierLabel: verdict.label,
-        classifierScore: verdict.score,
+        type: 'injection.detected',
+        actor: { kind: 'system', id: 'trav' },
+        visibility: 'owner',
+        ownerId: owner.memberId,
+        payload: {
+          source: 'card_descriptor',
+          itemId: tx.transactionId,
+          matchedPattern: matches[0]!.pattern,
+          patterns: matches.map((m) => m.pattern),
+          excerpt: matches[0]!.excerpt.replace(/\s+/g, ' ').trim().slice(0, 200),
+        },
       });
-      stores.private.putCardTransaction(owner.memberId, row);
-      stored += 1;
+    }
+    const verdict = await classifyLooksShared(f, ctx, {
+      ...(deps.model !== undefined ? { model: deps.model } : {}),
+      ...(input.scenario !== undefined ? { scenario: input.scenario } : {}),
+    });
+    verdicts[tx.transactionId] = verdict;
 
-      if (item !== undefined) {
-        // 6. pending → posted (or a modified row): update in place, never duplicate.
-        if (
-          item.status === 'pending' &&
-          (!sameMoney(item.amount, tx.amount) || item.sourceItemId !== row.id)
-        ) {
-          const amountChanged = !sameMoney(item.amount, tx.amount);
-          if (amountChanged && onTab(tx.amount, f.occurredAt)) {
-            // The final amount is already on the tab (logged in chat meanwhile): stop asking.
-            stores.private.putPendingItem(
-              owner.memberId,
-              markPrivate({
-                ...item,
-                sourceItemId: row.id,
-                amount: tx.amount,
-                status: 'dismissed' as const,
-              }),
-            );
-            stores.group.audit.append({
-              groupId: group.groupId,
-              tripId: trip.tripId,
-              type: 'private.item_dismissed',
-              actor: { kind: 'system', id: 'trav' },
-              visibility: 'owner',
-              ownerId: owner.memberId,
-              payload: { itemId: item.id, cause: 'already_on_tab' },
-            });
-            alreadyOnTab += 1;
-            for (const list of [created, changed]) {
-              const at = list.indexOf(item.id);
-              if (at >= 0) list.splice(at, 1);
-            }
-            continue;
+    const providerIds = [
+      tx.transactionId,
+      ...(tx.pendingTransactionId !== undefined ? [tx.pendingTransactionId] : []),
+    ];
+    const existing =
+      stores.private.getCardTransactionByProviderId(owner.memberId, tx.transactionId) ??
+      (tx.pendingTransactionId !== undefined
+        ? stores.private.getCardTransactionByProviderId(owner.memberId, tx.pendingTransactionId)
+        : undefined);
+    const day = localDate(f.occurredAt, tz);
+    const inWindow = day >= windowFrom && day <= windowTo;
+    const item = itemFor(existing?.id, providerIds);
+    if (!inWindow && verdict.label !== 'shared' && existing === undefined && item === undefined) {
+      continue; // not trip data: never stored
+    }
+    const category = cardCategory(tx);
+    const row: CardTransaction = markPrivate({
+      id: existing?.id ?? ids.next('priv'),
+      ownerMemberId: owner.memberId,
+      groupId: group.groupId,
+      tripId: trip.tripId,
+      createdAt: existing?.createdAt ?? now,
+      providerTransactionId: tx.transactionId,
+      accountId: tx.accountId,
+      last4: maskOf.get(tx.accountId) ?? '',
+      postedAt: f.occurredAt,
+      amount: tx.amount,
+      direction: tx.direction,
+      pending: tx.pending,
+      merchantRaw: tx.rawName,
+      merchantDisplay: displayName(tx, matches.length > 0),
+      category,
+      ...(tx.location !== undefined
+        ? {
+            location: {
+              ...(tx.location.city !== undefined ? { city: tx.location.city } : {}),
+              ...(tx.location.country !== undefined ? { country: tx.location.country } : {}),
+            },
           }
+        : {}),
+      classifierLabel: verdict.label,
+      classifierScore: verdict.score,
+    });
+    stores.private.putCardTransaction(owner.memberId, row);
+    stored += 1;
+
+    if (item !== undefined) {
+      // 6. pending → posted (or a modified row): update in place, never duplicate.
+      if (
+        item.status === 'pending' &&
+        (!sameMoney(item.amount, tx.amount) || item.sourceItemId !== row.id)
+      ) {
+        const amountChanged = !sameMoney(item.amount, tx.amount);
+        if (amountChanged && onTab(tx.amount, f.occurredAt, row.id)) {
+          // The final amount is already on the tab (logged in chat meanwhile): stop asking.
           stores.private.putPendingItem(
             owner.memberId,
             markPrivate({
               ...item,
               sourceItemId: row.id,
               amount: tx.amount,
-              occurredAt: f.occurredAt,
-              lowConfidence: item.lowConfidence || matches.length > 0,
+              status: 'dismissed' as const,
             }),
           );
-          if (amountChanged && !created.includes(item.id) && !changed.includes(item.id))
-            changed.push(item.id);
+          stores.group.audit.append({
+            groupId: group.groupId,
+            tripId: trip.tripId,
+            type: 'private.item_dismissed',
+            actor: { kind: 'system', id: 'trav' },
+            visibility: 'owner',
+            ownerId: owner.memberId,
+            payload: { itemId: item.id, cause: 'already_on_tab' },
+          });
+          alreadyOnTab += 1;
+          for (const list of [created, changed]) {
+            const at = list.indexOf(item.id);
+            if (at >= 0) list.splice(at, 1);
+          }
+          continue;
         }
-        continue;
+        stores.private.putPendingItem(
+          owner.memberId,
+          markPrivate({
+            ...item,
+            sourceItemId: row.id,
+            amount: tx.amount,
+            occurredAt: f.occurredAt,
+            lowConfidence: item.lowConfidence || matches.length > 0,
+          }),
+        );
+        if (amountChanged && !created.includes(item.id) && !changed.includes(item.id))
+          changed.push(item.id);
       }
-      if (verdict.label !== 'shared' || tx.direction !== 'debit') continue;
-
-      // 5. already on the tab? (a chat-logged dinner, a Trav booking charge)
-      if (onTab(tx.amount, f.occurredAt)) {
-        alreadyOnTab += 1;
-        continue;
-      }
-      const plan = sharePlan({
-        trips: stores.group.trips,
-        trip,
-        members,
-        ownerMemberId: owner.memberId,
-        occurredAt: f.occurredAt,
-        category,
-      });
-      const pending: PendingPrivateItem = markPrivate({
-        id: ids.next('priv'),
-        ownerMemberId: owner.memberId,
-        groupId: group.groupId,
-        tripId: trip.tripId,
-        createdAt: now,
-        source: 'card' as const,
-        sourceItemId: row.id,
-        status: 'pending' as const,
-        amount: tx.amount,
-        occurredAt: f.occurredAt,
-        merchantDisplay: row.merchantDisplay,
-        category,
-        classifier: { looksShared: true, confidence: verdict.score, reason: verdict.reason },
-        lowConfidence: matches.length > 0,
-        suggestedParticipants: plan.participants,
-      });
-      stores.private.putPendingItem(owner.memberId, pending);
-      created.push(pending.id);
+      continue;
     }
+    if (verdict.label !== 'shared' || tx.direction !== 'debit') continue;
 
-    // A pending authorization the provider dropped without a posted row.
-    for (const removedId of page.removed) {
-      const row = stores.private.getCardTransactionByProviderId(owner.memberId, removedId);
-      const item = itemFor(row?.id, [removedId]);
-      if (item === undefined || item.status !== 'pending') continue;
-      stores.private.putPendingItem(
-        owner.memberId,
-        markPrivate({ ...item, status: 'expired' as const }),
-      );
-      expired += 1;
+    // 5. already on the tab? (a chat-logged dinner, a Trav booking charge)
+    if (onTab(tx.amount, f.occurredAt, row.id)) {
+      alreadyOnTab += 1;
+      continue;
     }
+    const plan = sharePlan({
+      trips: stores.group.trips,
+      trip,
+      members,
+      ownerMemberId: owner.memberId,
+      occurredAt: f.occurredAt,
+      category,
+    });
+    const pending: PendingPrivateItem = markPrivate({
+      id: ids.next('priv'),
+      ownerMemberId: owner.memberId,
+      groupId: group.groupId,
+      tripId: trip.tripId,
+      createdAt: now,
+      source: 'card' as const,
+      sourceItemId: row.id,
+      status: 'pending' as const,
+      amount: tx.amount,
+      occurredAt: f.occurredAt,
+      merchantDisplay: row.merchantDisplay,
+      category,
+      classifier: { looksShared: true, confidence: verdict.score, reason: verdict.reason },
+      lowConfidence: matches.length > 0,
+      suggestedParticipants: plan.participants,
+      ...(plan.activityId !== undefined ? { suggestedActivityId: plan.activityId } : {}),
+    });
+    stores.private.putPendingItem(owner.memberId, pending);
+    created.push(pending.id);
+  }
+
+  // A pending authorization the provider dropped without a posted row.
+  for (const removedId of batch.removed) {
+    const row = stores.private.getCardTransactionByProviderId(owner.memberId, removedId);
+    const item = itemFor(row?.id, [removedId]);
+    if (item === undefined || item.status !== 'pending') continue;
+    stores.private.putPendingItem(
+      owner.memberId,
+      markPrivate({ ...item, status: 'expired' as const }),
+    );
+    expired += 1;
   }
 
   // 7. the DMs (owner only; never a minor), with the final amounts of this import.
@@ -492,6 +562,11 @@ export async function importCardTransactions(
         occurredAt: item.occurredAt,
         category: item.category,
       });
+      // The label and guess describe the split stored on the item; if the plan moved since, list names.
+      const same =
+        plan.activityId === item.suggestedActivityId &&
+        plan.participants.join() === (item.suggestedParticipants ?? []).join();
+      if (!same) return { item };
       return {
         item,
         ...(plan.guess !== undefined ? { guess: plan.guess } : {}),

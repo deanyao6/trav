@@ -182,6 +182,7 @@ export function intakeDocument(
     ...(input.extracted.lineItems !== undefined ? { lineItems: input.extracted.lineItems } : {}),
     lowConfidence,
     suggestedParticipants: plan.participants,
+    ...(plan.activityId !== undefined ? { suggestedActivityId: plan.activityId } : {}),
   });
   const dm = promptable
     ? renderLooksShared(

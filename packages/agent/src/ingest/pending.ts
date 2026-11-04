@@ -428,6 +428,23 @@ function promotable(stores: Stores, item: PendingPrivateItem): PrivateItem {
   });
 }
 
+/**
+ * The owner turned the import behind this item off after it was ingested
+ * (`cardImport` for card charges, `emailImport` for email receipts; a receipt
+ * photo the owner sent needs no import consent). No consent record means
+ * nothing was revoked: the document-intake path is consent-gated by its caller.
+ */
+export function consentRevokedSince(
+  stores: Pick<Stores, 'private'>,
+  item: PendingPrivateItem,
+): boolean {
+  if (item.source === 'receipt') return false;
+  const consent = stores.private.getConsent(item.ownerMemberId, item.groupId);
+  if (consent === undefined) return false;
+  const on = item.source === 'card' ? consent.cardImport : consent.emailImport;
+  return !on && parseIso(consent.updatedAt) >= parseIso(item.createdAt);
+}
+
 export function answerShare(
   deps: ShareAnswerDeps,
   match: Extract<ShareMatch, { kind: 'answer' }>,
@@ -469,6 +486,12 @@ export function answerShare(
     stores.group.audit.append({ groupId: ctx.group.groupId, ...input });
   };
 
+  if (consentRevokedSince(stores, item)) {
+    // SAFETY §2.6: the import was turned off after this card went out; the item goes, whatever the answer.
+    dropPendingItems({ stores, clock }, owner.memberId, ctx.group.groupId, item.source);
+    return { drafts: [], note: 'looks_shared:consent_off' };
+  }
+
   if (match.intent === 'keep') {
     stores.private.putPendingItem(
       owner.memberId,
@@ -503,14 +526,6 @@ export function answerShare(
   const shown = (item.suggestedParticipants ?? []).filter((id) => active.includes(id));
   const participants = shown.length >= 1 ? shown : active;
   const source = promotable(stores, item);
-  const plan = sharePlan({
-    trips: stores.group.trips,
-    trip,
-    members: ctx.members,
-    ownerMemberId: owner.memberId,
-    occurredAt: item.occurredAt,
-    category: item.category,
-  });
   const promoted = promote(
     source,
     {
@@ -531,9 +546,13 @@ export function answerShare(
       defaultSplit: { method: 'equal', participants: active },
     },
   );
+  // The plan the split came from, as stored at ingestion (never re-derived: rosters move),
+  // and only while the split is still exactly that roster (nobody left since).
   const expense: Expense =
-    plan.activityId !== undefined && participants === shown
-      ? { ...promoted, activityId: plan.activityId }
+    item.suggestedActivityId !== undefined &&
+    participants === shown &&
+    shown.length === (item.suggestedParticipants ?? []).length
+      ? { ...promoted, activityId: item.suggestedActivityId }
       : promoted;
   const order = ctx.members.map((m) => m.memberId);
   const splitContext: ledger.SplitContext = { memberOrder: order, participantsUniverse: active };

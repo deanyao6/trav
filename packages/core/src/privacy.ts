@@ -10,6 +10,7 @@
  *   `Expense`, and it strips the fields listed in `STRIPPED_FIELDS`.
  */
 import type {
+  ActivityId,
   BookingId,
   CurrencyCode,
   ExpenseId,
@@ -177,6 +178,8 @@ export type PendingPrivateItem = Private<
     };
     readonly lowConfidence: boolean;
     readonly suggestedParticipants?: readonly MemberId[];
+    /** The plan `suggestedParticipants` came from (set at ingestion; the expense links to it only when the split still matches). */
+    readonly suggestedActivityId?: ActivityId;
     readonly promotedExpenseId?: ExpenseId;
     readonly cardMessageId?: MessageId;
   }
