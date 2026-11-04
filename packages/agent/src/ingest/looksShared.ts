@@ -363,6 +363,12 @@ export function looksSharedInput(f: CardFeatures, ctx: LooksSharedContext): stri
 export interface ClassifyCardOptions {
   readonly model?: ModelClient;
   readonly scenario?: string;
+  /**
+   * Source-specific facts on top of stage 1 (T-012: an email receipt's rider
+   * count). Gets the stage-1 score and returns the one the thresholds use
+   * (clamped to [0, 1]). Reasons stay fixed phrases.
+   */
+  readonly adjust?: (h: HeuristicScore) => HeuristicScore;
 }
 
 /**
@@ -374,7 +380,9 @@ export async function classifyLooksShared(
   ctx: LooksSharedContext,
   opts: ClassifyCardOptions = {},
 ): Promise<LooksSharedVerdict> {
-  const h = scoreLooksShared(f, ctx);
+  const stage1 = scoreLooksShared(f, ctx);
+  const adjusted = opts.adjust === undefined ? stage1 : opts.adjust(stage1);
+  const h: HeuristicScore = { score: clamp(adjusted.score), reasons: adjusted.reasons };
   const reason = h.reasons.join(', ');
   if (h.score >= SHARED_AT) return { label: 'shared', score: h.score, reason, stage: 'heuristic' };
   if (h.score <= PERSONAL_AT) {

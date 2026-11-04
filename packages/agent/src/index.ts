@@ -21,6 +21,7 @@ export * from './booking/proposals.js';
 export * from './tools/index.js';
 export * from './ingest/intake.js';
 export * from './ingest/card.js';
+export * from './ingest/email.js';
 export * from './ingest/looksShared.js';
 export * from './ingest/pending.js';
 export * from './outbound/send.js';

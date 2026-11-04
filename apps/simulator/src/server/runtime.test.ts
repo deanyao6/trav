@@ -19,9 +19,13 @@ const SILENT: TurnResult = {
 };
 
 /** The parts of `TravAgent` the simulator never calls. */
-const AGENT_REST: Pick<TravAgent, 'intakeDocument' | 'importCardTransactions' | 'pendingCards'> = {
+const AGENT_REST: Pick<
+  TravAgent,
+  'intakeDocument' | 'importCardTransactions' | 'importEmailReceipts' | 'pendingCards'
+> = {
   intakeDocument: () => Promise.reject(new Error('not used by the simulator backend')),
   importCardTransactions: () => Promise.reject(new Error('not used by the simulator backend')),
+  importEmailReceipts: () => Promise.reject(new Error('not used by the simulator backend')),
   pendingCards: {
     byMessageId: () => undefined,
     pendingProposalsRequestedBy: () => [],

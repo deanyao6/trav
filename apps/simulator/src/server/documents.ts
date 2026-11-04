@@ -13,8 +13,11 @@
  *    included), so the demo feeds the one charge VOICE §9.5 state 4 shows.
  *    The answer (Share it / Keep private / 👍 / 👎) is the real flow either
  *    way (`ingest/pending.ts`);
- *  - email ingestion (T-013): the fixture email is parsed with the offline
- *    receipt parser from `@trav/adapters`, the same one T-013 will use;
+ *  - one curated email instead of an inbox import: the real per-owner path
+ *    (consent-gated, parser + "looks shared" classifier, flagged emails
+ *    under a neutral name) is `agent.importEmailReceipts` (T-012,
+ *    `ingest/email.ts`); the demo parses the one fixture email with the
+ *    same offline receipt parser and feeds it through the intake path;
  *  - consent (privacy, CLAUDE.md §2): only members who turned the import on
  *    in the Barcelona chat script (`fixtures/chats/barcelona.jsonl`
  *    msg_bcn_d_0005–0008) have documents here. Jordan and Henry never did,

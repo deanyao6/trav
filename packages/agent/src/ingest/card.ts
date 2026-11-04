@@ -65,7 +65,13 @@ import {
   type LooksSharedContext,
   type LooksSharedVerdict,
 } from './looksShared.js';
-import { activeMembers, activityWindows, dropPendingItems, sharePlan } from './pending.js';
+import {
+  activeMembers,
+  activityWindows,
+  dropPendingItems,
+  importEligibility,
+  sharePlan,
+} from './pending.js';
 
 /** A broken cursor can never page forever. */
 export const MAX_SYNC_PAGES = 50;
@@ -247,17 +253,13 @@ export async function importCardTransactions(
 
   // 1. a minor's card is never ingested (fixtures README, VOICE §6.1), and
   // consent (SAFETY §2.6) is default off; either ⇒ no provider call, and pending items go.
-  if (safety.isMinor(owner, now)) {
+  const eligibility = importEligibility(owner, now);
+  if (eligibility === 'minor') {
     const dropped = dropPendingItems({ stores, clock }, owner.memberId, group.groupId, 'card');
     return keep('minor', { dropped });
   }
   // Only someone who can answer the DM: an active, non-guest member known to be 18+.
-  const eligible =
-    owner.active &&
-    owner.leftAt === undefined &&
-    owner.role !== 'guest' &&
-    safety.isConfirmedAdult(owner, now);
-  if (!eligible) {
+  if (eligibility === 'not_eligible') {
     const dropped = dropPendingItems(
       { stores, clock },
       owner.memberId,

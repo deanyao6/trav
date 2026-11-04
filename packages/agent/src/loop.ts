@@ -88,6 +88,11 @@ import {
   type CardImportInput,
   type CardImportOutcome,
 } from './ingest/card.js';
+import {
+  importEmailReceipts as importEmails,
+  type EmailImportInput,
+  type EmailImportOutcome,
+} from './ingest/email.js';
 import { answerShare, matchShareAnswer, whichCharge, type ShareMatch } from './ingest/pending.js';
 import {
   intakeDocument as screenDocument,
@@ -209,6 +214,13 @@ export interface CardImportRequest extends CardImportInput {
 
 export interface CardImportResult extends TurnResult, CardImportOutcome {}
 
+/** One email-receipt import for one owner in one group (T-012, `ingest/email.ts`). */
+export interface EmailImportRequest extends EmailImportInput {
+  readonly groupId: GroupId;
+}
+
+export interface EmailImportResult extends TurnResult, EmailImportOutcome {}
+
 export interface TravAgent {
   /** Handles one channel event end to end (identity → mention → approval event or model loop → send). */
   handleInbound(event: InboundEvent): Promise<TurnResult>;
@@ -219,6 +231,15 @@ export interface TravAgent {
    * answers Share it on the card. Zero tools, zero proposals.
    */
   importCardTransactions(input: CardImportRequest): Promise<CardImportResult>;
+  /**
+   * Pulls an owner's forwarded email receipts through the parser and the
+   * "looks shared" classifier (SAFETY §2.4, §2.6; `emailImport` consent,
+   * default off): parsed facts land only in the owner's private store,
+   * instruction-like text is flagged and never quoted, prompts go out as DMs
+   * to the owner, and nothing reaches the group ledger until the owner
+   * answers Share it. Zero tools, zero proposals.
+   */
+  importEmailReceipts(input: EmailImportRequest): Promise<EmailImportResult>;
   /** Handles a due scheduled job (recap, settle-up, expiry, digest, Wrapped). */
   runScheduled(job: ScheduledJob): Promise<TurnResult>;
   /**
@@ -2108,5 +2129,48 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     };
   }
 
-  return { handleInbound, runScheduled, intakeDocument, importCardTransactions, pendingCards };
+  async function importEmailReceipts(input: EmailImportRequest): Promise<EmailImportResult> {
+    const group = stores.group.groups.get(input.groupId);
+    if (group === undefined) throw new TravError('not_found', `group ${input.groupId} not found`);
+    const now = clock.now();
+    const members = stores.group.members.listByGroup(group.groupId);
+    const owner = members.find((m) => m.memberId === input.ownerMemberId);
+    if (owner === undefined) {
+      throw new TravError(
+        'not_found',
+        `member ${input.ownerMemberId} is not in group ${input.groupId}`,
+      );
+    }
+    const before = snapshotAudit(group.groupId);
+    const trip = stores.group.trips.current(group.groupId, now) ?? null;
+    const outcome = await importEmails(input, { stores, clock, ids, model, group, members, trip });
+    const r: Resolved = {
+      group,
+      members,
+      trip,
+      identity: { kind: 'member', member: owner },
+      me: owner,
+      lane: 'dm',
+      now,
+    };
+    const sent = await send(r, outcome.drafts);
+    return {
+      ...outcome,
+      outbound: sent,
+      toolCalls: [],
+      auditEventIds: auditIdsSince(group.groupId, before),
+      silent: sent.length === 0,
+      modelSources: [],
+      note: `emails:${outcome.status}`,
+    };
+  }
+
+  return {
+    handleInbound,
+    runScheduled,
+    intakeDocument,
+    importCardTransactions,
+    importEmailReceipts,
+    pendingCards,
+  };
 }

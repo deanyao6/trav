@@ -149,6 +149,34 @@ describe.each<Kind>(['scripted', 'agent'])('demo clicked in order (%s backend)',
     expect(named).toBe(false);
     expect(bcn(s4b).status).toBeUndefined();
 
+    // --- state 4, email (T-012): the replay fed Priya's Uber receipt (sys_bcn_0113) and her
+    // 👍 (msg_bcn_d_0009). Positive branch: the private prompt, then a `logged` card in her DM.
+    const s4d = s4b;
+    expect(bcn(s4d).intake['mem_priya']).toEqual([]); // fed once, by the replay
+    const emailPrompt = messages(bcn(s4d).dms['mem_priya']!).find(
+      (m) =>
+        m.card?.type === 'expense_confirm' &&
+        m.card.status === 'pending' &&
+        m.card.source === 'email_receipt',
+    )!;
+    expect(emailPrompt, 'Priya got the "looks shared?" receipt in her DM').toBeDefined();
+    expect(emailPrompt.text).toMatch(/^Uber receipt from .+: €18\.60/);
+    expect(emailPrompt.actions.map((a) => a.label)).toEqual(['Share it', 'Keep private']);
+    // Shared: a `logged` expense card in Priya's DM for €18.60; the group was not pinged.
+    const emailLogged = messages(bcn(s4d).dms['mem_priya']!).find(
+      (m) =>
+        m.seq > emailPrompt.seq && m.card?.type === 'expense_confirm' && m.card.status === 'logged',
+    );
+    expect(emailLogged, 'Priya sees it went on the tab').toBeDefined();
+    expect(emailLogged!.card?.type === 'expense_confirm' && emailLogged!.card.amount).toEqual({
+      amountMinor: 1860,
+      currency: 'EUR',
+    });
+    expect(JSON.stringify(bcn(s4d).thread)).not.toContain('18.60');
+    for (const id of ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_sam', 'mem_henry']) {
+      expect(JSON.stringify(bcn(s4d).dms[id]), id).not.toContain('18.60');
+    }
+
     // --- state 5: next morning.
     const s5 = await post(b, '/api/clock', { step: 'morning', groupId: BARCELONA.groupId });
     expect(s5.now).toBe('2026-03-15T10:00:00+01:00');

@@ -62,6 +62,7 @@ import {
   markPrivate,
   parseIso,
   promote,
+  safety,
   strippedFieldsFor,
   TravError,
 } from '@trav/core';
@@ -341,6 +342,28 @@ export function needsConversionText(itemCurrency: string, tripCurrency: string):
   return `that one's in ${itemCurrency} and the tab is in ${tripCurrency}. i can't convert it yet, so it's still just yours`;
 }
 export const NO_TRIP_TEXT = "there's no trip on right now, so that one stays just yours";
+/** A tap on a card whose import was turned off since (T-013 r2 #2; T-012 for email). */
+export const CARD_IMPORT_OFF_TEXT =
+  'card import is off, so i dropped that charge. nothing went on the tab';
+export const EMAIL_IMPORT_OFF_TEXT =
+  'email import is off, so i dropped that receipt. nothing went on the tab';
+
+export type ImportEligibility = 'ok' | 'minor' | 'not_eligible';
+
+/**
+ * Who a private import (card charges, email receipts) may run for: never a
+ * minor (fixtures README, VOICE §6.1), and otherwise only someone who can
+ * answer the DM: an active, non-guest member known to be 18+.
+ */
+export function importEligibility(owner: Member, now: IsoDateTime): ImportEligibility {
+  if (safety.isMinor(owner, now)) return 'minor';
+  const eligible =
+    owner.active &&
+    owner.leftAt === undefined &&
+    owner.role !== 'guest' &&
+    safety.isConfirmedAdult(owner, now);
+  return eligible ? 'ok' : 'not_eligible';
+}
 
 const CATEGORY_TO_RECEIPT_KIND: Readonly<Record<ExpenseCategory, ReceiptSourceKind>> = {
   tickets: 'tickets',
@@ -491,7 +514,7 @@ export function answerShare(
     dropPendingItems({ stores, clock }, owner.memberId, ctx.group.groupId, item.source);
     // one line so the tap doesn't look ignored (T-013 r2 #2)
     return {
-      drafts: [line('card import is off, so i dropped that charge. nothing went on the tab')],
+      drafts: [line(item.source === 'email' ? EMAIL_IMPORT_OFF_TEXT : CARD_IMPORT_OFF_TEXT)],
       note: 'looks_shared:consent_off',
     };
   }
@@ -668,6 +691,17 @@ export function dropPendingItems(
     for (const tx of stores.private.listCardTransactions(ownerMemberId, groupId)) {
       if (tx.merchantRaw !== '') {
         stores.private.putCardTransaction(ownerMemberId, markPrivate({ ...tx, merchantRaw: '' }));
+      }
+    }
+  }
+  if (source === 'email') {
+    // Same for email: no sender, subject or body outlives the consent.
+    for (const email of stores.private.listEmailReceipts(ownerMemberId, groupId)) {
+      if (email.sender !== '' || email.subject !== '' || email.bodyText !== '') {
+        stores.private.putEmailReceipt(
+          ownerMemberId,
+          markPrivate({ ...email, sender: '', subject: '', bodyText: '' }),
+        );
       }
     }
   }
