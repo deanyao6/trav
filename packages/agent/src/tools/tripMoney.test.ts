@@ -549,7 +549,21 @@ describe('T-065: TCI family tab through the agent', () => {
   it('a guardian-less minor with money: ask the leads (VOICE §8), never throw', async () => {
     const question =
       "quick one before i settle up, Mom and Dad: who's covering Lily? under-18s never owe anyone here, so Lily's share goes on an adult's tab";
-    for (const familyTab of [true, false]) {
+    // Family tab on: nobody owes anybody, so no question (T-065 review #1).
+    {
+      const h = await tciHarness({ noGuardian: true, familyTab: true });
+      const ctx = tciCtx(h, 'mem_tci_mom', 'msg_x');
+      const b = balancesFor(ctx);
+      expect(b.mode).toBe('family_tab');
+      expect(b.needsGuardian).toBeUndefined();
+      expect(b.text).toBe('$806 on the family tab so far, nothing to split');
+      expect(b.balances.map((x) => x.memberId)).not.toContain(LILY);
+      expect(settleUpFor(ctx, 'final').kind).toBe('ok');
+      const members = h.runtime.stores.group.members.listByGroup(TG);
+      const msg = renderSettleUpFor(ctx, 'final', tciRender(h, members));
+      expect(msg.text).toBe("everything's on the family tab, nothing to split");
+    }
+    for (const familyTab of [false]) {
       const h = await tciHarness({ noGuardian: true, familyTab });
       const ctx = tciCtx(h, 'mem_tci_mom', 'msg_x');
       const b = balancesFor(ctx);
@@ -567,7 +581,12 @@ describe('T-065: TCI family tab through the agent', () => {
       expect(msg.to).toEqual({ kind: 'group' });
       expect(msg.text).toBe(question);
       expect(voiceViolations(msg, members, TCI_GROUP.trip)).toEqual([]);
-      expect(tciContext(h).balances).toEqual([]);
+      const gc = tciContext(h);
+      expect(gc.balances).toEqual([]);
+      // The prompt says settle-up is waiting, never that nobody owes anything (review #3).
+      expect(gc.balancesWaitingOn).toEqual([LILY]);
+      const { context: prompt } = renderGroupPrompt(gc, VOICE_CFG);
+      expect(prompt).toContain('money: settle-up is waiting on who covers Lily');
     }
   });
 
@@ -677,6 +696,19 @@ describe('T-065: renderSettleUp folds a minor row instead of throwing', () => {
         tciRender(h),
       ),
     ).toThrow(TravError);
+    // On a family tab the supplied transfers are dropped, so they don't throw (review #4a).
+    const familyTab = renderSettleUp(
+      {
+        mode: 'final',
+        currency: 'USD',
+        balances: RAW,
+        transfers: [{ from: 'mem_tci_mom', to: LILY, amount: money(600, 'USD') }],
+        totalSpent: money(2400, 'USD'),
+        familyTab: true,
+      },
+      tciRender(h),
+    );
+    expect(familyTab.card.transfers).toEqual([]);
     const orphaned = TCI_GROUP.members.map((x) => (x.memberId === LILY ? withoutGuardian(x) : x));
     let caught: unknown;
     try {

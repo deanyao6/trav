@@ -110,6 +110,7 @@ export function buildGroupContext(
   let rosters: readonly Roster[] = [];
   let recentExpenses: readonly Expense[] = [];
   let balances: readonly Balance[] = [];
+  let balancesWaitingOn: readonly MemberId[] = [];
   let bookings: readonly Booking[] = [];
   let dayNumber = 0;
 
@@ -144,6 +145,7 @@ export function buildGroupContext(
       now,
     });
     balances = money.kind === 'ok' ? money.ledger.balances : [];
+    if (money.kind === 'needs_guardian') balancesWaitingOn = money.minors;
     bookings = store.bookings.listByTrip(trip.tripId);
     dayNumber = tripDayNumber(now, trip.startDate, trip.timeZone);
   }
@@ -168,6 +170,7 @@ export function buildGroupContext(
     rosters,
     recentExpenses,
     balances,
+    ...(balancesWaitingOn.length > 0 ? { balancesWaitingOn } : {}),
     pendingProposals: store.bookings
       .listPendingProposals(groupId)
       .filter((p) => trip === null || p.tripId === trip.tripId),
@@ -376,6 +379,12 @@ export function renderGroupPrompt(
     lines.push(
       '',
       'money: family tab, one pot, nobody owes anybody and there is nothing to settle',
+    );
+  } else if ((ctx.balancesWaitingOn?.length ?? 0) > 0) {
+    // T-065 review #3: never let the model say nobody owes anything
+    lines.push(
+      '',
+      `money: settle-up is waiting on who covers ${names_(ctx.balancesWaitingOn ?? [])} (under 18, no guardian set); ask before settling, never say nobody owes anything`,
     );
   } else if (ctx.balances.length > 0) {
     lines.push(

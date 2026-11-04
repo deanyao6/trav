@@ -58,6 +58,22 @@ export function tripMoney(input: TripMoneyInput): TripMoney {
   } catch (e) {
     if (!ledger.isMinorWithoutGuardianError(e)) throw e;
     const folding = ledger.minorFolding(input.members, input.now);
+    // A family tab nets everyone to zero, so nobody can be charged for a
+    // guardian-less minor and no question is needed: their rows leave the
+    // pot's split, the trip total still counts them (T-065 review #1). Core
+    // keeps refusing; this is the agent's explicit choice for a family tab.
+    if (input.trip.familyTab) {
+      return {
+        kind: 'ok',
+        ledger: ledger.tripLedger({
+          trip: input.trip,
+          members: input.members,
+          expenses: input.expenses,
+          entries: input.entries.filter((x) => folding.guardianOf.get(x.memberId) !== null),
+          now: input.now,
+        }),
+      };
+    }
     const withRows = new Set(input.entries.map((x) => x.memberId));
     const found = folding.minors.filter(
       (id) => folding.guardianOf.get(id) === null && withRows.has(id),

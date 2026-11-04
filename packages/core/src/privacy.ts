@@ -521,6 +521,8 @@ export interface GroupContext {
   readonly rosters: readonly Roster[];
   readonly recentExpenses: readonly Expense[];
   readonly balances: readonly Balance[];
+  /** Minors with money on the tab and no guardian: settle-up waits on who covers them (T-065). */
+  readonly balancesWaitingOn?: readonly MemberId[];
   readonly pendingProposals: readonly BookingProposal[];
   readonly bookings: readonly Booking[];
   readonly groupMemory: readonly GroupMemoryFact[];

@@ -124,7 +124,11 @@ export function buildSettleUp(
   const minors = new Set(
     ctx.members.filter((m) => safety.isMinor(m, ctx.now)).map((m) => m.memberId),
   );
-  if (input.transfers?.some((t) => minors.has(t.from) || minors.has(t.to)) === true) {
+  // A family tab drops any supplied transfers below, so only a split checks them (T-065 review #4).
+  if (
+    input.familyTab !== true &&
+    input.transfers?.some((t) => minors.has(t.from) || minors.has(t.to)) === true
+  ) {
     throw new TravError(
       'invariant_violation',
       'renderSettleUp: a transfer names a minor (VOICE §8)',

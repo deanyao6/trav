@@ -149,10 +149,13 @@ export function renderRecap(
   const roastLines = gatedRoastLines(input.roastLines ?? [], ctx, sc);
   lines.push(...roastLines);
 
+  // The trip's own flag counts too, as in Wrapped (T-065 review #4).
+  const familyTab = input.settle.familyTab === true || sc.trip?.familyTab === true;
   const settle = buildSettleUp(
     {
       ...input.settle,
       ...(input.settle.dayNumber === undefined ? { dayNumber: input.dayNumber } : {}),
+      ...(familyTab ? { familyTab: true } : {}),
     },
     ctx,
   );
@@ -160,7 +163,7 @@ export function renderRecap(
     (a, b) => b.amount.amountMinor - a.amount.amountMinor,
   );
   const big = transfers[0];
-  if (input.settle.familyTab === true) {
+  if (familyTab) {
     // VOICE §4.7 C (family tab: one pot, no transfers, T-065).
     lines.push("everything's on the family tab, nothing to split");
   } else if (big === undefined) {
