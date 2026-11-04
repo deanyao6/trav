@@ -334,6 +334,27 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
 
   // ---------- step 4: the re-check ----------
 
+  /** The provider order a charge failure left standing under this proposal's key, if any. */
+  function standingOrder(proposalId: ProposalId): Repriced | undefined {
+    const failed = group.audit
+      .listByProposal(proposalId)
+      .filter((e) => e.type === 'booking.failed')
+      .at(-1);
+    const p = failed?.payload as Record<string, unknown> | undefined;
+    if (p?.stage !== 'charge' || p.resumable !== true) return undefined;
+    if (
+      typeof p.quoteRef !== 'string' ||
+      typeof p.totalMinor !== 'number' ||
+      typeof p.currency !== 'string'
+    )
+      return undefined;
+    return {
+      quoteRef: p.quoteRef,
+      totalMinor: p.totalMinor,
+      currency: p.currency as Repriced['currency'],
+    };
+  }
+
   function liveParty(ctx: Loaded): LiveParty {
     const { proposal, trip, members, activity, now } = ctx;
     if (activity === null) {
@@ -890,8 +911,13 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
     );
     setStatus(proposal.proposalId, 'executing');
 
-    // 4. the re-check: price, roster, membership, policy.
-    const repricedRes = await reprice(proposal);
+    // 4. the re-check: price, roster, membership, policy. After a charge
+    //    failure the provider order already stands under the key (its own
+    //    booking used up the availability), so a flight or lodging retry
+    //    replays it at the locked price instead of re-checking the rate
+    //    (T-009 r2 review #2). Tickets re-read their hold under the same key.
+    const standing = proposal.kind === 'ticket' ? undefined : standingOrder(proposal.proposalId);
+    const repricedRes = standing !== undefined ? ok(standing) : await reprice(proposal);
     if (!repricedRes.ok) {
       return providerFailure(ctx, bookingId, repricedRes.error, 'reprice', undefined);
     }
@@ -995,6 +1021,9 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
             stage: 'charge',
             moneyMoved: false,
             providerRef: purchased.providerRef,
+            quoteRef: repriced.quoteRef,
+            totalMinor: purchased.totalMinor,
+            currency: purchased.currency,
           },
         });
         setStatus(proposal.proposalId, 'pending');

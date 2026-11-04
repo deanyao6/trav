@@ -701,17 +701,23 @@ describe('the Razzmatazz moment through the real runtime (TRAV_OFFLINE=1)', () =
     expect(grantOf(h, proposal.proposalId).status).toBe('consumed');
 
     // An @ while the provider is still down: the same truthful line, nothing bought.
+    // The turn still carries on with what was asked (r2 review #1).
     const stillDown = await h.say('h_maya', '@trav where are the tickets?');
-    expect(stillDown.note).toBe('booking:resumed');
-    expect(groupMessages(stillDown).map((m) => m.text)).toEqual([TURN_FAILED_AFTER_PURCHASE_TEXT]);
+    expect(groupMessages(stillDown)[0]!.text).toBe(TURN_FAILED_AFTER_PURCHASE_TEXT);
+    expect(real.purchaseCount()).toBe(1);
+
+    // A chat expense sent while it is stuck is logged on that same turn, and
+    // the stuck line is not repeated within 30 minutes.
+    const taxi = await h.say('h_priya', '@trav I paid €40 for the taxi, split with everyone');
+    expect(groupMessages(taxi).map((m) => m.text)).not.toContain(TURN_FAILED_AFTER_PURCHASE_TEXT);
+    expect(taxi.note).toBe('expense:logged');
     expect(real.purchaseCount()).toBe(1);
 
     // The provider is back: the next @ finishes it. Only the missing holders are fetched.
     broken.clear();
     fetches.length = 0;
     const resumed = await h.say('h_maya', '@trav tickets?');
-    expect(resumed.note).toBe('booking:resumed');
-    expect(groupMessages(resumed).map((m) => m.text)).toEqual([RECEIPT_TEXT]);
+    expect(groupMessages(resumed)[0]!.text).toBe(RECEIPT_TEXT);
     const tickets = dms(resumed);
     expect(tickets).toHaveLength(5);
     expect(tickets.map((m) => (m.to.kind === 'member' ? m.to.memberId : '')).sort()).toEqual(
@@ -1006,6 +1012,57 @@ describe('flights and lodging go through the same executor (A1: one createOrder,
     expect(res.booking.orderRef).toMatch(/^EIX/);
     expect(res.expense.split).toEqual({ method: 'equal', participants: six });
     expect(res.expense.category).toBe('lodging');
+  });
+
+  it('a stay whose charge failed once is retried by replaying the standing order, not re-checking the rate (T-009 r2 review #2)', async () => {
+    const r = rig();
+    const six = r.members.map((m) => m.memberId);
+    const proposal = baseProposal(r, {
+      proposalId: 'prop_stay',
+      kind: 'lodging',
+      provider: r.lodging.info.provider,
+      itemRef: 'rate_bcn_eixample_3br_flex',
+      quoteRef: 'rate_bcn_eixample_3br_flex',
+      description: 'Eixample 3br',
+      totalMinor: 138000,
+      payers: six.map((memberId) => ({ memberId, shareMinor: 23000 })),
+      attendees: six,
+      idempotencyKey: 'key_stay',
+    });
+    const { grant } = seedApproved(r, proposal);
+    let chargeDown = true;
+    const payments = new Proxy(r.payments, {
+      get(target, key) {
+        if (key === 'charge' && chargeDown) {
+          return async () => ({
+            ok: false,
+            error: { code: 'provider_unavailable', message: 'down', retryable: true },
+          });
+        }
+        const v = (target as unknown as Record<string | symbol, unknown>)[key];
+        return typeof v === 'function' ? (v as (...a: unknown[]) => unknown).bind(target) : v;
+      },
+    });
+    const executor = createBookingExecutor({
+      stores: r.stores,
+      providers: { tickets: r.tickets, flights: r.flights, lodging: r.lodging, payments },
+      clock: createSimulatedClock(PLANNING),
+      ids: createDeterministicIdGenerator('y'),
+    });
+    const first = await executor.execute(proposal.proposalId, grant.grantId);
+    expect(first).toMatchObject({ kind: 'failed', resumable: true, moneyMoved: false });
+    expect(r.lodging.bookingCount()).toBe(1);
+    expect(r.payments.chargeCount()).toBe(0);
+
+    chargeDown = false;
+    const second = await executor.execute(proposal.proposalId, grant.grantId);
+    expect(second.kind).toBe('completed');
+    expect(r.lodging.bookingCount()).toBe(1);
+    expect(r.payments.chargeCount()).toBe(1);
+    expect(r.payments.listCharges()[0]).toMatchObject({
+      amount: { amountMinor: 138000, currency: 'EUR' },
+    });
+    expect(auditCore.verifyAuditChain(r.stores.group.audit.listByGroup(G)).ok).toBe(true);
   });
 
   it('a ledger write that fails after the charge leaves the Booking row; the retry writes the expense once and reports repaired (T-009 r1 #1)', async () => {

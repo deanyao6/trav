@@ -1630,29 +1630,34 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     }
 
     // 5b. a purchase whose receipt or tickets never landed: the "after the
-    // purchase" failure line promised the next @ sorts it out (T-009 r2).
+    // purchase" failure line promised the next @ sorts it out (T-009 r2). The
+    // repair goes out first, then the turn carries on with what the message
+    // actually asked (T-009 r2 review #1).
+    let resumedSent: TurnResult['outbound'] = [];
+    let resumedAudit: TurnResult['auditEventIds'] = [];
     if (deps.approval !== undefined && r.trip !== null && r.lane === 'group') {
       const before = snapshotAudit(r.group.groupId);
       const resumed = await deps.approval.handler.resumeIncomplete(r.trip.tripId);
       if (resumed.length > 0) {
-        recordInbound();
-        const sent = await send(r, resumed);
-        return {
-          outbound: sent,
-          toolCalls: [],
-          auditEventIds: auditIdsSince(r.group.groupId, before),
-          silent: sent.length === 0,
-          modelSources: [],
-          note: 'booking:resumed',
-        };
+        resumedSent = await send(r, resumed);
+        resumedAudit = auditIdsSince(r.group.groupId, before);
       }
     }
+    const withResumed = (t: TurnResult): TurnResult =>
+      resumedSent.length === 0
+        ? t
+        : {
+            ...t,
+            outbound: [...resumedSent, ...t.outbound],
+            auditEventIds: [...new Set([...resumedAudit, ...t.auditEventIds])],
+            silent: false,
+          };
 
     const expense = await expenseTurn(false);
-    if (expense !== undefined) return expense;
+    if (expense !== undefined) return withResumed(expense);
 
     // 6. the model.
-    return modelTurn(r, event, text, mention.reason);
+    return withResumed(await modelTurn(r, event, text, mention.reason));
   }
 
   /**

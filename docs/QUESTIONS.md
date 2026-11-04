@@ -20,3 +20,8 @@ Things the overnight run could not decide or was blocked on. Ranked by importanc
 - pnpm 12 needs `XDG_RUNTIME_DIR` pointed inside the repo to work in the sandbox (see `docs/DECISIONS.md` D-002). `scripts/overnight.sh` now sets it; the currently running overnight loop already started, so this session's agents set it per shell. If you run pnpm yourself outside the sandbox, nothing changes.
 - The guard hook's "dumping environment variables" rule also matches any command that mentions `.env` followed by a pipe (e.g. `cat .env | wc -c`). Harmless, but the orchestrator avoids touching `.env` entirely.
 - The guard hook also rejects any Bash command text containing parent-directory tokens, `/**` doc-comment openers, or regex-looking `/x/` tokens, so agents can't write throwaway TypeScript via heredoc; they write temp files with the Write tool under the temp dir instead. Harmless, but it costs each reviewer a few minutes.
+
+## 2026-11-04 (session 9)
+
+- **T-009 open minors (low).** (a) If the Booking row write itself fails right after `booking.completed`, nothing can resume it, but the group line still promises a follow-up. Rebuilding from the audit log is possible but was out of scope. (b) The stuck-booking resume runs on any addressed group message, guests included. It never buys, and tickets still go only to their holders. Gate it behind `canRequest`?
+- **T-013 consent off-then-on (low).** If card import is turned off and back on before a tap, the old card can still be shared. Fix with T-017's consent commands by calling `dropPendingItems` on the off write.

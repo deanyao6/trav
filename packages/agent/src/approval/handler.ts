@@ -174,6 +174,9 @@ interface Loaded {
   readonly now: IsoDateTime;
 }
 
+/** How often the "booking stands, receipt pending" line may repeat for one stuck booking. */
+const STUCK_LINE_EVERY_MS = 30 * 60 * 1000;
+
 /** Consistency problems that mean "who is on this changed" (SAFETY §2.1 invalidation rule). */
 const ROSTER_PROBLEMS: readonly string[] = [
   'empty_roster',
@@ -1126,6 +1129,7 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
    * `[]` and the turn goes on as usual. Never buys: the executor's duplicate
    * path only fills in the expense and tickets of an existing Booking row.
    */
+  const stuckLineAt = new Map<string, number>();
   async function resumeIncomplete(tripId: TripId): Promise<readonly Outbound[]> {
     const now = clock.now();
     const stuck = group.bookings
@@ -1137,7 +1141,13 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
     inFlight.add(proposal.proposalId);
     try {
       const resumed = await resume(proposal.proposalId, now);
-      return resumed ?? [text(proposal.groupId, TURN_FAILED_AFTER_PURCHASE_TEXT)];
+      if (resumed !== undefined) return resumed;
+      // Still stuck: say so at most once per booking every 30 minutes, not on
+      // every @ (T-009 r2 review #1).
+      const last = stuckLineAt.get(proposal.proposalId);
+      if (last !== undefined && Date.parse(now) - last < STUCK_LINE_EVERY_MS) return [];
+      stuckLineAt.set(proposal.proposalId, Date.parse(now));
+      return [text(proposal.groupId, TURN_FAILED_AFTER_PURCHASE_TEXT)];
     } finally {
       inFlight.delete(proposal.proposalId);
     }
