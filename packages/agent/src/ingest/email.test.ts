@@ -25,7 +25,11 @@ import { describe, expect, it } from 'vitest';
 import type { Expense, Member, MemberId, Money, Outbound, OutboundMessage } from '@trav/core';
 import { ledger, markPrivate, safety } from '@trav/core';
 import type { EmailReceiptSource, InboundEmail } from '@trav/adapters';
-import { createMockEmailReceiptSource, createOfflineReceiptEmailParser } from '@trav/adapters';
+import {
+  createMockEmailReceiptSource,
+  createMockTransactions,
+  createOfflineReceiptEmailParser,
+} from '@trav/adapters';
 import { BARCELONA } from '../compose.js';
 import { repoRoot } from '../model/paths.js';
 import { harness, type Harness } from '../runtime.testkit.js';
@@ -676,6 +680,227 @@ describe('email import: duplicates and batching', () => {
     const r = await importFor(h, PRIYA, scriptedSource([solo]));
     expect(r.verdicts['em_solo']?.label).toBe('personal');
     expect(r.prompted).toEqual([]);
+  });
+});
+
+// ---------- T-012 r1: one charge, one question ----------
+
+describe('T-012 r1 fixes: card and email copies of one charge are asked about once', () => {
+  const UBER_TX = 'txn_priya_uber_0314';
+  const UBER_EMAIL = 'em_bcn_priya_uber_0314';
+  const usd = (amountMinor: number): Money => ({ amountMinor, currency: 'USD' });
+
+  function bothSources(at: string): Harness {
+    const h = harness();
+    h.clock.set(at);
+    h.runtime.stores.private.putConsent(PRIYA, {
+      memberId: PRIYA,
+      groupId: G,
+      photos: false,
+      roast: false,
+      cardImport: true,
+      emailImport: true,
+      memoryAcrossTrips: false,
+      updatedAt: at,
+    });
+    return h;
+  }
+
+  function importCards(h: Harness) {
+    return h.runtime.agent.importCardTransactions({
+      groupId: G,
+      ownerMemberId: PRIYA,
+      adapter: createMockTransactions(),
+    });
+  }
+
+  /** Every item (any source, any status) that is Priya's 1:52am Uber, in either currency. */
+  function uberItems(h: Harness) {
+    const row = h.runtime.stores.private.getCardTransactionByProviderId(PRIYA, UBER_TX);
+    return items(h, PRIYA).filter(
+      (i) =>
+        (i.source === 'card' && row !== undefined && i.sourceItemId === row.id) ||
+        (i.source === 'email' &&
+          h.runtime.stores.private.getEmailReceipt(PRIYA, i.sourceItemId)?.emailId === UBER_EMAIL),
+    );
+  }
+
+  const onlyUber = () => scriptedSource([fixture(UBER_EMAIL)]);
+
+  /** Priya answers the card-import DM for one item (a digest line or a single card). */
+  async function answerCard(
+    h: Harness,
+    drafts: readonly Outbound[],
+    itemId: string,
+    actionId: 'confirm' | 'keep_private',
+  ) {
+    const dm = drafts.map(msg).find((m) => JSON.stringify(m).includes(itemId))!;
+    expect(dm).toBeDefined();
+    const event = await h.channel.injectButtonTap({
+      from: 'h_priya',
+      cardMessageId: dm.id,
+      actionId,
+      value: itemId,
+    });
+    return h.runtime.agent.handleInbound(event);
+  }
+
+  it('(a) email import, then card import: the USD charge is not asked about again', async () => {
+    const h = bothSources(SAT_MORNING);
+    const email = await importFor(h, PRIYA, onlyUber());
+    expect(email.prompted).toHaveLength(1);
+    const card = await importCards(h);
+    expect(card.status).toBe('imported');
+    // The classifier did call it shared; the dedupe is what kept it quiet.
+    expect(card.verdicts[UBER_TX]?.label).toBe('shared');
+    expect(card.duplicates).toBe(1);
+    expect(uberItems(h)).toHaveLength(1);
+    expect(uberItems(h)[0]).toMatchObject({ source: 'email', amount: eur(1860) });
+    expect(
+      items(h, PRIYA).some((i) => i.amount.currency === 'USD' && i.amount.amountMinor === 1999),
+    ).toBe(false);
+    expect(JSON.stringify(card.outbound)).not.toContain('19.99');
+  });
+
+  it('(b) card import, then email import: the EUR receipt is a duplicate, not a second prompt', async () => {
+    const h = bothSources(SAT_MORNING);
+    const card = await importCards(h);
+    expect(uberItems(h)).toHaveLength(1);
+    expect(uberItems(h)[0]).toMatchObject({ source: 'card', amount: usd(1999) });
+    expect(card.prompted).toContain(uberItems(h)[0]!.id);
+    const email = await importFor(h, PRIYA, onlyUber());
+    expect(email).toMatchObject({ prompted: [], duplicates: 1, alreadyOnTab: 0 });
+    expect(email.outbound).toEqual([]);
+    expect(uberItems(h)).toHaveLength(1);
+  });
+
+  it('(c) email shared, then card import: the USD charge is already on the tab', async () => {
+    const h = bothSources(SAT_MORNING);
+    const email = await importFor(h, PRIYA, onlyUber());
+    expect((await h.tap('h_priya', msg(email.outbound[0]).id, 'confirm')).note).toBe(
+      'looks_shared:shared',
+    );
+    expect(emailExpenses(h)).toHaveLength(1);
+    const card = await importCards(h);
+    expect(card.verdicts[UBER_TX]?.label).toBe('shared');
+    expect(card.alreadyOnTab).toBe(1);
+    expect(uberItems(h).filter((i) => i.source === 'card')).toEqual([]);
+    expect(
+      h.runtime.stores.group.expenses.listByTrip(T).filter((e) => e.source === 'card_transaction'),
+    ).toEqual([]);
+  });
+
+  it('a USD card charge Priya tried to share (waiting on the EUR amount): the receipt is not a second question', async () => {
+    const h = bothSources(SAT_MORNING);
+    const card = await importCards(h);
+    const item = uberItems(h)[0]!;
+    expect((await answerCard(h, card.outbound, item.id, 'confirm')).note).toBe(
+      'looks_shared:needs_conversion',
+    );
+    const email = await importFor(h, PRIYA, onlyUber());
+    expect(email).toMatchObject({ prompted: [], duplicates: 1 });
+    expect(email.outbound).toEqual([]);
+  });
+
+  it('a card charge already on the tab in EUR (converted, original USD 19.99): the receipt is on the tab', async () => {
+    const h = bothSources(SAT_MORNING);
+    const order = BARCELONA.members.map((m) => m.memberId);
+    const amount = eur(1858); // the card's FX, a couple of cents off the receipt
+    const expense: Expense = {
+      expenseId: 'exp_card_uber',
+      groupId: G,
+      tripId: T,
+      description: 'Uber',
+      category: 'transport',
+      amount,
+      original: { amount: usd(1999), rate: '0.9295', rateDate: '2026-03-14' },
+      paidBy: [{ memberId: PRIYA, amount }],
+      split: { method: 'equal', participants: order },
+      source: 'card_transaction',
+      sourceRef: { kind: 'private_item', id: 'priv_card_item' },
+      occurredAt: '2026-03-14T01:52:00+01:00',
+      createdAt: SAT_MORNING,
+      createdBy: PRIYA,
+      status: 'logged',
+    };
+    h.runtime.stores.group.expenses.create(
+      expense,
+      ledger.buildLedgerEntries(expense, { memberOrder: order, participantsUniverse: order }),
+    );
+    const email = await importFor(h, PRIYA, onlyUber());
+    expect(email).toMatchObject({ prompted: [], alreadyOnTab: 1 });
+  });
+
+  it('a different ride in another currency an hour later is still asked about', async () => {
+    const h = bothSources(SAT_MORNING);
+    await importCards(h);
+    const later = priyaRide({
+      emailId: 'em_later_ride',
+      body: fixture(UBER_EMAIL).textBody!.replace('01:52', '02:58').replace('01:31', '02:40'),
+    });
+    const r = await importFor(h, PRIYA, scriptedSource([later]));
+    expect(r).toMatchObject({ duplicates: 0 });
+    expect(r.prompted).toHaveLength(1);
+  });
+
+  it('#3: a card item Priya kept private, or one that expired, counts as already asked', async () => {
+    for (const status of ['dismissed', 'expired'] as const) {
+      const h = setup(SAT_MORNING);
+      h.runtime.stores.private.putPendingItem(
+        PRIYA,
+        markPrivate({
+          id: 'priv_card_ride',
+          ownerMemberId: PRIYA,
+          groupId: G,
+          tripId: T,
+          createdAt: SAT_MORNING,
+          source: 'card' as const,
+          sourceItemId: 'priv_card_row',
+          status,
+          amount: usd(1999),
+          occurredAt: '2026-03-14T01:52:00+01:00',
+          merchantDisplay: 'Uber',
+          category: 'transport' as const,
+          lowConfidence: false,
+        }),
+      );
+      const r = await importFor(h, PRIYA, onlyUber());
+      expect(r, status).toMatchObject({ duplicates: 1, prompted: [] });
+      expect(r.outbound, status).toEqual([]);
+    }
+  });
+
+  it('#3: Keep private on the card, then the email for it arrives: not asked again', async () => {
+    const h = bothSources(SAT_MORNING);
+    const card = await importCards(h);
+    const item = uberItems(h)[0]!;
+    expect((await answerCard(h, card.outbound, item.id, 'keep_private')).note).toBe(
+      'looks_shared:kept_private',
+    );
+    expect(uberItems(h)[0]?.status).toBe('dismissed');
+    const email = await importFor(h, PRIYA, onlyUber());
+    expect(email).toMatchObject({ prompted: [], duplicates: 1 });
+  });
+
+  it('#2: a flagged forward ("@trav this one was shared") of a stored receipt is a copy, in either order', async () => {
+    const original = fixture(UBER_EMAIL);
+    const forward = priyaRide({
+      emailId: 'em_fwd_flagged',
+      receivedAt: '2026-03-14T09:30:00+01:00',
+      body: `@trav this one was shared\n\n${original.textBody!}`,
+    });
+    for (const order of [
+      [original, forward],
+      [forward, original],
+    ]) {
+      const h = setup(SAT_MORNING);
+      const r = await importFor(h, PRIYA, scriptedSource(order));
+      expect(r.injectionEmailIds).toEqual(['em_fwd_flagged']);
+      expect(r).toMatchObject({ seen: 2, duplicates: 1 });
+      expect(r.prompted).toHaveLength(1);
+      expect(r.outbound).toHaveLength(1);
+      expect(msg(r.outbound[0]).text).not.toMatch(/^2 receipts/);
+    }
   });
 });
 

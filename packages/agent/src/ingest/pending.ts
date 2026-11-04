@@ -46,6 +46,7 @@ import type {
   Member,
   MemberId,
   MessageId,
+  Money,
   Outbound,
   OutboundMessage,
   PendingPrivateItem,
@@ -145,6 +146,72 @@ export function sharePlan(input: SharePlanInput): SharePlan {
       : {}),
     activityId: plan.activityId,
   };
+}
+
+// ---------- one charge seen by two sources (card and email, T-012 r1 #1/#3) ----------
+
+/** Same amount and currency this close together: one charge (the rule both flows always used). */
+export const SAME_CHARGE_WINDOW_H = 48;
+/**
+ * A charge in another currency (a USD card paying a EUR ride) can't be matched
+ * on amount without FX: same ledger category this close together is one charge.
+ */
+export const CROSS_CURRENCY_WINDOW_MIN = 15;
+
+export interface ChargeFacts {
+  readonly amount: Money;
+  readonly occurredAt: IsoDateTime;
+  readonly category: ExpenseCategory;
+}
+
+/**
+ * Card charge and email receipt for one purchase (the owner's own store, so
+ * the owner is always the same): the same money within 48h, or, when the
+ * currencies differ, the same category within 15 minutes.
+ */
+export function sameCharge(a: ChargeFacts, b: ChargeFacts): boolean {
+  const apartMs = Math.abs(parseIso(a.occurredAt) - parseIso(b.occurredAt));
+  if (a.amount.currency === b.amount.currency) {
+    return (
+      a.amount.amountMinor === b.amount.amountMinor && apartMs <= SAME_CHARGE_WINDOW_H * 3_600_000
+    );
+  }
+  return a.category === b.category && apartMs <= CROSS_CURRENCY_WINDOW_MIN * 60_000;
+}
+
+/** The expense's own charge facts, in both its amount and its original currency. */
+function expenseCharges(e: Expense): ChargeFacts[] {
+  const base = { occurredAt: e.occurredAt, category: e.category };
+  return [
+    { ...base, amount: e.amount },
+    ...(e.original !== undefined ? [{ ...base, amount: e.original.amount }] : []),
+  ];
+}
+
+/** A logged expense that came from the OTHER private source and is this charge. */
+export function expenseIsCharge(
+  e: Expense,
+  otherSource: Expense['source'],
+  facts: ChargeFacts,
+): boolean {
+  return e.source === otherSource && expenseCharges(e).some((c) => sameCharge(c, facts));
+}
+
+/**
+ * The owner was already asked about this charge through the other source:
+ * an item still waiting, shared, kept private or expired (VOICE §2: one
+ * question per charge). Owner-scoped: it only reads the owner's own store.
+ */
+export function alreadyAskedElsewhere(
+  stores: Pick<Stores, 'private'>,
+  ownerMemberId: MemberId,
+  groupId: GroupId,
+  otherSource: PendingPrivateItem['source'],
+  facts: ChargeFacts,
+): boolean {
+  return stores.private
+    .listPendingItems(ownerMemberId, groupId)
+    .some((i) => i.source === otherSource && sameCharge(i, facts));
 }
 
 // ---------- matching an inbound event to a pending item ----------

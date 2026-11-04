@@ -33,8 +33,13 @@
  *  6. A shared receipt becomes a `PendingPrivateItem` (split by `sharePlan`)
  *     unless it is already on the tab (same payer, amount and currency within
  *     48h of a logged expense; an expense from a DIFFERENT email never
- *     counts), already waiting as a card charge, or a second copy of a
- *     receipt already stored (same merchant and total within 10 minutes).
+ *     counts; a shared card charge for the same ride in another currency
+ *     does), already asked about as a card charge (waiting, shared, kept
+ *     private or expired; `sameCharge` in `pending.ts`: same money within
+ *     48h, or another currency and the same category within 15 minutes), or
+ *     a second copy of a receipt already stored (same kind, total and time
+ *     within 10 minutes; never the display name, which a flagged forward
+ *     replaces with the neutral one).
  *  7. DMs to the owner only (never a minor): one card per receipt, or one
  *     digest when two or more land together (VOICE §2: "two email receipts").
  *     The group sees only the per-owner COUNT (`countPendingByOwner`).
@@ -82,9 +87,12 @@ import {
 import {
   activeMembers,
   activityWindows,
+  alreadyAskedElsewhere,
   dropPendingItems,
+  expenseIsCharge,
   importEligibility,
   sharePlan,
+  type ChargeFacts,
   type SharePlan,
 } from './pending.js';
 
@@ -352,35 +360,31 @@ export async function importEmailReceipts(
   const windowTo = addDays(trip.endDate, 1);
   const logged = stores.group.expenses.listByTrip(trip.tripId).filter((e) => e.status === 'logged');
   /** Already on the tab: same payer, amount and currency within 48h; never an expense from another email. */
-  const onTab = (amount: Money, at: string, rowId: string): boolean =>
+  // A shared card charge for this ride in another currency counts too (`sameCharge`).
+  const onTab = (facts: ChargeFacts, rowId: string): boolean =>
     logged.some(
       (e) =>
         !(e.source === 'email_receipt' && e.sourceRef.id !== rowId) &&
         e.paidBy.some((p) => p.memberId === owner.memberId) &&
-        (sameMoney(e.amount, amount) ||
-          (e.original !== undefined && sameMoney(e.original.amount, amount))) &&
-        hoursApart(e.occurredAt, at) <= DUPLICATE_WINDOW_H,
+        (((sameMoney(e.amount, facts.amount) ||
+          (e.original !== undefined && sameMoney(e.original.amount, facts.amount))) &&
+          hoursApart(e.occurredAt, facts.occurredAt) <= DUPLICATE_WINDOW_H) ||
+          expenseIsCharge(e, 'card_transaction', facts)),
     );
-  /** The same charge already waiting (or shared) as a card item. */
-  const cardItem = (amount: Money, at: string): boolean =>
-    stores.private
-      .listPendingItems(owner.memberId, group.groupId)
-      .some(
-        (i) =>
-          i.source === 'card' &&
-          (i.status === 'pending' || i.status === 'promoted') &&
-          sameMoney(i.amount, amount) &&
-          hoursApart(i.occurredAt, at) <= DUPLICATE_WINDOW_H,
-      );
   const stored = (): EmailReceipt[] => [
     ...stores.private.listEmailReceipts(owner.memberId, group.groupId),
   ];
+  /**
+   * A second copy of a stored receipt: same kind, total and time. Never the
+   * display name: a flagged forward is stored under the neutral name ("ride")
+   * and must still match the "Uber" original.
+   */
   const forwardedCopy = (r: ParsedReceipt): boolean =>
     stored().some(
       (e) =>
         e.parsed !== null &&
+        e.parsed.source === r.source &&
         sameMoney(e.parsed.total, r.total) &&
-        e.parsed.merchantName.toLowerCase() === r.merchantName.toLowerCase() &&
         Math.abs(parseIso(e.parsed.occurredAt) - parseIso(r.occurredAt)) <=
           FORWARDED_COPY_MIN * 60_000,
     );
@@ -483,16 +487,17 @@ export async function importEmailReceipts(
     kept += 1;
     if (verdict.label !== 'shared') continue;
 
-    // 6. already on the tab, or already waiting as a card charge?
-    if (onTab(receipt.total, receipt.occurredAt, saved.id)) {
+    // 6. already on the tab, or already asked about as a card charge (any answer)?
+    const category = emailCategory(receipt.source);
+    const facts: ChargeFacts = { amount: receipt.total, occurredAt: receipt.occurredAt, category };
+    if (onTab(facts, saved.id)) {
       alreadyOnTab += 1;
       continue;
     }
-    if (cardItem(receipt.total, receipt.occurredAt)) {
+    if (alreadyAskedElsewhere(stores, owner.memberId, group.groupId, 'card', facts)) {
       duplicates += 1;
       continue;
     }
-    const category = emailCategory(receipt.source);
     const plan = sharePlan({
       trips: stores.group.trips,
       trip,

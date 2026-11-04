@@ -23,7 +23,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { Expense, Member, MemberId, Money, Outbound, OutboundMessage } from '@trav/core';
-import { ledger, safety } from '@trav/core';
+import { ledger, markPrivate, safety } from '@trav/core';
 
 const { lintVoice } = safety;
 import type {
@@ -40,7 +40,7 @@ import { BARCELONA } from '../compose.js';
 import { repoRoot } from '../model/paths.js';
 import { harness, type Harness } from '../runtime.testkit.js';
 import { MAX_SYNC_PAGES, mergePages } from './card.js';
-import { NO_TRIP_TEXT, WHICH_CHARGE_TEXT, needsConversionText } from './pending.js';
+import { NO_TRIP_TEXT, WHICH_CHARGE_TEXT, needsConversionText, sameCharge } from './pending.js';
 
 const G = BARCELONA.groupId;
 const T = BARCELONA.tripId;
@@ -1001,6 +1001,84 @@ describe('T-013 r1 fixes', () => {
       'saw €23.40 from Uber at 2:14am on sun mar 15, that the ride back from razzmatazz?',
     );
     expect(lintVoice(text, 'dm').ok).toBe(true);
+  });
+});
+
+// ---------- T-012 r1: the card flow checks email items too ----------
+
+describe('T-012 r1 fixes: a charge already asked about as an email receipt', () => {
+  const usd = (amountMinor: number): Money => ({ amountMinor, currency: 'USD' });
+  const at = '2026-03-15T02:14:00+01:00';
+
+  it('sameCharge: same money within 48h; another currency only with the same category within 15 minutes', () => {
+    const ride = { amount: eur(1860), occurredAt: at, category: 'transport' as const };
+    expect(sameCharge(ride, { ...ride, occurredAt: '2026-03-16T20:00:00+01:00' })).toBe(true);
+    expect(sameCharge(ride, { ...ride, amount: eur(1861) })).toBe(false);
+    expect(sameCharge(ride, { ...ride, amount: usd(1999) })).toBe(true);
+    expect(
+      sameCharge(ride, { ...ride, amount: usd(1999), occurredAt: '2026-03-15T02:29:00+01:00' }),
+    ).toBe(true);
+    expect(
+      sameCharge(ride, { ...ride, amount: usd(1999), occurredAt: '2026-03-15T02:30:00+01:00' }),
+    ).toBe(false);
+    expect(sameCharge(ride, { ...ride, amount: usd(1999), category: 'food' })).toBe(false);
+  });
+
+  for (const status of ['pending', 'promoted', 'dismissed', 'expired'] as const) {
+    it(`an email item for Sam's €23.40 Uber (${status}) means the card charge is not prompted`, async () => {
+      const h = setup({ at: MORNING_AFTER });
+      h.runtime.stores.private.putPendingItem(
+        SAM,
+        markPrivate({
+          id: 'priv_email_ride',
+          ownerMemberId: SAM,
+          groupId: G,
+          tripId: T,
+          createdAt: MORNING_AFTER,
+          source: 'email' as const,
+          sourceItemId: 'priv_email_row',
+          status,
+          amount: eur(2340),
+          occurredAt: '2026-03-15T02:13:00+01:00',
+          merchantDisplay: 'Uber',
+          category: 'transport' as const,
+          lowConfidence: false,
+        }),
+      );
+      const r = await importSam(h, scriptedAdapter({ '': page([UBER_POSTED], 'c1') }));
+      expect(r.verdicts[UBER_POSTED.transactionId]?.label, status).toBe('shared');
+      expect(r, status).toMatchObject({ prompted: [], duplicates: 1 });
+      expect(r.outbound, status).toEqual([]);
+      expect(
+        samItems(h).filter((i) => i.source === 'card'),
+        status,
+      ).toEqual([]);
+    });
+  }
+
+  it('an email item for a different ride (another time, another amount) does not hide the charge', async () => {
+    const h = setup({ at: MORNING_AFTER });
+    h.runtime.stores.private.putPendingItem(
+      SAM,
+      markPrivate({
+        id: 'priv_email_ride',
+        ownerMemberId: SAM,
+        groupId: G,
+        tripId: T,
+        createdAt: MORNING_AFTER,
+        source: 'email' as const,
+        sourceItemId: 'priv_email_row',
+        status: 'pending' as const,
+        amount: eur(1500),
+        occurredAt: '2026-03-14T23:00:00+01:00',
+        merchantDisplay: 'Uber',
+        category: 'transport' as const,
+        lowConfidence: false,
+      }),
+    );
+    const r = await importSam(h, scriptedAdapter({ '': page([UBER_POSTED], 'c1') }));
+    expect(r).toMatchObject({ duplicates: 0 });
+    expect(r.prompted).toHaveLength(1);
   });
 });
 

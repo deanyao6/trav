@@ -25,7 +25,9 @@
  *     the rest of the history is only counted for the recurring-merchant
  *     signal and then dropped).
  *  5. A shared charge that is not already on the tab (same payer, same amount
- *     and currency, within 48h of a logged expense) becomes a
+ *     and currency, within 48h of a logged expense; or a shared email receipt
+ *     for it in another currency, `sameCharge` in `pending.ts`) and that the
+ *     owner was not already asked about as an email receipt becomes a
  *     `PendingPrivateItem` with the split `sharePlan` picks; nothing reaches
  *     the ledger here (`pending.ts` promotes on the owner's 👍).
  *  6. Pending → posted: the posted row replaces the pending one in place (same
@@ -68,7 +70,9 @@ import {
 import {
   activeMembers,
   activityWindows,
+  alreadyAskedElsewhere,
   dropPendingItems,
+  expenseIsCharge,
   importEligibility,
   sharePlan,
 } from './pending.js';
@@ -121,6 +125,8 @@ export interface CardImportOutcome {
   readonly updated: readonly string[];
   /** Shared-looking charges already on the tab (not prompted). */
   readonly alreadyOnTab: number;
+  /** Shared-looking charges the owner was already asked about as an email receipt (not prompted). */
+  readonly duplicates: number;
   /** Pending items that expired because the provider dropped the authorization. */
   readonly expired: number;
   /** Pending items dropped because consent is off. */
@@ -138,6 +144,7 @@ const EMPTY = {
   prompted: [],
   updated: [],
   alreadyOnTab: 0,
+  duplicates: 0,
   expired: 0,
   dropped: 0,
   injectionTransactionIds: [],
@@ -322,15 +329,18 @@ export async function importCardTransactions(
    * Already on the tab: same payer (the owner), same amount and currency, within 48h.
    * An expense promoted from a DIFFERENT card charge is never this charge (two
    * €23.40 rides are two rides); chat, booking, email and receipt entries can be.
+   * A shared email receipt for the same ride in another currency counts too
+   * (`sameCharge`: same category within 15 minutes; a USD card paying a EUR Uber).
    */
-  const onTab = (amount: Money, at: string, rowId: string): boolean =>
+  const onTab = (amount: Money, at: string, rowId: string, category: ExpenseCategory): boolean =>
     logged.some(
       (e) =>
         !(e.source === 'card_transaction' && e.sourceRef.id !== rowId) &&
         e.paidBy.some((p) => p.memberId === owner.memberId) &&
-        (sameMoney(e.amount, amount) ||
+        (((sameMoney(e.amount, amount) ||
           (e.original !== undefined && sameMoney(e.original.amount, amount))) &&
-        hoursApart(e.occurredAt, at) <= DUPLICATE_WINDOW_H,
+          hoursApart(e.occurredAt, at) <= DUPLICATE_WINDOW_H) ||
+          expenseIsCharge(e, 'email_receipt', { amount, occurredAt: at, category })),
     );
 
   const pendingItems = (): PendingPrivateItem[] => [
@@ -351,6 +361,7 @@ export async function importCardTransactions(
   const created: string[] = [];
   const changed: string[] = [];
   let alreadyOnTab = 0;
+  let duplicates = 0;
   let expired = 0;
   const injected: string[] = [];
   const verdicts: Record<string, LooksSharedVerdict> = {};
@@ -436,7 +447,7 @@ export async function importCardTransactions(
         (!sameMoney(item.amount, tx.amount) || item.sourceItemId !== row.id)
       ) {
         const amountChanged = !sameMoney(item.amount, tx.amount);
-        if (amountChanged && onTab(tx.amount, f.occurredAt, row.id)) {
+        if (amountChanged && onTab(tx.amount, f.occurredAt, row.id, category)) {
           // The final amount is already on the tab (logged in chat meanwhile): stop asking.
           stores.private.putPendingItem(
             owner.memberId,
@@ -481,8 +492,19 @@ export async function importCardTransactions(
     if (verdict.label !== 'shared' || tx.direction !== 'debit') continue;
 
     // 5. already on the tab? (a chat-logged dinner, a Trav booking charge)
-    if (onTab(tx.amount, f.occurredAt, row.id)) {
+    if (onTab(tx.amount, f.occurredAt, row.id, category)) {
       alreadyOnTab += 1;
+      continue;
+    }
+    // Already asked about as an email receipt (waiting, shared, kept private or expired).
+    if (
+      alreadyAskedElsewhere(stores, owner.memberId, group.groupId, 'email', {
+        amount: tx.amount,
+        occurredAt: f.occurredAt,
+        category,
+      })
+    ) {
+      duplicates += 1;
       continue;
     }
     const plan = sharePlan({
@@ -604,6 +626,7 @@ export async function importCardTransactions(
     prompted: created,
     updated: changed.filter((id) => live(id) !== undefined),
     alreadyOnTab,
+    duplicates,
     expired,
     dropped: 0,
     injectionTransactionIds: injected,
