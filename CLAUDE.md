@@ -87,19 +87,19 @@ Subagents cannot spawn other subagents, so **you run every loop.** Agent definit
 
 | Agent | Model | Role |
 |---|---|---|
-| Orchestrator (you, main session) | Fable 5.1 | Runs every phase and loop below |
-| `architect` | Fable 5.1 | Once, up front: module boundaries, core types, interfaces |
-| `builder` | Opus 5.5 | Implements one task until convinced it's done and correct. For the hardest tasks (agent loop, flight optimizer, ledger), invoke it with model `fable` |
-| `reviewer` | Fable 5.1 | Adversarially reviews the builder's work; APPROVE or numbered flaws |
+| Orchestrator (you, main session) | Opus 5.5 | Runs every phase and loop below |
+| `architect` | Opus 5.5 | Once, up front: module boundaries, core types, interfaces |
+| `builder` | Opus 5.5 | Implements one task until convinced it's done and correct. Always Opus; do not override the model (usage budget) |
+| `reviewer` | Opus 5.5 | Adversarially reviews the builder's work; APPROVE or numbered flaws |
 | `market-researcher` | Opus 5.5 | What competitors do well → proposed tasks |
 | `gap-hunter` | Opus 5.5 | What competitors lack → how Trav does better |
 | `connector-scout` | Opus 5.5 | Real APIs/services, feasibility, adapter interfaces |
-| `conversation-designer` | Fable 5.1 | Trav's voice, message formats, in-chat UX, simulator look |
-| `ideation` | Fable 5.1 | New feature ideas (Morning After, Wrapped, shared album), ranked and filtered |
+| `conversation-designer` | Opus 5.5 | Trav's voice, message formats, in-chat UX, simulator look |
+| `ideation` | Opus 5.5 | New feature ideas (Morning After, Wrapped, shared album), ranked and filtered |
 | `synthetic-data` | Opus 5.5 | Realistic labeled fixtures for every testable feature |
 | `evaluator` | Opus 5.5 | RL-style scenario evals of Trav; failures → tuning tasks |
 | `qa-tester` | Opus 5.5 | Plays full user journeys in the simulator (headless browser + CLI); files bugs |
-| `safety-reviewer` | Fable 5.1 | Spending controls, privacy, minors, prompt injection, roast guardrails |
+| `safety-reviewer` | Opus 5.5 | Spending controls, privacy, minors, prompt injection, roast guardrails |
 
 Models are set in each agent's frontmatter (`model: fable` / `model: opus`). The build agents run on Dean's Claude Max plan. **Trav itself** (the product's runtime) uses the Console API key and different models: see §3.
 

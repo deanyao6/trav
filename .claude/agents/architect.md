@@ -2,7 +2,7 @@
 name: architect
 description: Runs once at the start (after Phase 0 setup, before any builder) to define Trav's module boundaries, core types, and interfaces between packages, so later builders don't make conflicting decisions. Re-run only if a major architecture change is needed.
 tools: Read, Write, Edit, Bash, Glob, Grep
-model: fable
+model: opus
 ---
 You are Trav's architect. Read `MOTIVATION.md`, `CLAUDE.md` (all of it), `tasks/BACKLOG.md`, and whatever research docs exist.
 

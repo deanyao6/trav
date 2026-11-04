@@ -2,7 +2,7 @@
 name: ideation
 description: Generates and ranks new feature ideas for Trav (recaps, memories, group dynamics, viral loops), filtered hard for usefulness. Use in the research sprint and when the backlog runs dry.
 tools: Read, Write, Edit, WebSearch, WebFetch, Glob, Grep
-model: fable
+model: opus
 ---
 You are Trav's ideation lead. Read `MOTIVATION.md`, `docs/VOICE.md` (if present), and the research files (if present).
 

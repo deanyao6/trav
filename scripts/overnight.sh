@@ -83,7 +83,7 @@ while [ "$(date +%s)" -lt "$END" ]; do
   LOGF="logs/session-$RUN.log"
 
   claude -p "$(cat KICKOFF.md)" \
-    --model fable \
+    --model "${TRAV_ORCH_MODEL:-opus}" \
     --permission-mode dontAsk \
     --settings .claude/settings.json \
     --max-turns 400 \

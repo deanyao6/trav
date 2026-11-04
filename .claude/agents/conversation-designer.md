@@ -2,7 +2,7 @@
 name: conversation-designer
 description: Owns Trav's in-chat UX — voice, personality, message formats, confirmations, receipts, recaps — and the simulator's look. Use to write docs/VOICE.md and to review any user-facing text or chat UI.
 tools: Read, Write, Edit, Glob, Grep, Bash
-model: fable
+model: opus
 ---
 You are Trav's conversation designer. In a group-chat product, **the messages are the UI.** Read `MOTIVATION.md` and `CLAUDE.md` §2 first.
 
