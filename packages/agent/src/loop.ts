@@ -90,6 +90,12 @@ import type { BookingExecutor, ProviderRegistry } from './booking/executor.js';
 import { buildGroupContext, renderGroupPrompt, sanitizeInline } from './context/groupContext.js';
 import { createChatExpenseFlow } from './ingest/chatExpense.js';
 import {
+  createReceiptFlow,
+  receiptAttachment,
+  type ReceiptImageReader,
+  type ReceiptOutcome,
+} from './ingest/receipt.js';
+import {
   importCardTransactions as importCards,
   type CardImportInput,
   type CardImportOutcome,
@@ -195,6 +201,8 @@ export interface AgentDeps {
   readonly maxToolRounds?: number;
   /** Recent group messages kept per conversation for the prompt. Default 20. */
   readonly recentMessageLimit?: number;
+  /** Receipt photo reader (T-011); default reads only the repo's `fixtures/` and `.trav/attachments/`. */
+  readonly readReceiptImage?: ReceiptImageReader;
 }
 
 export interface TurnResult {
@@ -576,6 +584,14 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
   const guestsTold = new Set<string>();
   /** Expense from chat text (T-010): parser first, one question when a money fact is missing. */
   const chatExpenses = createChatExpenseFlow({ stores, model, ids, clock });
+  /** Receipt photo → "who had what?" → itemized split on the poster's 👍 (T-011). */
+  const receipts = createReceiptFlow({
+    stores,
+    model,
+    ids,
+    clock,
+    ...(deps.readReceiptImage !== undefined ? { readImage: deps.readReceiptImage } : {}),
+  });
 
   const remember = (key: string): boolean => {
     if (seen.has(key)) return false;
@@ -1542,6 +1558,51 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     // 4. mention gate (the claim check below needs it too).
     const mention = await detectMention(text, mentionCtx, model);
 
+    // 4a. a receipt photo, or words about one Trav just read ("who had what?",
+    // T-011, `ingest/receipt.ts`). OCR text never reaches the tool loop; the
+    // poster's 👍 on the card is what logs it.
+    if (canRequest(r.identity)) {
+      const addressed = mention.addressed && mention.reason !== 'thanks';
+      const photo = receiptAttachment(event.attachments);
+      const before = snapshotAudit(r.group.groupId);
+      let res: ReceiptOutcome | undefined;
+      if (photo !== undefined && (addressed || r.lane === 'dm')) {
+        res = await receipts.photo({
+          group: r.group,
+          members: r.members,
+          trip: r.trip,
+          me,
+          lane: r.lane,
+          messageId: event.messageId,
+          at: event.receivedAt,
+          attachment: photo,
+          text,
+        });
+      } else if (
+        photo === undefined &&
+        r.lane === 'group' &&
+        receipts.wants(r.group.groupId, me.memberId, event.replyToMessageId)
+      ) {
+        res = receipts.text({
+          group: r.group,
+          members: r.members,
+          trip: r.trip,
+          me,
+          messageId: event.messageId,
+          at: event.receivedAt,
+          text,
+          addressed,
+          ...(event.replyToMessageId !== undefined
+            ? { replyToMessageId: event.replyToMessageId }
+            : {}),
+        });
+      }
+      if (res !== undefined) {
+        recordInbound();
+        return receiptTurn(r, res, before);
+      }
+    }
+
     // 4b. roll call / roster override ("who's in tonight?", "Henry's sick",
     // "count me in") addressed to Trav: deterministic, never the model, and
     // a roster change re-prices any pending proposal through the approval
@@ -1731,6 +1792,44 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     return false;
   }
 
+  // ---------- receipt photos (T-011) ----------
+
+  async function receiptTurn(
+    r: Resolved,
+    res: ReceiptOutcome,
+    before: ReadonlySet<string>,
+  ): Promise<TurnResult> {
+    const sent = await send(r, res.drafts);
+    return {
+      outbound: sent,
+      toolCalls: [],
+      auditEventIds: auditIdsSince(r.group.groupId, before),
+      silent: sent.length === 0,
+      modelSources: res.modelSources,
+      note: res.note,
+    };
+  }
+
+  /** 👍 / 👎 / a button on a receipt card: only the poster's counts (SAFETY §2.4). */
+  async function receiptAnswerTurn(
+    r: Resolved,
+    cardMessageId: MessageId,
+    intent: 'confirm' | 'drop' | undefined,
+  ): Promise<TurnResult> {
+    if (intent === undefined) return silent('receipt:not_an_answer');
+    const before = snapshotAudit(r.group.groupId);
+    const res = receipts.answer({
+      group: r.group,
+      members: r.members,
+      trip: r.trip,
+      me: canRequest(r.identity) ? r.me : null,
+      cardMessageId,
+      intent,
+    });
+    if (res === undefined) return silent('receipt:not_ours');
+    return receiptTurn(r, res, before);
+  }
+
   // ---------- undo (VOICE §4.4 "👎 to undo") ----------
 
   /**
@@ -1918,6 +2017,11 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       case 'reaction': {
         if (event.removed) return silent('reaction:removed');
         const intent = reactionIntent(event.reaction);
+        if (receipts.owns(event.targetMessageId)) {
+          const answer =
+            intent === 'approve' ? 'confirm' : intent === 'decline' ? 'drop' : undefined;
+          return receiptAnswerTurn(r, event.targetMessageId, answer);
+        }
         const ref = cards.get(event.targetMessageId);
         if (intent === 'decline' && ref !== undefined && isLoggedExpenseCard(ref))
           return undoExpense(r, ref, 'reaction', event.messageId);
@@ -1926,6 +2030,15 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
         return routeApproval(r, event, intent, '', 'reaction', ref.proposalId, event.messageId);
       }
       case 'button_tap': {
+        if (receipts.owns(event.cardMessageId)) {
+          const answer =
+            event.actionId === 'confirm'
+              ? 'confirm'
+              : event.actionId === 'decline'
+                ? 'drop'
+                : undefined;
+          return receiptAnswerTurn(r, event.cardMessageId, answer);
+        }
         const ref = cards.get(event.cardMessageId);
         if (event.actionId === 'undo' && ref !== undefined && isLoggedExpenseCard(ref))
           return undoExpense(r, ref, 'button', event.messageId);

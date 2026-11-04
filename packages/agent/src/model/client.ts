@@ -24,6 +24,7 @@ import { createLiveModelClient, createSdkTransport } from './live.js';
 import type { LiveTransport } from './live.js';
 import { createOfflineModelClient } from './offline/client.js';
 import { defaultFallbacks } from './offline/fallbacks.js';
+import { receiptFixtureResponders } from './offline/receiptFixtures.js';
 import { loadScriptStore } from './offline/scripts.js';
 import { defaultScriptsDir, defaultStateDir } from './paths.js';
 import { createFileSpendGuard, DEFAULT_LIVE_BUDGET_USD, DEFAULT_MODEL_PRICING } from './spend.js';
@@ -56,6 +57,12 @@ export {
   toolResultAckResponder,
 } from './offline/fallbacks.js';
 export type { BookingIntent } from './offline/fallbacks.js';
+export {
+  createReceiptOcrResponder,
+  loadReceiptFixtures,
+  receiptFixtureResponders,
+} from './offline/receiptFixtures.js';
+export type { ReceiptFixtureEntry } from './offline/receiptFixtures.js';
 export { OFFLINE_MISS_LABEL_PREFERENCE, OFFLINE_NOT_SURE_TEXT } from './offline/client.js';
 export { createLiveModelClient, createSdkTransport } from './live.js';
 export type { LiveTransport } from './live.js';
@@ -329,7 +336,7 @@ export function createModelClient(opts: ModelClientOptions): ModelClient {
   }
   return createOfflineModelClient({
     scripts: opts.scripts ?? loadScriptStore(defaultScriptsDir()),
-    fallbacks: opts.fallbacks ?? defaultFallbacks(),
+    fallbacks: opts.fallbacks ?? [...defaultFallbacks(), ...receiptFixtureResponders()],
     missLogPath: join(env.stateDir, 'offline-misses.jsonl'),
     clock,
   });

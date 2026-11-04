@@ -132,7 +132,7 @@ function namesAnyMember(text: string, members: readonly Member[]): boolean {
 }
 
 /** A free-text description is shown only if it is neutral: no blocked topic, no member's name. */
-function neutralDescription(
+export function neutralDescription(
   text: string,
   members: readonly Member[],
   familyMode: boolean,
@@ -255,14 +255,17 @@ function textOrder(awards: readonly core.WrappedAward[]): core.WrappedAward[] {
 
 async function albumPhotos(
   deps: WrappedComposeDeps,
-  groupId: string,
+  group: Group,
   tripId: string,
   consent: ConsentLookup,
 ): Promise<readonly Photo[]> {
   if (deps.album === undefined) return [];
-  const r = await deps.album.listPhotos({ groupId, tripId }, consent);
+  const r = await deps.album.listPhotos({ groupId: group.groupId, tripId }, consent);
+  // A photo dropped with "@trav drop that one" stays out even if the album
+  // forgot the hide (T-015): the group's own list is the source of truth.
+  const dropped = new Set(group.settings.droppedPhotoIds ?? []);
   // An album outage costs the photos, never the Wrapped.
-  return r.ok ? r.value.filter((p) => !p.hidden) : [];
+  return r.ok ? r.value.filter((p) => !p.hidden && !dropped.has(p.photoId)) : [];
 }
 
 /** The Wrapped render input for a trip, from the stores (see the module comment). */
@@ -338,7 +341,7 @@ export async function buildWrappedInput(
     }
   }
 
-  const photos = await albumPhotos(deps, groupId, tripId, consent);
+  const photos = await albumPhotos(deps, group, tripId, consent);
   const candidates: core.HighlightCandidate[] = photos.map((p) => ({
     photoId: p.photoId,
     ownerMemberId: p.ownerMemberId,

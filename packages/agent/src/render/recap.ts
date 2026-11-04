@@ -20,7 +20,7 @@ import type {
   RecapCard,
   Trip,
 } from '@trav/core';
-import { formatClockTime, formatMoney, formatTransfer, safety } from '@trav/core';
+import { formatClockTime, formatMoney, formatTransfer, money, safety } from '@trav/core';
 import type { RenderContext } from './common.js';
 import { GROUP, cardMessage, nameOf } from './common.js';
 import type { SettleUpRenderInput } from './settleUp.js';
@@ -30,6 +30,8 @@ export interface RecapPhoto {
   readonly url: string;
   readonly byMemberId: MemberId;
   readonly alt: string;
+  /** Album id, so "@trav drop that one" can find it (T-015). */
+  readonly photoId?: string;
 }
 
 export interface SafetyContext {
@@ -46,11 +48,21 @@ export interface RecapRenderInput {
     readonly events: readonly {
       readonly label: string;
       readonly attendees: readonly MemberId[];
+      /**
+       * Present members who were not on it. Shown as "(5 of you, not Henry)"
+       * when one or two are out: who was out is a fact, the reason is theirs
+       * (IDEAS Seed A; never "(Henry was sick)", T-028).
+       */
+      readonly notIn?: readonly MemberId[];
       readonly amount?: Money;
     }[];
     readonly total: Money;
     readonly perPerson?: Money;
+    /** The group's daily budget: "€264 total, €36 over the €228 day budget". */
+    readonly budget?: Money;
   };
+  /** Card/email items still waiting on their owner (a count, never the items; SAFETY §2.3). */
+  readonly pendingPrivateCount?: number;
   /** Pre-generated roast lines (max 2). Dropped unless every gate passes. */
   readonly roastLines?: readonly string[];
   readonly settle: SettleUpRenderInput;
@@ -66,6 +78,8 @@ export interface RecapRenderInput {
 const MAX_RECAP_PHOTOS = 3;
 const MAX_ROAST_LINES = 2;
 const MAX_INLINE_EVENTS = 3;
+/** "not Henry" for one or two people out; more than that reads as a list of absences. */
+const MAX_NOT_IN_NAMES = 2;
 
 /** Roast lines that pass gate 1 for the group and every member they name. */
 export function gatedRoastLines(
@@ -86,6 +100,16 @@ export function gatedRoastLines(
     )
     .filter((line) => safety.roastTopicBlocked(line) === null)
     .slice(0, MAX_ROAST_LINES);
+}
+
+/** ", under the €300 day budget" / ", €36 over the €228 day budget" (same currency only). */
+function budgetText(n: RecapRenderInput['lastNight']): string {
+  const b = n.budget;
+  if (b === undefined || b.amountMinor <= 0 || b.currency !== n.total.currency) return '';
+  const over = n.total.amountMinor - b.amountMinor;
+  return over > 0
+    ? `, ${formatMoney(money(over, b.currency))} over the ${formatMoney(b)} day budget`
+    : `, under the ${formatMoney(b)} day budget`;
 }
 
 function escape(s: string): string {
@@ -126,11 +150,16 @@ export function renderRecap(
     const parts = events.slice(0, MAX_INLINE_EVENTS).map((e, i) => {
       // "(5 of you)" once per crew: repeated only when the attendees change.
       const prev = i > 0 ? events[i - 1] : undefined;
+      const notIn = e.notIn ?? [];
+      const notInText =
+        notIn.length > 0 && notIn.length <= MAX_NOT_IN_NAMES
+          ? `, not ${notIn.map((id) => nameOf(ctx, id)).join(' or ')}`
+          : '';
       const who =
         e.attendees.length > 0 &&
         e.attendees.length < groupSize &&
         (prev === undefined || !sameCrew(prev.attendees, e.attendees))
-          ? ` (${String(e.attendees.length)} of you)`
+          ? ` (${String(e.attendees.length)} of you${notInText})`
           : '';
       return `${e.label}${who}${e.amount !== undefined ? ` ${formatMoney(e.amount)}` : ''}`;
     });
@@ -141,9 +170,9 @@ export function renderRecap(
     lines.push(`${morningAfter ? 'last night' : 'yesterday'}: ${parts.join(' · ')}${more}`);
   }
   lines.push(
-    input.lastNight.perPerson !== undefined
+    (input.lastNight.perPerson !== undefined
       ? `${formatMoney(input.lastNight.total)} total, ${formatMoney(input.lastNight.perPerson)} each`
-      : `${formatMoney(input.lastNight.total)} total`,
+      : `${formatMoney(input.lastNight.total)} total`) + budgetText(input.lastNight),
   );
 
   const roastLines = gatedRoastLines(input.roastLines ?? [], ctx, sc);
@@ -175,6 +204,15 @@ export function renderRecap(
     );
   }
 
+  const pending = Math.max(0, Math.floor(input.pendingPrivateCount ?? 0));
+  if (pending > 0) {
+    lines.push(
+      pending === 1
+        ? '1 charge that looks shared is waiting on a tap in dms'
+        : `${String(pending)} charges that look shared are waiting on a tap in dms`,
+    );
+  }
+
   const today = input.today ?? [];
   if (today.length > 0) {
     const items = today.slice(0, MAX_INLINE_EVENTS).map((t) => {
@@ -202,13 +240,16 @@ export function renderRecap(
         events: events.map((e) => ({
           label: e.label,
           attendees: e.attendees,
+          ...(e.notIn !== undefined && e.notIn.length > 0 ? { notIn: e.notIn } : {}),
           ...(e.amount !== undefined ? { amount: e.amount } : {}),
         })),
         total: input.lastNight.total,
         ...(input.lastNight.perPerson !== undefined
           ? { perPerson: input.lastNight.perPerson }
           : {}),
+        ...(input.lastNight.budget !== undefined ? { budget: input.lastNight.budget } : {}),
       },
+      ...(pending > 0 ? { pendingPrivateCount: pending } : {}),
       roastLines,
       settle: settle.card,
       ...(today.length > 0 ? { today: today.map((t) => ({ ...t })) } : {}),

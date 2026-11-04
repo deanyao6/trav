@@ -79,7 +79,7 @@ function modeShare(shares: readonly Money[]): Money | undefined {
 }
 
 /** `Sam €20 · Maya €12`, or `Priya €21 · everyone else €32.60` when one amount covers most people. */
-function unequalShares(participants: readonly Participant[], payer: MemberId): string {
+export function unequalShares(participants: readonly Participant[], payer: MemberId): string {
   const ordered = [
     ...participants.filter((p) => p.memberId !== payer),
     ...participants.filter((p) => p.memberId === payer),

@@ -60,6 +60,11 @@ export interface GroupSettings {
    * silently. Group-visible by design (it only removes a name). Absent = nobody.
    */
   readonly awardsOptOut?: readonly MemberId[];
+  /**
+   * Album photos any member dropped with "@trav drop that one" (T-015): never
+   * shown again in a recap or in Wrapped, whatever the album says. Absent = none.
+   */
+  readonly droppedPhotoIds?: readonly string[];
 }
 
 export interface Group {

@@ -258,11 +258,17 @@ export interface RecapCard extends CardBase {
     readonly events: readonly {
       readonly label: string;
       readonly attendees: readonly MemberId[];
+      /** Present members who were not on it ("not Henry"); a fact, never a reason (T-015). */
+      readonly notIn?: readonly MemberId[];
       readonly amount?: Money;
     }[];
     readonly total: Money;
     readonly perPerson?: Money;
+    /** The group's daily budget, when the trip has one (pacing line). */
+    readonly budget?: Money;
   };
+  /** Card/email items waiting on their owner's tap: a count only, never the items (SAFETY §2.3). */
+  readonly pendingPrivateCount?: number;
   /** Empty unless roast mode on; evals assert guardrails on these. */
   readonly roastLines?: readonly string[];
   readonly settle: SettleUpCard;
@@ -271,11 +277,12 @@ export interface RecapCard extends CardBase {
     readonly startsAt: IsoDateTime;
     readonly ticketsDelivered?: boolean;
   }[];
-  /** Only from opted-in members. */
+  /** Only from opted-in members. `photoId` lets "@trav drop that one" find it (T-015). */
   readonly photos: readonly {
     readonly url: string;
     readonly byMemberId: MemberId;
     readonly alt: string;
+    readonly photoId?: string;
   }[];
 }
 
