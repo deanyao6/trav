@@ -160,7 +160,10 @@ export function renderRecap(
     (a, b) => b.amount.amountMinor - a.amount.amountMinor,
   );
   const big = transfers[0];
-  if (big === undefined) {
+  if (input.settle.familyTab === true) {
+    // VOICE §4.7 C (family tab: one pot, no transfers, T-065).
+    lines.push("everything's on the family tab, nothing to split");
+  } else if (big === undefined) {
     lines.push("tab: everyone's square");
   } else {
     const t = formatTransfer(nameOf(ctx, big.from), nameOf(ctx, big.to), big.amount);

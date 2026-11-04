@@ -679,6 +679,91 @@ describe('tripLedger: split trips', () => {
     expect(fnCtx.balances.map((b) => b.memberId)).toEqual([KID, DAD, MOM]);
   });
 
+  it('accepts precomputed entries (T-065): same result as rebuilding, members order, no ctx needed', () => {
+    resetCounter();
+    const expenses = [
+      famExpense({
+        amountMinor: 900,
+        payer: LILY,
+        split: { method: 'equal', participants: [MOM, DAD, KID] },
+      }),
+      famExpense({
+        amountMinor: 400,
+        payer: MOM,
+        split: { method: 'equal', participants: [KID, LILY] },
+      }),
+    ];
+    const rebuilt = tripLedger({
+      trip: splitTrip,
+      members: FAMILY,
+      expenses,
+      ctx: FAMILY_CTX,
+      now: NOW,
+    });
+    const persisted = buildLedger(expenses, FAMILY_CTX);
+    const fromEntries = tripLedger({
+      trip: splitTrip,
+      members: FAMILY,
+      expenses,
+      entries: persisted,
+      now: NOW,
+    });
+    expect(fromEntries).toEqual(rebuilt);
+    expect(fromEntries.balances.some((b) => b.memberId === LILY)).toBe(false);
+    // Entries win over ctx: they are the persisted truth (here an attendance-scoped split).
+    const scoped = buildLedger(expenses, {
+      memberOrder: FAMILY_IDS,
+      participantsUniverse: [MOM, DAD],
+    });
+    expect(() =>
+      tripLedger({
+        trip: splitTrip,
+        members: FAMILY,
+        expenses,
+        entries: scoped,
+        ctx: FAMILY_CTX,
+        now: NOW,
+      }),
+    ).not.toThrow();
+    // Order follows `members` with entries.
+    const rev = tripLedger({
+      trip: splitTrip,
+      members: FAMILY.slice().reverse(),
+      expenses,
+      entries: persisted,
+      now: NOW,
+    });
+    expect(rev.balances.map((b) => b.memberId)).toEqual([KID, DAD, MOM]);
+    // Family tab from entries: zero transfers.
+    const fam = tripLedger({
+      trip: familyTrip,
+      members: FAMILY,
+      expenses,
+      entries: persisted,
+      now: NOW,
+    });
+    expect(fam.transfers).toEqual([]);
+    expect(fam.balances.every((b) => b.net.amountMinor === 0)).toBe(true);
+    // An entry naming a non-member throws rather than being dropped.
+    const ghost: LedgerEntry = { ...persisted[0]!, memberId: 'mem_ghost' };
+    expectTravError(
+      () =>
+        tripLedger({
+          trip: splitTrip,
+          members: FAMILY,
+          expenses,
+          entries: [...persisted, ghost],
+          now: NOW,
+        }),
+      'invalid_argument',
+    );
+    // Neither ctx nor entries.
+    expectTravError(
+      () => tripLedger({ trip: splitTrip, members: FAMILY, expenses, now: NOW }),
+      'invalid_argument',
+    );
+  });
+
   it('rejects a group with no adult to carry the tab', () => {
     const kids = [member({ memberId: LILY, displayName: 'Lily', ageBand: 'under18' })];
     expectTravError(

@@ -11,10 +11,18 @@ import type {
   Member,
   MemberId,
   Money,
+  OutboundMessage,
   SplitSpec,
+  Trip,
 } from '@trav/core';
 import { formatMoney, formatShares, formatTransfer, ledger, money, TravError } from '@trav/core';
 import { sanitizeInline } from '../context/groupContext.js';
+import type { TripLedgerView, TripMoney } from '../context/tripMoney.js';
+import { tripMoney } from '../context/tripMoney.js';
+import type { RenderContext } from '../render/common.js';
+import { GROUP, textMessage } from '../render/common.js';
+import type { SettleUpRenderInput } from '../render/settleUp.js';
+import { renderSettleUp } from '../render/settleUp.js';
 import type { ToolContext, ToolDefinition } from './registry.js';
 import {
   activeMembers,
@@ -423,7 +431,21 @@ export const logExpenseTool: ToolDefinition<LogExpenseInput, LogExpenseResult> =
 
 export interface BalancesResult {
   readonly currency: string;
+  /** `family_tab`: one pot, every balance zero, no transfers (T-058). */
+  readonly mode: 'split' | 'family_tab';
   readonly totalSpentMinor: number;
+  /** Minors whose money is carried by a guardian ("Lily (under Dad)"); never in `balances`. */
+  readonly folded: readonly {
+    readonly minor: MemberId;
+    readonly name: string;
+    readonly guardian: MemberId;
+    readonly guardianName: string;
+  }[];
+  /** Set when a minor with money on the tab has no guardian: `text` is the question for the leads. */
+  readonly needsGuardian?: {
+    readonly minors: readonly MemberId[];
+    readonly askMemberIds: readonly MemberId[];
+  };
   readonly balances: readonly {
     readonly memberId: MemberId;
     readonly name: string;
@@ -438,26 +460,117 @@ export interface BalancesResult {
   readonly text: string;
 }
 
-export function balancesFor(ctx: ToolContext): BalancesResult {
+/**
+ * VOICE §8: a minor is never charged, so when one has money on the tab and no
+ * guardian, ask the leads whose tab they're on instead of settling.
+ */
+export function guardianQuestion(
+  members: readonly Member[],
+  minors: readonly MemberId[],
+  askMemberIds: readonly MemberId[],
+): string {
+  const kids = minors.map((id) => nameOf(members, id));
+  const who =
+    askMemberIds.length > 0 ? `, ${andList(askMemberIds.map((id) => nameOf(members, id)))}` : '';
+  const share = kids.length === 1 ? `${kids[0] ?? ''}'s share goes` : 'their shares go';
+  return `quick one before i settle up${who}: who's covering ${andList(kids)}? under-18s never owe anyone here, so ${share} on an adult's tab`;
+}
+
+function andList(names: readonly string[]): string {
+  if (names.length <= 1) return names.join('');
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1] ?? ''}`;
+}
+
+/** The trip's money via `ledger.tripLedger` over the persisted rows (T-065; minors folded, family tab). */
+function tripMoneyFor(ctx: ToolContext): {
+  readonly trip: Trip;
+  readonly members: readonly Member[];
+  readonly money: TripMoney;
+} {
   const trip = requireTrip(ctx);
-  const members = activeMembers(ctx);
-  const order = members.map((m) => m.memberId);
+  // Every member (left, guests and minors too): an inactive guardian still
+  // carries a minor, and dropping anyone's rows would unbalance the tab.
+  const members = ctx.stores.group.members.listByGroup(ctx.groupId);
   const expenses = ctx.stores.group.expenses;
-  const entries = expenses.listEntries(trip.tripId).filter((e) => order.includes(e.memberId));
-  const balances = ledger.computeBalances(entries, trip.currency, order);
-  const transfers = ledger.settle(balances);
-  const total = ledger.totalSpent(expenses.listByTrip(trip.tripId), trip.currency);
+  return {
+    trip,
+    members,
+    money: tripMoney({
+      trip,
+      members,
+      expenses: expenses.listByTrip(trip.tripId),
+      entries: expenses.listEntries(trip.tripId),
+      now: ctx.now,
+    }),
+  };
+}
+
+/** Rows worth showing: current members, plus anyone else who still has money on the tab. */
+function shownBalances(
+  view: TripLedgerView,
+  members: readonly Member[],
+): TripLedgerView['balances'] {
+  const current = new Set(
+    members
+      .filter((m) => m.active && m.leftAt === undefined && m.role !== 'guest')
+      .map((m) => m.memberId),
+  );
+  return view.balances.filter((b) => current.has(b.memberId) || b.net.amountMinor !== 0);
+}
+
+/** "Lily (under Dad)" for each minor folded into a guardian (VOICE §8). */
+function foldedRows(view: TripLedgerView, members: readonly Member[]): BalancesResult['folded'] {
+  return view.folded.flatMap((f) =>
+    f.guardian === null
+      ? []
+      : [
+          {
+            minor: f.minor,
+            name: nameOf(members, f.minor),
+            guardian: f.guardian,
+            guardianName: nameOf(members, f.guardian),
+          },
+        ],
+  );
+}
+
+export function balancesFor(ctx: ToolContext): BalancesResult {
+  const { trip, members, money: tm } = tripMoneyFor(ctx);
+  if (tm.kind === 'needs_guardian') {
+    return {
+      currency: trip.currency,
+      mode: trip.familyTab ? 'family_tab' : 'split',
+      totalSpentMinor: tm.total.amountMinor,
+      balances: [],
+      transfers: [],
+      folded: [],
+      needsGuardian: { minors: tm.minors, askMemberIds: tm.askMemberIds },
+      text: guardianQuestion(members, tm.minors, tm.askMemberIds),
+    };
+  }
+  const view = tm.ledger;
+  const { transfers, total } = view;
+  const folded = foldedRows(view, members);
   const lines = transfers.map((t) =>
     formatTransfer(nameOf(members, t.from), nameOf(members, t.to), t.amount),
   );
-  const text =
-    transfers.length === 0
-      ? `${formatMoney(total)} on the tab so far. nobody owes anybody. rare. enjoy it`
-      : [`${formatMoney(total)} on the tab so far`, ...lines.slice(0, 5)].join('\n');
+  let text: string;
+  if (view.mode === 'family_tab') {
+    text = `${formatMoney(total)} on the family tab so far, nothing to split`;
+  } else {
+    text =
+      transfers.length === 0
+        ? `${formatMoney(total)} on the tab so far. nobody owes anybody. rare. enjoy it`
+        : [`${formatMoney(total)} on the tab so far`, ...lines.slice(0, 5)].join('\n');
+    if (folded.length > 0) {
+      text += `\n${folded.map((f) => `${f.name} (under ${f.guardianName})`).join(' · ')}`;
+    }
+  }
   return {
     currency: trip.currency,
+    mode: view.mode,
     totalSpentMinor: total.amountMinor,
-    balances: balances.map((b) => ({
+    balances: shownBalances(view, members).map((b) => ({
       memberId: b.memberId,
       name: nameOf(members, b.memberId),
       netMinor: b.net.amountMinor,
@@ -468,8 +581,62 @@ export function balancesFor(ctx: ToolContext): BalancesResult {
       amountMinor: t.amount.amountMinor,
       text: lines[i]!,
     })),
+    folded,
     text,
   };
+}
+
+export type SettleUpForResult =
+  | { readonly kind: 'ok'; readonly input: SettleUpRenderInput }
+  | {
+      readonly kind: 'needs_guardian';
+      readonly minors: readonly MemberId[];
+      readonly askMemberIds: readonly MemberId[];
+      readonly question: string;
+    };
+
+/**
+ * The settle-up / recap / Wrapped money input from the store (T-065): balances
+ * and transfers from `ledger.tripLedger`, so no minor row and, for a family
+ * tab, no transfers. A guardian-less minor with money yields the VOICE §8
+ * question instead of an input.
+ */
+export function settleUpFor(ctx: ToolContext, mode: 'running' | 'final'): SettleUpForResult {
+  const { trip, members, money: tm } = tripMoneyFor(ctx);
+  if (tm.kind === 'needs_guardian') {
+    return {
+      kind: 'needs_guardian',
+      minors: tm.minors,
+      askMemberIds: tm.askMemberIds,
+      question: guardianQuestion(members, tm.minors, tm.askMemberIds),
+    };
+  }
+  const view = tm.ledger;
+  return {
+    kind: 'ok',
+    input: {
+      mode,
+      currency: trip.currency,
+      balances: shownBalances(view, members),
+      transfers: view.transfers,
+      totalSpent: view.total,
+      ...(view.mode === 'family_tab' ? { familyTab: true } : {}),
+    },
+  };
+}
+
+/**
+ * The settle-up message for the group: the `settle_up` card, or (guardian-less
+ * minor) the plain-text question to the leads. Never throws over a minor.
+ */
+export function renderSettleUpFor(
+  ctx: ToolContext,
+  mode: 'running' | 'final',
+  rctx: RenderContext,
+): OutboundMessage {
+  const r = settleUpFor(ctx, mode);
+  if (r.kind === 'needs_guardian') return textMessage(rctx, GROUP, [r.question]);
+  return renderSettleUp(r.input, rctx);
 }
 
 export const getBalancesTool: ToolDefinition<Record<string, never>, BalancesResult> = {

@@ -3,8 +3,10 @@
  * positions; final mode shows the minimal transfer list from
  * `ledger.settle`. Balances must sum to zero to the cent (the card carries the
  * proof) or rendering throws. Minors never appear as debtor or creditor
- * (VOICE §8): their share is already folded into the guardian by the ledger,
- * and any non-zero minor balance here is an invariant violation.
+ * (VOICE §8): balances from `ledger.tripLedger` are already folded; any minor
+ * row passed here anyway is folded into the guardian (see `foldMinorBalances`),
+ * and a supplied transfer naming a minor is an invariant violation. A family
+ * tab (`familyTab`) shows zero nets and no transfers.
  */
 import type {
   Balance,
@@ -32,6 +34,8 @@ export interface SettleUpRenderInput {
   readonly dayNumber?: number;
   /** Default: ctx.now. */
   readonly asOf?: IsoDateTime;
+  /** `Trip.familyTab`: one pot, every net shown as zero, no transfers (VOICE §4.7 C). */
+  readonly familyTab?: boolean;
 }
 
 /** Inline items per line (VOICE §3.3: up to 3 inline). */
@@ -47,6 +51,50 @@ function chunk<T>(items: readonly T[], n: number): T[][] {
 
 function sameTransfer(a: Transfer, b: Transfer): boolean {
   return a.from === b.from && a.to === b.to && a.amount.amountMinor === b.amount.amountMinor;
+}
+
+/**
+ * VOICE §8: a minor never appears as debtor or creditor. Balances from
+ * `ledger.tripLedger` already have no minor rows; for anything else (a caller
+ * passing raw `computeBalances` output, e.g. Lily paid $24), a minor's net is
+ * moved onto their guardian's row (created if absent) and the minor's row is
+ * dropped, so Σ is unchanged and nothing throws. A minor with a non-zero net
+ * and no valid guardian throws `minor_without_guardian`
+ * (`ledger.isMinorWithoutGuardianError`): never guess which adult carries a
+ * child; callers ask the leads instead (`tools/ledger.ts` `settleUpFor`).
+ */
+function foldMinorBalances(balances: readonly Balance[], ctx: RenderContext): Balance[] {
+  const folding = ledger.minorFolding(ctx.members, ctx.now);
+  if (folding.minors.length === 0) return [...balances];
+  const out = new Map<MemberId, Balance>();
+  for (const b of balances) {
+    if (!folding.guardianOf.has(b.memberId)) {
+      const prev = out.get(b.memberId);
+      out.set(
+        b.memberId,
+        prev === undefined
+          ? b
+          : { ...b, net: money(prev.net.amountMinor + b.net.amountMinor, b.net.currency) },
+      );
+    }
+  }
+  for (const b of balances) {
+    if (!folding.guardianOf.has(b.memberId) || b.net.amountMinor === 0) continue;
+    const guardian = folding.guardianOf.get(b.memberId) ?? null;
+    if (guardian === null) {
+      throw new TravError(
+        'invalid_argument',
+        `renderSettleUp: minor ${b.memberId} has a balance and no guardian`,
+        { reason: ledger.MINOR_WITHOUT_GUARDIAN, memberId: b.memberId },
+      );
+    }
+    const prev = out.get(guardian);
+    out.set(guardian, {
+      memberId: guardian,
+      net: money((prev?.net.amountMinor ?? 0) + b.net.amountMinor, b.net.currency),
+    });
+  }
+  return [...out.values()];
 }
 
 /** The settle-up card on its own (also embedded in recap and Wrapped). Its `fallbackText` is the standalone settle-up text. */
@@ -67,25 +115,31 @@ export function buildSettleUp(
       netMinor: net,
     });
   }
-  for (const b of input.balances) {
-    const m = ctx.members.find((x) => x.memberId === b.memberId);
-    if (m !== undefined && safety.isMinor(m, ctx.now) && b.net.amountMinor !== 0) {
-      throw new TravError(
-        'invariant_violation',
-        'renderSettleUp: a minor has a balance (VOICE §8)',
-      );
-    }
-  }
   const order = ctx.members.map((m) => m.memberId);
-  const balances = [...input.balances].sort(
-    (a, b) => order.indexOf(a.memberId) - order.indexOf(b.memberId),
+  const folded = foldMinorBalances(input.balances, ctx);
+  // Family tab: one pot, nobody owes anybody (T-058). Rows stay, nets are zero.
+  const balances = (
+    input.familyTab === true ? folded.map((b) => ({ ...b, net: money(0, cur) })) : folded
+  ).sort((a, b) => order.indexOf(a.memberId) - order.indexOf(b.memberId));
+  const minors = new Set(
+    ctx.members.filter((m) => safety.isMinor(m, ctx.now)).map((m) => m.memberId),
   );
+  if (input.transfers?.some((t) => minors.has(t.from) || minors.has(t.to)) === true) {
+    throw new TravError(
+      'invariant_violation',
+      'renderSettleUp: a transfer names a minor (VOICE §8)',
+    );
+  }
   const nonZero = balances.filter((b) => b.net.amountMinor !== 0);
-  const transfers = input.transfers ?? (nonZero.length > 0 ? ledger.settle(balances) : []);
+  const transfers = input.familyTab
+    ? []
+    : (input.transfers ?? (nonZero.length > 0 ? ledger.settle(balances) : []));
   const paid = input.paid ?? [];
 
   const lines: string[] = [];
-  if (nonZero.length === 0) {
+  if (input.familyTab === true) {
+    lines.push("everything's on the family tab, nothing to split");
+  } else if (nonZero.length === 0) {
     lines.push('nobody owes anybody. rare. enjoy it');
   } else if (input.mode === 'running') {
     lines.push(

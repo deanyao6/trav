@@ -37,13 +37,13 @@ import type {
 import {
   formatMoney,
   formatTime,
-  ledger,
   safety,
   STRIPPED_FIELDS,
   TravError,
   tripDayNumber,
 } from '@trav/core';
 import { stripInvisible } from '../untrusted.js';
+import { tripMoney } from './tripMoney.js';
 
 export interface GroupContextDeps {
   readonly group: GroupStore;
@@ -133,11 +133,17 @@ export function buildGroupContext(
       byTime(a.occurredAt, b.occurredAt),
     );
     recentExpenses = lastN(expenses, opts?.recentExpenseLimit ?? 15);
-    balances = ledger.computeBalances(
-      store.expenses.listEntries(trip.tripId),
-      trip.currency,
-      memberOrder,
-    );
+    // T-065: minors folded into their guardian, a family tab nets to zero. A
+    // guardian-less minor with money leaves balances empty (get_balances asks
+    // the leads, VOICE §8); the prompt then shows no balances line.
+    const money = tripMoney({
+      trip,
+      members,
+      expenses,
+      entries: store.expenses.listEntries(trip.tripId),
+      now,
+    });
+    balances = money.kind === 'ok' ? money.ledger.balances : [];
     bookings = store.bookings.listByTrip(trip.tripId);
     dayNumber = tripDayNumber(now, trip.startDate, trip.timeZone);
   }
@@ -366,7 +372,12 @@ export function renderGroupPrompt(
     }
   }
 
-  if (ctx.balances.length > 0) {
+  if (ctx.trip?.familyTab === true) {
+    lines.push(
+      '',
+      'money: family tab, one pot, nobody owes anybody and there is nothing to settle',
+    );
+  } else if (ctx.balances.length > 0) {
     lines.push(
       '',
       `balances (positive = is owed): ${ctx.balances.map((b) => `${name(b.memberId)} ${signed(b.net)}`).join(' · ')}`,

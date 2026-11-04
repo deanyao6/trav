@@ -224,8 +224,19 @@ export interface TripLedgerInput {
    */
   readonly members: readonly Member[];
   readonly expenses: readonly Expense[];
-  /** Split context for each expense, as for `buildLedger`. */
-  readonly ctx: SplitContext | ((expense: Expense) => SplitContext);
+  /**
+   * Split context for each expense, as for `buildLedger`. Required unless
+   * `entries` is given.
+   */
+  readonly ctx?: SplitContext | ((expense: Expense) => SplitContext);
+  /**
+   * Ledger entries already built for `expenses` (the rows persisted at log
+   * time, T-065), used instead of re-running `buildLedger(expenses, ctx)`: they
+   * are the source of truth for who paid and owes what, and `expenses` is only
+   * used for the totals. Output order is then `members` order. Every entry must
+   * name a member of `members`.
+   */
+  readonly entries?: readonly LedgerEntry[];
   /** Age is evaluated at this instant (`safety.isMinor`). */
   readonly now: IsoDateTime;
   /** Small-amount floor passed to `settle` (T-049). Ignored for a family tab. */
@@ -256,10 +267,10 @@ export interface TripLedger {
  */
 function balanceOrder(
   members: readonly Member[],
-  ctx: SplitContext | ((expense: Expense) => SplitContext),
+  ctx: SplitContext | ((expense: Expense) => SplitContext) | undefined,
 ): MemberId[] {
   const ids = members.map((m) => m.memberId);
-  if (typeof ctx === 'function') return ids;
+  if (ctx === undefined || typeof ctx === 'function') return ids;
   const present = new Set(ids);
   const inCtx = ctx.memberOrder.filter((id) => present.has(id));
   const listed = new Set(inCtx);
@@ -276,8 +287,14 @@ export function tripLedger(input: TripLedgerInput): TripLedger {
   const { trip, members, expenses, ctx, now } = input;
   const currency = trip.currency;
   const folding = minorFolding(members, now);
-  const entries = foldLedgerEntries(buildLedger(expenses, ctx), folding);
-  const order = balanceOrder(members, ctx).filter((id) => !folding.guardianOf.has(id));
+  let raw: readonly LedgerEntry[];
+  if (input.entries !== undefined) raw = input.entries;
+  else if (ctx !== undefined) raw = buildLedger(expenses, ctx);
+  else throw new TravError('invalid_argument', 'tripLedger: pass ctx or entries');
+  const entries = foldLedgerEntries(raw, folding);
+  const order = balanceOrder(members, input.entries === undefined ? ctx : undefined).filter(
+    (id) => !folding.guardianOf.has(id),
+  );
   if (order.length === 0) {
     throw new TravError(
       'invalid_argument',

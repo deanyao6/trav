@@ -116,9 +116,15 @@ export function renderWrappedForSend(
     );
   }
 
-  const settle = buildSettleUp({ ...input.finalSettle, mode: 'final' }, ctx);
+  const familyTab = trip.familyTab === true || input.finalSettle.familyTab === true;
+  const settle = buildSettleUp(
+    { ...input.finalSettle, mode: 'final', ...(familyTab ? { familyTab: true } : {}) },
+    ctx,
+  );
   const transfers = settle.card.transfers;
-  if (transfers.length === 0) {
+  if (familyTab) {
+    // VOICE §4.8 C: a family tab has nothing to settle, so no settle line (T-065).
+  } else if (transfers.length === 0) {
     lines.push("nothing to settle, everyone's square");
   } else if (transfers.length === 1) {
     const t = transfers[0]!;
