@@ -110,10 +110,15 @@ Document text (OCR, email bodies, provider descriptions) never enters step 5. It
               checkGrant → key lookup (duplicate ⇒ booking.duplicate_suppressed) → audit booking.attempted
               → re-price + checkProposalConsistency(live roster) + detectGrantInvalidation (change ⇒ approval.invalidated, re-quote)
               → provider purchase(quoteRef, idempotencyKey, toApprovalProof(...)) → payments.charge (member_card) → grant consumed
-              → audit booking.completed → bookings.createBooking (the row carries completedAuditEventId; D-022)
+              → audit booking.completed → bookings.createBooking right away, no ticket refs yet (row carries completedAuditEventId; D-022)
               → expenses.create(Expense{ source:'booking', sourceRef:{kind:'booking', id} }, entries) → audit ledger.written
-              → tickets, each from getTicketForHolder → PrivateStore.putTicket(holder, TicketArtifact)
-              failure ⇒ audit booking.failed, result { kind:'failed', moneyMoved:false }; double 👍 / retry ⇒ 'duplicate'
+              → tickets, each from getTicketForHolder → PrivateStore.putTicket(holder, TicketArtifact) → refs added to the row
+              failure before the purchase ⇒ audit booking.failed, result { kind:'failed', moneyMoved:false }
+              charge failure after the purchase ⇒ booking.failed{stage:'charge'}, { kind:'failed', resumable:true }: proposal back
+                to pending, grant kept, card stays live; the next Approve re-runs execute (same key ⇒ same order)
+              double 👍 / retry ⇒ 'duplicate' (past the TTL too), which re-runs the ledger and ticket steps idempotently
+                ({ repaired }); a throw after booking.completed ⇒ the handler retries once, else "the booking stands" and
+                the next @ (ApprovalHandler.resumeIncomplete) finishes it and sends the receipt + DMs
 4. receipt    render/receipt.ts builds ReceiptCard FROM the audit events + booking + expense (never free text from the model)
               group lane: ReceiptCard; DM lane: one TicketCard per attendee from PrivateStore.listTickets(holder, bookingId)
               (minor ⇒ deliveredTo guardian). Henry (out) gets nothing. QR payloads never appear in a group message.

@@ -211,12 +211,23 @@ function capitalize(s: string): string {
  * (T-019-b review note, T-009): the approval handler replies to the card with
  * its terminal lines only (VOICE §4.10 "couldn't book … no charge went
  * through", §6.4 "… proposal expired, no charge", "dropped …"), never with a
- * partial-grant line, so any card-less reply from Trav ends the card.
+ * partial-grant line, so any card-less reply from Trav ends the card. The one
+ * terminal line that is not a failure is the post-purchase fallback ("the
+ * charge went through and the booking stands", `TURN_FAILED_AFTER_PURCHASE_TEXT`):
+ * money moved, so the card reads "Booked · receipt pending", never "no charge".
  */
 export function terminalReplyState(text: string): Pick<CardStateView, 'status' | 'label'> {
+  if (/\bno charge\b/i.test(text)) {
+    if (/\bexpired\b/i.test(text)) return { status: 'expired', label: 'Expired' };
+    if (/^dropped\b/i.test(text)) return { status: 'declined', label: 'Declined' };
+    return { status: 'failed', label: 'Failed · no charge' };
+  }
+  if (/\bcharge went through\b|\bbooking stands\b/i.test(text)) {
+    return { status: 'booked', label: 'Booked · receipt pending' };
+  }
   if (/\bexpired\b/i.test(text)) return { status: 'expired', label: 'Expired' };
   if (/^dropped\b/i.test(text)) return { status: 'declined', label: 'Declined' };
-  return { status: 'failed', label: 'Failed · no charge' };
+  return { status: 'failed', label: 'Failed' };
 }
 
 function deriveGenericState(msg: TranscriptMessage, ctx: DeriveContext): CardStateView | undefined {

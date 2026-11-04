@@ -50,6 +50,7 @@ type FakeMode =
   | 'fail'
   | 'throw'
   | 'throw_after_purchase'
+  | 'throw_after_purchase_stuck'
   | 'refuse_price'
   | 'refuse_reproposed'
   | 'refuse_expired';
@@ -76,6 +77,19 @@ function fakeExecutor(get: () => Harness, mode: FakeMode = 'complete'): Fake {
         throw new TravError('grant_invalid', 'unknown ids');
       }
       if (mode === 'throw') throw new TravError('not_implemented', 'executor stub');
+      // The real executor's retry of a booking that landed (`retryOfDone`): the duplicate path.
+      const landed = b.getBookingByKey(proposal.idempotencyKey);
+      if (landed !== undefined && (grant.status === 'consumed' || grant.status === 'complete')) {
+        if (mode === 'throw_after_purchase_stuck')
+          throw new Error('still cannot reach the provider');
+        const expense = s.group.expenses.getBySourceRef({ kind: 'booking', id: landed.bookingId });
+        return {
+          kind: 'duplicate',
+          booking: landed,
+          ...(expense !== undefined ? { expense } : {}),
+          repaired: false,
+        };
+      }
       const check = approval.checkGrant(grant, proposal, decision, now);
       if (!check.valid) return { kind: 'refused', reason: check.reason };
       if (mode === 'refuse_expired') return { kind: 'refused', reason: 'expired' };
@@ -109,7 +123,7 @@ function fakeExecutor(get: () => Harness, mode: FakeMode = 'complete'): Fake {
         return { kind: 'refused', reason: 'price_changed', reproposalId: res.proposal.proposalId };
       }
       const existing = b.getBookingByKey(proposal.idempotencyKey);
-      if (existing !== undefined) return { kind: 'duplicate', booking: existing };
+      if (existing !== undefined) return { kind: 'duplicate', booking: existing, repaired: false };
 
       const ids = h.ids;
       const auditIds: string[] = [];
@@ -248,7 +262,7 @@ function fakeExecutor(get: () => Harness, mode: FakeMode = 'complete'): Fake {
         });
         s.private.putTicket(t.holderMemberId, artifact);
       }
-      if (mode === 'throw_after_purchase') {
+      if (mode === 'throw_after_purchase' || mode === 'throw_after_purchase_stuck') {
         // Money moved, the booking, ledger and tickets are written, and then
         // the executor dies before consuming the grant or closing the proposal.
         throw new Error('ticket render crashed after the purchase');
@@ -1344,12 +1358,14 @@ describe('executor outcomes other than completed', () => {
   });
 
   it('an executor that throws AFTER booking.completed ⇒ proposal completed, grant consumed, booking.failed{moneyMoved:true}, the "charge went through" line, never "no charge"', async () => {
-    const { h, fake } = rig('throw_after_purchase');
+    // The immediate retry (the executor's duplicate path) throws too.
+    const { h, fake } = rig('throw_after_purchase_stuck');
     const { proposal, cardMessageId } = await propose(h);
     const turn = await h.tap('h_dean', cardMessageId, 'approve');
     expect(turn.note).toBe('approval:handled');
-    expect(fake.calls).toHaveLength(1);
+    expect(fake.calls).toHaveLength(2);
     expect(groupMessages(turn).map((m) => m.text)).toEqual([TURN_FAILED_AFTER_PURCHASE_TEXT]);
+    expect(groupMessages(turn)[0]?.replyTo).toBe(cardMessageId);
     expect(
       h.channel
         .groupTranscript()
@@ -1374,9 +1390,28 @@ describe('executor outcomes other than completed', () => {
     const again = await h.tap('h_dean', cardMessageId, 'approve');
     expect(again.silent).toBe(true);
     expect(again.note).toBe('approval:no_pending');
-    expect(fake.calls).toHaveLength(1);
+    expect(fake.calls).toHaveLength(2);
     h.clock.advanceMs(20 * 60 * 1000);
     expect(await h.runtime.drain()).toEqual([]);
+  });
+
+  it('an executor that throws AFTER booking.completed is retried once right away: the duplicate path lands, so the receipt and the 5 DMs go out, never a failure line (T-009 r1 #1)', async () => {
+    const { h, fake } = rig('throw_after_purchase');
+    const { proposal, cardMessageId } = await propose(h);
+    const turn = await h.tap('h_dean', cardMessageId, 'approve');
+    expect(turn.note).toBe('approval:handled');
+    expect(fake.calls).toHaveLength(2);
+    const group = groupMessages(turn);
+    expect(group).toHaveLength(1);
+    expect(group[0]!.card?.type).toBe('receipt');
+    expect(dms(turn)).toHaveLength(5);
+    expect(JSON.stringify(h.channel.groupTranscript())).not.toContain('no charge');
+    expect(h.audit().find((e) => e.type === 'booking.failed')?.payload).toMatchObject({
+      moneyMoved: true,
+    });
+    expect(status(h, proposal.proposalId)).toBe('completed');
+    expect(grantStatus(h, proposal.proposalId)).toBe('consumed');
+    expect(h.runtime.stores.group.bookings.listByTrip(T)).toHaveLength(1);
   });
 
   it('a failed result ⇒ the same two-liner; a refused price change ⇒ the grant is dropped and a re-quote is posted', async () => {

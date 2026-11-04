@@ -191,6 +191,39 @@ describe('a proposal card ends when Trav quote-replies it with a terminal line (
       label: 'Failed · no charge',
     });
   });
+
+  it('the post-purchase fallback line (money moved) reads "Booked · receipt pending", never "no charge" (T-009 r1 #3)', () => {
+    const line =
+      "something went wrong on my end after the purchase. the charge went through and the booking stands\n@ me in a minute and i'll sort out the receipt and tickets";
+    const state = stateAfter({ text: line });
+    expect(state).toMatchObject({
+      status: 'booked',
+      label: 'Booked · receipt pending',
+      liveActionIds: [],
+    });
+    expect(state?.label).not.toMatch(/no charge|failed/i);
+    // "no charge went through" still wins over "went through".
+    expect(
+      terminalReplyState("couldn't book razzmatazz. no charge went through\n@ me again in a few"),
+    ).toEqual({ status: 'failed', label: 'Failed · no charge' });
+    // A line that says nothing about money never claims "no charge".
+    expect(terminalReplyState('something odd happened')).toEqual({
+      status: 'failed',
+      label: 'Failed',
+    });
+  });
+
+  it('the charge-failed line is not a reply to the card: the card stays live for the retry', () => {
+    const card = msg({ card: proposalCard(), actions });
+    const line = msg({
+      text: "couldn't charge the card for razzmatazz. no charge went through, nothing's booked yet\ntap Approve again in a few and i'll retry",
+    });
+    const thread = buildGroupThread(BARCELONA, view([card, line]), AT);
+    expect(thread[0]!.kind === 'message' ? thread[0]!.cardState : undefined).toEqual({
+      status: 'pending',
+      liveActionIds: ['approve'],
+    });
+  });
 });
 
 describe('DM threads only show cards addressed to that member', () => {

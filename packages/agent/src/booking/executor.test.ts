@@ -38,6 +38,7 @@ import type {
   MockFlightsAdapter,
   MockLodging,
   MockTickets,
+  TicketsAdapter,
 } from '@trav/adapters';
 import {
   createMockBookingPayments,
@@ -46,6 +47,7 @@ import {
   createMockTickets,
   loadTicketInventory,
 } from '@trav/adapters';
+import { TURN_FAILED_AFTER_PURCHASE_TEXT } from '../approval/text.js';
 import { BARCELONA, BARCELONA_NOW, seedBarcelona } from '../compose.js';
 import type { TurnResult } from '../loop.js';
 import { FIVE, harness, RAZZMATAZZ_ASK, type Harness } from '../runtime.testkit.js';
@@ -493,6 +495,13 @@ describe('the Razzmatazz moment through the real runtime (TRAV_OFFLINE=1)', () =
       moneyMoved: false,
     });
 
+    expect(first).toMatchObject({ resumable: true });
+    // Retryable with the same key and grant: the proposal is pending again, the grant complete.
+    expect(h.runtime.stores.group.bookings.getProposal(proposal.proposalId)?.status).toBe(
+      'pending',
+    );
+    expect(grantOf(h, proposal.proposalId).status).toBe('complete');
+
     fail = false;
     const second = await h.runtime.executor.execute(proposal.proposalId, complete.grantId);
     expect(second.kind).toBe('completed');
@@ -500,6 +509,290 @@ describe('the Razzmatazz moment through the real runtime (TRAV_OFFLINE=1)', () =
     expect(real.chargeCount()).toBe(1);
     expect(h.auditTypes().filter((t) => t === 'booking.completed')).toHaveLength(1);
     expect(auditCore.verifyAuditChain(h.audit()).ok).toBe(true);
+  });
+
+  it('a charge failure after the purchase leaves the card live: the group hears "nothing\'s booked yet", the next Approve replays the same order and charges once, then the receipt and 5 DMs (T-009 r1 #2)', async () => {
+    const clock = createSimulatedClock(BARCELONA_NOW);
+    const real = createMockBookingPayments({ clock });
+    let fail = true;
+    const flaky: BookingPaymentsAdapter = {
+      ...real,
+      charge: (request) =>
+        fail
+          ? Promise.resolve({
+              ok: false,
+              error: { code: 'provider_unavailable', message: 'declined', retryable: true },
+            })
+          : real.charge(request),
+    };
+    const h = harness({ runtime: { providers: { payments: flaky } } });
+    const tickets = h.runtime.providers.tickets as MockTickets;
+    const { proposal, cardMessageId } = await propose(h);
+
+    const first = await h.tap('h_dean', cardMessageId, 'approve');
+    expect(first.note).toBe('approval:handled');
+    const line = groupMessages(first)[0]!;
+    expect(groupMessages(first)).toHaveLength(1);
+    expect(line.text).toBe(
+      "couldn't charge the card for razzmatazz. no charge went through, nothing's booked yet\ntap Approve again in a few and i'll retry",
+    );
+    // Not a quote-reply: the card stays live in the simulator for the retry.
+    expect(line.replyTo).toBeUndefined();
+    expect(dms(first)).toEqual([]);
+    expect(tickets.purchaseCount()).toBe(1);
+    expect(real.chargeCount()).toBe(0);
+    expect(h.runtime.stores.group.bookings.listByTrip(T)).toEqual([]);
+    expect(h.pending().map((p) => p.proposalId)).toEqual([proposal.proposalId]);
+    expect(grantOf(h, proposal.proposalId).status).toBe('complete');
+
+    // Still failing: the same line again, still nothing charged, still one provider order.
+    const second = await h.tap('h_dean', cardMessageId, 'approve');
+    expect(groupMessages(second)[0]!.text).toBe(line.text);
+    expect(tickets.purchaseCount()).toBe(1);
+    expect(real.chargeCount()).toBe(0);
+
+    fail = false;
+    const third = await h.tap('h_sam', cardMessageId, 'approve');
+    expect(third.note).toBe('approval:handled');
+    expect(groupMessages(third)[0]!.text).toBe(RECEIPT_TEXT);
+    expect(dms(third)).toHaveLength(5);
+    expect(tickets.purchaseCount()).toBe(1);
+    expect(real.chargeCount()).toBe(1);
+    expect(real.listCharges()[0]!.payerMemberId).toBe('mem_dean');
+    expect(h.auditTypes().filter((t) => t === 'booking.completed')).toHaveLength(1);
+    expect(grantOf(h, proposal.proposalId).status).toBe('consumed');
+    expect(h.pending()).toEqual([]);
+    expect(auditCore.verifyAuditChain(h.audit()).ok).toBe(true);
+
+    // And nothing more after that.
+    const fourth = await h.tap('h_dean', cardMessageId, 'approve');
+    expect(fourth.outbound).toEqual([]);
+    expect(tickets.purchaseCount()).toBe(1);
+    expect(real.chargeCount()).toBe(1);
+  });
+
+  it('a policy auto-approved ask whose charge fails: no card to tap, so the line says "say yes", and the requester\'s yes retries it (and nobody else\'s)', async () => {
+    const clock = createSimulatedClock(BARCELONA_NOW);
+    const real = createMockBookingPayments({ clock });
+    let fail = true;
+    const flaky: BookingPaymentsAdapter = {
+      ...real,
+      charge: (request) =>
+        fail
+          ? Promise.resolve({
+              ok: false,
+              error: { code: 'provider_unavailable', message: 'down', retryable: true },
+            })
+          : real.charge(request),
+    };
+    const h = harness({ runtime: { providers: { payments: flaky } } });
+    const grp = h.runtime.stores.group.groups.get(G)!;
+    h.runtime.stores.group.groups.update({
+      ...grp,
+      spendingPolicy: { ...grp.spendingPolicy, autoApproveCapMinor: 100_000 },
+    });
+    const tickets = h.runtime.providers.tickets as MockTickets;
+    const ask = await h.say('h_dean', RAZZMATAZZ_ASK);
+    expect(ask.note).toBe('tool:propose_booking:auto_approved');
+    expect(groupMessages(ask).map((m) => m.text)).toEqual([
+      "couldn't charge the card for razzmatazz. no charge went through, nothing's booked yet\nsay yes in a few and i'll retry",
+    ]);
+    expect(tickets.purchaseCount()).toBe(1);
+    expect(real.chargeCount()).toBe(0);
+    expect(h.pending()).toHaveLength(1);
+    const pendingId = h.pending()[0]!.proposalId;
+    expect(h.runtime.scheduler.list().map((j) => j.jobId)).toContain(
+      `proposal_expiry:${pendingId}`,
+    );
+
+    fail = false;
+    const notMine = await h.say('h_sam', 'yes');
+    expect(notMine.outbound).toEqual([]);
+    expect(real.chargeCount()).toBe(0);
+    const yes = await h.say('h_dean', 'yes');
+    expect(groupMessages(yes)[0]!.card?.type).toBe('receipt');
+    expect(dms(yes)).toHaveLength(5);
+    expect(tickets.purchaseCount()).toBe(1);
+    expect(real.chargeCount()).toBe(1);
+    expect(h.pending()).toEqual([]);
+    expect(auditCore.verifyAuditChain(h.audit()).ok).toBe(true);
+  });
+
+  it('nobody retries a charge failure: the proposal expires with no charge, and an Approve after that buys nothing', async () => {
+    const clock = createSimulatedClock(BARCELONA_NOW);
+    const real = createMockBookingPayments({ clock });
+    const declined: BookingPaymentsAdapter = {
+      ...real,
+      charge: () =>
+        Promise.resolve({
+          ok: false,
+          error: { code: 'provider_unavailable', message: 'declined', retryable: true },
+        }),
+    };
+    const h = harness({ runtime: { providers: { payments: declined } } });
+    const tickets = h.runtime.providers.tickets as MockTickets;
+    const { proposal, cardMessageId } = await propose(h);
+    await h.tap('h_dean', cardMessageId, 'approve');
+    h.clock.advanceMs(30 * 60 * 1000);
+    const drained = await h.runtime.drain();
+    const texts = drained.flatMap((t) => groupMessages(t).map((m) => m.text));
+    expect(texts).toEqual(['razzmatazz proposal expired, no charge. @ me if you still want it']);
+    expect(h.runtime.stores.group.bookings.getProposal(proposal.proposalId)?.status).toBe(
+      'expired',
+    );
+    const late = await h.tap('h_dean', cardMessageId, 'approve');
+    expect(late.outbound).toEqual([]);
+    expect(tickets.purchaseCount()).toBe(1);
+    expect(real.chargeCount()).toBe(0);
+  });
+
+  it('getTicketForHolder failing after the charge: Booking row and ledger land first, the group hears the booking stands, the next @ fills in the tickets and sends the receipt and DMs (T-009 r1 #1)', async () => {
+    const clock = createSimulatedClock(BARCELONA_NOW);
+    const real = createMockTickets({
+      clock,
+      ids: createDeterministicIdGenerator('k'),
+      inventory: loadTicketInventory('barcelona'),
+    });
+    const broken = new Set<string>(['mem_jordan', 'mem_priya', 'mem_sam']);
+    const fetches: string[] = [];
+    const flaky: TicketsAdapter = {
+      ...real,
+      getTicketForHolder: (orderId, memberId) => {
+        fetches.push(memberId);
+        return broken.has(memberId)
+          ? Promise.resolve({
+              ok: false,
+              error: { code: 'provider_unavailable', message: 'down', retryable: true },
+            })
+          : real.getTicketForHolder(orderId, memberId);
+      },
+    };
+    const h = harness({ runtime: { providers: { tickets: flaky } } });
+    const { proposal, cardMessageId } = await propose(h);
+
+    const turn = await h.tap('h_dean', cardMessageId, 'approve');
+    expect(turn.note).toBe('approval:handled');
+    const line = groupMessages(turn)[0]!;
+    expect(groupMessages(turn)).toHaveLength(1);
+    expect(line.text).toBe(TURN_FAILED_AFTER_PURCHASE_TEXT);
+    expect(line.replyTo).toBe(cardMessageId);
+    expect(dms(turn)).toEqual([]);
+    expect(JSON.stringify(h.channel.groupTranscript(CONV))).not.toContain('no charge');
+    expect(real.purchaseCount()).toBe(1);
+    expect(payments(h).chargeCount()).toBe(1);
+
+    // The Booking row and the ledger landed before the tickets were fetched.
+    const booking = h.runtime.stores.group.bookings.listByTrip(T)[0]!;
+    expect(booking.status).toBe('confirmed');
+    expect(booking.tickets).toEqual([]);
+    const expense = h.runtime.stores.group.expenses.getBySourceRef({
+      kind: 'booking',
+      id: booking.bookingId,
+    })!;
+    expect(expense.expenseId).toBe(booking.expenseId);
+    const types = h.auditTypes();
+    expect(types.indexOf('booking.completed')).toBeLessThan(types.indexOf('ledger.written'));
+    // Maya and Dean's tickets were stored before Jordan's failed; nothing for the rest.
+    expect(h.runtime.stores.private.listTickets('mem_maya', booking.bookingId)).toHaveLength(1);
+    expect(h.runtime.stores.private.listTickets('mem_sam', booking.bookingId)).toEqual([]);
+    expect(h.runtime.stores.group.bookings.getProposal(proposal.proposalId)?.status).toBe(
+      'completed',
+    );
+    expect(grantOf(h, proposal.proposalId).status).toBe('consumed');
+
+    // An @ while the provider is still down: the same truthful line, nothing bought.
+    const stillDown = await h.say('h_maya', '@trav where are the tickets?');
+    expect(stillDown.note).toBe('booking:resumed');
+    expect(groupMessages(stillDown).map((m) => m.text)).toEqual([TURN_FAILED_AFTER_PURCHASE_TEXT]);
+    expect(real.purchaseCount()).toBe(1);
+
+    // The provider is back: the next @ finishes it. Only the missing holders are fetched.
+    broken.clear();
+    fetches.length = 0;
+    const resumed = await h.say('h_maya', '@trav tickets?');
+    expect(resumed.note).toBe('booking:resumed');
+    expect(groupMessages(resumed).map((m) => m.text)).toEqual([RECEIPT_TEXT]);
+    const tickets = dms(resumed);
+    expect(tickets).toHaveLength(5);
+    expect(tickets.map((m) => (m.to.kind === 'member' ? m.to.memberId : '')).sort()).toEqual(
+      [...FIVE].sort(),
+    );
+    expect(h.channel.dmTranscript('h_henry')).toEqual([]);
+    expect(fetches.sort()).toEqual(['mem_jordan', 'mem_priya', 'mem_sam']);
+    const done = h.runtime.stores.group.bookings.getBooking(booking.bookingId)!;
+    expect(done.tickets.map((t) => t.holderMemberId).sort()).toEqual([...FIVE].sort());
+    for (const id of FIVE) {
+      expect(h.runtime.stores.private.listTickets(id, booking.bookingId)).toHaveLength(1);
+    }
+    expect(real.purchaseCount()).toBe(1);
+    expect(payments(h).chargeCount()).toBe(1);
+    expect(h.auditTypes().filter((t) => t === 'ledger.written')).toHaveLength(1);
+    expect(h.auditTypes().filter((t) => t === 'booking.completed')).toHaveLength(1);
+    expect(JSON.stringify(h.audit())).not.toContain('TRAV-MOCK-TICKET');
+    expect(auditCore.verifyAuditChain(h.audit()).ok).toBe(true);
+
+    // Done: a later @ goes to the model as usual, nothing resumed or re-sent.
+    const later = await h.say('h_maya', '@trav thanks, what time are doors?');
+    expect(later.note).not.toBe('booking:resumed');
+  });
+
+  it('the duplicate path fills in a missing expense and tickets, even past the grant TTL (T-009 r1 #1, #4)', async () => {
+    const clock = createSimulatedClock(BARCELONA_NOW);
+    const real = createMockTickets({
+      clock,
+      ids: createDeterministicIdGenerator('k'),
+      inventory: loadTicketInventory('barcelona'),
+    });
+    let down = true;
+    const flaky: TicketsAdapter = {
+      ...real,
+      getTicketForHolder: (orderId, memberId) =>
+        down
+          ? Promise.resolve({
+              ok: false,
+              error: { code: 'provider_unavailable', message: 'down', retryable: true },
+            })
+          : real.getTicketForHolder(orderId, memberId),
+    };
+    const h = harness({ runtime: { providers: { tickets: flaky } } });
+    const { proposal } = await propose(h);
+    const complete = completeGrantDirectly(h, proposal.proposalId);
+    await expect(
+      h.runtime.executor.execute(proposal.proposalId, complete.grantId),
+    ).rejects.toMatchObject({ code: 'invariant_violation' });
+    const booking = h.runtime.stores.group.bookings.listByTrip(T)[0]!;
+    expect(booking.tickets).toEqual([]);
+
+    // The ledger landed before the tickets were tried; retry past the grant TTL.
+    expect(
+      h.runtime.stores.group.expenses.getBySourceRef({ kind: 'booking', id: booking.bookingId }),
+    ).toBeDefined();
+    h.clock.set(addMinutes(complete.expiresAt, 5));
+    down = false;
+    const retry = await h.runtime.executor.execute(proposal.proposalId, complete.grantId);
+    expect(retry).toMatchObject({ kind: 'duplicate', repaired: true });
+    if (retry.kind !== 'duplicate') throw new Error('not duplicate');
+    expect(retry.booking.tickets).toHaveLength(5);
+    expect(retry.expense?.expenseId).toBe(booking.expenseId);
+    expect(real.purchaseCount()).toBe(1);
+    expect(payments(h).chargeCount()).toBe(1);
+
+    // Again: nothing left to repair.
+    const again = await h.runtime.executor.execute(proposal.proposalId, complete.grantId);
+    expect(again).toMatchObject({ kind: 'duplicate', repaired: false });
+  });
+
+  it('a retry of a completed booking after the grant TTL is the duplicate path, not refused/expired (T-009 r1 #4)', async () => {
+    const h = harness();
+    const { proposal, cardMessageId } = await propose(h);
+    await h.tap('h_dean', cardMessageId, 'approve');
+    const grant = grantOf(h, proposal.proposalId);
+    expect(grant.status).toBe('consumed');
+    h.clock.set(addMinutes(grant.expiresAt, 60));
+    const retry = await h.runtime.executor.execute(proposal.proposalId, grant.grantId);
+    expect(retry).toMatchObject({ kind: 'duplicate', repaired: false });
+    expect(h.tickets.purchaseCount()).toBe(1);
+    expect(payments(h).chargeCount()).toBe(1);
   });
 });
 
@@ -713,6 +1006,75 @@ describe('flights and lodging go through the same executor (A1: one createOrder,
     expect(res.booking.orderRef).toMatch(/^EIX/);
     expect(res.expense.split).toEqual({ method: 'equal', participants: six });
     expect(res.expense.category).toBe('lodging');
+  });
+
+  it('a ledger write that fails after the charge leaves the Booking row; the retry writes the expense once and reports repaired (T-009 r1 #1)', async () => {
+    const r = rig();
+    const six = r.members.map((m) => m.memberId);
+    const proposal = baseProposal(r, {
+      proposalId: 'prop_stay',
+      kind: 'lodging',
+      provider: r.lodging.info.provider,
+      itemRef: 'rate_bcn_eixample_3br_flex',
+      quoteRef: 'rate_bcn_eixample_3br_flex',
+      description: 'Eixample 3br',
+      totalMinor: 138000,
+      payers: six.map((memberId) => ({ memberId, shareMinor: 23000 })),
+      attendees: six,
+      idempotencyKey: 'key_stay',
+    });
+    const { grant } = seedApproved(r, proposal);
+    let ledgerDown = true;
+    const expenses = r.stores.group.expenses;
+    const stores: Stores = {
+      ...r.stores,
+      group: {
+        ...r.stores.group,
+        expenses: {
+          ...expenses,
+          create: (expense, entries) => {
+            if (ledgerDown) throw new TravError('invariant_violation', 'ledger store down');
+            expenses.create(expense, entries);
+          },
+        },
+      },
+    };
+    const executor = createBookingExecutor({
+      stores,
+      providers: {
+        tickets: r.tickets,
+        flights: r.flights,
+        lodging: r.lodging,
+        payments: r.payments,
+      },
+      clock: createSimulatedClock(PLANNING),
+      ids: createDeterministicIdGenerator('y'),
+    });
+    await expect(executor.execute(proposal.proposalId, grant.grantId)).rejects.toMatchObject({
+      message: 'ledger store down',
+    });
+    const booking = r.stores.group.bookings.getBookingByKey('key_stay')!;
+    expect(booking.status).toBe('confirmed');
+    expect(booking.expenseId).toBeUndefined();
+    expect(
+      r.stores.group.expenses.getBySourceRef({ kind: 'booking', id: booking.bookingId }),
+    ).toBeUndefined();
+
+    ledgerDown = false;
+    const retry = await executor.execute(proposal.proposalId, grant.grantId);
+    expect(retry).toMatchObject({ kind: 'duplicate', repaired: true });
+    if (retry.kind !== 'duplicate') throw new Error('not duplicate');
+    expect(retry.expense?.amount).toEqual(money(138000, 'EUR'));
+    expect(retry.booking.expenseId).toBe(retry.expense?.expenseId);
+    expect(r.lodging.bookingCount()).toBe(1);
+    expect(r.payments.chargeCount()).toBe(1);
+    const again = await executor.execute(proposal.proposalId, grant.grantId);
+    expect(again).toMatchObject({ kind: 'duplicate', repaired: false });
+    expect(r.stores.group.expenses.listByTrip(T)).toHaveLength(1);
+    expect(
+      r.stores.group.audit.listByGroup(G).filter((e) => e.type === 'ledger.written'),
+    ).toHaveLength(1);
+    expect(auditCore.verifyAuditChain(r.stores.group.audit.listByGroup(G)).ok).toBe(true);
   });
 
   it('a member without a family name on file cannot be put on a flight: refused before any order, nothing invented', async () => {

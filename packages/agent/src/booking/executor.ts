@@ -10,9 +10,13 @@
  * `execute()` order, each step idempotent and each audit event written before
  * the next step runs:
  *  1. load proposal, decision, grant; `checkGrant()` (match, complete, unexpired,
- *     not denied); the proof the providers will see is refused AT `expiresAt`
+ *     not denied); the proof the providers will see is refused AT `expiresAt`.
+ *     A retry of a booking that already landed under the key (`retryOfDone`)
+ *     skips the grant status and expiry checks: nothing new can be bought.
  *  2. `bookings.getBookingByKey(idempotencyKey)` hit ⇒ `booking.duplicate_suppressed`,
- *     return `duplicate` (a consumed grant whose purchase landed is a retry, not a refusal)
+ *     then steps 8 and 9 are re-run idempotently (a missing expense or missing
+ *     tickets are filled in); return `duplicate` with `repaired` saying whether
+ *     anything was, so the handler re-sends the receipt and ticket DMs then
  *  3. audit `booking.attempted`
  *  4. re-check, right before any money moves: the provider re-price (ticket hold
  *     re-read / flight offer / lodging rate), the LIVE activity roster through
@@ -29,17 +33,25 @@
  *     any card is charged.
  *  6. audit `booking.completed` (the Booking row carries its id, so the event is
  *     sealed first; it is also the handler's "money moved" marker)
- *  7. `bookings.createBooking` (duplicate key ⇒ treat as step 2)
+ *  7. `bookings.createBooking` right away, with no ticket refs yet (duplicate
+ *     key ⇒ treat as step 2), so nothing after the charge can leave money
+ *     moved without a Booking row; the proposal is `completed`
  *  8. ledger: `Expense{ sourceRef: { kind: 'booking', id } }` via `expenses.create`
  *     (idempotent on sourceRef); audit `ledger.written`
  *  9. ticket artifacts, each from `getTicketForHolder` (never `getOrder`), →
  *     `PrivateStore.putTicket(holder, …)` (QR never touches GroupStore); a
- *     minor's goes to the guardian
+ *     minor's goes to the guardian; then the refs (ids only) are added to the
+ *     Booking row. A holder whose artifact is already stored is not re-fetched.
+ *     A failing `getTicketForHolder` throws AFTER steps 7 and 8 landed: the
+ *     handler's "money moved" branch retries, and step 2 fills in the rest.
  * Any provider failure before the purchase ⇒ audit `booking.failed`, return
  * `failed` with `moneyMoved: false`. A charge that fails after the purchase is
- * audited `booking.failed{stage:'charge'}` and returned as `failed` too: the
- * card was not charged, the provider order is idempotent under the key, and a
- * retry replays it and charges then.
+ * audited `booking.failed{stage:'charge'}` and returned as `failed` with
+ * `resumable: true`: the card was not charged, the grant stays complete and
+ * the proposal goes back to `pending`, so the next approval re-runs `execute`
+ * with the same key and grant; the provider replays the same order (never a
+ * second one) and the charge is tried again. The mock providers have no void
+ * for an unpaid order; if nobody retries, the proposal expires with no charge.
  */
 import type {
   Activity,
@@ -103,7 +115,14 @@ export type ExecuteResult =
       readonly expense: Expense;
       readonly auditEventIds: readonly AuditEventId[];
     }
-  | { readonly kind: 'duplicate'; readonly booking: Booking }
+  | {
+      readonly kind: 'duplicate';
+      readonly booking: Booking;
+      /** The booking's ledger expense, when it exists (it always should after a repair). */
+      readonly expense?: Expense;
+      /** True when this call filled in a missing expense or missing tickets: the receipt and DMs never went out. */
+      readonly repaired: boolean;
+    }
   | {
       readonly kind: 'refused';
       readonly reason:
@@ -125,6 +144,12 @@ export type ExecuteResult =
       readonly errorCode: string;
       readonly retriable: boolean;
       readonly moneyMoved: false;
+      /**
+       * The charge failed after the provider purchase: the proposal is back to
+       * `pending` with its grant still complete, and approving it again re-runs
+       * `execute` under the same key (the provider replays the same order).
+       */
+      readonly resumable?: true;
     };
 
 export interface BookingExecutor {
@@ -636,7 +661,7 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
     booking: Booking,
     ctx: Loaded,
     auditIds: AuditEventId[],
-  ): { readonly booking: Booking; readonly expense: Expense } {
+  ): { readonly booking: Booking; readonly expense: Expense; readonly created: boolean } {
     const sourceRef = { kind: 'booking', id: booking.bookingId } as const;
     const existing = group.expenses.getBySourceRef(sourceRef);
     if (existing !== undefined) {
@@ -645,7 +670,7 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
           ? booking
           : { ...booking, expenseId: existing.expenseId };
       if (linked !== booking) group.bookings.updateBooking(linked);
-      return { booking: linked, expense: existing };
+      return { booking: linked, expense: existing, created: false };
     }
     const memberOrder = ctx.members.map((m) => m.memberId);
     const splitCtx: ledger.SplitContext = {
@@ -673,77 +698,140 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
     );
     const linked: Booking = { ...booking, expenseId: expense.expenseId };
     group.bookings.updateBooking(linked);
-    return { booking: linked, expense };
+    return { booking: linked, expense, created: true };
   }
 
-  /** Each holder's own ticket from the provider (never the whole order); a minor's goes to the guardian. */
-  async function fetchTickets(
-    ctx: Loaded,
-    purchased: Purchased,
-  ): Promise<readonly { readonly ref: TicketRef; readonly ticket: IssuedTicket }[]> {
-    if (ctx.proposal.kind !== 'ticket') return [];
-    const out: { ref: TicketRef; ticket: IssuedTicket }[] = [];
-    for (const memberId of ctx.proposal.attendees) {
-      const res = await providers.tickets.getTicketForHolder(purchased.providerRef, memberId);
-      if (!res.ok) {
-        throw new TravError('invariant_violation', `no ticket for a holder after purchase`, {
-          providerRef: purchased.providerRef,
-          memberId,
-          code: res.error.code,
-        });
-      }
-      const member = ctx.members.find((m) => m.memberId === memberId);
-      const guardian =
-        member !== undefined && safety.isMinor(member, ctx.now)
-          ? member.guardianMemberId
-          : undefined;
-      out.push({
-        ref: {
-          ticketId: res.value.ticketId,
-          holderMemberId: memberId,
-          deliveredToMemberId: guardian ?? memberId,
-        },
-        ticket: res.value,
-      });
-    }
-    return out;
+  /** Where a holder's ticket is delivered: a minor's goes to the guardian. */
+  function deliveredTo(ctx: Loaded, memberId: MemberId): MemberId {
+    const member = ctx.members.find((m) => m.memberId === memberId);
+    const guardian =
+      member !== undefined && safety.isMinor(member, ctx.now) ? member.guardianMemberId : undefined;
+    return guardian ?? memberId;
   }
 
-  /** Writes each ticket artifact into its holder's private partition once. */
-  function putTickets(
-    ctx: Loaded,
-    booking: Booking,
-    purchased: Purchased,
-    fetched: readonly { readonly ref: TicketRef; readonly ticket: IssuedTicket }[],
-  ): void {
-    const event = purchased.ticketEvent ?? {
+  /** The event facts the DM ticket cards show, from the `booking.completed` the receipt is rendered from. */
+  function ticketEventOf(booking: Booking): TicketArtifact['event'] {
+    const fallback = {
       name: booking.description,
       venue: booking.merchant,
       startsAt: booking.purchasedAt,
     };
-    for (const { ref, ticket } of fetched) {
-      const already = stores.private
-        .listTickets(ref.holderMemberId, booking.bookingId)
-        .some((a) => a.ticketId === ref.ticketId);
-      if (already) continue;
+    const raw = group.audit.get(booking.completedAuditEventId)?.payload['ticketEvent'];
+    if (typeof raw !== 'object' || raw === null) return fallback;
+    const e = raw as Readonly<Record<string, unknown>>;
+    const str = (k: string): string | undefined => {
+      const v = e[k];
+      return typeof v === 'string' && v.length > 0 ? v : undefined;
+    };
+    const name = str('name');
+    const venue = str('venue');
+    const startsAt = str('startsAt');
+    if (name === undefined || venue === undefined || startsAt === undefined) return fallback;
+    const address = str('address');
+    const doorsAt = str('doorsAt');
+    return {
+      name,
+      venue,
+      startsAt,
+      ...(address !== undefined ? { address } : {}),
+      ...(doorsAt !== undefined ? { doorsAt } : {}),
+    };
+  }
+
+  /**
+   * Step 9, idempotent: every attendee's own ticket from the provider (never
+   * the whole order) into their private partition, then the refs (ids only)
+   * onto the Booking row. A holder whose artifact is already stored is not
+   * fetched again; a holder whose ticket cannot be fetched throws after the
+   * ones before it were stored, and the next call picks up from there.
+   */
+  async function ensureTickets(
+    ctx: Loaded,
+    booking: Booking,
+  ): Promise<{ readonly booking: Booking; readonly changed: boolean }> {
+    if (booking.kind !== 'ticket') return { booking, changed: false };
+    const refs: TicketRef[] = [];
+    let changed = false;
+    let event: TicketArtifact['event'] | undefined;
+    for (const memberId of booking.attendees) {
+      const stored = stores.private.listTickets(memberId, booking.bookingId);
+      const ref = booking.tickets.find((t) => t.holderMemberId === memberId);
+      const have =
+        stored.find((a) => ref !== undefined && a.ticketId === ref.ticketId) ?? stored[0];
+      if (have !== undefined) {
+        refs.push({
+          ticketId: have.ticketId,
+          holderMemberId: memberId,
+          deliveredToMemberId: have.deliveredToMemberId,
+        });
+        continue;
+      }
+      const res = await providers.tickets.getTicketForHolder(booking.providerRef, memberId);
+      if (!res.ok) {
+        throw new TravError('invariant_violation', `no ticket for a holder after purchase`, {
+          providerRef: booking.providerRef,
+          bookingId: booking.bookingId,
+          memberId,
+          code: res.error.code,
+        });
+      }
+      const ticket = res.value;
+      event ??= ticketEventOf(booking);
       const seat = parseSeat(ticket);
+      const delivered = deliveredTo(ctx, memberId);
       const artifact: TicketArtifact = markPrivate({
         id: ids.next('priv'),
-        ownerMemberId: ref.holderMemberId,
+        ownerMemberId: memberId,
         groupId: booking.groupId,
         tripId: booking.tripId,
         createdAt: ctx.now,
-        ticketId: ref.ticketId,
+        ticketId: ticket.ticketId,
         bookingId: booking.bookingId,
         holderName: sanitizeInline(ticket.holderName, 80),
         event,
         ...(seat !== undefined ? { seat } : {}),
         qrPayload: ticket.barcode.payload,
         qrDataUrl: mockQrDataUrl(ticket.barcode.payload),
-        deliveredToMemberId: ref.deliveredToMemberId,
+        deliveredToMemberId: delivered,
       });
-      stores.private.putTicket(ref.holderMemberId, artifact);
+      stores.private.putTicket(memberId, artifact);
+      refs.push({
+        ticketId: ticket.ticketId,
+        holderMemberId: memberId,
+        deliveredToMemberId: delivered,
+      });
+      changed = true;
     }
+    const same =
+      refs.length === booking.tickets.length &&
+      refs.every((r, i) => {
+        const t = booking.tickets[i];
+        return (
+          t !== undefined &&
+          t.ticketId === r.ticketId &&
+          t.holderMemberId === r.holderMemberId &&
+          t.deliveredToMemberId === r.deliveredToMemberId
+        );
+      });
+    if (same) return { booking, changed };
+    const linked: Booking = { ...booking, tickets: refs };
+    group.bookings.updateBooking(linked);
+    return { booking: linked, changed: true };
+  }
+
+  /** Steps 8 and 9 for a Booking row that exists: whatever is missing is filled in, nothing twice. */
+  async function finish(
+    ctx: Loaded,
+    booking: Booking,
+    auditIds: AuditEventId[],
+  ): Promise<{ readonly booking: Booking; readonly expense: Expense; readonly repaired: boolean }> {
+    const written = ensureExpense(booking, ctx, auditIds);
+    const ticketed = await ensureTickets(ctx, written.booking);
+    return {
+      booking: ticketed.booking,
+      expense: written.expense,
+      repaired: written.created || ticketed.changed,
+    };
   }
 
   // ---------- execute ----------
@@ -755,16 +843,25 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
 
     // 1. the grant, re-checked here whatever the handler already did.
     const existing = group.bookings.getBookingByKey(proposal.idempotencyKey);
-    const check = approval.checkGrant(grant, proposal, decision, now);
-    if (!check.valid) {
-      const retryOfDone =
-        check.reason === 'wrong_status' && grant.status === 'consumed' && existing !== undefined;
-      if (!retryOfDone) return refused(check.reason);
+    // A booking already landed under this key with this proposal's own grant
+    // (spent, or not yet marked spent): a retry, never a new purchase, so a
+    // consumed status or a TTL that ran out since is no refusal (the
+    // mismatch and deny checks still are).
+    const retryOfDone =
+      existing !== undefined &&
+      grant.proposalId === proposal.proposalId &&
+      decision.proposalId === proposal.proposalId &&
+      decision.outcome !== 'deny' &&
+      (grant.status === 'consumed' || grant.status === 'complete');
+    if (!retryOfDone) {
+      const check = approval.checkGrant(grant, proposal, decision, now);
+      if (!check.valid) return refused(check.reason);
+      if (parseIso(now) >= parseIso(grant.expiresAt)) return refused('expired');
     }
-    if (parseIso(now) >= parseIso(grant.expiresAt)) return refused('expired');
     if (TERMINAL_STATUSES.has(proposal.status)) return refused('proposal_not_pending');
 
-    // 2. idempotency: the key already bought this.
+    // 2. idempotency: the key already bought this. Whatever steps 8 and 9 did
+    //    not finish last time is filled in now.
     if (existing !== undefined) {
       audit({
         ...common(proposal, existing.bookingId),
@@ -772,7 +869,13 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
         payload: { existingBookingId: existing.bookingId, grantId },
       });
       setStatus(proposal.proposalId, 'completed');
-      return { kind: 'duplicate', booking: existing };
+      const done = await finish(ctx, existing, []);
+      return {
+        kind: 'duplicate',
+        booking: done.booking,
+        expense: done.expense,
+        repaired: done.repaired,
+      };
     }
 
     // 3. attempted.
@@ -878,26 +981,29 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
       });
       if (!charged.ok) {
         // The provider order stands under the key and the grant is still
-        // complete: a retry replays the order (same key ⇒ same order, never a
-        // second one) and charges then. The card was not charged, so nothing
-        // is owed yet.
+        // complete: the proposal goes back to `pending`, so the next approval
+        // re-runs `execute`, which replays the order (same key ⇒ same order,
+        // never a second one) and charges then. The card was not charged, so
+        // nothing is owed yet.
         audit({
           ...common(proposal, bookingId),
           type: 'booking.failed',
           payload: {
             errorCode: charged.error.code,
             retriable: true,
+            resumable: true,
             stage: 'charge',
             moneyMoved: false,
             providerRef: purchased.providerRef,
           },
         });
-        setStatus(proposal.proposalId, 'failed');
+        setStatus(proposal.proposalId, 'pending');
         return {
           kind: 'failed',
           errorCode: charged.error.code,
           retriable: true,
           moneyMoved: false,
+          resumable: true,
         };
       }
       paymentRef = charged.value.intentId;
@@ -924,13 +1030,15 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
         provider: proposal.provider,
         paidBy: proposal.paidBy.kind,
         ...(paymentRef !== undefined ? { paymentRef } : {}),
+        // What the DM ticket cards say about the event (no barcodes), so a
+        // later step-9 repair renders the same cards without `getOrder`.
+        ...(purchased.ticketEvent !== undefined ? { ticketEvent: purchased.ticketEvent } : {}),
       },
     });
     auditIds.push(completedId);
 
-    // 7. the booking row (ticket refs are ids only; barcodes go to step 9).
-    const fetched = await fetchTickets(ctx, purchased);
-    let booking: Booking = {
+    // 7. the booking row, right away: no ticket refs yet (step 9 adds them).
+    const booking: Booking = {
       bookingId,
       proposalId: proposal.proposalId,
       groupId: proposal.groupId,
@@ -952,7 +1060,7 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
       idempotencyKey: proposal.idempotencyKey,
       purchasedAt: purchased.purchasedAt,
       status: 'confirmed',
-      tickets: fetched.map((f) => f.ref),
+      tickets: [],
       completedAuditEventId: completedId,
     };
     try {
@@ -967,18 +1075,18 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
         payload: { existingBookingId: prior.bookingId, grantId },
       });
       setStatus(proposal.proposalId, 'completed');
-      return { kind: 'duplicate', booking: prior };
+      return { kind: 'duplicate', booking: prior, repaired: false };
     }
     setStatus(proposal.proposalId, 'completed');
 
-    // 8. the ledger.
-    const written = ensureExpense(booking, ctx, auditIds);
-    booking = written.booking;
-
-    // 9. the tickets, each in its holder's private partition.
-    putTickets(ctx, booking, purchased, fetched);
-
-    return { kind: 'completed', booking, expense: written.expense, auditEventIds: auditIds };
+    // 8. the ledger, then 9. the tickets, each in its holder's private partition.
+    const done = await finish(ctx, booking, auditIds);
+    return {
+      kind: 'completed',
+      booking: done.booking,
+      expense: done.expense,
+      auditEventIds: auditIds,
+    };
   }
 
   return { execute };

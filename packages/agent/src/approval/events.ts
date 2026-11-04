@@ -15,6 +15,7 @@ import type {
   ProposalId,
   RichCard,
   SenderId,
+  TripId,
 } from '@trav/core';
 import type { InboundEvent } from '@trav/adapters';
 import { stripInvisible } from '../untrusted.js';
@@ -300,4 +301,12 @@ export interface ApprovalHandler {
    * a separate ticket. Returns the outbound messages for this turn.
    */
   rosterChanged(notice: RosterChangeNotice): Promise<readonly Outbound[]>;
+  /**
+   * A purchase whose money moved but whose ledger expense or tickets never
+   * landed (the executor threw after `booking.completed`): the next @ on the
+   * trip finishes it through the executor's duplicate path (never a second
+   * purchase) and returns the receipt and ticket DMs, or the "booking stands"
+   * line again if it still cannot. `[]` when nothing on the trip is stuck.
+   */
+  resumeIncomplete(tripId: TripId): Promise<readonly Outbound[]>;
 }

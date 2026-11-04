@@ -1629,6 +1629,25 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       };
     }
 
+    // 5b. a purchase whose receipt or tickets never landed: the "after the
+    // purchase" failure line promised the next @ sorts it out (T-009 r2).
+    if (deps.approval !== undefined && r.trip !== null && r.lane === 'group') {
+      const before = snapshotAudit(r.group.groupId);
+      const resumed = await deps.approval.handler.resumeIncomplete(r.trip.tripId);
+      if (resumed.length > 0) {
+        recordInbound();
+        const sent = await send(r, resumed);
+        return {
+          outbound: sent,
+          toolCalls: [],
+          auditEventIds: auditIdsSince(r.group.groupId, before),
+          silent: sent.length === 0,
+          modelSources: [],
+          note: 'booking:resumed',
+        };
+      }
+    }
+
     const expense = await expenseTurn(false);
     if (expense !== undefined) return expense;
 
@@ -2055,7 +2074,10 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     const members = stores.group.members.listByGroup(group.groupId);
     const owner = members.find((m) => m.memberId === input.ownerMemberId);
     if (owner === undefined) {
-      throw new TravError('not_found', `member ${input.ownerMemberId} is not in group ${input.groupId}`);
+      throw new TravError(
+        'not_found',
+        `member ${input.ownerMemberId} is not in group ${input.groupId}`,
+      );
     }
     const before = snapshotAudit(group.groupId);
     const trip = stores.group.trips.current(group.groupId, now) ?? null;

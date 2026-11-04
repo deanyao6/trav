@@ -19,7 +19,13 @@
  *     `approval.granted{complete}`; `each_payer` waits for every approver;
  *     a complete grant ⇒ `executor.execute` exactly once (in-flight set +
  *     proposal status), then the receipt card (group) and ticket DMs are
- *     rendered FROM the audit log and stores (`render/receipt.ts`)
+ *     rendered FROM the audit log and stores (`render/receipt.ts`). A charge
+ *     that failed after the provider purchase (`failed{resumable}`) leaves the
+ *     card live with its complete grant: the next required approver's Approve
+ *     re-runs `execute` (same key ⇒ same order). An executor that throws after
+ *     `booking.completed` is retried once (the duplicate path fills in the
+ *     expense and tickets); still stuck ⇒ "the booking stands", and the next @
+ *     (`resumeIncomplete`) finishes it
  *  3. decline: a required approver, the requester or a lead ⇒ `rejectGrant`,
  *     `approval.rejected`, hold released, one line; anyone else ⇒ ignored
  *  4. not me: a charged member is marked out on the roster (no reason text),
@@ -54,9 +60,11 @@ import type {
   ApprovalSignature,
   AuditEventInput,
   AuditEventId,
+  Booking,
   BookingProposal,
   Clock,
   Expense,
+  GrantId,
   GrantInvalidationCause,
   Group,
   IdGenerator,
@@ -71,6 +79,7 @@ import type {
   Scheduler,
   Stores,
   Trip,
+  TripId,
 } from '@trav/core';
 import { approval, formatMoney, money, safety, TravError } from '@trav/core';
 import type { BookingExecutor, ExecuteResult } from '../booking/executor.js';
@@ -125,6 +134,19 @@ export function bookingFailedText(description: string, retriable: boolean): stri
   return retriable
     ? `${head}\n@ me again in a few and i'll retry`
     : `${head}\n@ me if you want to try another night or another place`;
+}
+
+/**
+ * VOICE §4.10 for a charge that failed after the provider purchase: the card
+ * was not charged and nothing is booked, and the card stays live (the grant
+ * is kept), so approving it again retries under the same key. A policy
+ * auto-approved ask has no card: the requester's "yes" retries it.
+ */
+export function chargeFailedText(description: string, hasCard = true): string {
+  const head = `couldn't charge the card for ${shortEventName(description)}. no charge went through, nothing's booked yet`;
+  return hasCard
+    ? `${head}\ntap Approve again in a few and i'll retry`
+    : `${head}\nsay yes in a few and i'll retry`;
 }
 
 export const EXECUTOR_REFUSED_TEXT =
@@ -496,6 +518,11 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
 
   // ---------- THE executor call ----------
 
+  /** The one `executor.execute` call site in this module (A1b): a fresh purchase or a retry of a landed one. */
+  function runExecutor(proposalId: ProposalId, grantId: GrantId): Promise<ExecuteResult> {
+    return executor.execute(proposalId, grantId);
+  }
+
   /**
    * Exactly one `executor.execute` per complete grant. If the executor
    * throws, the audit log decides what to say: a `booking.completed` for this
@@ -512,7 +539,7 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
     );
     let result: ExecuteResult;
     try {
-      result = await executor.execute(proposal.proposalId, grant.grantId);
+      result = await runExecutor(proposal.proposalId, grant.grantId);
     } catch (e) {
       const code = e instanceof TravError ? e.code : 'failed';
       const bought = group.audit
@@ -534,25 +561,29 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
           messageId,
         },
       });
-      if (bought) {
-        // The purchase stands: the proposal is done and its grant is spent,
-        // whatever the executor managed to write after the charge.
-        setStatus(proposal.proposalId, 'completed');
-        const latest = group.bookings.getGrantForProposal(proposal.proposalId);
-        if (latest !== undefined && latest.status === 'complete' && latest.complete) {
-          group.bookings.saveGrant(approval.consumeGrant(latest));
-        }
-      } else {
-        setStatus(proposal.proposalId, 'failed');
-      }
       scheduler.cancel(expiryJobId(proposal.proposalId));
-      inFlight.delete(proposal.proposalId);
-      return [
-        terminalLine(
-          proposal,
-          bought ? TURN_FAILED_AFTER_PURCHASE_TEXT : bookingFailedText(proposal.description, true),
-        ),
-      ];
+      if (!bought) {
+        setStatus(proposal.proposalId, 'failed');
+        inFlight.delete(proposal.proposalId);
+        return [terminalLine(proposal, bookingFailedText(proposal.description, true))];
+      }
+      // The purchase stands: the proposal is done and its grant is spent,
+      // whatever the executor managed to write after the charge. One retry
+      // right away (the executor's duplicate path fills in a missing expense
+      // or missing tickets); if that lands, the receipt and DMs go out as if
+      // nothing happened, else the line says the booking stands and the next
+      // @ finishes it (`resumeIncomplete`).
+      setStatus(proposal.proposalId, 'completed');
+      const latest = group.bookings.getGrantForProposal(proposal.proposalId);
+      if (latest !== undefined && latest.status === 'complete' && latest.complete) {
+        group.bookings.saveGrant(approval.consumeGrant(latest));
+      }
+      try {
+        const resumed = await resume(proposal.proposalId, ctx.now);
+        return resumed ?? [terminalLine(proposal, TURN_FAILED_AFTER_PURCHASE_TEXT)];
+      } finally {
+        inFlight.delete(proposal.proposalId);
+      }
     }
     try {
       return await afterExecute(ctx, result, messageId);
@@ -581,9 +612,14 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
       }
       case 'duplicate': {
         // The key already bought this (a retry after a crash, or a second tap
-        // that raced the first): nothing to post twice.
+        // that raced the first): nothing to post twice, unless the executor
+        // just filled in what the first run never finished, in which case
+        // the receipt and DMs never went out.
         scheduler.cancel(expiryJobId(proposal.proposalId));
         setStatus(proposal.proposalId, 'completed');
+        if (result.repaired && result.expense !== undefined) {
+          return renderCompleted(ctx, result.booking, result.expense);
+        }
         return [];
       }
       case 'refused': {
@@ -608,11 +644,61 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
         return [terminalLine(proposal, EXECUTOR_REFUSED_TEXT)];
       }
       case 'failed': {
+        if (result.resumable === true) {
+          // The charge failed after the provider purchase: the executor put
+          // the proposal back to `pending` with its grant intact, so the card
+          // stays live (no quote-reply, the expiry job keeps running) and the
+          // next Approve re-runs the same purchase.
+          const auto = ctx.decision.outcome === 'auto_approve';
+          // An auto-approved ask never had a card or an expiry job: give it
+          // one now, so an unretried one still ends with the one VOICE §6.4 line.
+          if (auto) scheduleExpiry(proposal, ctx.decision, proposal.groupId);
+          return [text(proposal.groupId, chargeFailedText(proposal.description, !auto))];
+        }
         setStatus(proposal.proposalId, 'failed');
         scheduler.cancel(expiryJobId(proposal.proposalId));
         return [terminalLine(proposal, bookingFailedText(proposal.description, result.retriable))];
       }
     }
+  }
+
+  /**
+   * A booking whose money moved but whose ledger expense or tickets never
+   * landed (the executor threw after `booking.completed`). v0 has no
+   * per-ticket refunds, so every attendee of a confirmed ticket booking must
+   * hold a ref.
+   */
+  function bookingIncomplete(booking: Booking): boolean {
+    if (booking.status !== 'confirmed') return false;
+    const expense = group.expenses.getBySourceRef({ kind: 'booking', id: booking.bookingId });
+    if (expense === undefined) return true;
+    if (booking.kind !== 'ticket') return false;
+    return booking.attendees.some((id) => !booking.tickets.some((t) => t.holderMemberId === id));
+  }
+
+  /**
+   * Re-runs `execute` for a proposal whose purchase already landed: the
+   * executor's duplicate path fills in a missing expense or missing tickets
+   * (never a second purchase: same key, consumed grant), and the receipt and
+   * ticket DMs are rendered from the records. `undefined` when it still
+   * cannot finish (the caller says the booking stands).
+   */
+  async function resume(
+    proposalId: ProposalId,
+    now: IsoDateTime,
+  ): Promise<readonly Outbound[] | undefined> {
+    const ctx = load(proposalId, now);
+    if (ctx === undefined) return undefined;
+    const grant = group.bookings.getGrantForProposal(proposalId) ?? ctx.grant;
+    let result: ExecuteResult;
+    try {
+      result = await runExecutor(proposalId, grant.grantId);
+    } catch {
+      return undefined;
+    }
+    if (result.kind !== 'duplicate' || result.expense === undefined) return undefined;
+    if (bookingIncomplete(result.booking)) return undefined;
+    return renderCompleted(ctx, result.booking, result.expense);
   }
 
   /** Who the roster says is on it right now (minus ticket holders); the proposal's own list when there is no activity. */
@@ -727,7 +813,14 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
     // 1. only a required approver's 👍 counts for anything, including the
     //    roster check below: anyone else's is silent (VOICE §6.2, D-019 §1)
     //    and must not re-propose on their behalf.
-    if (!decision.requiredApprovers.includes(sender.memberId)) {
+    //    The one exception: the requester's own "yes" on their policy
+    //    auto-approved ask whose charge failed (no approvers, grant complete).
+    const autoRetry =
+      decision.outcome === 'auto_approve' &&
+      proposal.requestedBy === sender.memberId &&
+      ctx.grant.status === 'complete' &&
+      ctx.grant.complete;
+    if (!decision.requiredApprovers.includes(sender.memberId) && !autoRetry) {
       invalidAttempt(proposal, event, 'not_required_approver', sender);
       return [];
     }
@@ -742,7 +835,14 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
         drift.problems,
       );
     }
-    // 3. the signature (identity = channel sender; the policy's approver set decides).
+    // 3. a grant that is already complete on a pending card: the last purchase
+    //    attempt stopped at the charge (the executor put the proposal back to
+    //    `pending` and kept the grant). A required approver's Approve retries
+    //    it under the same key and grant; the executor re-checks everything.
+    if (ctx.grant.status === 'complete' && ctx.grant.complete) {
+      return execute(ctx, event.messageId);
+    }
+    // 4. the signature (identity = channel sender; the policy's approver set decides).
     const applied = approval.applyApproval(
       ctx.grant,
       decision,
@@ -1018,5 +1118,30 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
     return execute(ctx, sourceMessageId);
   }
 
-  return { handle, rosterChanged, autoApproved };
+  /**
+   * The next @ after a purchase whose receipt or tickets never landed
+   * (`TURN_FAILED_AFTER_PURCHASE_TEXT` promises it): the first such booking
+   * on the trip is finished and its receipt and ticket DMs go out; if it
+   * still cannot finish, the same truthful line again. Nothing to finish ⇒
+   * `[]` and the turn goes on as usual. Never buys: the executor's duplicate
+   * path only fills in the expense and tickets of an existing Booking row.
+   */
+  async function resumeIncomplete(tripId: TripId): Promise<readonly Outbound[]> {
+    const now = clock.now();
+    const stuck = group.bookings
+      .listByTrip(tripId)
+      .find((b) => !inFlight.has(b.proposalId) && bookingIncomplete(b));
+    if (stuck === undefined) return [];
+    const proposal = group.bookings.getProposal(stuck.proposalId);
+    if (proposal === undefined) return [];
+    inFlight.add(proposal.proposalId);
+    try {
+      const resumed = await resume(proposal.proposalId, now);
+      return resumed ?? [text(proposal.groupId, TURN_FAILED_AFTER_PURCHASE_TEXT)];
+    } finally {
+      inFlight.delete(proposal.proposalId);
+    }
+  }
+
+  return { handle, rosterChanged, autoApproved, resumeIncomplete };
 }

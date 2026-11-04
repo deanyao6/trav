@@ -101,7 +101,9 @@ function Buttons({
     const at = msg.cardState.at ? ` · ${formatClockTime(msg.cardState.at, group.timeZone)}` : '';
     return (
       <div className="status-line" data-testid="card-status">
-        <span className={`status-chip ${msg.cardState.status === 'approved' ? 'green' : 'gray'}`}>
+        <span
+          className={`status-chip ${msg.cardState.status === 'approved' || msg.cardState.status === 'booked' ? 'green' : 'gray'}`}
+        >
           {msg.cardState.label}
           {at}
         </span>
