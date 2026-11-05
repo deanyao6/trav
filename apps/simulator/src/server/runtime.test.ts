@@ -27,9 +27,11 @@ const AGENT_REST: Pick<
   | 'pendingCards'
   | 'announceFamilyMode'
   | 'forgetRuntimeState'
+  | 'deliverHeld'
 > = {
   announceFamilyMode: () => Promise.resolve([]),
   forgetRuntimeState: () => undefined,
+  deliverHeld: () => Promise.resolve([]),
   intakeDocument: () => Promise.reject(new Error('not used by the simulator backend')),
   importCardTransactions: () => Promise.reject(new Error('not used by the simulator backend')),
   importEmailReceipts: () => Promise.reject(new Error('not used by the simulator backend')),

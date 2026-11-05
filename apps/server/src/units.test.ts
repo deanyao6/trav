@@ -1,11 +1,13 @@
 // T-188 unit tests: config, logs, commands, provisioning, relay state, the shifted clock.
 import { describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
 import type { InboundMessage } from '@trav/adapters';
 import { voiceViolations } from '@trav/agent';
 import type { OutboundMessage } from '@trav/core';
 import { createDeterministicIdGenerator, createSimulatedClock, parseIso } from '@trav/core';
 import { createMemoryStores } from '@trav/core/storage';
 import {
+  ALREADY_DELETED_TEXT,
   DELETED_TEXT,
   NOTHING_TO_DELETE_TEXT,
   START_TEXT,
@@ -13,6 +15,7 @@ import {
   STOP_GROUP_TEXT,
   createOptOutList,
   optOutKey,
+  optOutSecret,
   parseCommand,
 } from './commands.js';
 import { createShiftedClock } from './clock.js';
@@ -20,7 +23,7 @@ import { describeServerConfig, resolveServerConfig } from './config.js';
 import { REDACTED, createLogger, logRecord } from './log.js';
 import { parseGroupsFile, provisionGroups, seedBarcelonaOnRelay } from './provision.js';
 import { createRelayState } from './relayState.js';
-import { hostName, serverRelayEnv } from './server.js';
+import { hostName, isJsonContentType, serverRelayEnv } from './server.js';
 
 const NOW = '2026-03-14T21:40:00+01:00';
 
@@ -71,6 +74,21 @@ describe('config', () => {
     expect(env['TRAV_RELAY_LIVE']).toBeUndefined();
     expect(env['TRAV_CHANNEL']).toBe('imessage_relay');
     expect(serverRelayEnv({ TRAV_RELAY_LIVE: '1' }, false)['TRAV_RELAY_LIVE']).toBe('1');
+  });
+
+  it('JSON content types only (r1 #4: no CORS simple request is JSON)', () => {
+    expect(isJsonContentType('application/json')).toBe(true);
+    expect(isJsonContentType('Application/JSON; charset=utf-8')).toBe(true);
+    for (const v of [
+      undefined,
+      'text/plain',
+      'text/plain;charset=UTF-8',
+      'application/x-www-form-urlencoded',
+      'multipart/form-data',
+      'application/jsonp',
+    ]) {
+      expect(isJsonContentType(v), String(v)).toBe(false);
+    }
   });
 
   it('reads the Host name without its port', () => {
@@ -173,12 +191,31 @@ describe('commands', () => {
     expect(parseCommand(msg('trav, please delete my data', 'group'), false)).toEqual({
       kind: 'delete_my_data',
     });
+    // r1 #2: politeness, "all", and the mention anywhere at the front.
+    for (const ask of [
+      'hey @trav delete all my data',
+      '@trav can you delete my data?',
+      '@trav could you please delete all of my data',
+      'pls @trav wipe my info thanks',
+      '@trav forget about me',
+      'trav, clear all my data please',
+    ]) {
+      expect(parseCommand(msg(ask, 'group'), false), ask).toEqual({ kind: 'delete_my_data' });
+    }
+    expect(parseCommand(msg('can you delete my data?'), false)).toEqual({
+      kind: 'delete_my_data',
+    });
+    expect(parseCommand(msg('hey can you delete my data', 'group'), false)).toBeUndefined();
+    expect(parseCommand(msg('@trav can you delete my data from the dinner', 'group'), false)).toBe(
+      undefined,
+    );
+    expect(parseCommand(msg('@trav why would you delete my data', 'group'), false)).toBe(undefined);
     expect(parseCommand(msg('delete my data', 'group'), false)).toBeUndefined();
     expect(parseCommand(msg('lol i should delete my data', 'group'), false)).toBeUndefined();
     expect(parseCommand(msg('@trav forget me after the trip', 'group'), false)).toBeUndefined();
   });
 
-  it('the opt-out list is keyed by a hash of the address', () => {
+  it('the opt-out list is keyed by an HMAC of the address under a per-store secret', () => {
     const s = stores();
     const list = createOptOutList(s);
     list.add('BO@Example.com', NOW);
@@ -187,7 +224,17 @@ describe('commands', () => {
     const rows = s.group.runtime.list('optout', { groupId: null });
     expect(rows).toHaveLength(1);
     expect(JSON.stringify(rows)).not.toContain('example');
-    expect(rows[0]!.key).toBe(optOutKey('bo@example.com'));
+    // r1 #5: not the unkeyed SHA-256 anyone could recompute from a number.
+    const unkeyed = createHash('sha256').update('trav-optout:bo@example.com').digest('hex');
+    expect(rows[0]!.key).not.toBe(unkeyed);
+    const secret = optOutSecret(s);
+    expect(secret).toMatch(/^[0-9a-f]{64}$/);
+    expect(rows[0]!.key).toBe(optOutKey('bo@example.com', secret));
+    expect(list.keyOf('bo@example.com')).toBe(rows[0]!.key);
+    // The secret is kept with the store: a second list (a restart) finds the same rows.
+    expect(createOptOutList(s).has('bo@example.com')).toBe(true);
+    // A different store has a different secret, so the same number has another key.
+    expect(createOptOutList(stores()).keyOf('bo@example.com')).not.toBe(rows[0]!.key);
     list.remove('bo@example.com');
     expect(list.has('bo@example.com')).toBe(false);
   });
@@ -198,6 +245,7 @@ describe('commands', () => {
       STOP_GROUP_TEXT,
       START_TEXT,
       DELETED_TEXT,
+      ALREADY_DELETED_TEXT,
       NOTHING_TO_DELETE_TEXT,
     ]) {
       for (const to of [

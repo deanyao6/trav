@@ -22,7 +22,8 @@ With the demo running, play a member's line through the signed webhook path:
 
 ```sh
 curl -s 127.0.0.1:5181/healthz
-curl -s -X POST 127.0.0.1:5181/dev/say -d '{"from":"mem_dean","text":"@trav get the 5 of us Razzmatazz tickets, Henry'"'"'s sick"}'
+curl -s -X POST 127.0.0.1:5181/dev/say -H 'content-type: application/json' \
+  -d '{"from":"mem_dean","text":"@trav get the 5 of us Razzmatazz tickets, Henry'"'"'s sick"}'
 ```
 
 The reply lists what went out on the wire: the receipt in the group and five ticket DMs with a QR each. The demo's database persists, so stop and restart and the tab is still there. Delete `.trav/server-demo.sqlite` to start over.
@@ -35,9 +36,11 @@ The server reads its env from the shell (like `pnpm sim`). Nothing loads `.env` 
 |---|---|
 | `POST /relay/webhook` | The vendor's signed delivery → `RelayChannel.handleWebhook` (size cap, signature, dedupe). Unsigned or tampered: `401`; wrong method: `405` |
 | `GET /healthz` | `{ ok, mode, vendor, model, groups, jobs, queued, uptimeS }`, with counts only and no personal data. `503` if the database can't be read |
-| `POST /dev/say` | **Demo and loopback only** (`404` otherwise): `{ from: <memberId>, text, dm? }` → the fake relay signs it as that member → the webhook path |
+| `POST /dev/say` | **Demo and loopback only** (`404` otherwise). `content-type: application/json` is required (`415` otherwise). Body: `{ from: <memberId>, text, dm? }` → the fake relay signs it as that member → the webhook path |
 
-The `Host` header must be loopback or one of `TRAV_SERVER_PUBLIC_HOSTS`. Anything else gets `403`.
+The `Host` header must be loopback or one of `TRAV_SERVER_PUBLIC_HOSTS`. Anything else gets `403`. Any request with an `Origin` header gets `403`, except `GET /healthz`. Browsers send `Origin`; vendor webhooks and curl don't. So a web page open in a browser on the same Mac can't drive Trav, and the JSON requirement means no CORS "simple request" (text/plain, a form) reaches `/dev/say`.
+
+**Shutdown.** On SIGINT / SIGTERM the server stops the scheduler and the listener, finishes the turn in progress, then ticks the pacing queue for up to 5 s so queued ticket DMs and recaps can go out. Anything still queued after that is lost (the queue isn't stored), and it's logged as `send.lost_on_close` with a count.
 
 ## Who it answers
 
@@ -61,7 +64,7 @@ Provisioning is idempotent: a group, member or trip already stored is left as is
 
 ## What survives a restart
 
-Everything in the SQLite file: groups, members, trips, the ledger, bookings, audit, the agent's runtime state and dedupe keys, and the scheduler queue (T-185, D-054). On top of that, the relay's dedupe keys (`seenKeys('relay')`), the vendor id → Trav id map (so a 👍 on a card posted before the restart still approves it), the chat rosters, and the opt-out list. Pacing counters are in memory, so a restart resets the day's send count.
+Everything in the SQLite file: groups, members, trips, the ledger, bookings, audit, the agent's runtime state and dedupe keys, and the scheduler queue (T-185, D-054). On top of that, the relay's dedupe keys (`seenKeys('relay')`), the vendor id → Trav id map (so a 👍 on a card posted before the restart still approves it), the chat rosters, the opt-out list and its HMAC key, and tickets held for opted-out members. Pacing counters and the pacing queue are in memory: a restart resets the day's send count, and a send still queued after the shutdown drain is lost.
 
 ## Env
 

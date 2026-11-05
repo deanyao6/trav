@@ -127,6 +127,8 @@ export interface TravRuntimeOptions {
   readonly travelFacts?: AgentDeps['travelFacts'];
   /** T-183 (D-047): default `model_first` with a live client, `parser_first` offline. */
   readonly interpretation?: AgentDeps['interpretation'];
+  /** T-188 r1 #1: members Trav can't DM right now (the server's STOP list); their tickets are held. */
+  readonly dmHold?: AgentDeps['dmHold'];
   readonly scheduler?: Scheduler;
   /** Default: `outbound/send.ts` (screen → voice lint → lane → audit). */
   readonly sendTurn?: TurnSender;
@@ -258,7 +260,15 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
   const executor = options.executor ?? createLazyExecutor({ stores, providers, clock, ids });
   const approvalHandler =
     options.approvalHandler ??
-    createApprovalHandler({ stores, executor, proposals, scheduler, clock, ids });
+    createApprovalHandler({
+      stores,
+      executor,
+      proposals,
+      scheduler,
+      clock,
+      ids,
+      ...(options.dmHold !== undefined ? { dmHold: options.dmHold } : {}),
+    });
   const sendTurn =
     options.sendTurn ??
     createSendPathSender(options.channel, stores, clock, {
@@ -291,6 +301,7 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
     ...(places !== undefined ? { places } : {}),
     ...(options.travelFacts !== undefined ? { travelFacts: options.travelFacts } : {}),
     ...(options.interpretation !== undefined ? { interpretation: options.interpretation } : {}),
+    ...(options.dmHold !== undefined ? { dmHold: options.dmHold } : {}),
   };
   const agent = createTravAgent(deps);
 

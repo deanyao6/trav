@@ -24,11 +24,24 @@ import {
   createMockRelay,
   createMockTickets,
   loadTicketInventory,
+  RELAY_PART_TRIES,
 } from '@trav/adapters';
-import { BARCELONA, BARCELONA_NOW, GUEST_REFUSAL_TEXT } from '@trav/agent';
+import {
+  BARCELONA,
+  BARCELONA_NOW,
+  GUEST_REFUSAL_TEXT,
+  HELD_TICKET_NAMESPACE,
+  heldTicketsFor,
+} from '@trav/agent';
 import type { SimulatedClock } from '@trav/core';
 import { createDeterministicIdGenerator, createSimulatedClock, ledger } from '@trav/core';
-import { DELETED_TEXT, START_TEXT, STOP_DM_TEXT, STOP_GROUP_TEXT, optOutKey } from './commands.js';
+import {
+  ALREADY_DELETED_TEXT,
+  DELETED_TEXT,
+  START_TEXT,
+  STOP_DM_TEXT,
+  STOP_GROUP_TEXT,
+} from './commands.js';
 import type { ServerConfig } from './config.js';
 import { resolveServerConfig } from './config.js';
 import { createLogger } from './log.js';
@@ -294,15 +307,45 @@ describe('T-188: webhook → reply round trip over the fake relay', () => {
     const w = world();
     const server = boot(w, 'a');
     const { port } = await server.listen();
-    const res = await fetch(`http://127.0.0.1:${String(port)}/dev/say`, {
+    const url = `http://127.0.0.1:${String(port)}/dev/say`;
+    const JSON_TYPE = { 'content-type': 'application/json' };
+    // r1 #4: what a page in any browser tab could send. A text/plain "simple
+    // request" (no CORS preflight) and anything carrying an Origin are refused
+    // before the body is read, so nothing is bought.
+    const csrf = await fetch(url, {
       method: 'POST',
+      headers: { 'content-type': 'text/plain' },
+      body: JSON.stringify({ from: 'mem_dean', text: RAZZ_ASK }),
+    });
+    expect(csrf.status).toBe(415);
+    const withOrigin = await fetch(url, {
+      method: 'POST',
+      headers: { ...JSON_TYPE, origin: 'https://evil.example' },
+      body: JSON.stringify({ from: 'mem_dean', text: RAZZ_ASK }),
+    });
+    expect(withOrigin.status).toBe(403);
+    // The webhook refuses a browser too (a vendor never sends Origin).
+    const hook = await say(w.mock!, DEAN, '@trav hi');
+    const hookRes = await fetch(`http://127.0.0.1:${String(port)}/relay/webhook`, {
+      method: 'POST',
+      headers: { ...JSON_TYPE, ...hook.headers, origin: 'http://127.0.0.1:5173' },
+      body: hook.rawBody,
+    });
+    expect(hookRes.status).toBe(403);
+    expect(w.tickets.purchaseCount()).toBe(0);
+    expect(w.mock!.sends()).toHaveLength(0);
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: JSON_TYPE,
       body: JSON.stringify({ from: 'mem_dean', text: RAZZ_ASK }),
     });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { sent: { chat: string; images: number }[] };
     expect(body.sent.filter((s) => s.chat === 'dm' && s.images === 1)).toHaveLength(5);
-    const bad = await fetch(`http://127.0.0.1:${String(port)}/dev/say`, {
+    const bad = await fetch(url, {
       method: 'POST',
+      headers: JSON_TYPE,
       body: JSON.stringify({ from: 'nobody', text: 'x' }),
     });
     expect(bad.status).toBe(400);
@@ -415,8 +458,8 @@ describe('T-188: STOP, START and "delete my data"', () => {
     expect(confirm.chat).toEqual({ kind: 'dm', address: CHASE });
     expect(confirm.text).toBe(STOP_DM_TEXT);
     expect(server.optOuts.has(CHASE)).toBe(true);
-    // Stored hashed: the number is not in the table in the clear.
-    const row = server.stores.group.runtime.get('optout', null, optOutKey(CHASE));
+    // Stored under a keyed hash: the number is not in the table in the clear.
+    const row = server.stores.group.runtime.get('optout', null, server.optOuts.keyOf(CHASE));
     expect(row).toBeDefined();
     expect(JSON.stringify(row)).not.toContain(CHASE);
     await server.close();
@@ -430,25 +473,80 @@ describe('T-188: STOP, START and "delete my data"', () => {
     ).delivered;
     await second.idle();
     expect(mock.sends().length).toBe(n);
-    // Dean books for the five: Chase is still on the tab, but gets no DM.
+
+    // r1 #1: Dean books for the five. Chase is on the tab like everyone, but
+    // Trav can't DM him, so his QR is held, never "sent" into a refusal, and
+    // the receipt says so instead of "QR codes are in your dms, one each".
     await (
       await second.relay.handleWebhook(await say(mock, DEAN, RAZZ_ASK))
     ).delivered;
     await second.idle();
-    const dms = sendsSince(mock, n).filter((s) => s.chat.kind === 'dm');
+    const turn = sendsSince(mock, n);
+    const dms = turn.filter((s) => s.chat.kind === 'dm');
     expect(dms).toHaveLength(4);
+    expect(dms.every((s) => s.media.length === 1)).toBe(true);
     expect(dms.some((s) => s.chat.kind === 'dm' && s.chat.address === CHASE)).toBe(false);
-    expect(w.logs.some((l) => l.includes('"reason":"opted_out"'))).toBe(true);
+    const receipt = turn.filter((s) => s.chat.kind === 'group');
+    expect(receipt).toHaveLength(1);
+    expect(receipt[0]!.text).toContain(
+      "QR codes are in your dms, except Chase's, saved till i can dm Chase",
+    );
+    expect(receipt[0]!.text).not.toContain('one each');
+    // The agent never tried: nothing was refused at the wire.
+    const refused = (l: string) => l.includes('"event":"send.refused"');
+    expect(w.logs.some(refused)).toBe(false);
+    const expense = second.stores.group.expenses
+      .listByTrip(BARCELONA.tripId)
+      .find((e) => e.source === 'booking')!;
+    const order = second.stores.group.members.listByGroup(G).map((m) => m.memberId);
+    const shares = ledger.computeShares(expense, {
+      memberOrder: order,
+      participantsUniverse: order,
+    });
+    expect(shares.find((s) => s.memberId === 'mem_chase')?.amount.amountMinor).toBe(1800);
+    // The pointer is ids only, in Chase's own partition: never the QR.
+    const held = heldTicketsFor(second.stores, 'mem_chase');
+    expect(held).toHaveLength(1);
+    const rows = second.stores.private.listRuntimeState('mem_chase', HELD_TICKET_NAMESPACE);
+    expect(JSON.stringify(rows)).not.toMatch(/svg|data:|png/i);
+    await second.close();
 
-    // START opts back in, with one line.
+    // START (after a restart): one line, then the saved ticket, exactly once.
+    const third = boot(w, 'c');
     n = mock.sends().length;
     await (
-      await second.relay.handleWebhook(await say(mock, CHASE, 'start', true))
+      await third.relay.handleWebhook(await say(mock, CHASE, 'start', true))
     ).delivered;
-    await second.idle();
-    expect(second.optOuts.has(CHASE)).toBe(false);
-    expect(sendsSince(mock, n).map((s) => s.text)).toEqual([START_TEXT]);
+    await third.idle();
+    expect(third.optOuts.has(CHASE)).toBe(false);
+    const after = sendsSince(mock, n);
+    expect(after.map((s) => s.text)[0]).toBe(START_TEXT);
+    expect(after.slice(1)).toHaveLength(1);
+    expect(after[1]!.chat).toEqual({ kind: 'dm', address: CHASE });
+    expect(after[1]!.media).toHaveLength(1);
+    expect(after[1]!.text).toMatch(/razzmatazz/);
+    expect(heldTicketsFor(third.stores, 'mem_chase')).toHaveLength(0);
+    // Nothing left to deliver: a second call sends nothing.
+    expect(await third.runtime.agent.deliverHeld('mem_chase')).toEqual([]);
+    expect(w.tickets.purchaseCount()).toBe(1);
   }, 45_000);
+
+  it('the wire guard still refuses a DM to an opted-out number (a backstop for any path that skips dmHold)', async () => {
+    const w = world();
+    const server = boot(w, 'a');
+    server.optOuts.add(CHASE, BARCELONA_NOW);
+    const n = w.mock!.sends().length;
+    // Pacing may queue it (ok) or pass the refusal through; either way nothing reaches the wire.
+    await server.paced.sendDirect(CHASE, {
+      id: 'msg_backstop',
+      groupId: G,
+      to: { kind: 'member', memberId: 'mem_chase' },
+      text: 'hi',
+    });
+    await server.paced.tick();
+    expect(w.mock!.sends()).toHaveLength(n);
+    expect(w.logs.some((l) => l.includes('"event":"send.refused"'))).toBe(true);
+  }, 30_000);
 
   it('STOP in the group is answered in the group; "stop roasting" and "cancel" there are not opt-outs', async () => {
     const w = world();
@@ -502,6 +600,79 @@ describe('T-188: STOP, START and "delete my data"', () => {
     // Still a member: the tab still adds up.
     expect(server.stores.group.members.get('mem_arjun')).toBeDefined();
     expect(sendsSince(mock, n).map((s) => s.text)).toEqual([DELETED_TEXT]);
+
+    // r1 #3: asking again (a polite DM this time) deletes nothing: no second
+    // "done", no zero-count audit row.
+    const m = mock.sends().length;
+    await (
+      await server.relay.handleWebhook(await say(mock, ARJUN, 'can you delete my data?', true))
+    ).delivered;
+    await server.idle();
+    expect(sendsSince(mock, m).map((s) => s.text)).toEqual([ALREADY_DELETED_TEXT]);
+    expect(
+      server.stores.group.audit.listByGroup(G).filter((e) => e.type === 'data.deleted'),
+    ).toHaveLength(1);
+  }, 30_000);
+});
+
+describe('T-188: shutdown', () => {
+  const netDown = () =>
+    Array.from({ length: RELAY_PART_TRIES }, () => ({ kind: 'network' as const }));
+
+  it('close() drains what the pacing queue holds, within its bound, before the stores close', async () => {
+    const w = world();
+    const server = boot(w, 'a');
+    // One network failure: the line goes back on the queue for a retry 30 s
+    // later (pacing's backoff), so it is genuinely queued when close() starts.
+    // Every one of the relay's own tries fails, so pacing gets a retryable refusal.
+    w.mock!.failNext(...netDown());
+    await server.paced.sendGroup(CHAT, {
+      id: 'msg_close_1',
+      groupId: G,
+      to: { kind: 'group' },
+      text: 'see you all at breakfast',
+      proactive: true,
+    });
+    expect(server.paced.queue()).toHaveLength(1);
+    w.clock.advanceMs(31_000);
+    const before = w.mock!.sends().length;
+    await server.close();
+    expect(w.mock!.sends().length - before).toBe(1);
+    expect(w.mock!.sends().at(-1)?.text).toBe('see you all at breakfast');
+    expect(server.paced.queue()).toHaveLength(0);
+    const closed = w.logs
+      .map((l) => JSON.parse(l) as { event: string; count?: number })
+      .find((r) => r.event === 'server.closed');
+    expect(closed?.count).toBe(0);
+  }, 30_000);
+
+  it('whatever is still queued after the bound is logged as lost (a count, no text)', async () => {
+    const w = world();
+    const server = createTravServer({
+      config: configFor(w, { demo: 'barcelona' }),
+      env: { TRAV_OFFLINE: '1', TRAV_STATE_DIR: join(w.dir, 'state') },
+      clock: w.clock,
+      log: createLogger({ clock: w.clock, write: (line) => w.logs.push(line) }),
+      timers: false,
+      sleep: async () => undefined,
+      closeDrainMs: 0,
+    });
+    // Queued for a retry that isn't due before the (zero) bound runs out.
+    server.mock.failNext(...netDown());
+    await server.paced.sendGroup(CHAT, {
+      id: 'msg_close_lost',
+      groupId: G,
+      to: { kind: 'group' },
+      text: 'a secret line',
+      proactive: true,
+    });
+    expect(server.paced.queue()).toHaveLength(1);
+    await server.close();
+    const lost = w.logs
+      .map((l) => JSON.parse(l) as { event: string; count?: number })
+      .find((r) => r.event === 'send.lost_on_close');
+    expect(lost?.count).toBe(1);
+    for (const l of w.logs) expect(l).not.toContain('secret');
   }, 30_000);
 });
 

@@ -109,6 +109,7 @@ import {
   setAttendance,
 } from '../roster/index.js';
 import { payerRuleFor } from '../booking/payers.js';
+import { holdTicket, type DmHold } from '../booking/heldTickets.js';
 import {
   followSupersededBy,
   type ApprovalEvent,
@@ -124,6 +125,11 @@ export interface ApprovalHandlerDeps {
   readonly scheduler: Scheduler;
   readonly clock: Clock;
   readonly ids: IdGenerator;
+  /**
+   * T-188 r1 #1: members Trav can't DM right now (opted out). Their ticket DM
+   * is held (`booking/heldTickets.ts`), not sent, and the receipt says so.
+   */
+  readonly dmHold?: DmHold;
 }
 
 /** VOICE §6.4: the one line at expiry. The scheduled job (`loop.ts`) posts the same text. */
@@ -869,9 +875,26 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
     try {
       const dms: OutboundMessage[] = [];
       const tickets: { memberId: MemberId; ticketCardId: string }[] = [];
+      const held: { holderMemberId: MemberId; deliveredToMemberId: MemberId }[] = [];
       for (const ref of booking.tickets) {
         for (const artifact of stores.private.listTickets(ref.holderMemberId, booking.bookingId)) {
           if (artifact.ticketId !== ref.ticketId) continue;
+          if (deps.dmHold?.(artifact.deliveredToMemberId) === true) {
+            // T-188 r1 #1: saved for later, never silently refused at the wire.
+            held.push({
+              holderMemberId: ref.holderMemberId,
+              deliveredToMemberId: artifact.deliveredToMemberId,
+            });
+            holdTicket(stores, {
+              groupId: ctx.group.groupId,
+              tripId: ctx.trip.tripId,
+              bookingId: booking.bookingId,
+              ticketId: artifact.ticketId,
+              holderMemberId: ref.holderMemberId,
+              recipientMemberId: artifact.deliveredToMemberId,
+            });
+            continue;
+          }
           const dm = renderTicket({ artifact, headline }, rctx);
           dms.push(dm);
           tickets.push({ memberId: ref.holderMemberId, ticketCardId: dm.card.cardId });
@@ -884,6 +907,7 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
           auditEvents: group.audit.listByGroup(ctx.group.groupId),
           headline,
           tickets,
+          ...(held.length > 0 ? { heldTickets: held } : {}),
         },
         rctx,
       );

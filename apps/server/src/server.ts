@@ -55,6 +55,7 @@ import type { Clock, Group, IdGenerator, Member, OutboundMessage, Stores } from 
 import { createUlidIdGenerator } from '@trav/core';
 import { createSqliteStores } from '@trav/core/storage';
 import {
+  ALREADY_DELETED_TEXT,
   DELETED_TEXT,
   NOTHING_TO_DELETE_TEXT,
   START_TEXT,
@@ -80,6 +81,9 @@ import { createRelayState, looksLikeAddress } from './relayState.js';
 export const RELAY_SEEN_CAP = 10_000;
 export const DEV_SAY_PATH = '/dev/say';
 export const HEALTH_PATH = '/healthz';
+/** How long `close()` keeps ticking the pacing queue before it gives up (r1 #6). */
+export const CLOSE_DRAIN_MS = 5_000;
+const CLOSE_DRAIN_STEP_MS = 100;
 /** Relay diagnostics whose detail can hold vendor-supplied text: logged by type only. */
 export const VENDOR_TEXT_DIAGNOSTICS: ReadonlySet<string> = new Set(['send_failed', 'send_retry']);
 
@@ -105,6 +109,8 @@ export interface TravServerOptions {
   readonly sleep?: (ms: number) => Promise<void>;
   /** `strict` in tests; default `log` (a voice slip is logged, not a dropped reply). */
   readonly voice?: 'strict' | 'log';
+  /** How long `close()` drains the pacing queue (default `CLOSE_DRAIN_MS`). */
+  readonly closeDrainMs?: number;
 }
 
 export interface ServerHealth {
@@ -166,6 +172,11 @@ function json(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body));
 }
 
+/** `application/json`, with or without parameters (`; charset=utf-8`). */
+export function isJsonContentType(value: string | undefined): boolean {
+  return value !== undefined && /^application\/json\s*(?:;|$)/i.test(value.trim());
+}
+
 /** Known paths by name for logs (anything else is `other`, so a probe's path is never echoed). */
 function pathLabel(pathname: string, webhookPath: string): string {
   if (pathname === webhookPath) return 'webhook';
@@ -176,6 +187,7 @@ function pathLabel(pathname: string, webhookPath: string): string {
 
 export function createTravServer(options: TravServerOptions): TravServer {
   const { config, clock, log } = options;
+  const closeDrainMs = Math.max(0, options.closeDrainMs ?? CLOSE_DRAIN_MS);
   const demo = config.demo !== undefined;
   const bootMs = clock.nowMs();
   const ids = options.ids ?? createUlidIdGenerator(clock);
@@ -260,6 +272,13 @@ export function createTravServer(options: TravServerOptions): TravServer {
     ...(options.providers !== undefined ? { providers: options.providers } : {}),
     voice: options.voice ?? 'log',
     onLintViolation: (_o, violations) => log.warn('voice.violation', { count: violations.length }),
+    // r1 #1: an opted-out member has no DM lane for the agent. Their DMs drop
+    // with the send path's honest count line, and their tickets are held
+    // (the receipt says so) until START. The guard below stays as a backstop.
+    dmHold: (memberId) => {
+      const m = stores.group.members.get(memberId);
+      return m !== undefined && optOuts.has(m.senderId);
+    },
   });
 
   const queue = createSerialQueue();
@@ -325,6 +344,14 @@ export function createTravServer(options: TravServerOptions): TravServer {
     });
   }
 
+  /** Every member row an address is, in every group. */
+  function memberRowsOf(address: string): Member[] {
+    return stores.group.groups
+      .list()
+      .map((g) => stores.group.members.getBySenderId(g.groupId, address))
+      .filter((m): m is Member => m !== undefined);
+  }
+
   async function runCommand(
     command: ServerCommand,
     event: InboundMessage,
@@ -350,16 +377,24 @@ export function createTravServer(options: TravServerOptions): TravServer {
     if (command.kind === 'start') {
       optOuts.remove(sender);
       if (group !== undefined) await reply(event, group, member, START_TEXT);
+      // r1 #1: the tickets held while opted out, now.
+      for (const m of memberRowsOf(sender)) {
+        for (const r of await runtime.agent.deliverHeld(m.memberId)) {
+          log.info('turn', { note: r.note, groupId: m.groupId, outbound: r.outbound.length });
+        }
+      }
       return;
     }
     // delete_my_data: every member row this address is, in every group.
-    const rows = stores.group.groups
-      .list()
-      .map((g) => stores.group.members.getBySenderId(g.groupId, sender))
-      .filter((m): m is Member => m !== undefined);
+    const rows = memberRowsOf(sender);
+    let deleted = 0;
     for (const m of rows) {
       const counts = stores.private.deletePartition(m.memberId);
       runtime.agent.forgetRuntimeState({ memberId: m.memberId });
+      const n = Object.values(counts).reduce((a, b) => a + b, 0);
+      deleted += n;
+      // r1 #3: a repeat request deletes nothing, so nothing is audited.
+      if (n === 0) continue;
       stores.group.audit.append({
         groupId: m.groupId,
         tripId: null,
@@ -370,9 +405,19 @@ export function createTravServer(options: TravServerOptions): TravServer {
         payload: { scope: 'member', request: 'delete_my_data', tables: counts },
       });
     }
-    log.info('data.deleted', { count: rows.length });
+    // `tables`: rows deleted across the partitions (a count, never their contents).
+    log.info('data.deleted', { count: rows.length, tables: deleted });
     if (group !== undefined) {
-      await reply(event, group, member, rows.length > 0 ? DELETED_TEXT : NOTHING_TO_DELETE_TEXT);
+      await reply(
+        event,
+        group,
+        member,
+        rows.length === 0
+          ? NOTHING_TO_DELETE_TEXT
+          : deleted > 0
+            ? DELETED_TEXT
+            : ALREADY_DELETED_TEXT,
+      );
     }
   }
 
@@ -513,11 +558,18 @@ export function createTravServer(options: TravServerOptions): TravServer {
       } else if (url.pathname === HEALTH_PATH && req.method === 'GET') {
         const h = health();
         json(res, h.ok ? 200 : 503, h);
+      } else if (req.headers.origin !== undefined) {
+        // r1 #4: browsers send Origin; a vendor's server-to-server webhook and
+        // curl don't. So a page in any browser tab can never drive Trav.
+        json(res, 403, { error: 'browser requests are refused' });
       } else if (url.pathname === DEV_SAY_PATH) {
         // The dev demo only, loopback only: never on a deployment or behind a tunnel.
         if (!demo || !loopback) json(res, 404, { error: 'not found' });
         else if (req.method !== 'POST') json(res, 405, { error: 'POST only' });
-        else await devSay(req, res);
+        else if (!isJsonContentType(req.headers['content-type'])) {
+          // No CORS "simple request" (text/plain, form) gets this far.
+          json(res, 415, { error: 'content-type must be application/json' });
+        } else await devSay(req, res);
       } else {
         await webhook(req, res);
       }
@@ -585,6 +637,23 @@ export function createTravServer(options: TravServerOptions): TravServer {
         });
       }
       await tail;
+      // r1 #6: give the pacing queue a bounded chance to go out (queued QR
+      // DMs, a recap). Whatever is still queued after the bound is lost; it
+      // isn't stored (D-056), and the count is logged.
+      const deadline = monotonicMs() + closeDrainMs;
+      for (;;) {
+        try {
+          await paced.tick();
+        } catch (e) {
+          log.error('close.drain_failed', { kind: errorKind(e) });
+          break;
+        }
+        if (paced.queue().length === 0 || monotonicMs() >= deadline) break;
+        await new Promise((resolve) => setTimeout(resolve, CLOSE_DRAIN_STEP_MS));
+      }
+      const left = paced.queue().length;
+      if (left > 0) log.warn('send.lost_on_close', { count: left });
+      log.info('server.closed', { count: left });
       runtime.close();
     },
   };

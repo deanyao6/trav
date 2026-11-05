@@ -16,10 +16,12 @@
  *   @trav; in a DM it doesn't.
  *
  * The opt-out list is in `GroupStore.runtime` (`optout`, runtime-wide), keyed by
- * a SHA-256 of the address, so it holds no number in the clear. It outlives
+ * an HMAC-SHA256 of the address under a per-store secret (`optout_secret`), so
+ * it holds no number in the clear and its keys can't be brute-forced from the
+ * phone-number space without that secret. It outlives
  * "delete my data" on purpose: honoring an opt-out means remembering it.
  */
-import { createHash } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
 import type { InboundEvent, InboundMessage } from '@trav/adapters';
 import { normalizeReply } from '@trav/adapters';
 import { detectMentionRules } from '@trav/agent';
@@ -49,8 +51,18 @@ export const STOP_WORDS_GROUP: ReadonlySet<string> = new Set([
 ]);
 export const START_WORDS: ReadonlySet<string> = new Set(['start', 'unstop', 'resume']);
 
-const DELETE_MY_DATA =
-  /^(?:please )?(?:delete|erase|wipe|remove) (?:all )?(?:of )?my (?:data|info|stuff)(?: please)?$|^forget me$/;
+/**
+ * Matched on `normalizeReply` text, which has the @trav / "trav," address
+ * already stripped. Leading politeness ("hey", "pls", "can you", ...) and a
+ * trailing "please" / "thanks" are allowed. Anything else around the ask
+ * ("lol i should delete my data", "forget me after the trip") isn't a command.
+ */
+const FILLER =
+  '(?:(?:hey|hi|yo|ok|okay|so|um|please|pls|plz|can you|could you|would you|will you|can u|could u|pls can you|please can you)\\s+)*';
+const TRAILER = '(?:\\s+(?:please|pls|plz|thanks|thank you|thx|now|for me|asap))*';
+const DELETE_MY_DATA = new RegExp(
+  `^${FILLER}(?:(?:delete|erase|wipe|remove|clear) (?:(?:all|of|everything|any) )*my (?:data|info|information|stuff|details)|forget (?:about )?me|forget everything about me)${TRAILER}$`,
+);
 
 // ---- user-facing text (VOICE §1: lowercase, short, no emoji in these) ----
 
@@ -61,6 +73,8 @@ export const STOP_GROUP_TEXT =
 export const START_TEXT = "you're back in. i'll text you again when there's something for you";
 export const DELETED_TEXT =
   'done, i deleted your private data. your share of the group tab stays so the balances still add up';
+/** r1 #3: a repeat request (every count 0): no second "done", no audit. */
+export const ALREADY_DELETED_TEXT = 'nothing left to delete, your private data is already gone';
 /** A guest: no member rows, so no private partition (the audit log keeps who spoke, SAFETY §2.5). */
 export const NOTHING_TO_DELETE_TEXT =
   "you're not a member here, so i have no private data of yours to delete";
@@ -96,32 +110,62 @@ export function parseCommand(
   return undefined;
 }
 
-export function optOutKey(address: string): string {
+/** Where the store's opt-out HMAC key lives (its own namespace; never logged, never listed with the opt-outs). */
+export const OPTOUT_SECRET_NAMESPACE = 'optout_secret';
+const OPTOUT_SECRET_KEY = 'v1';
+
+/**
+ * r1 #5 (SAFETY T19 / SC-6): the opt-out row key is an HMAC-SHA256 of the
+ * address under a per-store secret, so a leaked list of keys can't be
+ * brute-forced from the (small) space of phone numbers without the secret.
+ */
+export function optOutKey(address: string, secret: string): string {
   const a = address.trim();
   const normalized = a.includes('@') ? a.toLowerCase() : a;
-  return createHash('sha256').update(`trav-optout:${normalized}`).digest('hex');
+  return createHmac('sha256', secret).update(`trav-optout:${normalized}`).digest('hex');
+}
+
+/** The store's opt-out secret, created on first use (32 random bytes) and kept with the store. */
+export function optOutSecret(stores: Stores): string {
+  const runtime = stores.group.runtime;
+  const v = runtime.get(OPTOUT_SECRET_NAMESPACE, null, OPTOUT_SECRET_KEY)?.value as
+    { readonly secret?: unknown } | undefined;
+  if (typeof v?.secret === 'string' && /^[0-9a-f]{64}$/.test(v.secret)) return v.secret;
+  const secret = randomBytes(32).toString('hex');
+  runtime.put({
+    namespace: OPTOUT_SECRET_NAMESPACE,
+    groupId: null,
+    key: OPTOUT_SECRET_KEY,
+    value: { secret },
+  });
+  return secret;
 }
 
 export interface OptOutList {
   has(address: string): boolean;
   add(address: string, at: string): void;
   remove(address: string): void;
+  /** The stored row key for an address (tests and audits; never logged). */
+  keyOf(address: string): string;
 }
 
 export function createOptOutList(stores: Stores): OptOutList {
   const runtime = stores.group.runtime;
+  const secret = optOutSecret(stores);
+  const keyOf = (address: string): string => optOutKey(address, secret);
   return {
-    has: (address) => runtime.get(OPTOUT_NAMESPACE, null, optOutKey(address)) !== undefined,
+    keyOf,
+    has: (address) => runtime.get(OPTOUT_NAMESPACE, null, keyOf(address)) !== undefined,
     add(address, at) {
       runtime.put({
         namespace: OPTOUT_NAMESPACE,
         groupId: null,
-        key: optOutKey(address),
+        key: keyOf(address),
         value: { at },
       });
     },
     remove(address) {
-      runtime.delete(OPTOUT_NAMESPACE, null, optOutKey(address));
+      runtime.delete(OPTOUT_NAMESPACE, null, keyOf(address));
     },
   };
 }
