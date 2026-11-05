@@ -23,3 +23,5 @@ export * as safety from './safety/index.js';
 export * as recaps from './recaps/index.js';
 export * as wrapped from './wrapped/index.js';
 export * as payments from './payments/index.js';
+export * as tiers from './tiers/index.js';
+export type { SpendingTier, TierSignal, TierInference, TierBlend } from './tiers/index.js';

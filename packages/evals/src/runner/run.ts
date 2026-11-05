@@ -48,9 +48,10 @@ import type {
   CompletionRequest,
   DocumentIntakeResult,
   ModelClient,
+  TravelFact,
   TurnResult,
 } from '@trav/agent';
-import { createModelClient, createTravRuntime, readModelEnv } from '@trav/agent';
+import { createModelClient, createTravRuntime, parseTierFixture, readModelEnv } from '@trav/agent';
 import type { TripName } from '../fixtures.js';
 import { loadFixture } from '../fixtures.js';
 import type {
@@ -270,6 +271,12 @@ function emailFixture(raw: unknown, where: string): EmailFixture {
     : { email };
 }
 
+/** `fixtures/tiers/<name>.json`'s travel rows, for every group (T-167). Throws on a bad fixture. */
+function travelFactsFor(name: string): () => readonly TravelFact[] {
+  const fx = parseTierFixture(loadFixture(`tiers/${name}.json`), `tiers/${name}.json`);
+  return () => fx.travel;
+}
+
 function firstAt(steps: readonly Step[]): string | undefined {
   for (const s of steps) if (s.at !== undefined) return s.at;
   return undefined;
@@ -336,6 +343,10 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
     env: { TRAV_OFFLINE: opts.mode === 'offline' ? '1' : undefined, TRAV_STATE_DIR: stateDir },
     providers: { tickets, flights: flightsMock, lodging, payments },
     album,
+    // T-167: a tier variant's flights and stays, as the runtime's travel facts.
+    ...(scenario.setup?.tierFixture !== undefined
+      ? { travelFacts: travelFactsFor(scenario.setup.tierFixture) }
+      : {}),
     // The script's `card_sync` lines are this episode's card syncs (below):
     // no scheduled digest-slot imports on top of them (T-067).
     transactions: false,

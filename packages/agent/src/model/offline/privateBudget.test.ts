@@ -393,7 +393,11 @@ describe("Henry's budget DM end to end (msg_bcn_d_0002)", () => {
     // no group request's tools, and no group message.
     const asked = h.model.completions.length;
     const g1 = await h.say('h_dean', "@trav what's henry's daily budget");
+    // T-167: a suggestion ask (rules; Henry's figure only leans the blend)
+    // and a model-routed one.
     const g2 = await h.say('h_henry', '@trav where should the 6 of us eat tonight');
+    expect(g2.note).toMatch(/^suggest:/);
+    const g3 = await h.say('h_henry', "@trav what's the plan for dinner tonight");
     const groupReqs = h.model.completions
       .slice(asked)
       .filter((r) => r.systemPromptId !== 'dm_chat_v1');
@@ -403,12 +407,12 @@ describe("Henry's budget DM end to end (msg_bcn_d_0002)", () => {
         `${r.system}\n${JSON.stringify(r.messages)}\n${JSON.stringify(r.tools)}`.toLowerCase();
       for (const s of HENRY_PRIVATE) expect(all).not.toContain(s);
     }
-    for (const m of [...messages(g1), ...messages(g2)]) {
+    for (const m of [...messages(g1), ...messages(g2), ...messages(g3)]) {
       for (const s of HENRY_PRIVATE) expect(m.text.toLowerCase()).not.toContain(s);
     }
 
     // Henry's own DM prompt does carry it (that's what it's for), never the reason.
-    await h.dm('h_henry', 'any food tips');
+    await h.dm('h_henry', "what's the plan for food");
     const dmReq = h.model.completions.at(-1);
     expect(dmReq?.systemPromptId).toBe('dm_chat_v1');
     expect(dmReq?.system).toContain('my share: under €80 a day');

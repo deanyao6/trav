@@ -43,3 +43,4 @@ export * from './compose.js';
 export * from './approval/whitelist.js';
 export * from './booking/autoBuy.js';
 export { venueIndexFrom, type VenueIndex } from './booking/request.js';
+export * from './tiers/index.js';

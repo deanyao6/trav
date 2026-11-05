@@ -6,7 +6,12 @@ import type { Member, OutboundMessage } from '@trav/core';
 import { ledger, localDate } from '@trav/core';
 import { voiceViolations } from '@trav/agent';
 import { loadFixture } from '../fixtures.js';
-import type { FlightsProbe, LedgerProbeTrip, MentionProbeRow } from '../runner/probes.js';
+import type {
+  FlightsProbe,
+  LedgerProbeTrip,
+  MentionProbeRow,
+  SpendingTierCase,
+} from '../runner/probes.js';
 import type { Episode, Grader, GraderResult } from '../types.js';
 import { lineChecks, lineView } from './lineChecks.js';
 import {
@@ -440,6 +445,49 @@ export const ledgerGroundTruth: Grader = {
   },
 };
 
+// ---------- spending tier (T-167) ----------
+
+export const spendingTier: Grader = {
+  id: 'spending_tier',
+  title:
+    'spending tier: each member and the group inferred as labeled; restaurant price levels follow the tier',
+  kind: 'deterministic',
+  weight: 2,
+  grade(ep) {
+    const checks: Check[] = [];
+    for (const { cases } of probe<{ cases: SpendingTierCase[] }>(ep, 'spending_tier')) {
+      for (const c of cases) {
+        for (const [m, want] of Object.entries(c.expectedMembers)) {
+          checks.push({
+            ok: c.members[m] === want,
+            what: `${c.fixture} ${m}: inferred ${String(c.members[m])}, labeled ${want}`,
+          });
+        }
+        checks.push({
+          ok:
+            c.group.status === c.expectedGroup.status && c.group.target === c.expectedGroup.target,
+          what: `${c.fixture} group: ${c.group.status}/${String(c.group.target)}, labeled ${c.expectedGroup.status}/${String(c.expectedGroup.target)}`,
+        });
+        if (c.restaurantPriceLevelsAtLeast !== undefined) {
+          const lo = c.restaurantPriceLevelsAtLeast;
+          checks.push({
+            ok: c.restaurantLevels.length > 0 && c.restaurantLevels.every((l) => l >= lo),
+            what: `${c.fixture}: restaurant levels [${c.restaurantLevels.join(',')}], want all ≥ ${String(lo)}`,
+          });
+        }
+        if (c.restaurantPriceLevelsAtMost !== undefined) {
+          const hi = c.restaurantPriceLevelsAtMost;
+          checks.push({
+            ok: c.restaurantLevels.length > 0 && c.restaurantLevels.every((l) => l <= hi),
+            what: `${c.fixture}: restaurant levels [${c.restaurantLevels.join(',')}], want all ≤ ${String(hi)}`,
+          });
+        }
+      }
+    }
+    return [fromChecks(this.id, checks, { nothing: 'no spending_tier probe in this episode' })];
+  },
+};
+
 // ---------- rubric (live only) ----------
 
 export const DEFAULT_RUBRIC: readonly string[] = [
@@ -519,5 +567,6 @@ export const QUALITY_GRADERS: readonly Grader[] = [
   mentionAccuracy,
   flightOptimizer,
   ledgerGroundTruth,
+  spendingTier,
   rubric,
 ];

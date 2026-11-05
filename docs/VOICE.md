@@ -634,6 +634,39 @@ Several at once: `Crowley took Uber €23.40 and ride €9 off the tab · Arjun 
 
 **Rendering:** `OutboundMessage{ kind: "system_notice" }`, group lane only. Channels with `capabilities.systemNotices` (the simulator) draw it like iMessage's centered grey "Dean added Chase to the conversation" subscript: no bubble, no avatar, no name label (§9.2). Every other channel (iMessage relays, WhatsApp, Telegram, SMS) gets the same text as an ordinary short Trav message. A notice follows a member's action, so it does not count against the unsolicited-message cap (§2).
 
+### 4.14 Suggestions: where to eat, drink, go (T-167, D-045)
+
+**Trigger:** an @trav ask for ideas ("where should we eat tonight", "any good bars", "things to do tomorrow"), never a booking. The price level follows, in order: what the ask says ("cheap eats", "somewhere nice", "under €30 a head"), the vibe already given for that day, the spending tier of the people going (leaning to the most budget-conscious), otherwise one question.
+
+**Example A (list):**
+
+> **trav:**
+> dinner ideas for tonight:
+> bocadillos · Forn de Sant Pau, Raval · €9 each
+> tapas · Taverna Cal Nen, Barceloneta · €14 each
+> tapas and vermut · Bodega La Fusta, Gràcia · €24 each · a step up
+
+**Example B (the one question, when the signals conflict or there are none):**
+
+> **trav:**
+> fancy or casual tonight?
+
+> **Chase:** casual
+
+> **trav:**
+> casual it is. dinner ideas for tonight:
+> …
+
+**Example C (own DM, over the member's own figure):**
+
+> **trav → Dean (private):**
+> dinner ideas for tonight:
+> bocadillos · Forn de Sant Pau, Raval · €9 each
+> tasting menu · Atelier Sorra, Born · €95 each · over your €10 a day
+> chef's tasting menu · Sala Nòmada, Eixample · €120 each · over your €10 a day
+
+Card: none. Notes: header plus up to 3 lines, under 280 characters; each line opens on the place's kind, then name and area, then `€N each`. "a step up" marks the one option above the target when the group leans higher. The question is asked once per day per thread; the answer is kept in group memory (a DM answer in that member's own memory) and never asked again that day. Nothing is ever dropped or refused for being over a budget: it is ordered after what fits and, in the member's own DM only, marked "over your …". The group thread never says a member's figure, never a tier ("cheap", "high-end") about a person, only about the night ("casual it is"). A bar ask with anyone under 18 (or of unknown age) going gets food instead.
+
 ---
 
 ## 5. Rich cards: machine-readable shapes

@@ -44,6 +44,7 @@ import type {
   AlbumAdapter,
   ChannelAdapter,
   FxRatesAdapter,
+  VenuesAdapter,
   TransactionsAdapter,
 } from '@trav/adapters';
 import {
@@ -51,6 +52,7 @@ import {
   createMockFlights,
   createMockFxRates,
   createMockLodging,
+  createMockVenues,
   createMockTickets,
   createMockTransactions,
   loadAllTicketInventories,
@@ -117,6 +119,13 @@ export interface TravRuntimeOptions {
    * live API. `false` ⇒ none (Trav asks for the trip-currency amount).
    */
   readonly fx?: FxRatesAdapter | false;
+  /**
+   * Restaurants, bars and things to do for suggestions (T-167). Default: the
+   * mock catalog (`fixtures/places/`). Read-only. `false` = none.
+   */
+  readonly places?: VenuesAdapter | false;
+  /** Structured flights and stays per group for the spending tier (T-167); default none. */
+  readonly travelFacts?: AgentDeps['travelFacts'];
   readonly scheduler?: Scheduler;
   /** Default: `outbound/send.ts` (screen → voice lint → lane → audit). */
   readonly sendTurn?: TurnSender;
@@ -214,6 +223,7 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
       ? undefined
       : (options.transactions ?? createMockTransactions({ clock }));
   const fx = options.fx === false ? undefined : (options.fx ?? createMockFxRates({ clock }));
+  const places = options.places === false ? undefined : (options.places ?? createMockVenues());
   // Every planned or active trip's Morning Afters (T-015, 10am each morning
   // after a trip night) and end-of-trip Wrapped (T-016/T-142, 10am the day
   // after) still ahead, whoever seeded the stores (the demo seed, the evals,
@@ -275,6 +285,8 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
     ...(options.maxToolRounds !== undefined ? { maxToolRounds: options.maxToolRounds } : {}),
     ...(transactions !== undefined ? { transactions } : {}),
     ...(fx !== undefined ? { fx } : {}),
+    ...(places !== undefined ? { places } : {}),
+    ...(options.travelFacts !== undefined ? { travelFacts: options.travelFacts } : {}),
   };
   const agent = createTravAgent(deps);
 

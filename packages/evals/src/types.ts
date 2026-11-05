@@ -400,7 +400,8 @@ export type ProbeName =
   | 'album_consent'
   | 'roast_screen'
   | 'minor_screen'
-  | 'auto_buy';
+  | 'auto_buy'
+  | 'spending_tier';
 
 export const PROBE_NAMES: readonly ProbeName[] = [
   'mentions',
@@ -410,6 +411,7 @@ export const PROBE_NAMES: readonly ProbeName[] = [
   'roast_screen',
   'minor_screen',
   'auto_buy',
+  'spending_tier',
 ];
 
 /** A deterministic probe of a pure component (core function, mock adapter, the send path). */
@@ -461,6 +463,11 @@ export interface ScenarioSetup {
   >;
   /** Strings that must never reach a group prompt or group message in this episode (SAFETY C2/C7). */
   readonly privateStrings?: readonly string[];
+  /**
+   * T-167: a `fixtures/tiers/<name>.json` trip variant whose flights and stays
+   * are handed to the runtime as travel facts (the spending tier's signals).
+   */
+  readonly tierFixture?: string;
 }
 
 export interface Scenario {

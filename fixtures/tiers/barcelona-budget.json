@@ -1,0 +1,48 @@
+{
+  "name": "barcelona-budget",
+  "note": "T-167: the Barcelona six on a budget variant of the trip. Fictional. Signals only. The tier is inferred from these; the expectation block is the label.",
+  "trip": "barcelona",
+  "travel": [
+    { "kind": "flight", "memberId": "mem_dean", "cabin": "economy", "airline": "TAP Air Portugal", "layoverMinutes": 300, "at": "2026-03-11T22:00:00-04:00" },
+    { "kind": "flight", "memberId": "mem_henry", "cabin": "economy", "airline": "Norse Atlantic", "at": "2026-03-11T19:00:00-07:00" },
+    { "kind": "flight", "memberId": "mem_chase", "cabin": "economy", "airline": "TAP Air Portugal", "layoverMinutes": 300, "at": "2026-03-11T21:30:00-05:00" },
+    { "kind": "flight", "memberId": "mem_piotr", "cabin": "economy", "airline": "Level", "at": "2026-03-11T18:00:00-04:00" },
+    { "kind": "flight", "memberId": "mem_arjun", "cabin": "economy", "airline": "United", "layoverMinutes": 240, "at": "2026-03-11T17:00:00-07:00" },
+    { "kind": "flight", "memberId": "mem_crowley", "cabin": "economy", "airline": "Play", "at": "2026-03-11T20:00:00-04:00" },
+    {
+      "kind": "lodging",
+      "memberIds": ["mem_dean", "mem_henry", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+      "name": "Raval apartment",
+      "propertyKind": "whole home",
+      "bedrooms": 1,
+      "guests": 6,
+      "totalMinor": 60000,
+      "nights": 5,
+      "currency": "EUR",
+      "at": "2026-02-01T12:00:00-05:00"
+    }
+  ],
+  "spend": [
+    { "memberId": "mem_dean", "category": "food", "shareMinor": 1200, "at": "2026-03-12T22:30:00+01:00" },
+    { "memberId": "mem_henry", "category": "food", "shareMinor": 1200, "at": "2026-03-12T22:30:00+01:00" },
+    { "memberId": "mem_chase", "category": "food", "shareMinor": 1200, "at": "2026-03-12T22:30:00+01:00" },
+    { "memberId": "mem_piotr", "category": "food", "shareMinor": 1200, "at": "2026-03-12T22:30:00+01:00" },
+    { "memberId": "mem_arjun", "category": "food", "shareMinor": 1200, "at": "2026-03-12T22:30:00+01:00" },
+    { "memberId": "mem_crowley", "category": "food", "shareMinor": 1200, "at": "2026-03-12T22:30:00+01:00" }
+  ],
+  "groupLines": [
+    { "memberId": "mem_piotr", "text": "can we keep it cheap this trip", "at": "2026-03-12T12:00:00+01:00" }
+  ],
+  "expect": {
+    "members": {
+      "mem_dean": "budget",
+      "mem_henry": "budget",
+      "mem_chase": "budget",
+      "mem_piotr": "budget",
+      "mem_arjun": "budget",
+      "mem_crowley": "budget"
+    },
+    "group": { "status": "known", "target": "budget" },
+    "restaurantPriceLevelsAtMost": 2
+  }
+}

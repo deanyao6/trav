@@ -82,6 +82,7 @@ import type {
   FxRatesAdapter,
   InboundEvent,
   InboundMessage,
+  VenuesAdapter,
   TransactionsAdapter,
 } from '@trav/adapters';
 import type {
@@ -197,6 +198,9 @@ import type { ToolRegistry } from './tools/registry.js';
 import type { TurnToolContext } from './tools/shared.js';
 import { detectInjection, stripInvisible } from './untrusted.js';
 import { createExpenseNotices } from './notices/expenseNotices.js';
+import { createSuggestFlow, parseSuggestAsk } from './tiers/suggest.js';
+import type { SuggestOutcome, SuggestTurnInput } from './tiers/suggest.js';
+import type { GroupLine, TravelFact } from './tiers/signals.js';
 
 // ---------- dependencies ----------
 
@@ -264,6 +268,13 @@ export interface AgentDeps {
    * Absent ⇒ an amount in another currency is asked about in the trip currency.
    */
   readonly fx?: FxRatesAdapter;
+  /**
+   * Restaurants, bars and things to do (T-167; the runtime's is the mock
+   * catalog). Read-only. Absent ⇒ suggestion asks go to the model.
+   */
+  readonly places?: VenuesAdapter;
+  /** Structured flights and stays per group for the spending tier (T-167); default none. */
+  readonly travelFacts?: (groupId: GroupId) => readonly TravelFact[];
 }
 
 export interface TurnResult {
@@ -734,6 +745,15 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     ids,
     clock,
     ...(deps.fx !== undefined ? { fx: deps.fx } : {}),
+  });
+
+  /** Place suggestions shaped by spending tier, and the one "fancy or casual?" (T-167). Rules only. */
+  const suggestions = createSuggestFlow({
+    stores,
+    groupMemory: deps.groupMemory,
+    memberMemory: deps.memberMemory,
+    ...(deps.places !== undefined ? { places: deps.places } : {}),
+    ...(deps.travelFacts !== undefined ? { travelFacts: deps.travelFacts } : {}),
   });
 
   const remember = (key: string): boolean => {
@@ -2509,11 +2529,75 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     }
     if (balanceAsk !== undefined) return withResumed(await balanceTurn(r, me, event, balanceAsk));
 
+    // 5d. place suggestions and Trav's one "fancy or casual tonight?" (T-167,
+    // `tiers/suggest.ts`): rules, never the model, and never a booking. The
+    // answer to an open question first, then a fresh ask. A city with no
+    // catalog falls through to the model.
+    if (r.trip !== null && canRequest(r.identity) && !aboutBooking) {
+      const sin: SuggestTurnInput = {
+        group: r.group,
+        trip: r.trip,
+        members: r.members,
+        me,
+        lane: r.lane,
+        messageId: event.messageId,
+        now: r.now,
+        groupLines: groupLinesFor(r),
+      };
+      const answered = await suggestions.answer(sin, text, {
+        addressed: true,
+        ...(event.replyToMessageId !== undefined
+          ? { replyToMessageId: event.replyToMessageId }
+          : {}),
+      });
+      if (answered !== undefined) return withResumed(await suggestTurn(r, sin, answered));
+      const ask = parseSuggestAsk(text);
+      if (ask !== undefined) {
+        const out = await suggestions.ask(sin, ask);
+        if (out !== undefined) return withResumed(await suggestTurn(r, sin, out));
+      }
+    }
+
     const expense = await expenseTurn(false);
     if (expense !== undefined) return withResumed(expense);
 
     // 6. the model.
     return withResumed(await modelTurn(r, event, text, mention.reason));
+  }
+
+  /** Members' own group-thread lines from the last 6 hours (stated wants, T-167). */
+  function groupLinesFor(r: Resolved): GroupLine[] {
+    const cutoff = parseIso(r.now) - 6 * 60 * 60_000;
+    return (recent.get(laneKey(r.group.groupId, 'group', null)) ?? [])
+      .filter((m) => !m.fromTrav && m.senderMemberId !== null && parseIso(m.at) >= cutoff)
+      .map((m) => ({
+        memberId: m.senderMemberId!,
+        text: m.text,
+        at: m.at,
+        messageId: m.messageId,
+      }));
+  }
+
+  /** One suggestion or question line in the lane it was asked in (T-167). */
+  async function suggestTurn(
+    r: Resolved,
+    sin: SuggestTurnInput,
+    out: SuggestOutcome,
+  ): Promise<TurnResult> {
+    const before = snapshotAudit(r.group.groupId);
+    const sent = await send(r, [message(r, out.text)]);
+    if (out.note === 'suggest:question') {
+      const first = sent.find((o) => !isReaction(o));
+      if (first !== undefined) suggestions.noteQuestionSent(sin, first.id);
+    }
+    return {
+      outbound: sent,
+      toolCalls: [],
+      auditEventIds: auditIdsSince(r.group.groupId, before),
+      silent: sent.length === 0,
+      modelSources: [],
+      note: out.note,
+    };
   }
 
   /**

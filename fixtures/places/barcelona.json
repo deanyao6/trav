@@ -1,0 +1,38 @@
+{
+  "name": "barcelona",
+  "city": "Barcelona",
+  "currency": "EUR",
+  "note": "T-167: fictional restaurants, bars and things to do for suggestions (read-only, nothing is booked). Landmarks (Bunkers del Carmel, Montjuïc, the Gothic Quarter) are public places, named only as venues. priceLevel 1-4; perPersonMinor is a typical spend per person in cents. adultsOnly places are never suggested when a minor is going.",
+  "places": [
+    { "placeId": "pl_bcn_forn_santpau", "name": "Forn de Sant Pau", "category": "restaurant", "kind": "bocadillos", "area": "Raval", "priceLevel": 1, "perPersonMinor": 900, "tags": ["vegetarian_options"], "adultsOnly": false },
+    { "placeId": "pl_bcn_cal_nen", "name": "Taverna Cal Nen", "category": "restaurant", "kind": "tapas", "area": "Barceloneta", "priceLevel": 1, "perPersonMinor": 1400, "tags": [], "adultsOnly": false },
+    { "placeId": "pl_bcn_can_roig", "name": "Can Roig", "category": "restaurant", "kind": "menú del día", "area": "Sant Antoni", "priceLevel": 1, "perPersonMinor": 1500, "tags": ["vegetarian_options"], "adultsOnly": false },
+    { "placeId": "pl_bcn_la_fusta", "name": "Bodega La Fusta", "category": "restaurant", "kind": "tapas and vermut", "area": "Gràcia", "priceLevel": 2, "perPersonMinor": 2400, "tags": ["vegetarian_options"], "adultsOnly": false },
+    { "placeId": "pl_bcn_hort_verd", "name": "Hort Verd", "category": "restaurant", "kind": "garden kitchen","area": "Gràcia", "priceLevel": 2, "perPersonMinor": 2600, "tags": ["vegetarian_options", "vegetarian"], "adultsOnly": false },
+    { "placeId": "pl_bcn_pinxos_born", "name": "Pinxos del Born", "category": "restaurant", "kind": "pintxos", "area": "Born", "priceLevel": 2, "perPersonMinor": 2800, "tags": [], "adultsOnly": false },
+    { "placeId": "pl_bcn_arrossos_marina", "name": "Arrossos Marina", "category": "restaurant", "kind": "paella", "area": "Barceloneta", "priceLevel": 2, "perPersonMinor": 3400, "tags": ["vegetarian_options"], "adultsOnly": false },
+    { "placeId": "pl_bcn_casa_terrat", "name": "Casa Terrat", "category": "restaurant", "kind": "catalan", "area": "Eixample", "priceLevel": 3, "perPersonMinor": 4800, "tags": ["vegetarian_options"], "adultsOnly": false },
+    { "placeId": "pl_bcn_mar_brasa", "name": "Mar i Brasa", "category": "restaurant", "kind": "seafood grill", "area": "Poblenou", "priceLevel": 3, "perPersonMinor": 5500, "tags": [], "adultsOnly": false },
+    { "placeId": "pl_bcn_terrassa_blava", "name": "Terrassa Blava", "category": "restaurant", "kind": "rooftop dining", "area": "Eixample", "priceLevel": 3, "perPersonMinor": 6500, "tags": ["vegetarian_options"], "adultsOnly": false },
+    { "placeId": "pl_bcn_atelier_sorra", "name": "Atelier Sorra", "category": "restaurant", "kind": "tasting menu", "area": "Born", "priceLevel": 4, "perPersonMinor": 9500, "tags": ["vegetarian_options"], "adultsOnly": false },
+    { "placeId": "pl_bcn_sala_nomada", "name": "Sala Nòmada", "category": "restaurant", "kind": "chef's tasting menu", "area": "Eixample", "priceLevel": 4, "perPersonMinor": 12000, "tags": [], "adultsOnly": false },
+
+    { "placeId": "pl_bcn_bar_quinto", "name": "Bar Quinto", "category": "bar", "kind": "beers and bravas", "area": "Gràcia", "priceLevel": 1, "perPersonMinor": 800, "tags": ["alcohol"], "adultsOnly": true },
+    { "placeId": "pl_bcn_vermuteria", "name": "La Vermuteria del Mercat", "category": "bar", "kind": "vermouth bar", "area": "Sant Antoni", "priceLevel": 1, "perPersonMinor": 1200, "tags": ["alcohol"], "adultsOnly": true },
+    { "placeId": "pl_bcn_bar_lluna", "name": "Bar Lluna", "category": "bar", "kind": "neighbourhood bar", "area": "Raval", "priceLevel": 2, "perPersonMinor": 1800, "tags": ["alcohol"], "adultsOnly": true },
+    { "placeId": "pl_bcn_celler_fosc", "name": "Celler Fosc", "category": "bar", "kind": "wine bar", "area": "Born", "priceLevel": 2, "perPersonMinor": 2500, "tags": ["alcohol"], "adultsOnly": true },
+    { "placeId": "pl_bcn_coctel_sis", "name": "Còctel Sis", "category": "bar", "kind": "cocktail bar", "area": "Eixample", "priceLevel": 3, "perPersonMinor": 4000, "tags": ["alcohol"], "adultsOnly": true },
+    { "placeId": "pl_bcn_clau", "name": "Clau", "category": "bar", "kind": "hidden cocktail bar", "area": "Born", "priceLevel": 3, "perPersonMinor": 4500, "tags": ["alcohol"], "adultsOnly": true },
+    { "placeId": "pl_bcn_terrat_360", "name": "Terrat 360", "category": "bar", "kind": "rooftop cocktails", "area": "Barceloneta", "priceLevel": 4, "perPersonMinor": 6000, "tags": ["alcohol"], "adultsOnly": true },
+    { "placeId": "pl_bcn_sala_daurada", "name": "Sala Daurada", "category": "bar", "kind": "champagne bar", "area": "Eixample", "priceLevel": 4, "perPersonMinor": 8000, "tags": ["alcohol"], "adultsOnly": true },
+
+    { "placeId": "pl_bcn_bunkers", "name": "Bunkers del Carmel at sunset", "category": "activity", "kind": "viewpoint", "area": "El Carmel", "priceLevel": 1, "perPersonMinor": 0, "tags": ["outdoors"], "adultsOnly": false },
+    { "placeId": "pl_bcn_gothic_walk", "name": "Gothic Quarter walking tour", "category": "activity", "kind": "pay-what-you-like tour", "area": "Gothic Quarter", "priceLevel": 1, "perPersonMinor": 1000, "tags": ["outdoors"], "adultsOnly": false },
+    { "placeId": "pl_bcn_cable_car", "name": "Montjuïc cable car", "category": "activity", "kind": "cable car", "area": "Montjuïc", "priceLevel": 2, "perPersonMinor": 1700, "tags": ["outdoors"], "adultsOnly": false },
+    { "placeId": "pl_bcn_bike_tour", "name": "Beach and old town bike tour", "category": "activity", "kind": "bike tour", "area": "Barceloneta", "priceLevel": 2, "perPersonMinor": 2900, "tags": ["outdoors"], "adultsOnly": false },
+    { "placeId": "pl_bcn_flamenco", "name": "Flamenco at Tablao Roig", "category": "activity", "kind": "flamenco show", "area": "Gothic Quarter", "priceLevel": 3, "perPersonMinor": 4500, "tags": [], "adultsOnly": false },
+    { "placeId": "pl_bcn_sailing", "name": "Afternoon sail from Port Vell", "category": "activity", "kind": "sailing trip", "area": "Port Vell", "priceLevel": 3, "perPersonMinor": 6500, "tags": ["outdoors"], "adultsOnly": false },
+    { "placeId": "pl_bcn_food_tour", "name": "Private market and food tour", "category": "activity", "kind": "private food tour", "area": "Born", "priceLevel": 4, "perPersonMinor": 12000, "tags": [], "adultsOnly": false },
+    { "placeId": "pl_bcn_catamaran", "name": "Private catamaran at sunset", "category": "activity", "kind": "private boat", "area": "Port Olímpic", "priceLevel": 4, "perPersonMinor": 15000, "tags": ["outdoors"], "adultsOnly": false }
+  ]
+}

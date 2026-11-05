@@ -11,6 +11,7 @@
  * - `roast_screen`  roast lines through the agent's real send path (gate 1 + gate 2)
  * - `minor_screen`  Turks and Caicos drafts through the real send path
  * - `auto_buy`      `autoBuyVerdict` over `fixtures/safety/auto-buy-asks.json` (T-182)
+ * - `spending_tier` tier inference and restaurant ranking over `fixtures/tiers/*.json` (T-167)
  */
 import type {
   Clock,
@@ -33,20 +34,29 @@ import {
   formatIso,
   ledger,
   parseIso,
+  tiers,
 } from '@trav/core';
 import { createMemoryStores } from '@trav/core/storage';
 import type { FlightOfferTemplate } from '@trav/adapters';
 import {
   createMockAlbum,
+  createMockVenues,
   createSimulatorChannel,
   loadAllTicketInventories,
   loadMockFlightInventory,
   sliceToLeg,
 } from '@trav/adapters';
 import type { ModelClient } from '@trav/agent';
-import { autoBuyVerdict, detectMention, sendOutbound, venueIndexFrom } from '@trav/agent';
+import {
+  autoBuyVerdict,
+  detectMention,
+  inferTierFixture,
+  parseTierFixture,
+  sendOutbound,
+  venueIndexFrom,
+} from '@trav/agent';
 import type { TripName } from '../fixtures.js';
-import { loadFixture } from '../fixtures.js';
+import { listFixtures, loadFixture } from '../fixtures.js';
 import type { ProbeName } from '../types.js';
 import { PROBE_NAMES } from '../types.js';
 import { loadGroupFixture, seedGroup } from './seed.js';
@@ -697,6 +707,62 @@ export function probeAutoBuy(): { cases: AutoBuyCase[] } {
   return { cases };
 }
 
+// ---------- spending_tier (T-167) ----------
+
+export interface SpendingTierCase {
+  readonly fixture: string;
+  readonly expectedMembers: Readonly<Record<string, string>>;
+  readonly members: Readonly<Record<string, string>>;
+  readonly expectedGroup: { readonly status: string; readonly target?: string };
+  readonly group: { readonly status: string; readonly target?: string; readonly stretch?: string };
+  /** Price levels of the restaurants the blend's target ranks first (known blends only). */
+  readonly restaurantLevels: readonly number[];
+  readonly restaurantPriceLevelsAtLeast?: number;
+  readonly restaurantPriceLevelsAtMost?: number;
+}
+
+/**
+ * Every `fixtures/tiers/*.json` trip variant: each member's inferred tier and
+ * the group blend against the fixture's labels, and the restaurant price
+ * levels the blend's target ranks first in the mock Barcelona catalog.
+ */
+export async function probeSpendingTier(): Promise<{ cases: SpendingTierCase[] }> {
+  const venues = createMockVenues();
+  const cases: SpendingTierCase[] = [];
+  for (const name of listFixtures('tiers')) {
+    const fx = parseTierFixture(loadFixture(`tiers/${name}.json`), `tiers/${name}.json`);
+    const g = loadGroupFixture('barcelona');
+    const got = inferTierFixture(fx, { trip: g.trip, members: g.members });
+    let restaurantLevels: number[] = [];
+    if (got.blend.target !== undefined) {
+      const res = await venues.search({ city: g.trip.city, category: 'restaurant' });
+      if (res.ok) {
+        restaurantLevels = tiers
+          .rankPlaces(res.value, {
+            target: got.blend.target,
+            ...(got.blend.stretch !== undefined ? { stretch: got.blend.stretch } : {}),
+          })
+          .map((r) => r.place.priceLevel);
+      }
+    }
+    cases.push({
+      fixture: name,
+      expectedMembers: fx.expect.members,
+      members: got.members,
+      expectedGroup: fx.expect.group,
+      group: got.blend,
+      restaurantLevels,
+      ...(fx.expect.restaurantPriceLevelsAtLeast !== undefined
+        ? { restaurantPriceLevelsAtLeast: fx.expect.restaurantPriceLevelsAtLeast }
+        : {}),
+      ...(fx.expect.restaurantPriceLevelsAtMost !== undefined
+        ? { restaurantPriceLevelsAtMost: fx.expect.restaurantPriceLevelsAtMost }
+        : {}),
+    });
+  }
+  return { cases };
+}
+
 // ---------- dispatch ----------
 
 export async function runProbe(
@@ -719,6 +785,8 @@ export async function runProbe(
       return probeMinorScreen();
     case 'auto_buy':
       return probeAutoBuy();
+    case 'spending_tier':
+      return probeSpendingTier();
     default: {
       // Scenario validation rejects unknown probes; this is the backstop, so an
       // unknown name is a step error (graded), never a silent no-op.

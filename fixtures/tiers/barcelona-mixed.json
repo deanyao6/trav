@@ -1,0 +1,31 @@
+{
+  "name": "barcelona-mixed",
+  "note": "T-167: signals that disagree. Dean and Chase flew first on Emirates but booked a 1-bedroom for six; the rest have no signal. Trav can't tell, so it asks once (\"fancy or casual tonight?\").",
+  "trip": "barcelona",
+  "travel": [
+    { "kind": "flight", "memberId": "mem_dean", "cabin": "first", "airline": "Emirates", "at": "2026-03-11T22:00:00-04:00" },
+    { "kind": "flight", "memberId": "mem_chase", "cabin": "first", "airline": "Emirates", "at": "2026-03-11T21:30:00-05:00" },
+    {
+      "kind": "lodging",
+      "memberIds": ["mem_dean", "mem_chase"],
+      "name": "Gràcia apartment",
+      "propertyKind": "whole home",
+      "bedrooms": 1,
+      "guests": 6,
+      "at": "2026-02-01T12:00:00-05:00"
+    }
+  ],
+  "spend": [],
+  "groupLines": [],
+  "expect": {
+    "members": {
+      "mem_dean": "conflict",
+      "mem_henry": "missing",
+      "mem_chase": "conflict",
+      "mem_piotr": "missing",
+      "mem_arjun": "missing",
+      "mem_crowley": "missing"
+    },
+    "group": { "status": "conflict" }
+  }
+}

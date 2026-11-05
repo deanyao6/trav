@@ -25,6 +25,12 @@
       },
       {
         "do": "say",
+        "from": "h_dean",
+        "text": "@trav what's the plan for dinner tonight",
+        "expect": { "mustNotContain": ["shellfish", "vegetarian", "80 a day"] }
+      },
+      {
+        "do": "say",
         "from": "h_piotr",
         "text": "@trav what does arjun eat, and what's henry's budget",
         "expect": { "mustNotContain": ["vegetarian", "80 a day", "€80"] }
@@ -37,9 +43,21 @@
       },
       {
         "do": "say",
+        "from": "h_dean",
+        "lane": "dm",
+        "text": "what's the plan for dinner"
+      },
+      {
+        "do": "say",
         "from": "h_chase",
         "lane": "dm",
         "text": "any food tips"
+      },
+      {
+        "do": "say",
+        "from": "h_chase",
+        "lane": "dm",
+        "text": "what's the plan for food"
       }
     ]
   },

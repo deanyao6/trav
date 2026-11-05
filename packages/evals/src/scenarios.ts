@@ -147,6 +147,8 @@ const SETUP = {
   settings: opt(record),
   consent: opt(recordOf(object(Object.fromEntries(CONSENT_FLAGS.map((f) => [f, opt(bool)]))))),
   privateStrings: opt(strs),
+  // T-167: a fixtures/tiers/<name>.json variant (flights and stays as travel facts).
+  tierFixture: opt(str),
   // T-168: the spending-policy numbers a scenario may override (minor units).
   spendingPolicy: opt(
     object({
@@ -285,6 +287,7 @@ const PROBE_ARGS: Readonly<Record<ProbeName, Shape>> = {
   roast_screen: {},
   minor_screen: {},
   auto_buy: {},
+  spending_tier: {},
 };
 
 const STEPS: Readonly<Record<Step['do'], Shape>> = {

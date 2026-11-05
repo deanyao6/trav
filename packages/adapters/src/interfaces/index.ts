@@ -15,4 +15,5 @@ export type * from './payments.js';
 export type * from './transactions.js';
 export type * from './emailReceipts.js';
 export type * from './album.js';
+export type * from './places.js';
 export type * from './context.js';

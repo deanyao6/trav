@@ -1,0 +1,48 @@
+{
+  "name": "barcelona-high",
+  "note": "T-167: the Barcelona six on a high-end variant of the trip. Fictional. Signals only (no names of real people). The tier is inferred from these; the expectation block is the label.",
+  "trip": "barcelona",
+  "travel": [
+    { "kind": "flight", "memberId": "mem_dean", "cabin": "first", "airline": "Emirates", "at": "2026-03-11T22:00:00-04:00" },
+    { "kind": "flight", "memberId": "mem_henry", "cabin": "business", "airline": "Iberia", "at": "2026-03-11T19:00:00-07:00" },
+    { "kind": "flight", "memberId": "mem_chase", "cabin": "first", "airline": "Emirates", "at": "2026-03-11T21:30:00-05:00" },
+    { "kind": "flight", "memberId": "mem_piotr", "cabin": "business", "airline": "Lufthansa", "at": "2026-03-11T18:00:00-04:00" },
+    { "kind": "flight", "memberId": "mem_arjun", "cabin": "economy", "airline": "Qatar Airways", "at": "2026-03-11T17:00:00-07:00" },
+    { "kind": "flight", "memberId": "mem_crowley", "cabin": "business", "airline": "Qatar Airways", "at": "2026-03-11T20:00:00-04:00" },
+    {
+      "kind": "lodging",
+      "memberIds": ["mem_dean", "mem_henry", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+      "name": "Hotel Ritz Barcelona, three suites",
+      "propertyKind": "hotel",
+      "guests": 6,
+      "totalMinor": 540000,
+      "nights": 5,
+      "currency": "EUR",
+      "at": "2026-02-01T12:00:00-05:00"
+    }
+  ],
+  "spend": [
+    { "memberId": "mem_dean", "category": "food", "shareMinor": 8500, "at": "2026-03-12T22:30:00+01:00" },
+    { "memberId": "mem_henry", "category": "food", "shareMinor": 8500, "at": "2026-03-12T22:30:00+01:00" },
+    { "memberId": "mem_chase", "category": "food", "shareMinor": 8500, "at": "2026-03-12T22:30:00+01:00" },
+    { "memberId": "mem_piotr", "category": "food", "shareMinor": 8500, "at": "2026-03-12T22:30:00+01:00" },
+    { "memberId": "mem_arjun", "category": "food", "shareMinor": 8500, "at": "2026-03-12T22:30:00+01:00" },
+    { "memberId": "mem_crowley", "category": "food", "shareMinor": 8500, "at": "2026-03-12T22:30:00+01:00" },
+    { "memberId": "mem_arjun", "category": "drinks", "shareMinor": 4500, "at": "2026-03-13T00:30:00+01:00" }
+  ],
+  "groupLines": [
+    { "memberId": "mem_chase", "text": "that tasting menu last night was unreal", "at": "2026-03-13T11:00:00+01:00" }
+  ],
+  "expect": {
+    "members": {
+      "mem_dean": "high",
+      "mem_henry": "high",
+      "mem_chase": "high",
+      "mem_piotr": "high",
+      "mem_arjun": "high",
+      "mem_crowley": "high"
+    },
+    "group": { "status": "known", "target": "high" },
+    "restaurantPriceLevelsAtLeast": 3
+  }
+}

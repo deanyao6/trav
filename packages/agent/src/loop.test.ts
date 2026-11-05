@@ -436,8 +436,15 @@ describe('private memory never reaches the group (SAFETY §2.3)', () => {
       now: h.clock.now(),
       sourceLane: 'private',
     });
-    const group = await h.say('h_dean', '@trav where should the 6 of us eat tonight');
+    // T-167: a place-suggestion ask is answered by rules (no prompt at all);
+    // the reply still never carries the fact.
+    const rules = await h.say('h_dean', '@trav where should the 6 of us eat tonight');
+    expect(rules.note).toMatch(/^suggest:/);
+    for (const m of messages(rules)) expect(m.text).not.toContain(secret);
+    // A model-routed group turn about food: no prompt carries the fact.
+    const group = await h.say('h_dean', "@trav what's the plan for dinner tonight");
     expect(group.silent).toBe(false);
+    expect(h.model.completions.length).toBeGreaterThan(0);
     for (const req of h.model.completions) {
       expect(req.system).not.toContain(secret);
       expect(JSON.stringify(req.messages)).not.toContain(secret);
@@ -445,7 +452,7 @@ describe('private memory never reaches the group (SAFETY §2.3)', () => {
     for (const m of messages(group)) expect(m.text).not.toContain(secret);
     const groupAsked = h.model.completions.length;
 
-    const dm = await h.dm('h_dean', 'where should i eat');
+    const dm = await h.dm('h_dean', "what's the plan for dinner");
     expect(dm.silent).toBe(false);
     expect(firstMessage(dm).to).toEqual({ kind: 'member', memberId: 'mem_dean' });
     const dmReq = h.model.completions[groupAsked];
@@ -453,7 +460,8 @@ describe('private memory never reaches the group (SAFETY §2.3)', () => {
     expect(dmReq?.system).toContain(secret);
 
     // Another member's DM never sees Dean's fact.
-    await h.dm('h_chase', 'any food tips');
+    await h.dm('h_chase', "what's the plan for food");
+    expect(h.model.completions.at(-1)?.systemPromptId).toBe('dm_chat_v1');
     expect(h.model.completions.at(-1)?.system).not.toContain(secret);
   });
 
