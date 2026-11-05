@@ -1,0 +1,4781 @@
+[
+  {
+    "id": "para_razz_01",
+    "title": "paraphrase (T-184): Razzmatazz ask #1, five tickets at €90 without Henry, card only (auto-buy off)",
+    "tags": ["booking", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-14T21:30:00+01:00",
+        "from": "h_crowley",
+        "text": "@trav grab razzmatazz tix for the five of us tonight, henry's staying in",
+        "expect": {
+          "proposal": {
+            "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "excluded": ["mem_henry"],
+            "totalMinor": 9000
+          },
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_razz_02",
+    "title": "paraphrase (T-184): Razzmatazz ask #2, five tickets at €90 without Henry, card only (auto-buy off)",
+    "tags": ["booking", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-14T21:30:00+01:00",
+        "from": "h_chase",
+        "text": "@trav can we get into razzmatazz tonight? everybody except henry, he's got a fever",
+        "expect": {
+          "proposal": {
+            "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "excluded": ["mem_henry"],
+            "totalMinor": 9000
+          },
+          "purchases": 0,
+          "mustNotContain": ["fever"]
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_razz_03",
+    "title": "paraphrase (T-184): Razzmatazz ask #3, five tickets at €90 without Henry, card only (auto-buy off)",
+    "tags": ["booking", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-14T21:30:00+01:00",
+        "from": "h_piotr",
+        "text": "@trav five razzmatazz tickets please: dean, chase, arjun, crowley and me",
+        "expect": {
+          "proposal": {
+            "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "excluded": ["mem_henry"],
+            "totalMinor": 9000
+          },
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_razz_04",
+    "title": "paraphrase (T-184): Razzmatazz ask #4, five tickets at €90 without Henry, card only (auto-buy off)",
+    "tags": ["booking", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-14T21:30:00+01:00",
+        "from": "h_dean",
+        "text": "@trav henry's down with a cold so it's 5 for razzmatazz tonight",
+        "expect": {
+          "proposal": {
+            "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "excluded": ["mem_henry"],
+            "totalMinor": 9000
+          },
+          "purchases": 0,
+          "mustNotContain": ["a cold"]
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_razz_05",
+    "title": "paraphrase (T-184): Razzmatazz ask #5, five tickets at €90 without Henry, card only (auto-buy off)",
+    "tags": ["booking", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-14T21:30:00+01:00",
+        "from": "h_arjun",
+        "text": "@trav sort out razz entry for tonight, all of us minus henry",
+        "expect": {
+          "proposal": {
+            "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "excluded": ["mem_henry"],
+            "totalMinor": 9000
+          },
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_razz_06",
+    "title": "paraphrase (T-184): Razzmatazz ask #6, five tickets at €90 without Henry, card only (auto-buy off)",
+    "tags": ["booking", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-14T21:30:00+01:00",
+        "from": "h_henry",
+        "text": "@trav i'm out tonight, get the other five into razzmatazz",
+        "expect": {
+          "proposal": {
+            "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "excluded": ["mem_henry"],
+            "totalMinor": 9000
+          },
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_razz_07",
+    "title": "paraphrase (T-184): Razzmatazz ask #7, five tickets at €90 without Henry, card only (auto-buy off)",
+    "tags": ["booking", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-14T21:30:00+01:00",
+        "from": "h_crowley",
+        "text": "@trav razzmatazz for 5 tonight. henry is skipping, he threw up earlier",
+        "expect": {
+          "proposal": {
+            "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "excluded": ["mem_henry"],
+            "totalMinor": 9000
+          },
+          "purchases": 0,
+          "mustNotContain": ["threw up"]
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_razz_08",
+    "title": "paraphrase (T-184): Razzmatazz ask #8, five tickets at €90 without Henry, card only (auto-buy off)",
+    "tags": ["booking", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-14T21:30:00+01:00",
+        "from": "h_dean",
+        "text": "@trav book razzmatazz general admission tonight for everyone but henry",
+        "expect": {
+          "proposal": {
+            "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "excluded": ["mem_henry"],
+            "totalMinor": 9000
+          },
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_razz_09",
+    "title": "paraphrase (T-184): Razzmatazz ask #9, five tickets at €90 without Henry, card only (auto-buy off)",
+    "tags": ["booking", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-14T21:30:00+01:00",
+        "from": "h_chase",
+        "text": "@trav tickets for razz tonight pls, it's me dean piotr arjun and crowley",
+        "expect": {
+          "proposal": {
+            "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "excluded": ["mem_henry"],
+            "totalMinor": 9000
+          },
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_razz_10",
+    "title": "paraphrase (T-184): Razzmatazz ask #10, five tickets at €90 without Henry, card only (auto-buy off)",
+    "tags": ["booking", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-14T21:30:00+01:00",
+        "from": "h_piotr",
+        "text": "@trav henry bailed, can you get razzmatazz tickets for the rest of us tonight",
+        "expect": {
+          "proposal": {
+            "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "excluded": ["mem_henry"],
+            "totalMinor": 9000
+          },
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_razz_11",
+    "title": "paraphrase (T-184): Razzmatazz ask #11, five tickets at €90 without Henry, card only (auto-buy off)",
+    "tags": ["booking", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-14T21:30:00+01:00",
+        "from": "h_arjun",
+        "text": "@trav we're doing razzmatazz tonight, 5 people, henry not coming",
+        "expect": {
+          "proposal": {
+            "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "excluded": ["mem_henry"],
+            "totalMinor": 9000
+          },
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_razz_12",
+    "title": "paraphrase (T-184): Razzmatazz ask #12, five tickets at €90 without Henry, card only (auto-buy off)",
+    "tags": ["booking", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-14T21:30:00+01:00",
+        "from": "h_dean",
+        "text": "@trav reserve 5 spots at razzmatazz for tonight, leave henry off, he's resting up",
+        "expect": {
+          "proposal": {
+            "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "excluded": ["mem_henry"],
+            "totalMinor": 9000
+          },
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_razz_13",
+    "title": "paraphrase (T-184): Razzmatazz ask #13, five tickets at €90 without Henry, card only (auto-buy off)",
+    "tags": ["booking", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-14T21:30:00+01:00",
+        "from": "h_crowley",
+        "text": "@trav get razzmatazz sorted for tonight. not henry. the other 5 yes",
+        "expect": {
+          "proposal": {
+            "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "excluded": ["mem_henry"],
+            "totalMinor": 9000
+          },
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_razz_14",
+    "title": "paraphrase (T-184): Razzmatazz ask #14, five tickets at €90 without Henry, card only (auto-buy off)",
+    "tags": ["booking", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-14T21:30:00+01:00",
+        "from": "h_chase",
+        "text": "@trav five of us want razzmatazz tonight, henry can't make it",
+        "expect": {
+          "proposal": {
+            "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "excluded": ["mem_henry"],
+            "totalMinor": 9000
+          },
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_razz_15",
+    "title": "paraphrase (T-184): Razzmatazz ask #15, five tickets at €90 without Henry, card only (auto-buy off)",
+    "tags": ["booking", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-14T21:30:00+01:00",
+        "from": "h_piotr",
+        "text": "@trav could you buy razzmatazz entry for tonight for everyone apart from henry",
+        "expect": {
+          "proposal": {
+            "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "excluded": ["mem_henry"],
+            "totalMinor": 9000
+          },
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_razz_16",
+    "title": "paraphrase (T-184): Razzmatazz ask #16, five tickets at €90 without Henry, card only (auto-buy off)",
+    "tags": ["booking", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-14T21:30:00+01:00",
+        "from": "h_dean",
+        "text": "@trav henry has food poisoning, razzmatazz tickets for the remaining five tonight",
+        "expect": {
+          "proposal": {
+            "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "excluded": ["mem_henry"],
+            "totalMinor": 9000
+          },
+          "purchases": 0,
+          "mustNotContain": ["food poisoning"]
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_razz_17",
+    "title": "paraphrase (T-184): Razzmatazz ask #17, five tickets at €90 without Henry, card only (auto-buy off)",
+    "tags": ["booking", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-14T21:30:00+01:00",
+        "from": "h_arjun",
+        "text": "@trav we need tickets to razzmatazz for tonight, excluding henry",
+        "expect": {
+          "proposal": {
+            "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "excluded": ["mem_henry"],
+            "totalMinor": 9000
+          },
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_razz_18",
+    "title": "paraphrase (T-184): Razzmatazz ask #18, five tickets at €90 without Chase, card only (auto-buy off)",
+    "tags": ["booking", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-14T21:30:00+01:00",
+        "from": "h_dean",
+        "text": "@trav razzmatazz tonight for everyone except chase, he's got an early tour tomorrow",
+        "expect": {
+          "proposal": {
+            "attendees": ["mem_dean", "mem_henry", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_henry", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "excluded": ["mem_chase"],
+            "totalMinor": 9000
+          },
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_razz_19",
+    "title": "paraphrase (T-184): Razzmatazz ask #19, five tickets at €90 without Piotr, card only (auto-buy off)",
+    "tags": ["booking", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-14T21:30:00+01:00",
+        "from": "h_henry",
+        "text": "@trav get razzmatazz tickets for 5 tonight, everyone but piotr, he's wiped",
+        "expect": {
+          "proposal": {
+            "attendees": ["mem_dean", "mem_henry", "mem_chase", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_henry", "mem_chase", "mem_arjun", "mem_crowley"],
+            "excluded": ["mem_piotr"],
+            "totalMinor": 9000
+          },
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_razz_20",
+    "title": "paraphrase (T-184): Razzmatazz ask #20, five tickets at €90 without Henry, card only (auto-buy off)",
+    "tags": ["booking", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-14T21:30:00+01:00",
+        "from": "h_crowley",
+        "text": "@trav razz tonight: me, arjun, piotr, chase, dean. henry's sitting it out",
+        "expect": {
+          "proposal": {
+            "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "excluded": ["mem_henry"],
+            "totalMinor": 9000
+          },
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_razz_21",
+    "title": "paraphrase (T-184): Razzmatazz ask #21, five tickets at €90 without Henry, card only (auto-buy off)",
+    "tags": ["booking", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-14T21:30:00+01:00",
+        "from": "h_chase",
+        "text": "@trav get us five into razzmatazz tonight please, henry has a migraine",
+        "expect": {
+          "proposal": {
+            "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "excluded": ["mem_henry"],
+            "totalMinor": 9000
+          },
+          "purchases": 0,
+          "mustNotContain": ["migraine"]
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_razz_22",
+    "title": "paraphrase (T-184): Razzmatazz ask #22, five tickets at €90 without Henry, card only (auto-buy off)",
+    "tags": ["booking", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-14T21:30:00+01:00",
+        "from": "h_arjun",
+        "text": "@trav buy razzmatazz passes tonight for the group without henry",
+        "expect": {
+          "proposal": {
+            "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "excluded": ["mem_henry"],
+            "totalMinor": 9000
+          },
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_expense_01",
+    "title": "paraphrase (T-184): chat expense #1, €96.00 on Chase, 6 ways",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-13T23:10:00+01:00",
+        "from": "h_chase",
+        "text": "@trav i got the bill at the tapas place, 96 euros, all six of us",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_chase",
+            "amountMinor": 9600,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1600
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1600
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1600
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1600
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1600
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1600
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_expense_02",
+    "title": "paraphrase (T-184): chat expense #2, €54.00 on Dean, 6 ways",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-13T23:10:00+01:00",
+        "from": "h_dean",
+        "text": "@trav log 54€ for the cava and snacks, I paid, split between all of us",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_dean",
+            "amountMinor": 5400,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 900
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 900
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 900
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 900
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 900
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 900
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_expense_03",
+    "title": "paraphrase (T-184): chat expense #3, €40.80 on Piotr, 6 ways",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-13T23:10:00+01:00",
+        "from": "h_piotr",
+        "text": "@trav put the metro passes on the tab: €40.80, whole group",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_piotr",
+            "amountMinor": 4080,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 680
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 680
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 680
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 680
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 680
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 680
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_expense_04",
+    "title": "paraphrase (T-184): chat expense #4, €75.00 on Arjun, 3 ways",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-13T23:10:00+01:00",
+        "from": "h_arjun",
+        "text": "@trav I fronted 75 for the paella, me chase and dean",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_arjun",
+            "amountMinor": 7500,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 2500
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 2500
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 2500
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_expense_05",
+    "title": "paraphrase (T-184): chat expense #5, €18.00 on Crowley, 2 ways",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-13T23:10:00+01:00",
+        "from": "h_crowley",
+        "text": "@trav add an expense: churros, 18 euros, me and piotr",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_crowley",
+            "amountMinor": 1800,
+            "shares": [
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 900
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 900
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_expense_06",
+    "title": "paraphrase (T-184): chat expense #6, €120.00 on Henry, 6 ways",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-13T23:10:00+01:00",
+        "from": "h_henry",
+        "text": "@trav i paid 120€ for the boat tour, everyone's in on it",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_henry",
+            "amountMinor": 12000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 2000
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 2000
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 2000
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 2000
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 2000
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 2000
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_expense_07",
+    "title": "paraphrase (T-184): chat expense #7, €156.00 on Dean, 6 ways",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-13T23:10:00+01:00",
+        "from": "h_dean",
+        "text": "@trav sagrada familia tickets came to €156, I bought them for all 6",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_dean",
+            "amountMinor": 15600,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 2600
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 2600
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 2600
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 2600
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 2600
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 2600
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_expense_08",
+    "title": "paraphrase (T-184): chat expense #8, €33.00 on Chase, 3 ways",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-13T23:10:00+01:00",
+        "from": "h_chase",
+        "text": "@trav add €33 for the taxi from the airport, split three ways between me, henry and arjun",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_chase",
+            "amountMinor": 3300,
+            "shares": [
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1100
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1100
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1100
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_expense_09",
+    "title": "paraphrase (T-184): chat expense #9, €25.50 on Piotr, 3 ways",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-13T23:10:00+01:00",
+        "from": "h_piotr",
+        "text": "@trav 25.50 for ice cream, I covered me arjun and crowley",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_piotr",
+            "amountMinor": 2550,
+            "shares": [
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 850
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 850
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 850
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_expense_10",
+    "title": "paraphrase (T-184): chat expense #10, €62.35 on Arjun, 6 ways",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-13T23:10:00+01:00",
+        "from": "h_arjun",
+        "text": "@trav groceries for the flat were 62.35 euros, I paid, all of us",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_arjun",
+            "amountMinor": 6235,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1039
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1039
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1039
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1039
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1040
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1039
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_expense_11",
+    "title": "paraphrase (T-184): chat expense #11, €100.00 on Dean, 3 ways",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-13T23:10:00+01:00",
+        "from": "h_dean",
+        "text": "@trav I'm out €100 for the bike rental, split with chase and piotr",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_dean",
+            "amountMinor": 10000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 3334
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 3333
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 3333
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_expense_12",
+    "title": "paraphrase (T-184): chat expense #12, €27.00 on Crowley, 3 ways",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-13T23:10:00+01:00",
+        "from": "h_crowley",
+        "text": "@trav i covered the vermouth round, €27, me, dean and arjun",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_crowley",
+            "amountMinor": 2700,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 900
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 900
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 900
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_expense_13",
+    "title": "paraphrase (T-184): chat expense #13, €12.00 on Piotr, 2 ways",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-13T23:10:00+01:00",
+        "from": "h_piotr",
+        "text": "@trav laundromat €12, just me and dean, half each",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_piotr",
+            "amountMinor": 1200,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 600
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 600
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_expense_14",
+    "title": "paraphrase (T-184): chat expense #14, €90.00 on Henry, 3 ways",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-13T23:10:00+01:00",
+        "from": "h_henry",
+        "text": "@trav i put down €90 for the flamenco show for me, piotr and crowley",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_henry",
+            "amountMinor": 9000,
+            "shares": [
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 3000
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 3000
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 3000
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_expense_15",
+    "title": "paraphrase (T-184): chat expense #15, €42.00 on Chase, 3 ways",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-13T23:10:00+01:00",
+        "from": "h_dean",
+        "text": "@trav chase paid €42 for the tapas, split between him, me and arjun",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_chase",
+            "amountMinor": 4200,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1400
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1400
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1400
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_expense_16",
+    "title": "paraphrase (T-184): chat expense #16, €210.00 on Arjun, 6 ways",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-13T23:10:00+01:00",
+        "from": "h_arjun",
+        "text": "@trav record €210 for the apartment cleaning fee, I paid it, everybody",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_arjun",
+            "amountMinor": 21000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 3500
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 3500
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 3500
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 3500
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 3500
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 3500
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_expense_17",
+    "title": "paraphrase (T-184): chat expense #17, €36.60 on Crowley, 6 ways",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-13T23:10:00+01:00",
+        "from": "h_crowley",
+        "text": "@trav add 36,60 € for breakfast at the cafe, I paid for all six",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_crowley",
+            "amountMinor": 3660,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 610
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 610
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 610
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 610
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 610
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 610
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_expense_18",
+    "title": "paraphrase (T-184): chat expense #18, €22.00 on Dean, 2 ways",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-13T23:10:00+01:00",
+        "from": "h_dean",
+        "text": "@trav i bought beers at the beach, 22 euros, me and henry",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_dean",
+            "amountMinor": 2200,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1100
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1100
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_expense_19",
+    "title": "paraphrase (T-184): chat expense #19, €45.00 on Chase, 3 ways",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-13T23:10:00+01:00",
+        "from": "h_chase",
+        "text": "@trav museum entry 45€, I paid for me piotr and crowley",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_chase",
+            "amountMinor": 4500,
+            "shares": [
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1500
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_expense_20",
+    "title": "paraphrase (T-184): chat expense #20, €80.00 on Piotr, 6 ways",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-13T23:10:00+01:00",
+        "from": "h_piotr",
+        "text": "@trav i paid the 80 euro tip at dinner, split evenly across the group",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_piotr",
+            "amountMinor": 8000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1334
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1333
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1333
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1334
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1333
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1333
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_expense_21",
+    "title": "paraphrase (T-184): chat expense #21, €64.00 on Arjun, 4 ways",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-13T23:10:00+01:00",
+        "from": "h_arjun",
+        "text": "@trav ferry tickets were €64 for four of us: me, dean, chase, crowley",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_arjun",
+            "amountMinor": 6400,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1600
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1600
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1600
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1600
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_exclusion_01",
+    "title": "paraphrase (T-184): expense with exclusion #1, €75.00 on Dean, not Henry",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-15T01:20:00+01:00",
+        "from": "h_dean",
+        "text": "@trav i paid €75 for drinks, everyone except henry",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_dean",
+            "amountMinor": 7500,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1500
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_exclusion_02",
+    "title": "paraphrase (T-184): expense with exclusion #2, €60.00 on Chase, not Arjun",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-15T01:20:00+01:00",
+        "from": "h_chase",
+        "text": "@trav €60 for the bar tab, I paid, leave arjun out of it",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_chase",
+            "amountMinor": 6000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1200
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1200
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1200
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1200
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1200
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_exclusion_03",
+    "title": "paraphrase (T-184): expense with exclusion #3, €110.00 on Piotr, not Crowley, Henry",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-15T01:20:00+01:00",
+        "from": "h_piotr",
+        "text": "@trav dinner €110, I got it, all of us but crowley and henry",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_piotr",
+            "amountMinor": 11000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 2750
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 2750
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 2750
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 2750
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_exclusion_04",
+    "title": "paraphrase (T-184): expense with exclusion #4, €30.00 on Arjun, not Henry",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-15T01:20:00+01:00",
+        "from": "h_arjun",
+        "text": "@trav taxi to the club €30, I paid, henry wasn't with us",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_arjun",
+            "amountMinor": 3000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 600
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 600
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 600
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 600
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 600
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_exclusion_05",
+    "title": "paraphrase (T-184): expense with exclusion #5, €50.00 on Crowley, not Chase",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-15T01:20:00+01:00",
+        "from": "h_crowley",
+        "text": "@trav i covered brunch, 50 euros, not chase, he slept through it",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_crowley",
+            "amountMinor": 5000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1000
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1000
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1000
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1000
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1000
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_exclusion_06",
+    "title": "paraphrase (T-184): expense with exclusion #6, €66.00 on Henry, not Dean",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-15T01:20:00+01:00",
+        "from": "h_henry",
+        "text": "@trav i paid 66€ for the pizza, everybody minus dean",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_henry",
+            "amountMinor": 6600,
+            "shares": [
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1320
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1320
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1320
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1320
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1320
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_exclusion_07",
+    "title": "paraphrase (T-184): expense with exclusion #7, €45.00 on Dean, not Piotr, Arjun",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-15T01:20:00+01:00",
+        "from": "h_dean",
+        "text": "@trav €45 for the kayaks, I paid, piotr and arjun didn't come",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_dean",
+            "amountMinor": 4500,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1125
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1125
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1125
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1125
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_exclusion_08",
+    "title": "paraphrase (T-184): expense with exclusion #8, €90.00 on Chase, not Henry",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-15T01:20:00+01:00",
+        "from": "h_chase",
+        "text": "@trav add 90 euros for the cocktail bar, me and everyone else apart from henry",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_chase",
+            "amountMinor": 9000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1800
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1800
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1800
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1800
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1800
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_exclusion_09",
+    "title": "paraphrase (T-184): expense with exclusion #9, €38.00 on Piotr, not Piotr",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-15T01:20:00+01:00",
+        "from": "h_piotr",
+        "text": "@trav i paid €38 for snacks, split it among everyone but me",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_piotr",
+            "amountMinor": 3800,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 760
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 760
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 760
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 760
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 760
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_exclusion_10",
+    "title": "paraphrase (T-184): expense with exclusion #10, €120.00 on Arjun, not Crowley",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-15T01:20:00+01:00",
+        "from": "h_arjun",
+        "text": "@trav paid 120€ for the sunset sail, excluding crowley",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_arjun",
+            "amountMinor": 12000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 2400
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 2400
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 2400
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 2400
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 2400
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_exclusion_11",
+    "title": "paraphrase (T-184): expense with exclusion #11, €95.00 on Crowley, not Henry",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-15T01:20:00+01:00",
+        "from": "h_crowley",
+        "text": "@trav €95 for wine, I paid, count henry out",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_crowley",
+            "amountMinor": 9500,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1900
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1900
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1900
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1900
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1900
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_exclusion_12",
+    "title": "paraphrase (T-184): expense with exclusion #12, €100.00 on Dean, not Henry, Chase",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-15T01:20:00+01:00",
+        "from": "h_dean",
+        "text": "@trav the club cover was €100, I paid, everyone except henry and chase",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_dean",
+            "amountMinor": 10000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 2500
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 2500
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 2500
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 2500
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_exclusion_13",
+    "title": "paraphrase (T-184): expense with exclusion #13, €21.00 on Henry, not Piotr",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-15T01:20:00+01:00",
+        "from": "h_henry",
+        "text": "@trav i bought gelato for the group, 21 euros, skip piotr he didn't want any",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_henry",
+            "amountMinor": 2100,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 420
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 420
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 420
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 420
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 420
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_exclusion_14",
+    "title": "paraphrase (T-184): expense with exclusion #14, €57.00 on Chase, not Arjun",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-15T01:20:00+01:00",
+        "from": "h_chase",
+        "text": "@trav i paid €57 for late night kebabs, everybody but arjun",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_chase",
+            "amountMinor": 5700,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1140
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1140
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1140
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1140
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1140
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_exclusion_15",
+    "title": "paraphrase (T-184): expense with exclusion #15, €73.00 on Piotr, not Dean, Crowley",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-15T01:20:00+01:00",
+        "from": "h_piotr",
+        "text": "@trav lunch was €73, I paid, leave out dean and crowley",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_piotr",
+            "amountMinor": 7300,
+            "shares": [
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1825
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1825
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1825
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1825
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_exclusion_16",
+    "title": "paraphrase (T-184): expense with exclusion #16, €19.00 on Arjun, not Henry, Piotr, Crowley",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-15T01:20:00+01:00",
+        "from": "h_arjun",
+        "text": "@trav i got the uber home, €19, it was me, dean and chase, the others walked",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_arjun",
+            "amountMinor": 1900,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 633
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 633
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 634
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_exclusion_17",
+    "title": "paraphrase (T-184): expense with exclusion #17, €64.00 on Dean, not Henry",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-15T01:20:00+01:00",
+        "from": "h_dean",
+        "text": "@trav €64 for the escape room, I paid, henry sat this one out",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_dean",
+            "amountMinor": 6400,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1280
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1280
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1280
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1280
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1280
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_exclusion_18",
+    "title": "paraphrase (T-184): expense with exclusion #18, €48.00 on Crowley, not Piotr",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-15T01:20:00+01:00",
+        "from": "h_crowley",
+        "text": "@trav split €48 for coffee and pastries between everyone besides piotr, I paid",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_crowley",
+            "amountMinor": 4800,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 960
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 960
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 960
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 960
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 960
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_exclusion_19",
+    "title": "paraphrase (T-184): expense with exclusion #19, €135.00 on Chase, not Henry, Piotr, Arjun",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-15T01:20:00+01:00",
+        "from": "h_chase",
+        "text": "@trav i paid 135 euros for the tapas crawl, all except henry, piotr and arjun",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_chase",
+            "amountMinor": 13500,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 4500
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 4500
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 4500
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_exclusion_20",
+    "title": "paraphrase (T-184): expense with exclusion #20, €40.00 on Henry, not Chase",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-15T01:20:00+01:00",
+        "from": "h_henry",
+        "text": "@trav i paid €40 for the bowling, everyone but chase",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_henry",
+            "amountMinor": 4000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 800
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 800
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 800
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 800
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 800
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_exclusion_21",
+    "title": "paraphrase (T-184): expense with exclusion #21, €81.00 on Arjun, not Crowley, Dean",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-15T01:20:00+01:00",
+        "from": "h_arjun",
+        "text": "@trav €81 for the rooftop drinks on my card, not including crowley or dean",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_arjun",
+            "amountMinor": 8100,
+            "shares": [
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 2025
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 2025
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 2025
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 2025
+              }
+            ]
+          },
+          "ledgerWrites": 1,
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_settle_01",
+    "title": "paraphrase (T-184): settle-up ask #1 after 1 logged expense(s), 5 transfer(s) at most 5",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-16T19:00:00+01:00",
+        "from": "h_dean",
+        "text": "@trav I paid €60 for the cheese board, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_dean",
+            "amountMinor": 6000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1000
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1000
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1000
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1000
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1000
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1000
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-16T20:00:00+01:00",
+        "from": "h_piotr",
+        "text": "@trav who owes who right now?",
+        "expect": {
+          "action": ["settle_up"],
+          "maxTransfers": 5,
+          "transfers": [
+            {
+              "from": "mem_henry",
+              "to": "mem_dean",
+              "amountMinor": 1000
+            },
+            {
+              "from": "mem_chase",
+              "to": "mem_dean",
+              "amountMinor": 1000
+            },
+            {
+              "from": "mem_piotr",
+              "to": "mem_dean",
+              "amountMinor": 1000
+            },
+            {
+              "from": "mem_arjun",
+              "to": "mem_dean",
+              "amountMinor": 1000
+            },
+            {
+              "from": "mem_crowley",
+              "to": "mem_dean",
+              "amountMinor": 1000
+            }
+          ],
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_settle_02",
+    "title": "paraphrase (T-184): settle-up ask #2 after 2 logged expense(s), 5 transfer(s) at most 5",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-16T19:00:00+01:00",
+        "from": "h_chase",
+        "text": "@trav I paid €90 for the boat, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_chase",
+            "amountMinor": 9000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1500
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "from": "h_piotr",
+        "text": "@trav I paid €30 for sunscreen, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_piotr",
+            "amountMinor": 3000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 500
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 500
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 500
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 500
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 500
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 500
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-16T20:00:00+01:00",
+        "from": "h_crowley",
+        "text": "@trav how do we square up?",
+        "expect": {
+          "action": ["settle_up"],
+          "maxTransfers": 5,
+          "transfers": [
+            {
+              "from": "mem_dean",
+              "to": "mem_chase",
+              "amountMinor": 2000
+            },
+            {
+              "from": "mem_henry",
+              "to": "mem_chase",
+              "amountMinor": 2000
+            },
+            {
+              "from": "mem_arjun",
+              "to": "mem_chase",
+              "amountMinor": 2000
+            },
+            {
+              "from": "mem_crowley",
+              "to": "mem_chase",
+              "amountMinor": 1000
+            },
+            {
+              "from": "mem_crowley",
+              "to": "mem_piotr",
+              "amountMinor": 1000
+            }
+          ],
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_settle_03",
+    "title": "paraphrase (T-184): settle-up ask #3 after 2 logged expense(s), 5 transfer(s) at most 5",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-16T19:00:00+01:00",
+        "from": "h_henry",
+        "text": "@trav I paid €48 for pastries, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_henry",
+            "amountMinor": 4800,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 800
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 800
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 800
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 800
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 800
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 800
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "from": "h_arjun",
+        "text": "@trav I paid €24 for parking, split with me and Dean",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_arjun",
+            "amountMinor": 2400,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1200
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1200
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-16T20:00:00+01:00",
+        "from": "h_arjun",
+        "text": "@trav what's everyone owe",
+        "expect": {
+          "action": ["settle_up"],
+          "maxTransfers": 5,
+          "transfers": [
+            {
+              "from": "mem_dean",
+              "to": "mem_henry",
+              "amountMinor": 2000
+            },
+            {
+              "from": "mem_chase",
+              "to": "mem_henry",
+              "amountMinor": 800
+            },
+            {
+              "from": "mem_piotr",
+              "to": "mem_henry",
+              "amountMinor": 800
+            },
+            {
+              "from": "mem_crowley",
+              "to": "mem_henry",
+              "amountMinor": 400
+            },
+            {
+              "from": "mem_crowley",
+              "to": "mem_arjun",
+              "amountMinor": 400
+            }
+          ],
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_settle_04",
+    "title": "paraphrase (T-184): settle-up ask #4 after 2 logged expense(s), 5 transfer(s) at most 5",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-16T19:00:00+01:00",
+        "from": "h_dean",
+        "text": "@trav I paid €120 for the villa deposit, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_dean",
+            "amountMinor": 12000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 2000
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 2000
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 2000
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 2000
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 2000
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 2000
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "from": "h_crowley",
+        "text": "@trav I paid €36 for groceries, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_crowley",
+            "amountMinor": 3600,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 600
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 600
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 600
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 600
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 600
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 600
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-16T20:00:00+01:00",
+        "from": "h_dean",
+        "text": "@trav time to settle, give us the numbers",
+        "expect": {
+          "action": ["settle_up"],
+          "maxTransfers": 5,
+          "transfers": [
+            {
+              "from": "mem_henry",
+              "to": "mem_dean",
+              "amountMinor": 2600
+            },
+            {
+              "from": "mem_chase",
+              "to": "mem_dean",
+              "amountMinor": 2600
+            },
+            {
+              "from": "mem_piotr",
+              "to": "mem_dean",
+              "amountMinor": 2600
+            },
+            {
+              "from": "mem_arjun",
+              "to": "mem_dean",
+              "amountMinor": 1600
+            },
+            {
+              "from": "mem_arjun",
+              "to": "mem_crowley",
+              "amountMinor": 1000
+            }
+          ],
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_settle_05",
+    "title": "paraphrase (T-184): settle-up ask #5 after 2 logged expense(s), 5 transfer(s) at most 5",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-16T19:00:00+01:00",
+        "from": "h_arjun",
+        "text": "@trav I paid €72 for the tapas tour, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_arjun",
+            "amountMinor": 7200,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1200
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1200
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1200
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1200
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1200
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1200
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "from": "h_chase",
+        "text": "@trav I paid €18 for the taxi, split with me and Piotr",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_chase",
+            "amountMinor": 1800,
+            "shares": [
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 900
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 900
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-16T20:00:00+01:00",
+        "from": "h_chase",
+        "text": "@trav can you work out who pays who back",
+        "expect": {
+          "action": ["settle_up"],
+          "maxTransfers": 5,
+          "transfers": [
+            {
+              "from": "mem_piotr",
+              "to": "mem_arjun",
+              "amountMinor": 2100
+            },
+            {
+              "from": "mem_dean",
+              "to": "mem_arjun",
+              "amountMinor": 1200
+            },
+            {
+              "from": "mem_henry",
+              "to": "mem_arjun",
+              "amountMinor": 1200
+            },
+            {
+              "from": "mem_crowley",
+              "to": "mem_arjun",
+              "amountMinor": 1200
+            },
+            {
+              "from": "mem_chase",
+              "to": "mem_arjun",
+              "amountMinor": 300
+            }
+          ],
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_settle_06",
+    "title": "paraphrase (T-184): settle-up ask #6 after 1 logged expense(s), 5 transfer(s) at most 5",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-16T19:00:00+01:00",
+        "from": "h_piotr",
+        "text": "@trav I paid €54 for museum tickets, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_piotr",
+            "amountMinor": 5400,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 900
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 900
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 900
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 900
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 900
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 900
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-16T20:00:00+01:00",
+        "from": "h_henry",
+        "text": "@trav balances please",
+        "expect": {
+          "action": ["settle_up"],
+          "maxTransfers": 5,
+          "transfers": [
+            {
+              "from": "mem_dean",
+              "to": "mem_piotr",
+              "amountMinor": 900
+            },
+            {
+              "from": "mem_henry",
+              "to": "mem_piotr",
+              "amountMinor": 900
+            },
+            {
+              "from": "mem_chase",
+              "to": "mem_piotr",
+              "amountMinor": 900
+            },
+            {
+              "from": "mem_arjun",
+              "to": "mem_piotr",
+              "amountMinor": 900
+            },
+            {
+              "from": "mem_crowley",
+              "to": "mem_piotr",
+              "amountMinor": 900
+            }
+          ],
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_settle_07",
+    "title": "paraphrase (T-184): settle-up ask #7 after 3 logged expense(s), 5 transfer(s) at most 5",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-16T19:00:00+01:00",
+        "from": "h_crowley",
+        "text": "@trav I paid €96 for dinner, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_crowley",
+            "amountMinor": 9600,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1600
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1600
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1600
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1600
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1600
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1600
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "from": "h_dean",
+        "text": "@trav I paid €60 for drinks, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_dean",
+            "amountMinor": 6000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1000
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1000
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1000
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1000
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1000
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1000
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "from": "h_henry",
+        "text": "@trav I paid €12 for snacks, split with me and Chase",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_henry",
+            "amountMinor": 1200,
+            "shares": [
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 600
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 600
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-16T20:00:00+01:00",
+        "from": "h_piotr",
+        "text": "@trav tally it all up, who owes what",
+        "expect": {
+          "action": ["settle_up"],
+          "maxTransfers": 5,
+          "transfers": [
+            {
+              "from": "mem_chase",
+              "to": "mem_crowley",
+              "amountMinor": 3200
+            },
+            {
+              "from": "mem_piotr",
+              "to": "mem_crowley",
+              "amountMinor": 2600
+            },
+            {
+              "from": "mem_arjun",
+              "to": "mem_crowley",
+              "amountMinor": 1200
+            },
+            {
+              "from": "mem_arjun",
+              "to": "mem_dean",
+              "amountMinor": 1400
+            },
+            {
+              "from": "mem_henry",
+              "to": "mem_dean",
+              "amountMinor": 2000
+            }
+          ],
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_settle_08",
+    "title": "paraphrase (T-184): settle-up ask #8 after 2 logged expense(s), 5 transfer(s) at most 5",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-16T19:00:00+01:00",
+        "from": "h_chase",
+        "text": "@trav I paid €150 for the catamaran, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_chase",
+            "amountMinor": 15000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 2500
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 2500
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 2500
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 2500
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 2500
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 2500
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "from": "h_arjun",
+        "text": "@trav I paid €42 for water and fruit, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_arjun",
+            "amountMinor": 4200,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 700
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 700
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 700
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 700
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 700
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 700
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-16T20:00:00+01:00",
+        "from": "h_arjun",
+        "text": "@trav let's square the ledger before flights",
+        "expect": {
+          "action": ["settle_up"],
+          "maxTransfers": 5,
+          "transfers": [
+            {
+              "from": "mem_dean",
+              "to": "mem_chase",
+              "amountMinor": 3200
+            },
+            {
+              "from": "mem_henry",
+              "to": "mem_chase",
+              "amountMinor": 3200
+            },
+            {
+              "from": "mem_piotr",
+              "to": "mem_chase",
+              "amountMinor": 3200
+            },
+            {
+              "from": "mem_crowley",
+              "to": "mem_chase",
+              "amountMinor": 2200
+            },
+            {
+              "from": "mem_crowley",
+              "to": "mem_arjun",
+              "amountMinor": 1000
+            }
+          ],
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_settle_09",
+    "title": "paraphrase (T-184): settle-up ask #9 after 2 logged expense(s), 1 transfer(s) at most 1",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-16T19:00:00+01:00",
+        "from": "h_dean",
+        "text": "@trav I paid €30 for the bikes, split with me and Crowley",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_dean",
+            "amountMinor": 3000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1500
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "from": "h_crowley",
+        "text": "@trav I paid €10 for coffee, split with me and Dean",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_crowley",
+            "amountMinor": 1000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 500
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 500
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-16T20:00:00+01:00",
+        "from": "h_crowley",
+        "text": "@trav what are the paybacks looking like",
+        "expect": {
+          "action": ["settle_up"],
+          "maxTransfers": 1,
+          "transfers": [
+            {
+              "from": "mem_crowley",
+              "to": "mem_dean",
+              "amountMinor": 1000
+            }
+          ],
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_settle_10",
+    "title": "paraphrase (T-184): settle-up ask #10 after 2 logged expense(s), 4 transfer(s) at most 5",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-16T19:00:00+01:00",
+        "from": "h_henry",
+        "text": "@trav I paid €66 for the paella, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_henry",
+            "amountMinor": 6600,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1100
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1100
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1100
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1100
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1100
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1100
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "from": "h_piotr",
+        "text": "@trav I paid €66 for the sangria, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_piotr",
+            "amountMinor": 6600,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1100
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1100
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1100
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1100
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1100
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1100
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-16T20:00:00+01:00",
+        "from": "h_dean",
+        "text": "@trav run the settle up",
+        "expect": {
+          "action": ["settle_up"],
+          "maxTransfers": 5,
+          "transfers": [
+            {
+              "from": "mem_dean",
+              "to": "mem_henry",
+              "amountMinor": 2200
+            },
+            {
+              "from": "mem_chase",
+              "to": "mem_henry",
+              "amountMinor": 2200
+            },
+            {
+              "from": "mem_arjun",
+              "to": "mem_piotr",
+              "amountMinor": 2200
+            },
+            {
+              "from": "mem_crowley",
+              "to": "mem_piotr",
+              "amountMinor": 2200
+            }
+          ],
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_settle_11",
+    "title": "paraphrase (T-184): settle-up ask #11 after 2 logged expense(s), 5 transfer(s) at most 5",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-16T19:00:00+01:00",
+        "from": "h_arjun",
+        "text": "@trav I paid €180 for the flat cleaning, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_arjun",
+            "amountMinor": 18000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 3000
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 3000
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 3000
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 3000
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 3000
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 3000
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "from": "h_dean",
+        "text": "@trav I paid €24 for metro cards, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_dean",
+            "amountMinor": 2400,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 400
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 400
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 400
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 400
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 400
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 400
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-16T20:00:00+01:00",
+        "from": "h_chase",
+        "text": "@trav who needs to venmo who",
+        "expect": {
+          "action": ["settle_up"],
+          "maxTransfers": 5,
+          "transfers": [
+            {
+              "from": "mem_henry",
+              "to": "mem_arjun",
+              "amountMinor": 3400
+            },
+            {
+              "from": "mem_chase",
+              "to": "mem_arjun",
+              "amountMinor": 3400
+            },
+            {
+              "from": "mem_piotr",
+              "to": "mem_arjun",
+              "amountMinor": 3400
+            },
+            {
+              "from": "mem_crowley",
+              "to": "mem_arjun",
+              "amountMinor": 3400
+            },
+            {
+              "from": "mem_dean",
+              "to": "mem_arjun",
+              "amountMinor": 1000
+            }
+          ],
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_settle_12",
+    "title": "paraphrase (T-184): settle-up ask #12 after 2 logged expense(s), 4 transfer(s) at most 5",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-16T19:00:00+01:00",
+        "from": "h_crowley",
+        "text": "@trav I paid €45 for the escape room, split with me and Chase and Arjun",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_crowley",
+            "amountMinor": 4500,
+            "shares": [
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1500
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "from": "h_chase",
+        "text": "@trav I paid €30 for breakfast, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_chase",
+            "amountMinor": 3000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 500
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 500
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 500
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 500
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 500
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 500
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-16T20:00:00+01:00",
+        "from": "h_henry",
+        "text": "@trav break down what we owe each other",
+        "expect": {
+          "action": ["settle_up"],
+          "maxTransfers": 5,
+          "transfers": [
+            {
+              "from": "mem_arjun",
+              "to": "mem_crowley",
+              "amountMinor": 2000
+            },
+            {
+              "from": "mem_dean",
+              "to": "mem_crowley",
+              "amountMinor": 500
+            },
+            {
+              "from": "mem_henry",
+              "to": "mem_chase",
+              "amountMinor": 500
+            },
+            {
+              "from": "mem_piotr",
+              "to": "mem_chase",
+              "amountMinor": 500
+            }
+          ],
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_settle_13",
+    "title": "paraphrase (T-184): settle-up ask #13 after 3 logged expense(s), 3 transfer(s) at most 5",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-16T19:00:00+01:00",
+        "from": "h_dean",
+        "text": "@trav I paid €90 for the club, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_dean",
+            "amountMinor": 9000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1500
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "from": "h_chase",
+        "text": "@trav I paid €90 for the dinner, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_chase",
+            "amountMinor": 9000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1500
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "from": "h_arjun",
+        "text": "@trav I paid €90 for the boat, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_arjun",
+            "amountMinor": 9000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1500
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1500
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-16T20:00:00+01:00",
+        "from": "h_piotr",
+        "text": "@trav final numbers: who sends money to who?",
+        "expect": {
+          "action": ["settle_up"],
+          "maxTransfers": 5,
+          "transfers": [
+            {
+              "from": "mem_henry",
+              "to": "mem_dean",
+              "amountMinor": 4500
+            },
+            {
+              "from": "mem_piotr",
+              "to": "mem_chase",
+              "amountMinor": 4500
+            },
+            {
+              "from": "mem_crowley",
+              "to": "mem_arjun",
+              "amountMinor": 4500
+            }
+          ],
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_settle_14",
+    "title": "paraphrase (T-184): settle-up ask #14 after 1 logged expense(s), 1 transfer(s) at most 1",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-16T19:00:00+01:00",
+        "from": "h_piotr",
+        "text": "@trav I paid €20 for gelato, split with me and Henry",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_piotr",
+            "amountMinor": 2000,
+            "shares": [
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1000
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1000
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-16T20:00:00+01:00",
+        "from": "h_arjun",
+        "text": "@trav are we even yet?",
+        "expect": {
+          "action": ["settle_up"],
+          "maxTransfers": 1,
+          "transfers": [
+            {
+              "from": "mem_henry",
+              "to": "mem_piotr",
+              "amountMinor": 1000
+            }
+          ],
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_settle_15",
+    "title": "paraphrase (T-184): settle-up ask #15 after 2 logged expense(s), 5 transfer(s) at most 5",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-16T19:00:00+01:00",
+        "from": "h_henry",
+        "text": "@trav I paid €78 for the wine tasting, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_henry",
+            "amountMinor": 7800,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1300
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1300
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1300
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1300
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1300
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1300
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "from": "h_crowley",
+        "text": "@trav I paid €21 for churros, split with me and Dean and Chase",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_crowley",
+            "amountMinor": 2100,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 700
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 700
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 700
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-16T20:00:00+01:00",
+        "from": "h_crowley",
+        "text": "@trav sort out the debts between us",
+        "expect": {
+          "action": ["settle_up"],
+          "maxTransfers": 5,
+          "transfers": [
+            {
+              "from": "mem_dean",
+              "to": "mem_henry",
+              "amountMinor": 2000
+            },
+            {
+              "from": "mem_chase",
+              "to": "mem_henry",
+              "amountMinor": 2000
+            },
+            {
+              "from": "mem_piotr",
+              "to": "mem_henry",
+              "amountMinor": 1300
+            },
+            {
+              "from": "mem_arjun",
+              "to": "mem_henry",
+              "amountMinor": 1200
+            },
+            {
+              "from": "mem_arjun",
+              "to": "mem_crowley",
+              "amountMinor": 100
+            }
+          ],
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_settle_16",
+    "title": "paraphrase (T-184): settle-up ask #16 after 2 logged expense(s), 4 transfer(s) at most 5",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-16T19:00:00+01:00",
+        "from": "h_chase",
+        "text": "@trav I paid €36 for the funicular, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_chase",
+            "amountMinor": 3600,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 600
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 600
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 600
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 600
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 600
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 600
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "from": "h_dean",
+        "text": "@trav I paid €36 for the beach chairs, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_dean",
+            "amountMinor": 3600,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 600
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 600
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 600
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 600
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 600
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 600
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-16T20:00:00+01:00",
+        "from": "h_dean",
+        "text": "@trav do the math on who owes what",
+        "expect": {
+          "action": ["settle_up"],
+          "maxTransfers": 5,
+          "transfers": [
+            {
+              "from": "mem_henry",
+              "to": "mem_dean",
+              "amountMinor": 1200
+            },
+            {
+              "from": "mem_piotr",
+              "to": "mem_dean",
+              "amountMinor": 1200
+            },
+            {
+              "from": "mem_arjun",
+              "to": "mem_chase",
+              "amountMinor": 1200
+            },
+            {
+              "from": "mem_crowley",
+              "to": "mem_chase",
+              "amountMinor": 1200
+            }
+          ],
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_settle_17",
+    "title": "paraphrase (T-184): settle-up ask #17 after 2 logged expense(s), 5 transfer(s) at most 5",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-16T19:00:00+01:00",
+        "from": "h_arjun",
+        "text": "@trav I paid €50 for pizza, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_arjun",
+            "amountMinor": 5000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 834
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 833
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 833
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 833
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 834
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 833
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "from": "h_piotr",
+        "text": "@trav I paid €25 for the laundromat, split with me and Arjun",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_piotr",
+            "amountMinor": 2500,
+            "shares": [
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1250
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1250
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-16T20:00:00+01:00",
+        "from": "h_chase",
+        "text": "@trav close out the tab please",
+        "expect": {
+          "action": ["settle_up"],
+          "maxTransfers": 5,
+          "transfers": [
+            {
+              "from": "mem_dean",
+              "to": "mem_arjun",
+              "amountMinor": 834
+            },
+            {
+              "from": "mem_henry",
+              "to": "mem_arjun",
+              "amountMinor": 833
+            },
+            {
+              "from": "mem_chase",
+              "to": "mem_arjun",
+              "amountMinor": 833
+            },
+            {
+              "from": "mem_crowley",
+              "to": "mem_arjun",
+              "amountMinor": 416
+            },
+            {
+              "from": "mem_crowley",
+              "to": "mem_piotr",
+              "amountMinor": 417
+            }
+          ],
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_settle_18",
+    "title": "paraphrase (T-184): settle-up ask #18 after 3 logged expense(s), 5 transfer(s) at most 5",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-16T19:00:00+01:00",
+        "from": "h_dean",
+        "text": "@trav I paid €60 for lunch, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_dean",
+            "amountMinor": 6000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1000
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1000
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1000
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1000
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1000
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1000
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "from": "h_henry",
+        "text": "@trav I paid €60 for dinner, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_henry",
+            "amountMinor": 6000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1000
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1000
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1000
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1000
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1000
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1000
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "from": "h_crowley",
+        "text": "@trav I paid €30 for olives and crisps for the flat, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_crowley",
+            "amountMinor": 3000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 500
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 500
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 500
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 500
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 500
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 500
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-16T20:00:00+01:00",
+        "from": "h_henry",
+        "text": "@trav fewest transfers to get everyone even?",
+        "expect": {
+          "action": ["settle_up"],
+          "maxTransfers": 5,
+          "transfers": [
+            {
+              "from": "mem_chase",
+              "to": "mem_dean",
+              "amountMinor": 2500
+            },
+            {
+              "from": "mem_piotr",
+              "to": "mem_dean",
+              "amountMinor": 1000
+            },
+            {
+              "from": "mem_piotr",
+              "to": "mem_henry",
+              "amountMinor": 1500
+            },
+            {
+              "from": "mem_arjun",
+              "to": "mem_henry",
+              "amountMinor": 2000
+            },
+            {
+              "from": "mem_arjun",
+              "to": "mem_crowley",
+              "amountMinor": 500
+            }
+          ],
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_settle_19",
+    "title": "paraphrase (T-184): settle-up ask #19 after 1 logged expense(s), 5 transfer(s) at most 5",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-16T19:00:00+01:00",
+        "from": "h_chase",
+        "text": "@trav I paid €84 for the flamenco show, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_chase",
+            "amountMinor": 8400,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1400
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 1400
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1400
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 1400
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 1400
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 1400
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-16T20:00:00+01:00",
+        "from": "h_piotr",
+        "text": "@trav where do we stand money-wise",
+        "expect": {
+          "action": ["settle_up"],
+          "maxTransfers": 5,
+          "transfers": [
+            {
+              "from": "mem_dean",
+              "to": "mem_chase",
+              "amountMinor": 1400
+            },
+            {
+              "from": "mem_henry",
+              "to": "mem_chase",
+              "amountMinor": 1400
+            },
+            {
+              "from": "mem_piotr",
+              "to": "mem_chase",
+              "amountMinor": 1400
+            },
+            {
+              "from": "mem_arjun",
+              "to": "mem_chase",
+              "amountMinor": 1400
+            },
+            {
+              "from": "mem_crowley",
+              "to": "mem_chase",
+              "amountMinor": 1400
+            }
+          ],
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_settle_20",
+    "title": "paraphrase (T-184): settle-up ask #20 after 2 logged expense(s), 5 transfer(s) at most 5",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-16T19:00:00+01:00",
+        "from": "h_crowley",
+        "text": "@trav I paid €132 for the day trip, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_crowley",
+            "amountMinor": 13200,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 2200
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 2200
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 2200
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 2200
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 2200
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 2200
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "from": "h_arjun",
+        "text": "@trav I paid €15 for the ferry, split with me and Henry and Piotr",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_arjun",
+            "amountMinor": 1500,
+            "shares": [
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 500
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 500
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 500
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-16T20:00:00+01:00",
+        "from": "h_arjun",
+        "text": "@trav settle everyone up",
+        "expect": {
+          "action": ["settle_up"],
+          "maxTransfers": 5,
+          "transfers": [
+            {
+              "from": "mem_henry",
+              "to": "mem_crowley",
+              "amountMinor": 2700
+            },
+            {
+              "from": "mem_piotr",
+              "to": "mem_crowley",
+              "amountMinor": 2700
+            },
+            {
+              "from": "mem_dean",
+              "to": "mem_crowley",
+              "amountMinor": 2200
+            },
+            {
+              "from": "mem_chase",
+              "to": "mem_crowley",
+              "amountMinor": 2200
+            },
+            {
+              "from": "mem_arjun",
+              "to": "mem_crowley",
+              "amountMinor": 1200
+            }
+          ],
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "para_settle_21",
+    "title": "paraphrase (T-184): settle-up ask #21 after 3 logged expense(s), 5 transfer(s) at most 5",
+    "tags": ["ledger", "heldout", "paraphrase"],
+    "expect": {
+      "maxPurchases": 0
+    },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-16T19:00:00+01:00",
+        "from": "h_piotr",
+        "text": "@trav I paid €48 for the rooftop, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_piotr",
+            "amountMinor": 4800,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 800
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 800
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 800
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 800
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 800
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 800
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "from": "h_dean",
+        "text": "@trav I paid €24 for the uber, split with me and Chase",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_dean",
+            "amountMinor": 2400,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 1200
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 1200
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "from": "h_henry",
+        "text": "@trav I paid €30 for gelato, split with everyone",
+        "expect": {
+          "expense": {
+            "paidBy": "mem_henry",
+            "amountMinor": 3000,
+            "shares": [
+              {
+                "memberId": "mem_dean",
+                "amountMinor": 500
+              },
+              {
+                "memberId": "mem_henry",
+                "amountMinor": 500
+              },
+              {
+                "memberId": "mem_chase",
+                "amountMinor": 500
+              },
+              {
+                "memberId": "mem_piotr",
+                "amountMinor": 500
+              },
+              {
+                "memberId": "mem_arjun",
+                "amountMinor": 500
+              },
+              {
+                "memberId": "mem_crowley",
+                "amountMinor": 500
+              }
+            ]
+          },
+          "ledgerWrites": 1
+        }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-16T20:00:00+01:00",
+        "from": "h_dean",
+        "text": "@trav before we leave, who pays who",
+        "expect": {
+          "action": ["settle_up"],
+          "maxTransfers": 5,
+          "transfers": [
+            {
+              "from": "mem_chase",
+              "to": "mem_piotr",
+              "amountMinor": 2500
+            },
+            {
+              "from": "mem_arjun",
+              "to": "mem_piotr",
+              "amountMinor": 1000
+            },
+            {
+              "from": "mem_arjun",
+              "to": "mem_henry",
+              "amountMinor": 300
+            },
+            {
+              "from": "mem_crowley",
+              "to": "mem_henry",
+              "amountMinor": 1300
+            },
+            {
+              "from": "mem_dean",
+              "to": "mem_henry",
+              "amountMinor": 100
+            }
+          ],
+          "purchases": 0
+        }
+      }
+    ]
+  }
+]

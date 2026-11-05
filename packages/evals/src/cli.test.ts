@@ -13,14 +13,17 @@ import type { CompletionRequest, ModelClient } from '@trav/agent';
 import {
   HELP,
   createRubricJudge,
+  createRunSpendCap,
   decideMode,
   main,
   parseArgs,
+  preflightLines,
   runAll,
   selectScenarios,
 } from './cli.js';
 import { rubric } from './graders/quality.js';
 import { selectionKey } from './reports.js';
+import { offlineModelFactory } from './runner/run.js';
 import { loadScenarios } from './scenarios.js';
 import { episode, scenario } from './testing.js';
 import type { Scenario } from './types.js';
@@ -73,6 +76,7 @@ describe('parseArgs', () => {
       split: 'all',
       static: true,
       live: false,
+      preflight: false,
       help: false,
     });
   });
@@ -93,6 +97,9 @@ describe('parseArgs', () => {
         '--no-report',
         '--no-static',
         '--live',
+        '--max-spend',
+        '12.5',
+        '--preflight',
         '--split',
         'dev',
         '--',
@@ -106,6 +113,8 @@ describe('parseArgs', () => {
       split: 'dev',
       static: false,
       live: true,
+      maxSpendUsd: 12.5,
+      preflight: true,
       help: false,
     });
     expect(parseArgs(['--heldout']).split).toBe('heldout');
@@ -121,6 +130,95 @@ describe('parseArgs', () => {
     expect(() => parseArgs(['--filter'])).toThrow(/--filter needs a value/);
     expect(() => parseArgs(['--out', '--live'])).toThrow(/--out needs a value/);
     expect(() => parseArgs(['--heldout', '--regression'])).toThrow(/conflicting splits/);
+    for (const bad of ['0', '-1', 'ten', '1e3', 'NaN', '0.0'])
+      expect(() => parseArgs(['--max-spend', bad])).toThrow(/--max-spend/);
+    expect(() => parseArgs(['--max-spend'])).toThrow(/--max-spend needs a value/);
+  });
+});
+
+describe('T-184 run spend cap', () => {
+  it('is reached once the run has added maxUsd to the starting total, never before', () => {
+    let total = 3.2; // earlier runs already spent this
+    const cap = createRunSpendCap(() => total, 2);
+    expect(cap.runUsd()).toBe(0);
+    expect(cap.reached()).toBe(false);
+    total = 5.19;
+    expect(cap.reached()).toBe(false);
+    total = 5.2;
+    expect(cap.reached()).toBe(true);
+    expect(cap.runUsd()).toBeCloseTo(2, 9);
+  });
+
+  it('rejects a non-positive cap', () => {
+    expect(() => createRunSpendCap(() => 0, 0)).toThrow(/positive/);
+    expect(() => createRunSpendCap(() => 0, Number.NaN)).toThrow(/positive/);
+  });
+});
+
+describe('T-184 --preflight', () => {
+  const KEY = 'sk-ant-test-not-a-real-key-000';
+
+  it('says offline without --live, without a key, with TRAV_OFFLINE, or with the budget spent', () => {
+    const at = (env: Record<string, string>, live: boolean, canSpend = true) =>
+      preflightLines(
+        { live },
+        env,
+        () => 1.5,
+        () => canSpend,
+      )[0];
+    expect(at({ TRAV_ANTHROPIC_API_KEY: KEY }, false)).toMatch(/would run OFFLINE/);
+    expect(at({}, true)).toMatch(/would run OFFLINE .*no TRAV_ANTHROPIC_API_KEY/);
+    expect(at({ TRAV_ANTHROPIC_API_KEY: KEY, TRAV_OFFLINE: '1' }, true)).toMatch(/OFFLINE/);
+    expect(at({ TRAV_ANTHROPIC_API_KEY: KEY }, true, false)).toMatch(/OFFLINE .*budget/);
+  });
+
+  it('says live with a key and headroom, names spend, budget, cap and models, never the key', () => {
+    const lines = preflightLines(
+      { live: true, maxSpendUsd: 15 },
+      { TRAV_ANTHROPIC_API_KEY: KEY, TRAV_LIVE_BUDGET_USD: '45', TRAV_STATE_DIR: '/x/state' },
+      () => 1.5,
+      () => true,
+    );
+    const text = lines.join('\n');
+    expect(lines[0]).toMatch(/would run LIVE/);
+    expect(text).toContain('spend so far $1.50 of the $45.00 budget');
+    expect(text).toContain('after $15.00');
+    expect(text).toMatch(/models main=/);
+    expect(text).toContain('TRAV_ANTHROPIC_API_KEY present');
+    expect(text).not.toContain(KEY);
+  });
+
+  it('names every gate that blocks live, each on its own', () => {
+    const gates = (env: Record<string, string>, live: boolean, canSpend: boolean) =>
+      preflightLines(
+        { live },
+        env,
+        () => 0,
+        () => canSpend,
+      )[1] ?? '';
+    const all = gates({ TRAV_OFFLINE: '1' }, false, false);
+    expect(all).toContain('--live not passed (blocks live)');
+    expect(all).toContain('TRAV_OFFLINE set (blocks live');
+    expect(all).toContain('TRAV_ANTHROPIC_API_KEY absent (blocks live)');
+    expect(all).toContain('budget reached (blocks live)');
+    // A key next to TRAV_OFFLINE: only TRAV_OFFLINE blocks, and the key value never shows.
+    const one = gates({ TRAV_OFFLINE: '1', TRAV_ANTHROPIC_API_KEY: KEY }, true, true);
+    expect(one.match(/blocks live/g)).toHaveLength(1);
+    expect(one).toContain('TRAV_OFFLINE set');
+    expect(one).not.toContain(KEY);
+  });
+
+  it('main --preflight exits 0, loads no scenarios and writes no report', async () => {
+    const { out, env } = workspace([CLEAN]);
+    const lines: string[] = [];
+    const code = await main(
+      ['--preflight', '--live', '--scenarios', '/does/not/exist', '--out', out],
+      env,
+      (l) => lines.push(l),
+    );
+    expect(code).toBe(0);
+    expect(lines[0]).toMatch(/would run OFFLINE/);
+    expect(() => readdirSync(out)).toThrow();
   });
 });
 
@@ -306,6 +404,83 @@ describe('runAll / main', () => {
     );
   });
 
+  it('--max-spend: a live run stops starting scenarios at the cap and says so (stubbed, no network)', async () => {
+    const four = ['a', 'b', 'c', 'd'].map((x) => ({ ...CLEAN, id: `cap_${x}` }));
+    const w = workspace(four);
+    // A "live" decision: key present, TRAV_OFFLINE unset, the fake guard has headroom.
+    const env = {
+      TRAV_ANTHROPIC_API_KEY: 'sk-ant-test-not-a-real-key-000',
+      TRAV_STATE_DIR: w.env.TRAV_STATE_DIR,
+    };
+    let total = 10; // the guard's running total before this run
+    let factoryCalls = 0;
+    const offline = offlineModelFactory(w.env.TRAV_STATE_DIR);
+    const lines: string[] = [];
+    const r = await runAll(
+      {
+        ...parseArgs(['--no-static', '--live', '--max-spend', '2.5']),
+        scenariosDir: w.dir,
+        out: w.out,
+      },
+      env,
+      (l) => lines.push(l),
+      {
+        spend: { canSpend: () => true, totalUsd: () => total },
+        // Each scenario's model client "costs" $1 (scripted responses underneath).
+        modelFactory: (clock) => {
+          factoryCalls += 1;
+          total += 1;
+          return offline(clock);
+        },
+        rubricJudge: { judge: () => Promise.resolve({ score: 1, rationale: 'stub' }) },
+      },
+    );
+    // $1, $2 (< $2.50) → keep going; after the third the run has added $3 ≥ $2.50 → stop before d.
+    expect(r.outcomes.map((o) => o.scenario.id)).toEqual(['cap_a', 'cap_b', 'cap_c']);
+    expect(factoryCalls).toBe(3);
+    expect(lines[0]).toMatch(/mode LIVE/);
+    const stopped =
+      'run spend cap $2.50 reached ($3.00 this run) after 3 of 4 scenarios; next was cap_d';
+    expect(lines).toContain(`  stopped: ${stopped}`);
+    const json = JSON.parse(readFileSync(r.reportPath!.replace(/\.md$/, '.json'), 'utf8')) as {
+      mode: string;
+      selection: string;
+      stoppedEarly?: string;
+      spend?: { totalUsd: number; runUsd?: number; maxRunUsd?: number; budgetUsd?: number };
+      scenarios: unknown[];
+    };
+    expect(json.mode).toBe('live');
+    expect(json.stoppedEarly).toBe(stopped);
+    expect(json.spend).toEqual({ totalUsd: 13, runUsd: 3, maxRunUsd: 2.5, budgetUsd: 45 });
+    expect(json.scenarios).toHaveLength(3);
+    // Relabelled selection: a cut-short run is never the baseline of a full run with the same flags.
+    expect(json.selection).toMatch(/ \(stopped early: 3 run\)$/);
+    const full = json.selection.replace(/ \(stopped early: 3 run\)$/, '');
+    expect(selectionKey(json.selection)).not.toBe(selectionKey(full));
+    const md = readFileSync(r.reportPath!, 'utf8');
+    expect(md).toContain(
+      '- **Live spend so far:** $13.00 of the $45.00 budget; this run $3.00 (run cap $2.50)',
+    );
+    expect(md).toContain(`- **Stopped early:** ${stopped}`);
+  });
+
+  it('--max-spend is ignored offline (no cap, every scenario runs)', async () => {
+    const w = workspace(['a', 'b'].map((x) => ({ ...CLEAN, id: `off_${x}` })));
+    const r = await runAll(
+      { ...parseArgs(['--no-static', '--max-spend', '0.01']), scenariosDir: w.dir, out: w.out },
+      w.env,
+      () => {},
+      { spend: { canSpend: () => true, totalUsd: () => 99 } },
+    );
+    expect(r.outcomes).toHaveLength(2);
+    const json = JSON.parse(readFileSync(r.reportPath!.replace(/\.md$/, '.json'), 'utf8')) as {
+      stoppedEarly?: string;
+      spend?: unknown;
+    };
+    expect(json.stoppedEarly).toBeUndefined();
+    expect(json.spend).toBeUndefined();
+  });
+
   it('--no-report writes nothing', async () => {
     const w = workspace([CLEAN]);
     const r = await runAll(
@@ -407,6 +582,8 @@ describe('rubric judge (live only)', () => {
     expect(seen[0]?.model).toBe('grader');
     expect(seen[0]?.tools).toEqual([]);
     expect(JSON.stringify(seen[0]?.messages)).toContain('untrusted');
+    // Structured outputs need additionalProperties: false on every object (the API 400s otherwise).
+    expect(seen[0]?.jsonSchema).toMatchObject({ type: 'object', additionalProperties: false });
   });
 
   it('rubric grader: skipped offline; scored live; a failing grader call is skipped, never a pass', async () => {

@@ -20,6 +20,7 @@
     "demo:barcelona": "pnpm --filter @trav/simulator demo:barcelona",
     "sim": "pnpm --filter @trav/simulator sim",
     "eval": "node --import tsx packages/evals/src/cli.ts",
+    "eval:live": "NODE_USE_ENV_PROXY=1 node --import tsx packages/evals/src/live.ts",
     "audit:verify": "node --import tsx scripts/audit-verify.ts",
     "fixtures:gen": "node fixtures/_gen/index.mjs"
   },

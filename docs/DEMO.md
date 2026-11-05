@@ -69,6 +69,9 @@ Replays the scenario suite (`packages/evals/scenarios`) through Trav, grades eve
 - `--filter razzmatazz` runs only matching scenario ids.
 - `--no-report` prints the summary and writes nothing.
 - `--live` uses live models (see below).
+- `--max-spend 5` (live only) stops starting scenarios once this run has added $5 to `.trav/spend.json`.
+- `--preflight` prints whether the run would be live or offline, which gate blocks live, and the spend so far, then exits without calling anything.
+- `--tag paraphrase` runs the 85 fresh held-out paraphrase scenarios (Razzmatazz, chat expense, exclusion, settle-up).
 - `--help` lists everything else.
 
 Scenarios marked "known gap" are waiting on a named backlog task, and they're scored separately.
@@ -94,6 +97,16 @@ set -a; . ./.env; set +a          # export them into this shell
 pnpm sim                          # the simulator badge drops "offline"
 pnpm eval --live                  # live models; rubric graders on TRAV_GRADER_MODEL
 ```
+
+`pnpm eval --live` stays offline while `TRAV_OFFLINE` is set to anything, `0` included. The one-command live eval skips the export step:
+
+```sh
+pnpm eval:live --preflight        # live or offline, and why; spend so far; no calls
+pnpm eval:live --tag paraphrase   # reads .env, drops its TRAV_OFFLINE, adds --live --max-spend 10
+pnpm --filter @trav/evals compare evals/reports/<offline>.json evals/reports/<live>.json --out evals/reports/<name>.md
+```
+
+`eval:live` passes every other `pnpm eval` flag through, and keeps the key gate and the spend guard as they are. It drops only the `.env` file's `TRAV_OFFLINE`. If `TRAV_OFFLINE` is set in your shell, the run stays offline, and `--preflight` tells you so. Spend always goes to the main checkout's `.trav/spend.json`. From a git worktree, set `TRAV_ENV_FILE=<main checkout>/.env`; the state dir then defaults to the `.trav` next to that file. `eval:live` refuses to go live against any other spend file, so a worktree never gets a fresh budget of its own.
 
 - Models: `TRAV_MODEL` (main chat loop), `TRAV_FAST_MODEL` (small classifiers), and `TRAV_GRADER_MODEL` (eval grading, so Trav never grades itself).
 - The key is `TRAV_ANTHROPIC_API_KEY`, never `ANTHROPIC_API_KEY`.
