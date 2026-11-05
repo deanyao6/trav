@@ -215,17 +215,33 @@ function createExpenseRepository(backend: Backend): ExpenseRepository {
     ledger.deleteWhere({ expense_id: expense.expenseId });
     entries.forEach((entry, position) => ledger.insert({ position, entry }));
   };
-  const createListeners = new Set<(expense: Expense) => void>();
+  type Listener = (expense: Expense) => void;
+  const createListeners = new Set<Listener>();
+  const undoListeners = new Set<Listener>();
+  const subscribe =
+    (set: Set<Listener>) =>
+    (listener: Listener): (() => void) => {
+      // One wrapper per subscription: subscribing the same function twice is two subscriptions.
+      const entry: Listener = (e) => listener(e);
+      set.add(entry);
+      return () => {
+        set.delete(entry);
+      };
+    };
+  // Called after the transaction committed, so a listener never sees a rolled-back write.
+  const notify = (set: Set<Listener>, expense: Expense): void => {
+    for (const listener of [...set]) {
+      try {
+        listener(expense);
+      } catch {
+        // A notice listener must never turn a committed ledger write into an error.
+      }
+    }
+  };
 
   return {
-    onCreate(listener) {
-      // One wrapper per subscription: subscribing the same function twice is two subscriptions.
-      const entry = (e: Expense): void => listener(e);
-      createListeners.add(entry);
-      return () => {
-        createListeners.delete(entry);
-      };
-    },
+    onCreate: subscribe(createListeners),
+    onUndo: subscribe(undoListeners),
     create(expense, entries) {
       requireId(expense.expenseId, 'expenseId');
       requireId(expense.sourceRef.id, 'sourceRef.id');
@@ -245,21 +261,16 @@ function createExpenseRepository(backend: Backend): ExpenseRepository {
         expenses.insert(expense);
         writeEntries(expense, entries);
       });
-      // After the transaction committed, so a listener never sees a rolled-back write.
-      for (const listener of [...createListeners]) {
-        try {
-          listener(expense);
-        } catch {
-          // A notice listener must never turn a committed ledger write into an error.
-        }
-      }
+      notify(createListeners, expense);
     },
     get: (expenseId) => expenses.get(expenseId),
     getBySourceRef: (ref) => expenses.find({ source_key: sourceRefKey(ref) })[0],
     replace(expense, entries) {
       checkEntries(expense, entries);
+      let undone = false;
       backend.transaction(() => {
-        if (expenses.get(expense.expenseId) === undefined) {
+        const prior = expenses.get(expense.expenseId);
+        if (prior === undefined) {
           throw notFound('expense', expense.expenseId);
         }
         const clash = expenses
@@ -273,7 +284,9 @@ function createExpenseRepository(backend: Backend): ExpenseRepository {
         }
         expenses.upsert(expense);
         writeEntries(expense, entries);
+        undone = prior.status === 'logged' && expense.status === 'undone';
       });
+      if (undone) notify(undoListeners, expense);
     },
     listByTrip(tripId, opts) {
       const rows = expenses.find({ trip_id: tripId });

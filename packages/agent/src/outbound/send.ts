@@ -242,7 +242,8 @@ function isWellFormedNotice(message: OutboundMessage): boolean {
 
 /** The notice as an ordinary message, for channels without `systemNotices`. */
 function plainMessage(message: OutboundMessage): OutboundMessage {
-  const { kind: _kind, ...rest } = message;
+  // Every notice-only field goes: the channel gets an ordinary message (T-165 r2 #5).
+  const { kind: _kind, noticeExpenseIds: _ids, noticeCorrection: _correction, ...rest } = message;
   return rest;
 }
 
@@ -432,6 +433,7 @@ export async function sendOutbound(
   if (notice) {
     payload['systemNotice'] = true;
     payload['expenseIds'] = [...(message.noticeExpenseIds ?? [])];
+    if (message.noticeCorrection === true) payload['noticeCorrection'] = true;
     if (downgraded) payload['noticeDowngraded'] = true;
   }
   const sentEvent = auditInput(deps, message, 'message.sent', payload);

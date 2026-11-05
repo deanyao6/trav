@@ -8,7 +8,9 @@ import {
   NOTICE_BATCH_WINDOW_MS,
   NOTICE_MAX_CHARS,
   batchByWindow,
+  expenseCorrectionText,
   expenseNoticeText,
+  renderExpenseCorrection,
   renderExpenseNotice,
 } from './expenseNotice.js';
 import { FIVE, GROUP_ID, NOW, TRIP_ID, barcelonaMembers, renderCtx } from './testkit.js';
@@ -246,5 +248,48 @@ describe('batchByWindow', () => {
       { id: 'y', at: at(0) },
     ];
     expect(batchByWindow(items).map((b) => b.map((x) => x.id))).toEqual([['x', 'y'], ['late']]);
+  });
+});
+
+describe('expense corrections (T-165 r2, VOICE §4.13)', () => {
+  it('one undone share: "<who> took <what> <amount> off the tab"', () => {
+    expect(expenseCorrectionText([expense()], ctx)).toBe('Chase took Uber €18.60 off the tab');
+  });
+
+  it('several, by who added them, at most three named', () => {
+    const more = (id: string, who: string, d: string): Expense =>
+      expense({
+        expenseId: id,
+        description: d,
+        createdBy: who,
+        paidBy: [{ memberId: who, amount: eur(1860) }],
+      });
+    expect(
+      expenseCorrectionText(
+        [expense(), more('e2', 'mem_chase', 'ride'), more('e3', 'mem_arjun', 'groceries')],
+        ctx,
+      ),
+    ).toBe(
+      'Chase took Uber €18.60 and ride €18.60 off the tab · Arjun took groceries €18.60 off the tab',
+    );
+    const five = ['a', 'b', 'c', 'd', 'e'].map((x) => more(`e_${x}`, 'mem_chase', `ride ${x}`));
+    expect(expenseCorrectionText(five, ctx)).toBe(
+      'Chase took ride a €18.60, ride b €18.60 and ride c €18.60 off the tab · +2 more off the tab',
+    );
+  });
+
+  it('is a group-lane correction notice that passes the voice lint; nothing to take back is an error', () => {
+    const m = renderExpenseCorrection([expense()], ctx);
+    expect(m).toMatchObject({
+      kind: 'system_notice',
+      noticeCorrection: true,
+      noticeExpenseIds: ['exp_uber'],
+      to: { kind: 'group' },
+    });
+    expect(voiceViolations(m, barcelonaMembers(), null)).toEqual([]);
+    expect(() => expenseCorrectionText([], ctx)).toThrow(TravError);
+    expect(() => renderExpenseCorrection([expense({ groupId: 'grp_lisbon' })], ctx)).toThrow(
+      TravError,
+    );
   });
 });

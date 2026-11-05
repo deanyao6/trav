@@ -537,7 +537,7 @@ Card: none. Notes: no emoji, no lecture, no "i'm not able to". State the rule in
 
 ### 4.13 Ledger notice (any expense that lands on the tab, T-165)
 
-**Trigger:** an expense lands on the ledger and the group has not already seen it in a group card. In practice: a card transaction or email receipt the owner just shared (after their 👍, never before), or any future source that writes the tab without a group card. Chat text and receipt photos already post the §4.4 "logged:" card in the group, and a booking posts its §4.2 receipt card; those cards **are** the announcement, so they get no notice on top (§2: never a second message to say the first one is done). Every expense reaches the group exactly once.
+**Trigger:** an expense lands on the ledger and the group has not already seen it in a group card. In practice: a card transaction or email receipt the owner just shared (after their 👍, never before), or any future source that writes the tab without a group card. Chat text and receipt photos already post the §4.4 "logged:" card in the group, and a booking posts its §4.2 receipt card; those cards **are** the announcement, so they get no notice on top (§2: never a second message to say the first one is done). If a booking's receipt card never reaches the group (held back, failed), the booking gets the notice once its ~60s window ends. Every expense reaches the group exactly once.
 
 **Format:** one line, no card, no buttons, no @tags, no emoji, no line break:
 
@@ -545,7 +545,7 @@ Card: none. Notes: no emoji, no lecture, no "i'm not able to". State the rule in
 
 - `<who> added <description> <amount>`: who put it on the tab (the owner who shared it). A foreign amount shows the original first: `Lyft $40 (≈€36.90)`. If someone else paid: `… €18.60 on Arjun`.
 - `· <split>`: `6 ways` when everyone's in; `5 ways (not Henry)` names who is out, in member order; when more are out than in, it names who is in: `2 ways (Dean, Chase)`; one person: `all on Piotr`; custom shares: `3 ways, custom shares`; itemized: `5 ways by item`. Never a reason someone is out.
-- Built from the group tab entry only (the stripped, group-safe record). Nothing from the private source: no pickup time, route, rider count, statement descriptor, card digits or inbox.
+- Built from the group tab entry only (the stripped, group-safe record). Nothing from the private source: no pickup time, route, rider count, statement descriptor, card digits or inbox. When the card provider gave no merchant name, the owner's DM shows the statement text so they can recognize the charge, but the tab entry (and so this line, recaps and Wrapped) uses the category: `Crowley added ride €23.40 · 5 ways (not Henry)` (`ride`, `stay`, `food`, `drinks`, `groceries`, `activity`, `tickets`, `flight`, otherwise `card charge`).
 
 **Batched (within ~60s):** shares that land together are one line, grouped by who added them, splits without the parenthesis, at most 3 named, the rest counted, under 240 characters:
 
@@ -553,7 +553,13 @@ Card: none. Notes: no emoji, no lecture, no "i'm not able to". State the rule in
 
 > Dean added ride 1 €12 (4 ways), ride 2 €9 (4 ways) and ride 3 €14 (4 ways) · +2 more on the tab
 
-An owner answering a "looks shared?" digest line by line gets one line for the whole digest, sent after their last answer on it (or once 60s have passed, with the next thing that happens in the chat).
+An owner answering a "looks shared?" digest line by line gets one line for the whole digest, sent after their last answer on it, or on its own when 60s have passed since the first share (even if the chat has gone quiet).
+
+**Correction (undo):** when the owner undoes a share the group already saw in a notice, one line takes it back, same style, no split:
+
+> Crowley took Uber €23.40 off the tab
+
+Several at once: `Crowley took Uber €23.40 and ride €9 off the tab · Arjun took groceries €47.20 off the tab`. A share undone before its notice went out is never announced, so it needs no correction. Expenses announced by their own group card (chat text, receipt photo, booking) are corrected the way that card says (§4.4 👎), not with a notice.
 
 **Rendering:** `OutboundMessage{ kind: "system_notice" }`, group lane only. Channels with `capabilities.systemNotices` (the simulator) draw it like iMessage's centered grey "Dean added Chase to the conversation" subscript: no bubble, no avatar, no name label (§9.2). Every other channel (iMessage relays, WhatsApp, Telegram, SMS) gets the same text as an ordinary short Trav message. A notice follows a member's action, so it does not count against the unsolicited-message cap (§2).
 

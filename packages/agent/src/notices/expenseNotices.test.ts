@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { Expense, MemberId, Money, Outbound, OutboundMessage } from '@trav/core';
-import { isReaction, ledger } from '@trav/core';
+import { createInMemoryScheduler, isReaction, ledger } from '@trav/core';
 import type {
   InboundButtonTap,
   InboundEvent,
@@ -247,49 +247,145 @@ describe('batching: notices that land within ~60s share one line', () => {
     expect(lines[0]!.outbound?.noticeExpenseIds).toHaveLength(3);
   });
 
-  it('a hold never outlives the window: past 60s it goes out with the next thing that happens, on its own line', async () => {
+  it('a hold ends with its window through a scheduled job: one share, then 30 quiet minutes ⇒ one notice', async () => {
     const h = harness();
     const { dm, items } = await crowleyDigest(h);
     await h.runtime.agent.handleInbound(tapItem('h_crowley', dm.id, items[0]!.id, h.clock.now()));
     expect(notices(h)).toEqual([]);
-    h.clock.advanceMs(61_000);
+    const shared = h.runtime.stores.group.expenses
+      .listByTrip(T)
+      .find((e) => e.source === 'card_transaction')!;
+    // The hold's end is on the scheduler, one window after the share.
+    const job = h.runtime.scheduler.list().find((j) => j.kind === 'expense_notice');
+    expect(job).toMatchObject({
+      groupId: G,
+      runAt: '2026-03-17T21:01:00+01:00',
+      payload: { expenseIds: shared.expenseId },
+    });
+    // An unrelated message inside the window releases nothing.
+    h.clock.advanceMs(10_000);
     await h.say('h_chase', 'anyone up for churros');
+    expect(notices(h)).toEqual([]);
+    // Then nobody says anything for 30 minutes: the job alone posts the line.
+    h.clock.advanceMs(30 * 60_000);
+    const turns = await h.runtime.drain();
+    const noticeTurns = turns.filter((t) => t.note === 'scheduled:expense_notice');
+    expect(noticeTurns).toHaveLength(1);
     expect(notices(h)).toHaveLength(1);
-    expect(notices(h)[0]!.outbound?.noticeExpenseIds).toHaveLength(1);
+    expect(notices(h)[0]!.outbound?.noticeExpenseIds).toEqual([shared.expenseId]);
+    expect(msgs(noticeTurns[0]!).map((m) => m.kind)).toEqual(['system_notice']);
+    expect(h.runtime.scheduler.list().some((j) => j.kind === 'expense_notice')).toBe(false);
     // The other two lines, shared later, are their own line.
-    h.clock.advanceMs(5_000);
     await h.runtime.agent.handleInbound(tapItem('h_crowley', dm.id, items[1]!.id, h.clock.now()));
     await h.runtime.agent.handleInbound(tapItem('h_crowley', dm.id, items[2]!.id, h.clock.now()));
     expect(notices(h)).toHaveLength(2);
     expect(notices(h)[1]!.outbound?.noticeExpenseIds).toHaveLength(2);
+    // The digest closed, so its job was cancelled: nothing more on the clock.
+    h.clock.advanceMs(5 * 60_000);
+    await h.runtime.drain();
+    expect(notices(h)).toHaveLength(2);
     expectEachAnnouncedOnce(h, []);
+  });
+});
+
+// ---------- undo ----------
+
+describe('undo: an announced share taken back gets one correction line', () => {
+  function loggedCards(h: Harness): TranscriptMessage[] {
+    return h.channel
+      .transcript()
+      .filter(
+        (e): e is TranscriptMessage =>
+          e.type === 'message' &&
+          e.lane === 'dm' &&
+          e.outbound?.card?.type === 'expense_confirm' &&
+          e.outbound.card.status === 'logged',
+      );
+  }
+
+  it('Crowley undoes one of two announced shares ⇒ "Crowley took … off the tab", once', async () => {
+    const h = harness();
+    const { dm, items } = await crowleyDigest(h);
+    for (const i of items.slice(0, 2)) {
+      await h.runtime.agent.handleInbound(tapItem('h_crowley', dm.id, i.id, h.clock.now()));
+    }
+    await h.runtime.agent.handleInbound(keepItem('h_crowley', dm.id, items[2]!.id, h.clock.now()));
+    expect(notices(h)).toHaveLength(1);
+    const [first] = loggedCards(h);
+    const target = h.runtime.stores.group.expenses.get(
+      first!.outbound!.card!.type === 'expense_confirm' ? first!.outbound!.card!.expenseId : '',
+    )!;
+    h.clock.advanceMs(5 * 60_000);
+    const undo = await h.tap('h_crowley', first!.messageId, 'undo');
+    expect(h.runtime.stores.group.expenses.get(target.expenseId)?.status).toBe('undone');
+    const lines = notices(h);
+    expect(lines).toHaveLength(2);
+    const amount = (target.amount.amountMinor / 100).toFixed(2).replace(/\.00$/, '');
+    expect(lines[1]!.text).toBe(`Crowley took ${target.description} €${amount} off the tab`);
+    expect(lines[1]!.outbound).toMatchObject({
+      kind: 'system_notice',
+      noticeCorrection: true,
+      noticeExpenseIds: [target.expenseId],
+    });
+    expect(msgs(undo).some((m) => m.noticeCorrection === true)).toBe(true);
+    // A replayed undo changes nothing and says nothing more.
+    await h.tap('h_crowley', first!.messageId, 'undo');
+    expect(notices(h)).toHaveLength(2);
+  });
+
+  it('a share undone while its notice was still held is never announced, and needs no correction', async () => {
+    const h = harness();
+    const { dm, items } = await crowleyDigest(h);
+    await h.runtime.agent.handleInbound(tapItem('h_crowley', dm.id, items[0]!.id, h.clock.now()));
+    const [first] = loggedCards(h);
+    await h.tap('h_crowley', first!.messageId, 'undo');
+    for (const i of items.slice(1)) {
+      await h.runtime.agent.handleInbound(keepItem('h_crowley', dm.id, i.id, h.clock.now()));
+    }
+    h.clock.advanceMs(30 * 60_000);
+    await h.runtime.drain();
+    expect(notices(h)).toEqual([]);
+  });
+
+  it('undoing a chat expense the "logged:" card announced posts no correction notice (the card answers for itself)', async () => {
+    const h = harness();
+    const turn = await h.say('h_dean', '@trav I paid €84 for dinner, split w everyone but Henry');
+    const card = msgs(turn)[0]!;
+    await h.react('h_dean', card.id, '👎');
+    expect(h.runtime.stores.group.expenses.listByTrip(T)).toEqual([]);
+    expect(notices(h)).toEqual([]);
   });
 });
 
 // ---------- the mechanism, directly ----------
 
 describe('createExpenseNotices (unit, over seeded stores)', () => {
-  function world() {
+  /** `suppressCards`: the screen holds back every message with a card (nothing delivered). */
+  function world(opts: { readonly suppressCards?: boolean } = {}) {
     const h = harness();
     const sent: Outbound[][] = [];
     const sendTurn: TurnSender = (outbounds) => {
-      sent.push([...outbounds]);
+      const held = (o: Outbound): boolean =>
+        opts.suppressCards === true && !isReaction(o) && o.card !== undefined;
+      sent.push(outbounds.filter((o) => !held(o)));
       return Promise.resolve(
         outbounds.map((o) => ({
           outbound: o,
-          sent: { messageId: o.id, sentAt: h.clock.now(), degraded: false },
-          suppressed: false,
+          sent: held(o) ? null : { messageId: o.id, sentAt: h.clock.now(), degraded: false },
+          suppressed: held(o),
           degraded: false,
           suppressions: [],
           violations: [],
         })),
       );
     };
+    const scheduler = createInMemoryScheduler();
     const n = createExpenseNotices({
       stores: h.runtime.stores,
       clock: h.clock,
       ids: h.ids,
       sendTurn,
+      scheduler,
     });
     let k = 0;
     const write = (over: Partial<Expense> = {}): Expense => {
@@ -318,7 +414,16 @@ describe('createExpenseNotices (unit, over seeded stores)', () => {
       return e;
     };
     const result = (): TurnResult => emptyResult();
-    return { h, n, sent, write, result };
+    /** Runs every due `expense_notice` job as its own operation, as `runScheduled` does. */
+    const drain = async (): Promise<void> => {
+      for (const job of scheduler.drain(h.clock.now())) {
+        await n.around(() => {
+          n.release(job);
+          return Promise.resolve(result());
+        })();
+      }
+    };
+    return { h, n, sent, write, result, scheduler, drain };
   }
 
   const texts = (sent: Outbound[][]): string[] =>
@@ -367,13 +472,69 @@ describe('createExpenseNotices (unit, over seeded stores)', () => {
     expect(sent).toEqual([]);
   });
 
-  it('a booking expense is left to its receipt card', async () => {
-    const { n, sent, write, result } = world();
+  it('a booking expense is queued and waits for its receipt card; the delivered receipt takes it off the queue', async () => {
+    const { h, n, sent, write, result, scheduler, drain } = world();
+    let id = '';
     await n.around(() => {
-      write({ source: 'booking', sourceRef: { kind: 'booking', id: 'bkg_unit' } });
+      id = write({ source: 'booking', sourceRef: { kind: 'booking', id: 'bkg_unit' } }).expenseId;
       return Promise.resolve(result());
     })();
     expect(sent).toEqual([]);
+    expect(scheduler.list().map((j) => j.jobId)).toEqual([`expense_notice:${id}`]);
+    // The receipt comes a turn later (the after-charge failure path): it is the announcement.
+    await n.around(async () => {
+      const card = { type: 'receipt', ledger: { expenseId: id } } as never;
+      await n.sendTurn(
+        [{ id: 'msg_receipt', groupId: G, to: { kind: 'group' }, text: 'booked', card }],
+        {} as never,
+      );
+      return result();
+    })();
+    expect(scheduler.list()).toEqual([]);
+    h.clock.advanceMs(10 * 60_000);
+    await drain();
+    expect(texts(sent)).toEqual(['booked']);
+  });
+
+  it('a booking whose receipt card never went out (suppressed, failed) gets its notice when the window ends', async () => {
+    const { h, n, sent, write, result, drain } = world({ suppressCards: true });
+    await n.around(async () => {
+      const e = write({ source: 'booking', sourceRef: { kind: 'booking', id: 'bkg_unit' } });
+      const card = { type: 'receipt', ledger: { expenseId: e.expenseId } } as never;
+      // The screen held the receipt back: nothing delivered, so it announced nothing.
+      await n.sendTurn(
+        [{ id: 'msg_receipt', groupId: G, to: { kind: 'group' }, text: 'booked', card }],
+        {} as never,
+      );
+      return result();
+    })();
+    expect(texts(sent)).toEqual([]);
+    h.clock.advanceMs(59_000);
+    await drain();
+    expect(texts(sent)).toEqual([]);
+    h.clock.advanceMs(1_000);
+    await drain();
+    expect(texts(sent)).toEqual(['Chase added item 1 €12 · 5 ways (not Henry)']);
+  });
+
+  it("per group: an operation still running in another chat never delays this chat's line", async () => {
+    const { n, sent, write, result } = world();
+    let open!: () => void;
+    const gate = new Promise<void>((r) => (open = r));
+    const other = n.around(async () => {
+      write({ groupId: 'grp_elsewhere', sourceRef: { kind: 'message', id: 'msg_elsewhere' } });
+      await gate;
+      return result();
+    })();
+    const here = await n.around(() => {
+      write();
+      return Promise.resolve(result());
+    })();
+    // Flushed at once although the other chat's operation is still running.
+    expect(texts(sent)).toEqual(['Chase added item 2 €12 · 5 ways (not Henry)']);
+    expect(here.outbound).toHaveLength(1);
+    open();
+    await other;
   });
 
   it('an expense a delivered group card already showed gets no second line', async () => {

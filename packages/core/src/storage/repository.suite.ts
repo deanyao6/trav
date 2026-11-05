@@ -730,6 +730,33 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         expect(other).toEqual(['exp_a', 'exp_c']);
       });
 
+      it('onUndo (T-165 r2): fires once when a logged expense is replaced as undone; never for an edit, a re-undo or after unsubscribe', () => {
+        const seen: string[] = [];
+        const off = stores.group.expenses.onUndo((e) => seen.push(`${e.expenseId}:${e.status}`));
+        stores.group.expenses.onUndo(() => {
+          throw new Error('listener boom');
+        });
+        const a = makeExpense('exp_a');
+        stores.group.expenses.create(a, entriesFor(a));
+        stores.group.expenses.replace({ ...a, description: 'edited' }, entriesFor(a));
+        expect(seen).toEqual([]);
+        expect(() =>
+          stores.group.expenses.replace({ ...a, status: 'undone' }, entriesFor(a)),
+        ).not.toThrow();
+        expect(stores.group.expenses.get('exp_a')?.status).toBe('undone');
+        stores.group.expenses.replace({ ...a, status: 'undone' }, entriesFor(a));
+        expect(seen).toEqual(['exp_a:undone']);
+        expectTravError(
+          () => stores.group.expenses.replace({ ...makeExpense('exp_none'), status: 'undone' }, []),
+          'not_found',
+        );
+        off();
+        const b = makeExpense('exp_b');
+        stores.group.expenses.create(b, entriesFor(b));
+        stores.group.expenses.replace({ ...b, status: 'undone' }, entriesFor(b));
+        expect(seen).toEqual(['exp_a:undone']);
+      });
+
       it('onCreate (T-165): a throwing listener neither undoes the write nor stops the others', () => {
         const seen: string[] = [];
         stores.group.expenses.onCreate(() => {

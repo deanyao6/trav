@@ -390,7 +390,13 @@ export type ScheduledJobKind =
   | 'card_import'
   | 'day_of_reminder'
   | 'budget_check'
-  | 'retention_purge';
+  | 'retention_purge'
+  /**
+   * T-165: the end of a held ledger notice's ~60s window (VOICE §4.13): a
+   * digest share still waiting on the rest of its digest, or a booking still
+   * waiting on its receipt card. Payload `{ expenseIds }` (comma-separated).
+   */
+  | 'expense_notice';
 
 export interface ScheduledJob {
   readonly jobId: JobId;

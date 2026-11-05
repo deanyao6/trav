@@ -1772,6 +1772,15 @@ describe('executor outcomes other than completed', () => {
     expect(again.note).toBe('approval:no_pending');
     expect(fake.calls).toHaveLength(2);
     h.clock.advanceMs(20 * 60 * 1000);
+    // No expiry, no second purchase. The only due job is the T-165 hold on the
+    // booking's tab entry: no receipt card ever went out, so after its ~60s
+    // window the group gets the one notice line for it.
+    const later = await h.runtime.drain();
+    expect(later.map((t) => t.note)).toEqual(['scheduled:expense_notice']);
+    expect(later[0]!.outbound.map((o) => ('text' in o ? o.text : ''))).toEqual([
+      'Dean added razzmatazz tickets €90 · 5 ways (not Henry)',
+    ]);
+    expect(fake.calls).toHaveLength(2);
     expect(await h.runtime.drain()).toEqual([]);
   });
 

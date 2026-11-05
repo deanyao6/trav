@@ -234,6 +234,15 @@ export function displayName(tx: ProviderTransaction, injected: boolean): string 
   return raw === '' ? 'card charge' : raw;
 }
 
+/** T-165 r2: `displayName` fell back to the raw statement descriptor (owner-only text). */
+export function isDescriptorName(tx: ProviderTransaction, injected: boolean): boolean {
+  return (
+    !injected &&
+    sanitizeInline(tx.merchantName ?? '', 60) === '' &&
+    sanitizeInline(stripInvisible(tx.rawName), 40) !== ''
+  );
+}
+
 interface SyncPage {
   readonly added: readonly ProviderTransaction[];
   readonly removed: readonly string[];
@@ -673,6 +682,9 @@ export async function importCardTransactions(
       amount: tx.amount,
       occurredAt: f.occurredAt,
       merchantDisplay: row.merchantDisplay,
+      ...(isDescriptorName(tx, matches.length > 0)
+        ? { merchantFromDescriptor: true as const }
+        : {}),
       category,
       classifier: { looksShared: true, confidence: verdict.score, reason: verdict.reason },
       lowConfidence: matches.length > 0,

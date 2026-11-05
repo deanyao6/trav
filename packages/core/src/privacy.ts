@@ -169,6 +169,13 @@ export type PendingPrivateItem = Private<
     readonly amount: Money;
     readonly occurredAt: IsoDateTime;
     readonly merchantDisplay: string;
+    /**
+     * T-165 r2: `merchantDisplay` is the card's raw statement descriptor (the
+     * provider gave no merchant name). The owner sees it so they can recognize
+     * the charge; the tab entry (and so every group message) uses a category
+     * name instead ("ride", "card charge"), never the descriptor (SAFETY §2.3).
+     */
+    readonly merchantFromDescriptor?: true;
     readonly category: ExpenseCategory;
     readonly lineItems?: readonly LineItem[];
     readonly classifier?: {
