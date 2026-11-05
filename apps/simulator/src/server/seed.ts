@@ -110,47 +110,56 @@ export const BARCELONA_SEED: readonly SeedLine[] = [
   conversationId: BARCELONA.conversationId,
 }));
 
-/** A few lines in the other two reference trips' chats. */
+/**
+ * A few lines in the other two reference trips' chats: planning chatter
+ * timed inside Barcelona's seed window (sat mar 14, 5:30pm to 9:37pm Madrid
+ * time), so seeding only ever moves the shared clock forward and anything
+ * posted in any chat after seeding lands after every seeded line.
+ */
 export const OTHER_SEED: readonly SeedLine[] = [
   {
-    at: '2026-04-16T12:10:00+01:00',
+    at: '2026-03-14T16:40:00+00:00',
     from: 'h_lis_dad',
-    text: 'conference runs till 5, dinner after?',
+    text: 'conference runs till 5 every day in lisbon, dinners after?',
     conversationId: 'conv_lisbon',
   },
   {
-    at: '2026-04-16T12:12:00+01:00',
+    at: '2026-03-14T16:42:00+00:00',
     from: 'h_lis_dean',
-    text: "fado place at 8:30, i'll grab a table",
+    text: "yes. fado one night, i'll find a place",
     conversationId: 'conv_lisbon',
   },
   {
-    at: '2026-06-21T18:02:00-04:00',
+    at: '2026-03-14T12:50:00-04:00',
     from: 'h_tci_mom',
-    text: 'snorkel tour is tomorrow 9am, everyone up by 8',
+    text: 'booked the snorkel tour for june 22, 9am. everyone up by 8 that day',
     conversationId: 'conv_turks_caicos',
   },
   {
-    at: '2026-06-21T18:04:00-04:00',
+    at: '2026-03-14T12:52:00-04:00',
     from: 'h_tci_lily',
     text: 'can i bring my goggles',
     conversationId: 'conv_turks_caicos',
   },
   {
-    at: '2026-06-21T18:05:00-04:00',
+    at: '2026-03-14T12:53:00-04:00',
     from: 'h_tci_dad',
     text: 'yes bring them',
     conversationId: 'conv_turks_caicos',
   },
 ];
 
-/** Every seed line, in the order they are injected. */
-export const DEMO_SEED: readonly SeedLine[] = [...OTHER_SEED, ...BARCELONA_SEED];
+/** Every seed line, in the order they are injected: by instant, earliest first. */
+export const DEMO_SEED: readonly SeedLine[] = [...OTHER_SEED, ...BARCELONA_SEED].sort(
+  (a, b) => Date.parse(a.at) - Date.parse(b.at),
+);
 
 /**
  * Injects the seed lines through the channel (each one is a real inbound
- * event the channel's handler, Trav, answers or ignores), setting the clock
- * to each line's time, then leaves the clock at `endAt`. Only lines whose
+ * event the channel's handler, Trav, answers or ignores), moving the clock
+ * to each line's time, then to `endAt`. The clock never moves backwards: a
+ * line (or an `endAt`) earlier than the current time is sent at the current
+ * time instead. Only lines whose
  * conversation the channel knows are sent. `beforeConversation` runs once
  * per conversation, at its first line's time, before that line is sent (the
  * simulator posts the family-mode notice there).
@@ -165,7 +174,7 @@ export async function seedChat(
   const started = new Set<string>();
   for (const line of DEMO_SEED) {
     if (!conversations.has(line.conversationId)) continue;
-    clock.set(line.at);
+    forward(clock, line.at);
     if (!started.has(line.conversationId)) {
       started.add(line.conversationId);
       await beforeConversation?.(line.conversationId);
@@ -176,5 +185,10 @@ export async function seedChat(
       conversationId: line.conversationId,
     });
   }
-  clock.set(endAt);
+  forward(clock, endAt);
+}
+
+/** Sets the clock to `iso` unless that would move it backwards. */
+function forward(clock: SimulatedClock, iso: IsoDateTime): void {
+  if (Date.parse(iso) > clock.nowMs()) clock.set(iso);
 }

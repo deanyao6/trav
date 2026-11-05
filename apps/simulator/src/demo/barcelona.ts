@@ -63,15 +63,24 @@ const TRIP_ID = 'trip_barcelona';
 const MEMBER_ORDER: readonly MemberId[] = G.members.map((m) => m.memberId);
 const FIVE: readonly MemberId[] = ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam'];
 const HENRY: MemberId = 'mem_henry';
+/** The 4 riders on Priya's Uber email (`fixtures/emails/em_bcn_priya_uber_0314.json`). */
+const UBER_RIDERS: readonly MemberId[] = ['mem_priya', 'mem_dean', 'mem_jordan', 'mem_sam'];
 /** The group chat the evening the trip became official (Madrid time, the trip's zone). */
 const DEMO_START: IsoDateTime = '2026-02-03T20:00:00+01:00';
 const BASES: readonly string[] = ['ledger', 'booking', 'attendance', 'album'];
+/**
+ * The offline client's full-miss reply (`OFFLINE_NOT_SURE_TEXT` in
+ * packages/agent/src/model/offline/client.ts, not exported from @trav/agent).
+ * The demo checks no scripted step lands on it.
+ */
+export const OFFLINE_FALLBACK = "i'm not sure what you mean";
 
 /** The steps that have no chat flow in v0 (printed in the transcript header). */
 export const DEMO_NOTES: readonly string[] = [
-  "step 2 (flights): v0 has no chat flow that posts group flight options or books flights (`booking/proposals.ts` answers `unsupported_kind` for flights), so Trav's chat reply is its offline fallback and the step runs the core multi-origin optimizer (`flights.optimizeGroupFlights`) over the mock flights provider directly. Nothing is booked.",
-  "step 3 (lodging): Trav's chat reply comes from its real `search_lodging` tool over the mock lodging provider (refundable first), but no chat flow proposes or books a stay yet, so the step also lists the mock search directly for the check. Nothing is booked.",
-  'step 10 (settle-up): Trav answers "@trav settle now" with the transfers, but there is no "mark paid" flow yet, so the demo applies the transfers to the balances itself and checks that everyone ends at €0. No money moves.',
+  "step 2 (flights): v0 has no chat flow that posts group flight options or books flights (`booking/proposals.ts` answers `unsupported_kind` for flights). Trav's chat reply is scripted to say exactly that (it can't line up or book group flights in chat yet) and quotes no optimizer numbers; the step then runs the core multi-origin optimizer (`flights.optimizeGroupFlights`) over the mock flights provider directly, in a labeled block. Nothing is booked.",
+  'step 3 (lodging): the real `search_lodging` call; the offline reply text is scripted on its result. No chat flow proposes or books a stay yet, so the step also lists the mock search directly for the check. Nothing is booked.',
+  "step 6 (Uber email), known gap: the email says 4 riders (Priya, Dean, Jordan, Sam; Maya took her own cab), but agent intake splits a confirmed email among all 6, so Maya and Henry are each charged a share they shouldn't be. The demo check pins the current 6-way split so the gap stays visible; the fix is T-075 (agent intake).",
+  'step 10 (settle-up): Trav answers "@trav settle now" with the transfers, but the settle-up card\'s [Paid] button and its "i\'ll tick you off" line are not wired yet (no mark-paid flow; T-037), so the demo applies the transfers to the balances itself and checks that everyone ends at €0. No money moves.',
 ];
 
 function nameOf(id: string): string {
@@ -243,9 +252,18 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
 
     // ---------------- 2. multi-origin flights ----------------
     await section('2. multi-origin flights', '2026-02-03T20:11:00+01:00');
-    await say(
+    const flightsReply = await say(
       'Dean',
       "@trav we're 6, flying BOS SFO ORD JFK LAX MIA into BCN thurs mar 12, home tues mar 17 to JFK LAX ORD IAD SEA ATL. find flights that land around the same time",
+    );
+    const flightsText = flightsReply.map((m) => m.text).join(' | ');
+    check(
+      "Trav answers the flights ask honestly (not the offline fallback): it can't book flights in chat yet",
+      flightsReply.length > 0 &&
+        !flightsText.includes(OFFLINE_FALLBACK) &&
+        /can't line up or book group flights/.test(flightsText) &&
+        /nothing's booked/.test(flightsText),
+      flightsText,
     );
     const plan = await planFlights(rt());
     emit(plan.text);
@@ -322,9 +340,20 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
     check('"looks shared?" prompt goes to Priya\'s DM only', emailPrompt !== undefined);
     check('the group sees nothing of the email', !JSON.stringify(view().thread).includes('18.60'));
     if (emailPrompt) await tap('Priya', emailPrompt, 'confirm');
+    const uber = expenseWith(rt(), 1860);
+    check("Priya's €18.60 Uber is on the tab once she shares it", uber !== undefined);
+    // Known gap (named in DEMO_NOTES and docs/QUESTIONS.md): the email says
+    // "Riders on this trip: 4" (Priya, Dean, Jordan, Sam; Maya took her own
+    // cab), but agent intake splits a confirmed email among everyone. This
+    // check pins what the ledger actually holds today, so a fix flips it.
+    const uberShares = sharesOf(rt(), uber);
     check(
-      "Priya's €18.60 Uber is on the tab once she shares it",
-      expenseWith(rt(), 1860) !== undefined,
+      'KNOWN GAP: the Uber is split among all 6, not the 4 riders on the email',
+      sameSet(uberShares, MEMBER_ORDER) && !sameSet(uberShares, UBER_RIDERS),
+      [...uberShares].map(nameOf).join(', '),
+    );
+    emit(
+      `> **known gap:** the email names 4 riders (${UBER_RIDERS.map(nameOf).join(', ')}; Maya took her own cab), but the €18.60 is split ${String(uberShares.size)} ways: ${[...uberShares].map(nameOf).join(', ')}. See the notes above.`,
     );
     await clock('2026-03-14T10:00:00+01:00', 'next morning');
 

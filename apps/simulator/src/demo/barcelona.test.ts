@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { inOrder, runBarcelonaDemo } from './barcelona.js';
+import { OFFLINE_FALLBACK, inOrder, runBarcelonaDemo } from './barcelona.js';
 
 describe('pnpm demo:barcelona (T-021)', () => {
   it('runs the whole Barcelona trip offline through the real runtime with every check passing', async () => {
@@ -28,6 +28,28 @@ describe('pnpm demo:barcelona (T-021)', () => {
       .filter((l) => !/\*\*(Dean|Henry|Maya|Jordan|Priya|Sam)\*\*:/.test(l));
     expect(chat).toContain("Henry's sick");
     expect(notHuman.filter((l) => /sick/i.test(l))).toEqual([]);
+
+    // Step 2: Trav's flights reply is the honest scripted line, never the offline fallback.
+    const tc = (prefix: string) =>
+      chat
+        .split('\n### ')
+        .find((s) => s.startsWith(prefix))
+        ?.split('\n')
+        .filter((l) => l.startsWith('- **trav**') || l.startsWith('      ')) ?? [];
+    const step2 = tc('2.').join('\n');
+    expect(step2).toMatch(/can't line up or book group flights in chat yet/);
+    expect(step2).not.toContain(OFFLINE_FALLBACK);
+    expect(chat).not.toContain(OFFLINE_FALLBACK);
+    expect(result.checks.find((c) => c.step.startsWith('2.'))?.name).toMatch(
+      /not the offline fallback/,
+    );
+
+    // Step 6: the Uber's 6-way split is named as a known gap (check, transcript notes), not hidden.
+    expect(result.checks.some((c) => c.step.startsWith('6.') && /^KNOWN GAP/.test(c.name))).toBe(
+      true,
+    );
+    expect(result.notes.some((n) => /4 riders/.test(n) && /T-075/.test(n))).toBe(true);
+    expect(result.notes.some((n) => /\[Paid\]/.test(n) && /T-037/.test(n))).toBe(true);
   }, 60_000);
 
   it('is deterministic: two runs give the same transcript', async () => {
