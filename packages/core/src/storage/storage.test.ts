@@ -160,7 +160,7 @@ describe('structural (SAFETY B2, D-008)', () => {
     expect(code).not.toMatch(/\b(update|delete|remove|replace|redact|upsert)\w*\s*\(/i);
   });
 
-  it('PrivateStore (SAFETY C3): every method takes ownerMemberId first except countPendingByOwner, which returns counts', () => {
+  it('PrivateStore (SAFETY C3, T-112): every method takes ownerMemberId first; no cross-owner query, not even counts', () => {
     const src = readFileSync(join(here, '..', 'repositories.ts'), 'utf8');
     const body = /export interface PrivateStore \{([\s\S]*?)\n\}/.exec(src)?.[1] ?? '';
     const code = body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
@@ -170,10 +170,8 @@ describe('structural (SAFETY B2, D-008)', () => {
     }));
     expect(methods.length).toBeGreaterThan(15);
     const crossOwner = methods.filter((m) => m.firstParam !== 'ownerMemberId').map((m) => m.name);
-    expect(crossOwner).toEqual(['countPendingByOwner']);
-    expect(code).toMatch(
-      /countPendingByOwner\(groupId: GroupId\): Readonly<Record<MemberId, number>>;/,
-    );
+    expect(crossOwner).toEqual([]);
+    expect(code).not.toMatch(/countPending|ByOwner\(/);
   });
 
   it('storage reads time only from the injected clock (no Date.now / new Date())', () => {

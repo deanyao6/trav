@@ -186,8 +186,8 @@ export interface PrivateStore {
     groupId: GroupId,
     status?: PendingItemStatus,
   ): readonly PendingPrivateItem[];
-  /** The only cross-owner query, and it returns COUNTS only (for GroupContext.privatePendingCounts). */
-  countPendingByOwner(groupId: GroupId): Readonly<Record<MemberId, number>>;
+  // No cross-owner query, not even a count (T-112, SAFETY §2.3 "even a count
+  // is the owner's"): every read is scoped to one owner.
 
   // consent, prefs, memory
   getConsent(ownerMemberId: MemberId, groupId: GroupId): ConsentFlags | undefined;

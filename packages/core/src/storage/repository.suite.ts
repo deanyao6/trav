@@ -929,7 +929,6 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
             'putPendingItem',
             'getPendingItem',
             'listPendingItems',
-            'countPendingByOwner',
             'getConsent',
             'putConsent',
             'getPrefs',
@@ -1130,7 +1129,7 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         expect(stores.private.listCardTransactions(MAYA, G)).toHaveLength(1);
       });
 
-      it('pending queue: status filter and countPendingByOwner (counts only, pending only, per group)', () => {
+      it('pending queue: status filter, scoped per owner and group (no cross-owner count, T-112)', () => {
         stores.private.putPendingItem(DEAN, makePending('priv_p1', DEAN));
         stores.private.putPendingItem(DEAN, makePending('priv_p2', DEAN));
         stores.private.putPendingItem(DEAN, makePending('priv_p3', DEAN, { status: 'dismissed' }));
@@ -1146,11 +1145,15 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
           'priv_p1',
           'priv_p2',
         ]);
-        expect(stores.private.countPendingByOwner(G)).toEqual({ [DEAN]: 2, [MAYA]: 1 });
-        expect(stores.private.countPendingByOwner(G2)).toEqual({ [MAYA]: 1 });
-        expect(stores.private.countPendingByOwner('grp_none')).toEqual({});
-        const counts = Object.values(stores.private.countPendingByOwner(G));
-        expect(counts.every((n) => typeof n === 'number')).toBe(true);
+        expect(stores.private.listPendingItems(MAYA, G, 'pending').map((p) => p.id)).toEqual([
+          'priv_p4',
+        ]);
+        expect(stores.private.listPendingItems(MAYA, G2, 'pending').map((p) => p.id)).toEqual([
+          'priv_p5',
+        ]);
+        expect(stores.private.listPendingItems(HENRY, G, 'pending')).toEqual([]);
+        expect(stores.private.listPendingItems(DEAN, 'grp_none')).toEqual([]);
+        expect('countPendingByOwner' in stores.private).toBe(false);
       });
 
       it('deletePartition removes one owner and reports per-table counts', () => {
@@ -1184,7 +1187,8 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         expect(stores.private.getConsent(DEAN, G)).toBeUndefined();
         expect(stores.private.getPrefs(DEAN)).toBeUndefined();
         expect(stores.private.listCardTransactions(MAYA, G)).toHaveLength(1);
-        expect(stores.private.countPendingByOwner(G)).toEqual({ [MAYA]: 1 });
+        expect(stores.private.listPendingItems(DEAN, G)).toEqual([]);
+        expect(stores.private.listPendingItems(MAYA, G).map((p) => p.id)).toEqual(['priv_p9']);
       });
 
       it('purgeRawInputs blanks raw text of promoted/dismissed items older than the cutoff only', () => {

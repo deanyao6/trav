@@ -42,7 +42,8 @@
  *     replaces with the neutral one).
  *  7. DMs to the owner only (never a minor): one card per receipt, or one
  *     digest when two or more land together (VOICE §2: "two email receipts").
- *     The group sees only the per-owner COUNT (`countPendingByOwner`).
+ *     The group sees nothing until the owner confirms, not even a count
+ *     (T-112, SAFETY §2.3).
  *
  * Raw text is never stored: the seen row keeps typed fields only (sender,
  * subject and body are empty strings), so nothing outlives the parse.

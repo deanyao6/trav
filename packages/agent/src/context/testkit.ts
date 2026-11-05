@@ -1,7 +1,7 @@
 /**
  * Test kit for group-context tests: a minimal in-memory GroupStore and
- * PrivateStore (only what `buildGroupContext` reads is real; everything else
- * throws), plus seeds for the three reference trips (MOTIVATION.md: Barcelona,
+ * PrivateStore (`buildGroupContext` reads none of it; owner-scoped reads are
+ * real so tests can seed and spy, writes throw), plus seeds for the three reference trips (MOTIVATION.md: Barcelona,
  * Lisbon, Turks and Caicos). Each seed deliberately fills the PRIVATE store
  * with distinctive raw values (`last4`, `merchantRaw`, email subjects/bodies,
  * OCR text) so the prompt scan proves they do not leak.
@@ -142,7 +142,7 @@ export interface FakePrivateData {
   pending: PendingPrivateItem[];
 }
 
-/** Private store fake; tests spy on it to prove only `countPendingByOwner` is called. */
+/** Private store fake; tests spy on it to prove `buildGroupContext` never calls it (T-112). */
 export function createFakePrivateStore(d: FakePrivateData): PrivateStore {
   return {
     putCardTransaction: () => unused('putCardTransaction'),
@@ -160,14 +160,6 @@ export function createFakePrivateStore(d: FakePrivateData): PrivateStore {
       d.pending.filter(
         (p) => p.ownerMemberId === o && p.groupId === g && (s === undefined || p.status === s),
       ),
-    countPendingByOwner: (g) => {
-      const out: Record<MemberId, number> = {};
-      for (const p of d.pending) {
-        if (p.groupId === g && p.status === 'pending')
-          out[p.ownerMemberId] = (out[p.ownerMemberId] ?? 0) + 1;
-      }
-      return out;
-    },
     getConsent: () => unused('getConsent'),
     putConsent: () => unused('putConsent'),
     getPrefs: () => unused('getPrefs'),

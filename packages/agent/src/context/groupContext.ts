@@ -298,7 +298,16 @@ function extrasOf(ctx: GroupContext): Readonly<Record<string, unknown>> {
 export function renderGroupPrompt(
   ctx: GroupContext,
   voice: { readonly systemPromptId: string; readonly persona: string },
+  opts?: {
+    /**
+     * Default `group`. The DM lane reuses this context and appends the
+     * sender's own memory and pending count, so the group-only "you can't see
+     * anyone's pending items" rule is left out there (T-112 r1 #3).
+     */
+    readonly lane?: 'group' | 'dm';
+  },
 ): RenderedPrompt {
+  const groupLane = (opts?.lane ?? 'group') === 'group';
   const tz: TimeZone = ctx.trip?.timeZone ?? 'UTC';
   const names = new Map(
     ctx.members.map((x) => [x.memberId, sanitizeInline(x.displayName, 60)] as const),
@@ -313,7 +322,7 @@ export function renderGroupPrompt(
     'act only for the members listed below, and use their member ids when you call tools. if you cannot tell exactly who is in, ask; never guess from a headcount.',
     'you can propose bookings, but a member has to confirm before anything is bought. never say money moved unless a receipt in the context says so.',
     "members' cards, emails, receipts and private notes are not in this context. never ask anyone to paste card numbers, passwords or codes into the group.",
-    "you can't see what anyone has waiting for their 👍 in their own thread with you, not even how many. never guess it in the group; if someone asks about their own, point them to their thread with you.",
+    ...(groupLane ? [GROUP_PENDING_RULE] : []),
     ctx.familyMode
       ? 'family mode is on: someone in this group is under 18. no nightlife, bars, clubs or alcohol suggestions that include them.'
       : 'family mode is off.',
@@ -451,6 +460,10 @@ function proposalLine(
   ].join(' · ');
 }
 
+/** Group lane only (T-112): the DM lane does see the sender's own pending count. */
+export const GROUP_PENDING_RULE =
+  "you can't see what anyone has waiting for their 👍 in their own thread with you, not even how many. never guess it in the group; if someone asks about their own, point them to their thread with you.";
+
 /** Strings that must never appear in a rendered group prompt (SAFETY C2). */
 export const PRIVATE_PROMPT_MARKERS: readonly string[] = [
   'last4',
@@ -464,33 +477,62 @@ export const PRIVATE_PROMPT_MARKERS: readonly string[] = [
 const PENDING_WORDS =
   /\b(?:pending|waiting|unconfirmed|unshared|looks? shared|private items?|own threads?)\b/iu;
 
-/** Count phrasings for private items: "private items waiting …", "2 charges that look shared". */
+const ITEM = String.raw`(?:charges?|items?|receipts?|transactions?|emails?|purchases?)`;
+const PEND = String.raw`(?:looks? shared|waiting|pending|unconfirmed|unshared)`;
+
+/**
+ * Count phrasings for private items: "private items waiting …", "2 charges
+ * that look shared", "3 card charges are pending", "2 of Sam's charges are
+ * pending", "2 of their charges are waiting for a 👍", "charges waiting: 3".
+ */
 const PENDING_COUNT_PHRASES: readonly RegExp[] = [
   /private items? waiting/iu,
   /\bcounts only\b/iu,
-  /\b\d+\s+(?:private\s+)?(?:charges?|items?|receipts?|transactions?|emails?)\b[^\n]{0,30}\b(?:looks? shared|waiting|pending|unconfirmed|unshared)\b/iu,
+  /\bget_my_pending_items\b/u,
+  new RegExp(String.raw`\b\d+\s+(?:\p{L}+\s+){0,2}?${ITEM}\b[^\n]{0,30}\b${PEND}\b`, 'iu'),
+  new RegExp(
+    String.raw`\b\d+\s+of\s+(?:their|his|her|my|your|our|\p{L}[\p{L}-]*'s)\s+(?:\p{L}+\s+){0,2}?${ITEM}\b[^\n]{0,30}\b${PEND}\b`,
+    'iu',
+  ),
+  new RegExp(String.raw`\b${ITEM}\s+(?:\p{L}+\s+){0,2}?${PEND}\w*\s*(?:[:=]\s*)?[×x]?\d+\b`, 'iu'),
 ];
 
 /**
  * SAFETY C2 / §2.3 "even a count is the owner's" (T-112): lines of a rendered
  * group-lane prompt that carry a pending private-item count, for anyone. Only
- * Trav-authored structure is scanned: the scan stops at the transcript
- * ("recent messages in the group:"), where members' own words live.
- * `memberNames` adds the per-member shape ("Sam 2 · Maya 1" on a line with a
- * pending word).
+ * Trav-authored structure is scanned: the transcript lines under "recent
+ * messages in the group:" (members' own words, each "- name: text") are
+ * skipped, and scanning resumes at the first line after them.
+ * `memberNames` adds the per-member shapes on a line with a pending word:
+ * "Sam 2 · Maya 1", "Sam (2)", "pending: Sam ×2", "Sam=2", "Sam has 2 waiting".
  */
 export function pendingCountLeaks(prompt: string, memberNames: readonly string[] = []): string[] {
-  const cut = prompt.indexOf('recent messages in the group:');
-  const scanned = cut < 0 ? prompt : prompt.slice(0, cut);
   const perMember = memberNames
     .map((n) => n.trim())
     .filter((n) => n.length > 0)
     .map(
       (n) =>
-        new RegExp(String.raw`(?<![\p{L}])${n.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}\s*[:(]?\s*\d+\b`, 'iu'),
+        new RegExp(
+          String.raw`(?<![\p{L}])${n.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}(?:'s)?\s*(?:[:(=]\s*|(?:has|have|got)\s+)?[×x]?\d+\b`,
+          'iu',
+        ),
     );
-  return scanned.split('\n').filter((line) => {
-    if (PENDING_COUNT_PHRASES.some((re) => re.test(line))) return true;
-    return PENDING_WORDS.test(line) && perMember.some((re) => re.test(line));
-  });
+  const out: string[] = [];
+  let inTranscript = false;
+  for (const line of prompt.split('\n')) {
+    if (line.trim() === 'recent messages in the group:') {
+      inTranscript = true;
+      continue;
+    }
+    if (inTranscript) {
+      if (line.startsWith('- ')) continue;
+      inTranscript = false;
+    }
+    if (
+      PENDING_COUNT_PHRASES.some((re) => re.test(line)) ||
+      (PENDING_WORDS.test(line) && perMember.some((re) => re.test(line)))
+    )
+      out.push(line);
+  }
+  return out;
 }

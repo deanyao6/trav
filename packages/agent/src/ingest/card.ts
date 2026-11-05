@@ -37,9 +37,8 @@
  *     without a posted row expires quietly.
  *  7. DMs: one "looks shared?" card per new or changed item, or one digest
  *     when three or more land together (VOICE §2 batching). Never to a minor
- *     (VOICE §6.1). The group sees only the per-owner COUNT
- *     (`countPendingByOwner` in the group context), never an amount or
- *     merchant.
+ *     (VOICE §6.1). The group sees nothing until the owner
+ *     confirms an item, not even a count (T-112, SAFETY §2.3).
  */
 import type {
   CardTransaction,

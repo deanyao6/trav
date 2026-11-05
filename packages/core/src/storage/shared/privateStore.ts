@@ -6,7 +6,7 @@
  *   owner's row reads as `undefined` / is absent from lists;
  * - a write whose row names a different owner throws `not_owner`, and so does a
  *   write that would overwrite another owner's row with the same id;
- * - `countPendingByOwner` is the only cross-owner method and returns counts.
+ * - there is no cross-owner method, not even a count (T-112, SAFETY §2.3).
  */
 import { parseIso } from '../../clock.js';
 import type { MemberId, PrivateItemId } from '../../primitives.js';
@@ -197,13 +197,6 @@ export function createPrivateStore(backend: Backend): PrivateStore {
       return status === undefined
         ? pending.find({ owner_member_id: o, group_id: groupId })
         : pending.find({ owner_member_id: o, group_id: groupId, status });
-    },
-    countPendingByOwner(groupId) {
-      const counts: Record<MemberId, number> = {};
-      for (const item of pending.find({ group_id: groupId, status: 'pending' })) {
-        counts[item.ownerMemberId] = (counts[item.ownerMemberId] ?? 0) + 1;
-      }
-      return counts;
     },
 
     // ---------- consent, prefs, memory ----------

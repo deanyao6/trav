@@ -69,7 +69,7 @@ ChannelAdapter.onEvent(InboundEvent)                              adapters
          → ApprovalHandler.handle(ApprovalEvent)  (Flow 2 from step 3)      never the model
     3. else mention gate: detectMentionRules → (ambiguous) model.classify('mention_v1') → silence if unsure
        "thanks trav" ⇒ OutboundReaction ❤️, no text.
-    4. ctx = buildGroupContext(stores.group, countPendingByOwner, clock)    agent/context/groupContext.ts
+    4. ctx = buildGroupContext(stores.group, clock)    agent/context/groupContext.ts (no private store, D-031)
        (DM lane: additionally that member's MemberMemory and pending private items; never in the group lane)
     5. prompt = renderGroupPrompt(ctx, voice); tools = registry.specs(lane)
        model.complete({ model:'main', systemPromptId, system, messages, tools })   agent/model/client.ts
@@ -159,7 +159,7 @@ Two stores, one facade (`core/repositories.ts`), both implemented twice (in-memo
 | `PrivateStore` | card_transactions, email_receipts, receipt_scans, pending_private_items, consent, member_prefs, member_memory, ticket_artifacts (QR payloads) | **no**; only via `promote()` (field-stripped) or as a per-owner COUNT |
 
 Structural enforcement (D-007):
-1. Every `PrivateStore` method takes `ownerMemberId` first; there is no list-all. The one cross-owner method, `countPendingByOwner(groupId)`, returns counts.
+1. Every `PrivateStore` method takes `ownerMemberId` first; there is no list-all and no cross-owner method, not even a count (D-031).
 2. Private rows are `Private<T>` (branded). `GroupContext`, every `RichCard`, every tool result and `OutboundMessage.text` are built from unbranded types; `assertGroupSafe()` / `withExtra()` reject branded values at compile time (`packages/core/src/privacy.test.ts` proves it with `@ts-expect-error`).
 3. `promote(item, ownerConfirmation, ctx)` in `core/privacy.ts` is the only private → group path: it checks `confirmation.senderId === ctx.ownerSenderId`, strips `STRIPPED_FIELDS`, returns an `Expense` with `sourceRef: { kind:'private_item', id }` (idempotent in the repository) and the caller writes `private.item_promoted{strippedFields}`.
 4. Group memory (`agent/memory` → `GroupMemoryRepository`, GroupStore) and member memory (`PrivateStore.memberMemory`) are separate modules; a member fact is mentionable in the group only if `sourceLane === 'group'`.

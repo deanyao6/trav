@@ -1240,7 +1240,7 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       r.trip?.tripId ?? null,
       { recentMessages: recent.get(key) ?? [], recentMessageLimit: recentLimit },
     );
-    const prompt = renderGroupPrompt(ctx, template);
+    const prompt = renderGroupPrompt(ctx, template, { lane: r.lane === 'dm' ? 'dm' : 'group' });
     let system = `${prompt.system}\n\n${prompt.context}`;
     if (r.lane === 'dm') {
       // DM lane only: this member's own memory and pending-item count (SAFETY §2.3).

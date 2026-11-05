@@ -9,6 +9,7 @@ import {
 } from '../model/client.js';
 import {
   buildGroupContext,
+  GROUP_PENDING_RULE,
   pendingCountLeaks,
   PRIVATE_PROMPT_MARKERS,
   renderGroupPrompt,
@@ -205,6 +206,14 @@ describe('renderGroupPrompt privacy scan (SAFETY C2) across the three trip fixtu
       'pending private items: Sam 2',
       'unconfirmed: Mary Jo (3)',
       '3 receipts pending',
+      // r1 #4
+      '2 of their charges are waiting for a 👍 (get_my_pending_items)',
+      "2 of Sam's charges are pending",
+      'Sam has 2 waiting',
+      'pending: Sam ×2',
+      'waiting on taps: Sam=2',
+      '3 card charges are pending',
+      'charges waiting: 3',
     ]) {
       expect(pendingCountLeaks(leak, names), leak).toEqual([leak]);
     }
@@ -222,6 +231,22 @@ describe('renderGroupPrompt privacy scan (SAFETY C2) across the three trip fixtu
     expect(
       pendingCountLeaks('rules\nrecent messages in the group:\n- Sam: i have 2 charges pending', names),
     ).toEqual([]);
+    // ...but anything Trav appends after the transcript is scanned again.
+    expect(
+      pendingCountLeaks(
+        'rules\nrecent messages in the group:\n- Sam: hi\n\nSam has 2 waiting for a 👍',
+        names,
+      ),
+    ).toEqual(['Sam has 2 waiting for a 👍']);
+  });
+
+  it('T-112 r1 #3: the "can\'t see anyone\'s pending items" rule is group-lane only', () => {
+    const { ctx } = build(seedTrip('barcelona'));
+    expect(renderGroupPrompt(ctx, VOICE).system).toContain(GROUP_PENDING_RULE);
+    expect(renderGroupPrompt(ctx, VOICE, { lane: 'group' }).system).toContain(GROUP_PENDING_RULE);
+    const dm = renderGroupPrompt(ctx, { ...VOICE, systemPromptId: 'dm_chat_v1' }, { lane: 'dm' });
+    expect(dm.system).not.toContain(GROUP_PENDING_RULE);
+    expect(dm.system).not.toMatch(/not even how many/);
   });
 
   it('member chat cannot forge prompt structure or trip the untrusted guard', async () => {

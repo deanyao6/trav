@@ -10,7 +10,7 @@
  *    fixture, and the item + DM Priya gets for her Uber, VOICE §4.5 C);
  *  - another member's view and Trav's group replies never include an
  *    unconfirmed item (group thread, group-visible audit, group prompt, other
- *    members' DMs and DM prompts): the group sees a count only;
+ *    members' DMs and DM prompts): the group sees nothing, not even a count;
  *  - instruction-like text in an email is parsed as data and flagged
  *    (`injection.detected`, owner-only, low confidence), never acted on,
  *    never quoted (neutral merchant name, no ride places);
@@ -904,7 +904,7 @@ describe('T-012 r1 fixes: card and email copies of one charge are asked about on
   });
 });
 
-// ---------- the group sees a count, nothing else ----------
+// ---------- the group sees nothing, not even a count (T-112) ----------
 
 describe('privacy: another member and the group never see an unconfirmed receipt', () => {
   it('no group message, group-visible audit, group prompt, or other member DM carries the merchant, amount or places', async () => {
@@ -933,6 +933,6 @@ describe('privacy: another member and the group never see an unconfirmed receipt
       const dms = JSON.stringify(h.channel.dmTranscript(m.handle));
       for (const s of secrets) expect(dms, `${m.name} DM leaks ${s}`).not.toContain(s);
     }
-    expect(h.runtime.stores.private.countPendingByOwner(G)).toEqual({ [PRIYA]: 1 });
+    expect(h.runtime.stores.private.listPendingItems(PRIYA, G, 'pending')).toHaveLength(1);
   });
 });

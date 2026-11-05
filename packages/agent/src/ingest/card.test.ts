@@ -1134,7 +1134,7 @@ describe('T-012 r1 fixes: a charge already asked about as an email receipt', () 
   });
 });
 
-// ---------- the group sees a count, nothing else ----------
+// ---------- the group sees nothing, not even a count (T-112) ----------
 
 describe('privacy: the group only ever sees a count of unconfirmed items', () => {
   it('no group message, group-visible audit event or group prompt carries a merchant, amount or last4 of an unconfirmed item', async () => {
@@ -1170,6 +1170,6 @@ describe('privacy: the group only ever sees a count of unconfirmed items', () =>
     for (const m of BARCELONA.members.filter((x) => x.memberId !== SAM)) {
       expect(JSON.stringify(h.channel.dmTranscript(m.handle))).not.toContain('23.40');
     }
-    expect(h.runtime.stores.private.countPendingByOwner(G)).toEqual({ [SAM]: 3 });
+    expect(h.runtime.stores.private.listPendingItems(SAM, G, 'pending')).toHaveLength(3);
   });
 });

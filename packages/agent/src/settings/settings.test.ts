@@ -34,7 +34,7 @@ import {
   createSimulatorChannel,
 } from '@trav/adapters';
 import { BARCELONA, createTravRuntime } from '../compose.js';
-import { pendingCountLeaks } from '../context/groupContext.js';
+import { GROUP_PENDING_RULE, pendingCountLeaks } from '../context/groupContext.js';
 import type { TurnResult } from '../loop.js';
 import type { ModelClient } from '../model/client.js';
 import { deriveScriptKey } from '../model/offline/scripts.js';
@@ -600,6 +600,16 @@ describe('rule-made refusals', () => {
     for (const p of groupPrompts) {
       expect(pendingCountLeaks(p, names)).toEqual([]);
       expect(p).not.toMatch(new RegExp(String.raw`Sam\s*\(?${String(samPending)}\b`));
+      expect(p).toContain(GROUP_PENDING_RULE);
+    }
+    // r1 #3: Sam's own DM prompt has his own count and not the group-only rule.
+    const dmBefore = h.model.completions.length;
+    await h.dm('h_sam', 'trav what do i have waiting?');
+    const dmPrompts = h.model.completions.slice(dmBefore).map((c) => c.system);
+    expect(dmPrompts.length).toBeGreaterThan(0);
+    for (const p of dmPrompts) {
+      expect(p).not.toContain(GROUP_PENDING_RULE);
+      expect(p).toContain(`${String(samPending)} of their charges are waiting for a 👍`);
     }
   });
 });

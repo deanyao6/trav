@@ -63,23 +63,53 @@ const WENT_THROUGH =
 const EXCLUSION =
   /\b(?:besides|except|apart from|other than|aside from|else|anything|everything|all|outside of)\b/u;
 
-/** A booking proposal or approval waiting on someone: a group fact ("what's pending for sam to approve"). */
-const GROUP_PENDING = /\b(?:approv\w*|proposals?|votes?|rsvps?)\b/u;
+/**
+ * Group facts that can be "pending" for someone (T-112 r1 #1-2): a booking
+ * approval or vote, and the tab itself: settle-up, a transfer, a payment, a
+ * share, a split, who owes what ("is sam's transfer to dean still pending",
+ * "what's left pending for sam to pay", "is sam's share of dinner pending").
+ */
+const GROUP_PENDING =
+  /\b(?:approv\w*|proposals?|votes?|rsvps?|settle(?:[- ]?ups?|ments?|d|s)?|settling|transfers?|payments?|pay|pays|paying|paid|repay\w*|owe|owes|owed|owing|shares?|splits?|split|tab|ious?|venmo request|reimburse\w*)\b/u;
 
-const PENDING_WORD = String.raw`(?:pending|unconfirmed|unshared|waiting (?:on|for) (?:a |their |his |her )?(?:tap|👍|confirm\w*|thumbs? up))`;
+/**
+ * An exclusion that scopes a private remainder ("besides the tickets",
+ * "anything else", "other than the approval"). A bare "anything/everything/
+ * all" ("is anything pending for sam to approve?", "everything ok?") does not.
+ */
+const SCOPED_EXCLUSION =
+  /\b(?:besides|except|apart from|other than|aside from|outside of|on top of)\b|\b(?:anything|everything|what|something|stuff|all) else\b/u;
+
+const PENDING_WORD = String.raw`(?:pending|unconfirmed|unshared|waiting (?:on|for) (?:a |their |his |her )?(?:taps?|👍|confirm\w*|thumbs? up))`;
+
+/** What a pending private item is called. */
+const ITEM_NOUN = String.raw`(?:charges?|items?|receipts?|stuff|things?|emails?|transactions?|purchases?|anything|something|cards? charges?)`;
 
 /**
  * Someone else's pending private items, asked any way (T-112, SAFETY §2.3
- * "even a count is the owner's"): "what's pending for sam", "summarize the
- * charges sam has pending", "sam's pending stuff", "how many charges is sam
- * waiting on a tap for", "does sam have anything unconfirmed".
+ * "even a count is the owner's"). Each shape names exactly whose items they
+ * are, so the subject is the possessor or the "for X" target, never a name
+ * that merely sits near the word "pending":
+ *   "what's pending for sam", "anything pending from Sam?"
+ *   "sam's pending stuff", "2 of sam's charges are pending"
+ *   "summarize the charges sam has pending", "does sam have anything unconfirmed"
+ *   "is sam waiting on a tap for anything"
  */
 function pendingAbout(t: string, name: string): boolean {
-  const n = String.raw`(?<![\p{L}])${name}(?![\p{L}])`;
+  const n = String.raw`(?<![\p{L}])${name}(?![\p{L}'])`;
+  const ns = String.raw`(?<![\p{L}])${name}'s`;
   const p = PENDING_WORD;
   return [
+    // "pending for sam" (the target directly after the preposition, not "sam's X")
     String.raw`\b${p}\b[^.?!;]{0,40}?\b(?:for|of|from|by|on)\s+${n}`,
-    String.raw`${n}(?:'s)?\s+(?:\p{L}+\s+){0,6}?${p}`,
+    // "sam's pending charges", "sam's unconfirmed stuff"
+    String.raw`${ns}\s+(?:\p{L}+\s+){0,1}?${p}(?:\s+${ITEM_NOUN})?(?![\p{L}])`,
+    // "sam's charges are pending", "2 of sam's receipts still waiting on a tap"
+    String.raw`${ns}\s+(?:\p{L}+\s+){0,1}?${ITEM_NOUN}\s+(?:\p{L}+\s+){0,3}?${p}`,
+    // "the charges sam has pending", "does sam have anything unconfirmed"
+    String.raw`${n}\s+(?:still\s+)?(?:has|have|had|got|is holding|keeps?)\s+(?:\p{L}+\s+){0,3}?${p}`,
+    // "is sam waiting on a tap"
+    String.raw`${n}\s+(?:is\s+|still\s+)*waiting (?:on|for) (?:a |their |his |her )?(?:taps?|👍|confirm\w*|thumbs? up)`,
   ].some((re) => new RegExp(re, 'u').test(t));
 }
 
@@ -140,11 +170,12 @@ export function privateDataSubject(
       'u',
     );
     if (possessive.test(t) || spent.test(t)) return m;
-    // A booking or approval waiting on them is a group fact; anything else
-    // pending for another member is theirs (and "besides the tickets" never exempts).
+    // A booking, an approval or the tab waiting on them is a group fact;
+    // anything else pending for another member is theirs ("besides the
+    // tickets" / "anything else" never exempts).
     const groupFact =
       (BOOKING.test(t) || GROUP_PENDING.test(t) || mentionsTabItem(t, tabItems)) &&
-      !EXCLUSION.test(t);
+      !SCOPED_EXCLUSION.test(t);
     if (!groupFact && pendingAbout(t, name)) return m;
   }
   return undefined;

@@ -424,6 +424,11 @@ describe("T-112: someone else's pending items, even a count, are theirs (VOICE Â
     '@trav does sam have anything unconfirmed',
     '@trav anything pending from Sam?',
     "@trav what's pending for sam besides the tickets?",
+    // r1: shapes that name whose items they are
+    "@trav are 2 of sam's charges pending?",
+    "@trav sam's receipts still waiting on a tap?",
+    "@trav anything pending for sam other than the approval?",
+    "@trav is anything else pending for sam?",
   ])('refused: %s', (text) => {
     expect(privateDataSubject(text, BCN.members, jordan)?.memberId).toBe('mem_sam');
     expect(privateDataRefusal(sam)).toBe(
@@ -440,8 +445,31 @@ describe("T-112: someone else's pending items, even a count, are theirs (VOICE Â
     '@trav what do i have pending',
     // No pending word: not this rule.
     '@trav sam is coming to dinner',
+    // T-112 r1 #1: a bare anything/everything/all does not cancel the approval exemption.
+    '@trav is anything pending for sam to approve?',
+    "@trav anything pending on sam's approval?",
+    "@trav sam's booking approval is pending, everything ok?",
+    '@trav is everything pending for sam to approve',
+    '@trav is all of it pending for sam to approve?',
+    // T-112 r1 #2: the tab (settle-up, transfers, payments, shares) is a group fact.
+    "@trav is sam's transfer to dean still pending?",
+    "@trav is sam's payment pending",
+    '@trav is the settle up from sam still pending',
+    "@trav what's left pending for sam to pay",
+    "@trav is sam's share of dinner pending",
+    '@trav what does sam owe, is it still pending?',
+    "@trav is the split for sam's dinner pending",
   ])('not refused: %s', (text) => {
     expect(privateDataSubject(text, BCN.members, jordan)).toBeUndefined();
+  });
+
+  it("r1 #2: the wrong-subject repro never refuses as Dean (or anyone)", () => {
+    const sam = BCN.members.find((m) => m.memberId === 'mem_sam')!;
+    for (const me of [jordan, sam]) {
+      expect(
+        privateDataSubject("@trav is sam's transfer to dean still pending?", BCN.members, me),
+      ).toBeUndefined();
+    }
   });
 });
 
