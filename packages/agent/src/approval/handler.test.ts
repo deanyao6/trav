@@ -504,6 +504,72 @@ describe('the Razzmatazz moment: 5 of 6, one tap, one purchase (CLAUDE.md §8)',
   });
 });
 
+describe('T-104: a member the booking leaves out never approves it', () => {
+  it("Henry (out tonight, excluded) taps Approve: nothing books, approval.invalid_attempt{not_attendee}, silent; Maya's tap books", async () => {
+    const { h, fake } = rig();
+    const { proposal, cardMessageId } = await propose(h);
+    expect(proposal.attendees).not.toContain('mem_henry');
+    const decision = decisionOf(h, proposal.proposalId);
+    expect(decision.approvalMode).toBe('any_one');
+    expect(decision.requiredApprovers).not.toContain('mem_henry');
+
+    const henry = await h.tap('h_henry', cardMessageId, 'approve');
+    expect(henry.silent).toBe(true);
+    expect(henry.outbound).toEqual([]); // VOICE §6.2: ignored silently
+    expect(attempts(h).at(-1)?.payload).toMatchObject({
+      cause: 'not_attendee',
+      senderId: 'h_henry',
+      via: 'button',
+    });
+    expect(h.audit().filter((e) => e.type === 'approval.granted')).toEqual([]);
+    expect(fake.calls).toEqual([]);
+    expect(status(h, proposal.proposalId)).toBe('pending');
+    expect(grantStatus(h, proposal.proposalId)).toBe('pending');
+    // His 👍 tapback is the same event and gets the same answer.
+    expect((await h.react('h_henry', cardMessageId, '👍')).silent).toBe(true);
+    expect(attempts(h).at(-1)?.payload).toMatchObject({ cause: 'not_attendee', via: 'reaction' });
+    expect(fake.calls).toEqual([]);
+
+    // Maya is on it: her one tap books it, once.
+    await h.tap('h_maya', cardMessageId, 'approve');
+    expect(fake.calls).toHaveLength(1);
+    expect(status(h, proposal.proposalId)).toBe('completed');
+    const granted = h.audit().filter((e) => e.type === 'approval.granted');
+    expect(granted.map((e) => e.payload['memberId'])).toEqual(['mem_maya']);
+  });
+
+  it('Henry replying "yes" (text approval) books nothing either', async () => {
+    const { h, fake } = rig();
+    const { proposal, cardMessageId } = await propose(h);
+    await h.say('h_henry', 'yes', { replyToMessageId: cardMessageId });
+    await h.say('h_henry', 'yes book it');
+    expect(fake.calls).toEqual([]);
+    expect(status(h, proposal.proposalId)).toBe('pending');
+    expect(h.audit().filter((e) => e.type === 'approval.granted')).toEqual([]);
+  });
+
+  it('a decision stored before the rule (Henry listed as an approver) still refuses his tap', async () => {
+    const { h, fake } = rig();
+    const { proposal, cardMessageId } = await propose(h);
+    const stored = h.runtime.stores.group.bookings.getDecision(proposal.proposalId)!;
+    h.runtime.stores.group.bookings.saveDecision(
+      {
+        ...stored.decision,
+        requiredApprovers: [...stored.decision.requiredApprovers, 'mem_henry'],
+      },
+      stored.auditEventId,
+    );
+    const henry = await h.tap('h_henry', cardMessageId, 'approve');
+    expect(henry.silent).toBe(true);
+    expect(attempts(h).at(-1)?.payload).toMatchObject({ cause: 'not_attendee' });
+    expect(fake.calls).toEqual([]);
+    expect(grantStatus(h, proposal.proposalId)).toBe('pending');
+    // The payer (Dean, attending) still approves.
+    await h.tap('h_dean', cardMessageId, 'approve');
+    expect(fake.calls).toHaveLength(1);
+  });
+});
+
 describe('approver eligibility (VOICE §6, SAFETY §2.5)', () => {
   it("a 👍 from someone outside the policy's approver set is ignored silently with approval.invalid_attempt{not_required_approver}", async () => {
     const { h, fake } = rig();
@@ -540,8 +606,9 @@ describe('approver eligibility (VOICE §6, SAFETY §2.5)', () => {
     expect(fake.calls).toEqual([]);
     const henry = await h.react('h_henry', cardMessageId, '👍');
     expect(henry.silent).toBe(true);
+    // T-104: Henry is not on the booking, so the cause says so.
     expect(attempts(h).at(-1)?.payload).toMatchObject({
-      cause: 'not_required_approver',
+      cause: 'not_attendee',
       senderId: 'h_henry',
     });
     expect((await h.react('h_dean', cardMessageId, '👍')).silent).toBe(true);
@@ -1026,7 +1093,7 @@ describe('the roster does not race the purchase', () => {
 });
 
 describe("a non-approver's 👍 never supersedes", () => {
-  it("Henry's 👍 with Sam drifted to maybe is silent (not_required_approver); the card stays pending until Dean's 👍 catches the drift", async () => {
+  it("Henry's 👍 with Sam drifted to maybe is silent (not_attendee); the card stays pending until Dean's 👍 catches the drift", async () => {
     const { h, fake } = rig();
     setPolicy(h, { approvers: ['mem_dean'] });
     const { proposal, cardMessageId } = await propose(h);
@@ -1034,7 +1101,7 @@ describe("a non-approver's 👍 never supersedes", () => {
     const henry = await h.react('h_henry', cardMessageId, '👍');
     expect(henry.silent).toBe(true);
     expect(attempts(h).at(-1)?.payload).toMatchObject({
-      cause: 'not_required_approver',
+      cause: 'not_attendee',
       senderId: 'h_henry',
       via: 'reaction',
     });

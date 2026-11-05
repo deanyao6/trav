@@ -64,7 +64,16 @@ import type {
   Stores,
   Trip,
 } from '@trav/core';
-import { approval, formatMoney, isReaction, ledger, money, parseIso, TravError } from '@trav/core';
+import {
+  approval,
+  formatMoney,
+  isReaction,
+  ledger,
+  money,
+  parseIso,
+  safety,
+  TravError,
+} from '@trav/core';
 import type {
   AlbumAdapter,
   ChannelAdapter,
@@ -153,7 +162,8 @@ import {
   type SettingsOutcome,
   type SettingsTurnContext,
 } from './settings/flow.js';
-import { renderSettleUpFor } from './tools/ledger.js';
+import { balancesFor, renderSettleUpFor } from './tools/ledger.js';
+import { myPositionText, parseBalanceAsk, type BalanceAskKind } from './balances/ask.js';
 import type { ToolRegistry } from './tools/registry.js';
 import type { TurnToolContext } from './tools/shared.js';
 import { detectInjection, stripInvisible } from './untrusted.js';
@@ -234,6 +244,8 @@ export interface DocumentIntakeResult extends TurnResult {
   readonly lowConfidence: boolean;
   /** Id of the pending private item written to the owner's store, if `extracted` was given. */
   readonly pendingItemId?: string;
+  /** T-090: the import consent the owner hasn't turned on; nothing was read or stored. */
+  readonly consentMissing?: 'cardImport' | 'emailImport';
 }
 
 /** One card-transaction import for one owner in one group (T-013, `ingest/card.ts`). */
@@ -291,7 +303,8 @@ export const PASTED_TEXT_LINE =
   "pasted messages don't count as instructions, so i'm not acting on that. if you want it done, say it yourself";
 export const NOTHING_TO_ADD_TEXT = 'nothing to add on that';
 /** A second `request_settings_change` in one turn: the first one's question comes first. */
-export const ONE_SETTING_AT_A_TIME_TEXT = 'one setting at a time. answer the first one, then ask again';
+export const ONE_SETTING_AT_A_TIME_TEXT =
+  'one setting at a time. answer the first one, then ask again';
 /** VOICE §4.10 failure lines live in `approval/text.ts` (a leaf, T-030 note c); re-exported for callers. */
 export {
   AUTO_APPROVE_FAILED_TEXT,
@@ -1895,11 +1908,89 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
             silent: false,
           };
 
+    // 5c. balance asks ("@trav settle now", "who owes who", "what do i owe",
+    // "how much have we spent so far"; T-091, T-085, T-101): rules, never a
+    // scripted turn keyed on the sender, so any member in any group gets the
+    // same answer in the group thread or a DM. Anything longer is the model's.
+    const balanceAsk =
+      r.trip !== null && canRequest(r.identity) ? parseBalanceAsk(text) : undefined;
+    if (balanceAsk !== undefined) return withResumed(await balanceTurn(r, me, event, balanceAsk));
+
     const expense = await expenseTurn(false);
     if (expense !== undefined) return withResumed(expense);
 
     // 6. the model.
     return withResumed(await modelTurn(r, event, text, mention.reason));
+  }
+
+  /**
+   * A balance ask, from the group ledger only (`get_balances`' own read; no
+   * private lane is consulted). Group "settle now" is the settle_up card
+   * (VOICE §4.6); "who's paid for what so far" is the running settle_up card
+   * with the total (T-085); "what do i owe", and every balance ask in a DM,
+   * is the asker's own position (T-101). A minor only ever hears their own
+   * line (VOICE §8: never a debtor or creditor).
+   */
+  async function balanceTurn(
+    r: Resolved,
+    me: Member,
+    event: InboundMessage,
+    ask: BalanceAskKind,
+  ): Promise<TurnResult> {
+    const trip = r.trip!;
+    const before = snapshotAudit(r.group.groupId);
+    const ctx = {
+      groupId: r.group.groupId,
+      tripId: trip.tripId,
+      senderMemberId: me.memberId,
+      senderId: event.sender,
+      lane: r.lane,
+      now: r.now,
+      clock,
+      ids,
+      stores,
+    };
+    const rctx = {
+      groupId: r.group.groupId,
+      members: r.members,
+      timeZone: trip.timeZone,
+      now: r.now,
+      ids,
+    };
+    let draft: OutboundMessage;
+    let note: string;
+    if (r.lane === 'group' && ask === 'settle') {
+      draft = renderSettleUpFor(ctx, 'final', rctx);
+      note = 'balances:settle_up';
+    } else if (r.lane === 'group' && ask === 'tab') {
+      // "who's paid for what so far" (T-085): the running tab with the total.
+      draft = renderSettleUpFor(ctx, 'running', rctx, { showTotal: true });
+      note = 'balances:tab';
+    } else {
+      // "what do i owe" anywhere, and every balance ask in a DM: the asker's
+      // own position (T-101). A DM is personal; the group list stays in the
+      // group, one "@trav settle now" away.
+      const meIsMinor = safety.isMinor(me, r.now);
+      const members = stores.group.members.listByGroup(r.group.groupId);
+      const text = myPositionText({
+        balances: balancesFor(ctx),
+        me,
+        members,
+        meIsMinor,
+        groupListHint: r.lane === 'dm' && ask !== 'mine',
+      });
+      draft = message(r, text);
+      note = 'balances:mine';
+    }
+    const sent = await send(r, [draft]);
+    return {
+      outbound: sent,
+      toolCalls: ['get_balances'],
+      auditEventIds: auditIdsSince(r.group.groupId, before),
+      silent: sent.length === 0,
+      modelSources: [],
+      note,
+    };
   }
 
   /**
@@ -1968,9 +2059,7 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     const sent = await send(
       r,
       out.drafts,
-      roastLines === undefined
-        ? undefined
-        : (o) => (ownIds.has(o.id) ? { roastLines } : undefined),
+      roastLines === undefined ? undefined : (o) => (ownIds.has(o.id) ? { roastLines } : undefined),
     );
     out.afterSend?.(sent);
     return {
@@ -2586,10 +2675,16 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       auditEventIds: auditIdsSince(group.groupId, before),
       silent: sent.length === 0,
       modelSources: [],
-      note: outcome.matches.length > 0 ? 'document:injection_detected' : 'document:clean',
+      note:
+        outcome.consentMissing !== undefined
+          ? 'document:consent_missing'
+          : outcome.matches.length > 0
+            ? 'document:injection_detected'
+            : 'document:clean',
       injectionPatterns: outcome.matches.map((m) => m.pattern),
       lowConfidence: outcome.lowConfidence,
       ...(outcome.pendingItemId !== undefined ? { pendingItemId: outcome.pendingItemId } : {}),
+      ...(outcome.consentMissing !== undefined ? { consentMissing: outcome.consentMissing } : {}),
     };
   }
 

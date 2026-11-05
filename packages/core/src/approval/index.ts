@@ -16,7 +16,14 @@ export {
   type ApprovalDeps,
   type MinorPredicate,
 } from './members.js';
-export { POLICY_RULES, QUOTE_MAX_AGE_MS, canApprove, decidingRule, evaluate } from './policy.js';
+export {
+  POLICY_RULES,
+  QUOTE_MAX_AGE_MS,
+  anyOneApprovers,
+  canApprove,
+  decidingRule,
+  evaluate,
+} from './policy.js';
 export { deriveIdempotencyKey, type IdempotencyInput } from './idempotency.js';
 export {
   applyApproval,

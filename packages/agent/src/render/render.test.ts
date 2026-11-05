@@ -973,18 +973,19 @@ describe('T-026 review round 2 (renderers)', () => {
       ...barcelonaGroup().spendingPolicy,
       approvers: ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya'],
     };
-    const proposal = razzmatazzProposal({ refundable: false, requestedBy: 'mem_henry' });
+    // T-104: the requester must be on the booking to approve, so Sam (attending) asks.
+    const proposal = razzmatazzProposal({ refundable: false, requestedBy: 'mem_sam' });
     const decision = decide(proposal, members, policy);
     expect(decision.approvalMode).toBe('any_one');
     expect(decision.requiredApprovers).toHaveLength(5);
-    expect(decision.requiredApprovers).toContain('mem_henry');
+    expect(decision.requiredApprovers).toContain('mem_sam');
     const m = renderBookingProposal(
       { proposal, decision, item: { name: 'Razzmatazz', startsAt: '2026-03-13T00:00:00+01:00' } },
       renderCtx(members),
     );
     expect(m.text.split('\n').slice(4)).toEqual([
       "it's non-refundable",
-      '👍 from one of Dean, Henry, Maya, Jordan, Priya to book. price held for 15 min',
+      '👍 from one of Dean, Maya, Jordan, Priya, Sam to book. price held for 15 min',
     ]);
     expect(m.mentions).toBeUndefined(); // too many to @tag (VOICE §3.5)
     expectClean(m);

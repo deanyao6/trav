@@ -189,3 +189,18 @@ export function harness(opts: HarnessOptions = {}): Harness {
     pending: () => [...runtime.stores.group.bookings.listPendingProposals(groupId)],
   };
 }
+
+/**
+ * The member turns card or email import on the way a person would: one DM
+ * line, through the real settings flow (`consent.changed` audit row). T-090:
+ * card and email documents on the intake path are only read after this.
+ */
+export async function optIn(h: Harness, from: string, what: 'card' | 'email'): Promise<TurnResult> {
+  const turn = await h.dm(from, what === 'card' ? 'card import on' : 'email import on');
+  if (turn.note?.includes('consent') !== true) {
+    throw new Error(
+      `opt-in for ${from} did not reach the consent flow (note ${String(turn.note)})`,
+    );
+  }
+  return turn;
+}

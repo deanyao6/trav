@@ -157,6 +157,7 @@ type InvalidCause =
   | 'guest'
   | 'minor'
   | 'not_required_approver'
+  | 'not_attendee'
   | 'claimed_for_other'
   | 'expired'
   | 'already_granted'
@@ -823,7 +824,27 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
       proposal.requestedBy === sender.memberId &&
       ctx.grant.status === 'complete' &&
       ctx.grant.complete;
-    if (!decision.requiredApprovers.includes(sender.memberId) && !autoRetry) {
+    // T-104: a member the booking leaves out (excluded, out tonight) never
+    // approves it. The policy already keeps them out of `any_one` approvers;
+    // this also covers a decision stored before that rule. A non-attendee
+    // still approves when the policy needs them: a non-attending payer under
+    // `each_payer`, or the stand-in when no attendee can approve.
+    const me = sender.memberId;
+    const attendee = proposal.attendees.includes(me);
+    const attendeeCanApprove = decision.requiredApprovers.some((id) =>
+      proposal.attendees.includes(id),
+    );
+    const required = decision.requiredApprovers.includes(me);
+    if (
+      !autoRetry &&
+      !attendee &&
+      (!required || (decision.approvalMode === 'any_one' && attendeeCanApprove))
+    ) {
+      // VOICE §6.2: ignored silently; the card stays live for the attendees.
+      invalidAttempt(proposal, event, 'not_attendee', sender);
+      return [];
+    }
+    if (!required && !autoRetry) {
       invalidAttempt(proposal, event, 'not_required_approver', sender);
       return [];
     }

@@ -312,7 +312,14 @@ export function evaluatePolicy(p, policy, members, { prefs = {}, spentTodayMinor
   let requiredApprovers;
   if (mode === 'any_one') {
     const pool = (policy.approvers === 'any_adult_member' ? members : policy.approvers.map((id) => byId.get(id))).filter(canApprove).map((m) => m.memberId);
-    requiredApprovers = [...new Set(canApprove(requester) ? [...pool, requester.memberId] : pool)];
+    // T-104 (core anyOneApprovers): attendees only; adult payers + requester stand in when none can.
+    const candidates = [...new Set(canApprove(requester) ? [...pool, requester.memberId] : pool)];
+    const attending = candidates.filter((id) => p.attendees.includes(id));
+    const standIns = p.payers.map((s) => byId.get(s.memberId)).filter(canApprove).map((m) => m.memberId);
+    requiredApprovers =
+      attending.length > 0
+        ? attending
+        : [...new Set(canApprove(requester) ? [...standIns, requester.memberId] : standIns)];
   } else {
     const req = [];
     for (const s of p.payers) {

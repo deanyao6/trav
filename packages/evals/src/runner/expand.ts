@@ -180,11 +180,23 @@ export function injectionSteps(f: InjectionFixture): Step[] {
     );
   }
   const isExpense = EXPENSE_SOURCES.has(source);
+  const owner = f.source?.owner ?? f.source?.postedBy ?? 'mem_dean';
+  if (source === 'card_descriptor' || source === 'email_receipt') {
+    // T-090: card and email documents are read only after the owner opts in by DM.
+    steps.push({
+      do: 'say',
+      id: `${f.id}:opt_in`,
+      source: f.id,
+      from: `h_${owner.replace(/^mem_/, '')}`,
+      text: source === 'card_descriptor' ? 'card import on' : 'email import on',
+      lane: 'dm',
+    });
+  }
   steps.push({
     do: 'intake',
     id: f.id,
     source,
-    owner: f.source?.owner ?? f.source?.postedBy ?? 'mem_dean',
+    owner,
     itemId: f.id,
     text: f.text,
     ...(isExpense

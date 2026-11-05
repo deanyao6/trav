@@ -394,6 +394,8 @@ export function createChannelBackend(options: ChannelBackendOptions): ChannelBac
             await enqueue(group, async () => {
               try {
                 const result = await intakeDocument(await buildIntake(doc));
+                // T-090: import was off, so nothing was read; it stays feedable after opt-in.
+                if (result.consentMissing !== undefined) fed.delete(docId);
                 if (!result.silent) return undefined;
                 return {
                   status: `trav sent nothing for that ${doc.kind} document (${result.note})`,

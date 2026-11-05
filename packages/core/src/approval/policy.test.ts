@@ -51,14 +51,8 @@ describe('evaluate: defaults', () => {
     expect(d.ruleIds).toEqual(['C1']);
     expect(decidingRule(d)).toEqual({ ruleId: 'C1', reason: 'default_confirm' });
     expect(d.approvalMode).toBe('any_one');
-    expect(d.requiredApprovers).toEqual([
-      'mem_dean',
-      'mem_sam',
-      'mem_ava',
-      'mem_maya',
-      'mem_leo',
-      'mem_henry',
-    ]);
+    // T-104: Henry is not on the booking, so he is not an approver.
+    expect(d.requiredApprovers).toEqual(['mem_dean', 'mem_sam', 'mem_ava', 'mem_maya', 'mem_leo']);
     expect(d.expiresAt).toBe('2026-03-14T21:55:00+01:00');
     expect(d.existingBookingId).toBeNull();
     expect(d.policySnapshot).toEqual(policy());
@@ -653,6 +647,69 @@ describe('evaluate: required approvers', () => {
     );
     expect(d.outcome).toBe('needs_confirmation');
     expect(d.requiredApprovers).toEqual(['mem_dean']);
+  });
+
+  it('any_one (T-104): a member not on the booking (Henry, out tonight) is never an approver', () => {
+    const d = evaluate(razzmatazz(), policy(), context());
+    expect(d.approvalMode).toBe('any_one');
+    expect(d.requiredApprovers).not.toContain('mem_henry');
+    expect(d.requiredApprovers).toEqual([...FIVE]);
+    // A named approver who is not attending is dropped too; the attending requester stays.
+    const named = evaluate(
+      razzmatazz({ requestedBy: 'mem_sam' }),
+      policy({ approvers: ['mem_henry', 'mem_dean'] }),
+      context(),
+    );
+    expect(named.requiredApprovers).toEqual(['mem_dean', 'mem_sam']);
+  });
+
+  it('any_one (T-104): the payer approves when attending; a non-attending requester does not', () => {
+    const d = evaluate(
+      razzmatazz({
+        requestedBy: 'mem_henry',
+        payers: equalShares(['mem_dean', 'mem_sam'], 4500),
+        attendees: ['mem_dean', 'mem_sam'],
+      }),
+      policy(),
+      context(),
+    );
+    expect(d.requiredApprovers).toEqual(['mem_dean', 'mem_sam']);
+  });
+
+  it('any_one (T-104): no attendee can approve (kids only) ⇒ the adult payers and the requester stand in', () => {
+    const d = evaluate(
+      razzmatazz({
+        ageRestriction: null,
+        contentTags: ['family'],
+        requestedBy: 'mem_sam',
+        totalMinor: 1800,
+        payers: equalShares(['mem_dean'], 1800),
+        attendees: ['mem_kid'],
+      }),
+      policy(),
+      context(),
+    );
+    expect(d.outcome).toBe('needs_confirmation');
+    expect(d.approvalMode).toBe('any_one');
+    expect(d.requiredApprovers).toEqual(['mem_dean', 'mem_sam']);
+  });
+
+  it('each_payer (T-104 leaves it unchanged): a non-attending adult payer must still 👍', () => {
+    const d = evaluate(
+      razzmatazz({
+        kind: 'flight',
+        paidBy: { kind: 'per_person_cards' },
+        payers: [
+          { memberId: 'mem_dean', shareMinor: 4500 },
+          { memberId: 'mem_henry', shareMinor: 4500 },
+        ],
+        attendees: ['mem_dean', 'mem_sam'],
+      }),
+      policy(),
+      context(),
+    );
+    expect(d.approvalMode).toBe('each_payer');
+    expect(d.requiredApprovers).toEqual(['mem_dean', 'mem_henry']);
   });
 
   it('each_payer: every adult payer, in payer order, deduplicated', () => {

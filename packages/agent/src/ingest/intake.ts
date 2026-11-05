@@ -34,7 +34,7 @@ import type {
 import { markPrivate, safety, TravError } from '@trav/core';
 import { renderLooksShared } from '../render/expenseConfirm.js';
 import { sanitizeInline } from '../context/groupContext.js';
-import { sharePlan } from './pending.js';
+import { importEligibility, sharePlan } from './pending.js';
 import {
   detectInjection,
   stripInvisible,
@@ -83,6 +83,12 @@ export interface DocumentIntakeOutcome {
   readonly pendingItemId?: string;
   /** At most one DM to the owner; nothing for the group lane. */
   readonly drafts: readonly OutboundMessage[];
+  /**
+   * T-090: the import flag this document needed and the owner doesn't have
+   * on. Nothing was read or stored, so the same document may be fed again
+   * once they opt in.
+   */
+  readonly consentMissing?: 'cardImport' | 'emailImport';
 }
 
 /** VOICE §4.5 + SAFETY §2.4: the line the confirm card carries when a pattern fired. */
@@ -108,6 +114,74 @@ function excerpt(text: string): string {
   return flat.length > 200 ? flat.slice(0, 200) : flat;
 }
 
+/** Documents that need an import consent flag, and which flag. */
+const CONSENT_FLAG: Readonly<Partial<Record<UntrustedSource, 'cardImport' | 'emailImport'>>> = {
+  card_descriptor: 'cardImport',
+  email_receipt: 'emailImport',
+};
+
+/** VOICE §3: one DM line to the owner saying how to turn import on. Group gets nothing. */
+export function importOffText(flag: 'cardImport' | 'emailImport'): string {
+  return flag === 'cardImport'
+    ? "card import's off, so i didn't look at that charge. say 'card import on' if you want me to"
+    : "email import's off, so i didn't read that receipt. say 'email import on' if you want me to";
+}
+
+/**
+ * Fail closed: an owner without the import consent (or who can't hold it: a
+ * minor, a guest, someone not known to be 18+) gets no pending item, no
+ * "looks shared?" card, no ledger write, and the text is not screened or
+ * stored. One owner-only `private.item_dismissed` row records why
+ * (`consent_missing` / `minor` / `not_eligible`), with ids only.
+ */
+function consentBlock(
+  input: DocumentIntake,
+  deps: DocumentIntakeDeps,
+  owner: Member,
+  now: IsoDateTime,
+): DocumentIntakeOutcome | undefined {
+  const flag = CONSENT_FLAG[input.source];
+  if (flag === undefined) return undefined;
+  const { stores, group, trip } = deps;
+  const eligibility = importEligibility(owner, now);
+  const consent = stores.private.getConsent(owner.memberId, group.groupId);
+  if (eligibility === 'ok' && consent?.[flag] === true) return undefined;
+  const cause = eligibility === 'ok' ? 'consent_missing' : eligibility;
+  const auditId = stores.group.audit.append({
+    groupId: group.groupId,
+    tripId: trip?.tripId ?? null,
+    type: 'private.item_dismissed',
+    actor: { kind: 'system', id: 'trav' },
+    visibility: 'owner',
+    ownerId: owner.memberId,
+    payload: {
+      source: PENDING_SOURCE[input.source] ?? input.source,
+      sourceItemId: input.itemId,
+      cause,
+      flag,
+    },
+  }).id;
+  const drafts: OutboundMessage[] =
+    cause === 'consent_missing'
+      ? [
+          {
+            id: deps.ids.next('msg'),
+            groupId: group.groupId,
+            to: { kind: 'member', memberId: owner.memberId },
+            text: importOffText(flag),
+          },
+        ]
+      : [];
+  return {
+    matches: [],
+    lowConfidence: false,
+    wrapped: '',
+    auditEventIds: [auditId],
+    drafts,
+    consentMissing: flag,
+  };
+}
+
 export function intakeDocument(
   input: DocumentIntake,
   deps: DocumentIntakeDeps,
@@ -121,6 +195,11 @@ export function intakeDocument(
       `member ${input.ownerMemberId} is not in group ${group.groupId}`,
     );
   }
+  // T-090 (SAFETY §2.6 G1): a card or email document is the owner's private
+  // data and is only read with their import consent, the same gate the batch
+  // importers (`card.ts`, `email.ts`) apply. Checked before anything is read.
+  const blocked = consentBlock(input, deps, owner, now);
+  if (blocked !== undefined) return blocked;
   const auditIds: AuditEventId[] = [];
   const matches = detectInjection(input.text);
   if (matches.length > 0) {

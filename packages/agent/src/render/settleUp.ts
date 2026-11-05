@@ -36,6 +36,11 @@ export interface SettleUpRenderInput {
   readonly asOf?: IsoDateTime;
   /** `Trip.familyTab`: one pot, every net shown as zero, no transfers (VOICE §4.7 C). */
   readonly familyTab?: boolean;
+  /**
+   * On request ("@trav who's paid for what so far", T-085): the first line
+   * carries the trip total. Off for the scheduled card, which keeps VOICE §4.6.
+   */
+  readonly showTotal?: boolean;
 }
 
 /** Inline items per line (VOICE §3.3: up to 3 inline). */
@@ -141,14 +146,23 @@ export function buildSettleUp(
   const paid = input.paid ?? [];
 
   const lines: string[] = [];
+  const total = input.showTotal === true ? formatMoney(input.totalSpent) : undefined;
   if (input.familyTab === true) {
-    lines.push("everything's on the family tab, nothing to split");
-  } else if (nonZero.length === 0) {
-    lines.push('nobody owes anybody. rare. enjoy it');
-  } else if (input.mode === 'running') {
     lines.push(
-      input.dayNumber !== undefined ? `running tab, day ${String(input.dayNumber)}` : 'running tab',
+      total !== undefined
+        ? `${total} on the family tab so far, nothing to split`
+        : "everything's on the family tab, nothing to split",
     );
+  } else if (nonZero.length === 0) {
+    lines.push(
+      total !== undefined
+        ? `${total} on the tab so far. nobody owes anybody. rare. enjoy it`
+        : 'nobody owes anybody. rare. enjoy it',
+    );
+  } else if (input.mode === 'running') {
+    const head =
+      input.dayNumber !== undefined ? `running tab, day ${String(input.dayNumber)}` : 'running tab';
+    lines.push(total !== undefined ? `${head}, ${total} so far` : head);
     const owed = nonZero
       .filter((b) => b.net.amountMinor > 0)
       .map((b) => `${nameOf(ctx, b.memberId)} is owed ${formatMoney(b.net)}`);

@@ -55,6 +55,11 @@ async function post(backend: SimulatorBackend, path: string, body: unknown = {})
   return (res.body as { state: SimState }).state;
 }
 
+/** T-090: Sam turns card import on by DM, the way a member would, before his card is read. */
+async function samOptsIn(b: SimulatorBackend) {
+  return post(b, '/api/messages', { from: 'h_sam', text: 'card import on', lane: 'dm' });
+}
+
 /** Demo state 3 on the backend `pnpm sim` serves: seeded chat, the ask, Dean's Approve. */
 async function toState3() {
   const b = await demoBackend();
@@ -82,6 +87,7 @@ describe('demo states 4–6 on the real runtime, opened on demo state 1, in orde
     expect(bcn(s3).intake['mem_jordan']).toEqual([]);
     expect(JSON.stringify(Object.values(bcn(s3).intake))).not.toMatch(/€|23\.40|2340|uber/i);
 
+    await samOptsIn(b);
     const s4 = await post(b, '/api/intake', { docId: 'doc_bcn_sam_card_1' });
     const samDm = messages(bcn(s4).dms['mem_sam']!);
     const prompt = samDm.find((m) => m.card?.type === 'expense_confirm')!;
@@ -152,6 +158,7 @@ describe('demo states 4–6 on the real runtime, opened on demo state 1, in orde
 
   it('4, the other answer: Keep private stays private, Trav says nothing, the status line says so', async () => {
     const b = await toState3();
+    await samOptsIn(b);
     const s4 = await post(b, '/api/intake', { docId: 'doc_bcn_sam_card_1' });
     const prompt = messages(bcn(s4).dms['mem_sam']!).find((m) => m.card?.type === 'expense_confirm')!;
     const dmBefore = bcn(s4).dms['mem_sam']!.length;
@@ -218,6 +225,41 @@ describe('demo states 4–6 on the real runtime, opened on demo state 1, in orde
   });
 });
 
+describe('T-090: the DM rail respects import consent', () => {
+  it("Sam's card before opt-in: one DM line on how to turn it on, no prompt, nothing on the tab; it stays feedable and works after opt-in", async () => {
+    const b = await demoBackend();
+    const before = await post(b, '/api/intake', { docId: 'doc_bcn_sam_card_1' });
+    const samDm = messages(bcn(before).dms['mem_sam']!);
+    expect(samDm.filter((m) => m.card?.type === 'expense_confirm')).toEqual([]);
+    expect(samDm.filter((m) => m.isTrav).map((m) => m.text)).toEqual([
+      "card import's off, so i didn't look at that charge. say 'card import on' if you want me to",
+    ]);
+    expect(groupPayload(before)).not.toContain('23.40');
+    expect(JSON.stringify(before)).not.toContain('23.40');
+    expectGroupClean(before);
+    // Nothing was read, so the document is still on the rail.
+    expect(bcn(before).intake['mem_sam']).toEqual([{ docId: 'doc_bcn_sam_card_1', kind: 'card' }]);
+
+    await samOptsIn(b);
+    const after = await post(b, '/api/intake', { docId: 'doc_bcn_sam_card_1' });
+    const prompt = messages(bcn(after).dms['mem_sam']!).find((m) => m.card?.type === 'expense_confirm');
+    expect(prompt?.text).toMatch(/^saw €23\.40 from Uber at 2:14am/);
+    expect(bcn(after).intake['mem_sam']).toEqual([]);
+  });
+
+  it("Priya's and Maya's emails before opt-in: no prompt for either", async () => {
+    const b = await demoBackend();
+    for (const docId of ['doc_bcn_priya_email_1', 'doc_bcn_maya_email_1']) {
+      await post(b, '/api/intake', { docId });
+    }
+    const s = b.state();
+    for (const id of ['mem_priya', 'mem_maya']) {
+      expect(messages(bcn(s).dms[id]!).filter((m) => m.card?.type === 'expense_confirm')).toEqual([]);
+    }
+    expectGroupClean(s);
+  });
+});
+
 describe('real runtime without the seeded chat', () => {
   it("Henry's DM stays empty after the Razzmatazz proposal and Dean's approve; Sam's uber prompt; group clean", async () => {
     const b = await loadAgentBackend({ offline: true });
@@ -232,6 +274,7 @@ describe('real runtime without the seeded chat', () => {
     expect(bcn(s).dms['mem_henry']).toEqual([]);
     expectGroupClean(s);
 
+    await samOptsIn(b);
     const s4 = await post(b, '/api/intake', { docId: 'doc_bcn_sam_card_1' });
     const prompt = messages(bcn(s4).dms['mem_sam']!).find((m) => m.card?.type === 'expense_confirm')!;
     expect(prompt.text).toMatch(/^saw €23\.40 from Uber at 2:14am/);

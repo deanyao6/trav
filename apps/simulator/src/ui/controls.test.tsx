@@ -248,6 +248,12 @@ describe('DM rail', () => {
 
   it("the uber prompt renders in Sam's DM with Share it, never in the group thread markup", async () => {
     const b = await state3();
+    // T-090: Sam turns card import on by DM first, the way a member would.
+    await handleApi(b, {
+      method: 'POST',
+      path: '/api/messages',
+      body: { from: 'h_sam', text: 'card import on', lane: 'dm' },
+    });
     const res = await handleApi(b, { method: 'POST', path: '/api/intake', body: { docId: 'doc_bcn_sam_card_1' } });
     const s = (res.body as { state: SimState }).state;
     const markup = html(props(s, 'h_sam'));

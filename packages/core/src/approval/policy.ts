@@ -214,8 +214,32 @@ export function evaluate(
 }
 
 /**
+ * The `any_one` approver set (T-104): the eligible pool plus the requester,
+ * restricted to the booking's attendees, so a member who is excluded from it
+ * (out tonight, "Henry's sick") can never approve a purchase alone. When no
+ * attendee can approve (a parent booking for the kids), the adult payers and
+ * the requester stand in, so the card is never unapprovable.
+ */
+export function anyOneApprovers(
+  p: Pick<BookingProposal, 'attendees' | 'payers' | 'requestedBy'>,
+  pool: readonly MemberId[],
+  requesterId: MemberId | undefined,
+  byId: ReadonlyMap<MemberId, MemberView>,
+): readonly MemberId[] {
+  const attendees = new Set(p.attendees);
+  const candidates = unique(requesterId === undefined ? pool : [...pool, requesterId]);
+  const attending = candidates.filter((id) => attendees.has(id));
+  if (attending.length > 0) return attending;
+  const standIns = p.payers
+    .map((s) => byId.get(s.memberId))
+    .filter((m): m is MemberView => canApprove(m))
+    .map((m) => m.memberId);
+  return unique(requesterId === undefined ? standIns : [...standIns, requesterId]);
+}
+
+/**
  * any_one: adult, active, non-guest members per `policy.approvers`, plus the
- * requester (the one-tap flow). each_payer: every adult payer, plus one adult
+ * requester (the one-tap flow), among the attendees (`anyOneApprovers`). each_payer: every adult payer, plus one adult
  * (guardian, else requester, else first eligible approver) per minor payer.
  */
 function requiredApproversFor(
@@ -234,7 +258,7 @@ function requiredApproversFor(
   const requesterId = canApprove(requester) ? requester.memberId : undefined;
 
   if (mode === 'any_one') {
-    return unique(requesterId === undefined ? pool : [...pool, requesterId]);
+    return anyOneApprovers(p, pool, requesterId, byId);
   }
 
   const required: MemberId[] = [];

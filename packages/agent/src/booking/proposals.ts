@@ -864,9 +864,13 @@ function confirmAnyway(
       : policy.approvers.map((id) => byId.get(id)).filter((v): v is MemberView => v !== undefined);
   const pool = listed.filter(approval.canApprove).map((v) => v.memberId);
   const requester = byId.get(proposal.requestedBy);
-  const requiredApprovers = [
-    ...new Set(approval.canApprove(requester) ? [...pool, requester.memberId] : pool),
-  ];
+  // T-104: only attendees approve (an excluded or out member never does).
+  const requiredApprovers = approval.anyOneApprovers(
+    proposal,
+    pool,
+    approval.canApprove(requester) ? requester.memberId : undefined,
+    byId,
+  );
   const ttl = addMinutes(now, policy.approvalTtlSeconds / 60);
   return {
     ...decision,

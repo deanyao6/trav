@@ -13,7 +13,7 @@ import { BARCELONA } from './compose.js';
 import { LOW_CONFIDENCE_LINE } from './ingest/intake.js';
 import { GUEST_REFUSAL_TEXT } from './loop.js';
 import { repoRoot } from './model/paths.js';
-import { RAZZMATAZZ_ASK, harness, type Harness } from './runtime.testkit.js';
+import { RAZZMATAZZ_ASK, harness, optIn, type Harness } from './runtime.testkit.js';
 import { detectInjection, type UntrustedSource } from './untrusted.js';
 
 interface InjectionFixture {
@@ -150,6 +150,11 @@ describe('document vectors through intakeDocument (OCR, email, card descriptor, 
       const source = DOCUMENT_SOURCE[f.vector]!;
       const owner = f.source?.owner ?? f.source?.postedBy ?? 'mem_dean';
       const isExpense = EXPENSE_SOURCES.has(source);
+      // T-090: card and email documents are only read after the owner opts in.
+      if (source === 'card_descriptor' || source === 'email_receipt') {
+        const handle = `h_${owner.replace(/^mem_/, '')}`;
+        await optIn(h, handle, source === 'card_descriptor' ? 'card' : 'email');
+      }
       const result = await h.runtime.agent.intakeDocument({
         groupId: BARCELONA.groupId,
         ownerMemberId: owner,
@@ -252,8 +257,11 @@ describe('document vectors through intakeDocument (OCR, email, card descriptor, 
       text: 'Your ride: 12.00 EUR',
       extracted: { amountMinor: 1200, currency: 'EUR', merchantDisplay: 'ride' },
     });
+    // T-090: a minor can't hold email import, so nothing is kept and nothing is said.
     expect(result.outbound).toEqual([]);
-    expect(result.pendingItemId).toBeDefined();
+    expect(result.pendingItemId).toBeUndefined();
+    expect(h.runtime.stores.private.listPendingItems('mem_sam', BARCELONA.groupId)).toEqual([]);
+    expect(h.audit().at(-1)?.payload).toMatchObject({ cause: 'minor', sourceItemId: 'em_sam' });
     await expect(
       h.runtime.agent.intakeDocument({
         groupId: BARCELONA.groupId,

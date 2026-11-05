@@ -32,7 +32,14 @@ import type {
 import { deriveScriptKey } from './model/client.js';
 import { repoRoot } from './model/paths.js';
 import { razzmatazzProposal } from './render/testkit.js';
-import { FIVE, RAZZMATAZZ_ASK, harness, offlineModel, type Harness } from './runtime.testkit.js';
+import {
+  FIVE,
+  RAZZMATAZZ_ASK,
+  harness,
+  offlineModel,
+  optIn,
+  type Harness,
+} from './runtime.testkit.js';
 
 const G = BARCELONA.groupId;
 const T = BARCELONA.tripId;
@@ -541,7 +548,8 @@ describe('the tool loop', () => {
 
   it('the DM lane is always addressed, answers privately, and offers the DM-only tool', async () => {
     const h = harness();
-    const turn = await h.dm('h_maya', 'how much do i owe');
+    // (balance asks are answered by the T-091 intercept; this one reaches the model)
+    const turn = await h.dm('h_maya', 'what should i pack for tonight');
     expect(turn.silent).toBe(false);
     expect(firstMessage(turn).to).toEqual({ kind: 'member', memberId: 'mem_maya' });
     expect(h.channel.dmTranscript('h_maya').filter((e) => e.direction === 'outbound')).toHaveLength(
@@ -959,6 +967,7 @@ describe('undo (flaw 6, VOICE §4.4)', () => {
 
   it('a 👎 on a pending "looks shared?" DM card is not an undo: it means keep private (VOICE §3.6)', async () => {
     const h = harness();
+    await optIn(h, 'h_dean', 'card');
     const intake = await h.runtime.agent.intakeDocument({
       groupId: G,
       ownerMemberId: 'mem_dean',
@@ -1124,18 +1133,15 @@ describe('the card index is group-scoped (flaw 11)', () => {
   });
 });
 
-describe('DM "how much do i owe" is scripted', () => {
-  it('answers from get_balances with no offline miss (script key matches the real request)', async () => {
+describe('DM "how much do i owe" is a rule, not a script (T-091)', () => {
+  it('answers from get_balances without a model call', async () => {
     const h = harness();
     const turn = await h.dm('h_maya', 'how much do i owe');
-    expect(turn.modelSources[0]).toBe('script');
+    expect(turn.modelSources).toEqual([]);
     expect(turn.toolCalls).toEqual(['get_balances']);
     expect(firstMessage(turn).text).toContain('on the tab so far');
-    const req = h.model.completions[0]!;
-    const scripts = JSON.parse(
-      readFileSync(join(repoRoot(), 'fixtures', 'scripts', 'barcelona.json'), 'utf8'),
-    ) as ScriptedResponse[];
-    expect(scripts.map((s) => s.key)).toContain(deriveScriptKey(req));
+    expect(firstMessage(turn).to).toEqual({ kind: 'member', memberId: 'mem_maya' });
+    expect(h.model.completions).toEqual([]);
   });
 });
 
