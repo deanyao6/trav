@@ -140,6 +140,16 @@ export function createFakeGroupStore(d: FakeGroupData): GroupStore {
       },
       delete: () => unused('groupMemory.delete'),
     },
+    runtime: {
+      put: () => unused('runtime.put'),
+      get: () => unused('runtime.get'),
+      list: () => unused('runtime.list'),
+      delete: () => unused('runtime.delete'),
+      seenKeys: () => unused('runtime.seenKeys'),
+      putJob: () => unused('runtime.putJob'),
+      deleteJob: () => unused('runtime.deleteJob'),
+      listJobs: () => unused('runtime.listJobs'),
+    },
   };
 }
 
@@ -178,6 +188,10 @@ export function createFakePrivateStore(d: FakePrivateData): PrivateStore {
     listTickets: () => unused('listTickets'),
     getPaymentProfile: () => unused('getPaymentProfile'),
     putPaymentProfile: () => unused('putPaymentProfile'),
+    putRuntimeState: () => unused('putRuntimeState'),
+    getRuntimeState: () => unused('getRuntimeState'),
+    listRuntimeState: () => unused('listRuntimeState'),
+    deleteRuntimeState: () => unused('deleteRuntimeState'),
     deletePartition: () => unused('deletePartition'),
     purgeRawInputs: () => unused('purgeRawInputs'),
   };

@@ -7,7 +7,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { SimulatedClock } from '../clock.js';
 import { createSimulatedClock } from '../clock.js';
 import { createDeterministicIdGenerator } from '../ids.js';
-import type { Stores } from '../repositories.js';
+import type { RuntimeStateEntry, Stores } from '../repositories.js';
+import type { ScheduledJob, Scheduler } from '../clock.js';
+import { createInMemoryScheduler, createStoredScheduler } from '../clock.js';
 import type { Group, Member } from '../domain/group.js';
 import { DEFAULT_GROUP_SETTINGS } from '../domain/group.js';
 import type { Activity, Attendance, Trip } from '../domain/trip.js';
@@ -1027,6 +1029,10 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
             'listTickets',
             'getPaymentProfile',
             'putPaymentProfile',
+            'putRuntimeState',
+            'getRuntimeState',
+            'listRuntimeState',
+            'deleteRuntimeState',
             'deletePartition',
             'purgeRawInputs',
           ].sort(),
@@ -1381,6 +1387,7 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
           member_memory: 1,
           ticket_artifacts: 1,
           payment_profiles: 1,
+          private_runtime_state: 0,
         });
         expect(stores.private.getPaymentProfile(DEAN)).toBeUndefined();
         expect(stores.private.listCardTransactions(DEAN, G)).toEqual([]);
@@ -1492,6 +1499,14 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         stores.group.audit.append(
           auditInput({ tripId, proposalId: `prop_${suffix}`, payload: { note: suffix } }),
         );
+        stores.group.runtime.putJob({
+          jobId: `morning_after:${suffix}`,
+          groupId: G,
+          tripId,
+          kind: 'morning_after',
+          runAt: T0,
+          payload: {},
+        });
         stores.group.audit.append(
           auditInput({
             tripId,
@@ -1529,10 +1544,12 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
           pending_private_items: 1,
           member_memory: 1,
           ticket_artifacts: 2,
+          scheduled_jobs: 1,
           [AUDIT_REDACTED_COUNT_KEY]: 2,
         });
 
-        // Trip A: zero rows everywhere except audit.
+        // Trip A: zero rows everywhere except audit; trip B's job is still queued.
+        expect(stores.group.runtime.listJobs().map((j) => j.jobId)).toEqual(['morning_after:b']);
         expect(stores.group.trips.get(TRIP)).toBeUndefined();
         expect(stores.group.trips.getActivity('act_a')).toBeUndefined();
         expect(stores.group.trips.listAttendance('act_a')).toEqual([]);
@@ -1672,6 +1689,180 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         expect(verifyAuditChain(redacted).problems.map((p) => p.problem)).toEqual([
           'completed_without_grant',
         ]);
+      });
+    });
+
+    // ---------- runtime state (T-185, D-054) ----------
+    describe('runtime state (T-185)', () => {
+      const entry = (
+        key: string,
+        value: unknown,
+        groupId: string | null = G,
+        namespace = 'card',
+      ): RuntimeStateEntry => ({ namespace, groupId, key, value });
+
+      it('put/get round-trips JSON; an upsert keeps its place, a delete then put moves to the back', () => {
+        const rt = stores.group.runtime;
+        rt.put(entry('msg_1', { cardId: 'card_1', expiresAt: undefined, n: 1 }));
+        rt.put(entry('msg_2', ['a', 'b']));
+        rt.put(entry('msg_3', 'three'));
+        expect(rt.get('card', G, 'msg_1')).toEqual(entry('msg_1', { cardId: 'card_1', n: 1 }));
+        rt.put(entry('msg_1', { cardId: 'card_1', n: 2 }));
+        expect(rt.list('card').map((e) => e.key)).toEqual(['msg_1', 'msg_2', 'msg_3']);
+        expect(rt.get('card', G, 'msg_1')?.value).toEqual({ cardId: 'card_1', n: 2 });
+        expect(rt.delete('card', G, 'msg_1')).toBe(true);
+        expect(rt.delete('card', G, 'msg_1')).toBe(false);
+        expect(rt.get('card', G, 'msg_1')).toBeUndefined();
+        rt.put(entry('msg_1', 0));
+        expect(rt.list('card').map((e) => e.key)).toEqual(['msg_2', 'msg_3', 'msg_1']);
+        // A read is a detached copy.
+        const got = rt.get('card', G, 'msg_2')?.value as string[];
+        got.push('mutated');
+        expect(rt.get('card', G, 'msg_2')?.value).toEqual(['a', 'b']);
+      });
+
+      it('namespaces and groups are separate; null is the runtime-wide scope', () => {
+        const rt = stores.group.runtime;
+        rt.put(entry('k', 'bcn', G));
+        rt.put(entry('k', 'lis', G2));
+        rt.put(entry('k', 'all', null));
+        rt.put(entry('k', 'other ns', G, 'recent'));
+        expect(rt.get('card', G, 'k')?.value).toBe('bcn');
+        expect(rt.get('card', G2, 'k')?.value).toBe('lis');
+        expect(rt.get('card', null, 'k')?.value).toBe('all');
+        expect(rt.get('recent', G, 'k')?.value).toBe('other ns');
+        expect(rt.list('card', { groupId: G }).map((e) => e.value)).toEqual(['bcn']);
+        expect(rt.list('card', { groupId: null }).map((e) => e.value)).toEqual(['all']);
+        expect(rt.list('card').map((e) => e.value)).toEqual(['bcn', 'lis', 'all']);
+        expect(rt.list('nothing')).toEqual([]);
+        // A composite key never collides through a separator in its parts.
+        rt.put(entry('a|b', 1, 'g|x'));
+        rt.put(entry('x|a|b', 2, 'g'));
+        expect(rt.get('card', 'g|x', 'a|b')?.value).toBe(1);
+        expect(rt.get('card', 'g', 'x|a|b')?.value).toBe(2);
+      });
+
+      it('rejects an empty namespace or group id and an undefined value', () => {
+        const rt = stores.group.runtime;
+        expectTravError(() => rt.put(entry('k', 1, G, '')), 'invalid_argument');
+        expectTravError(() => rt.put(entry('k', 1, '')), 'invalid_argument');
+        expectTravError(() => rt.put(entry('k', undefined)), 'invalid_argument');
+        expectTravError(() => rt.list(''), 'invalid_argument');
+      });
+
+      it('seen keys: add is idempotent; past the cap the oldest key is dropped; sets are separate', () => {
+        const seen = stores.group.runtime.seenKeys('agent', 3);
+        expect(seen.has('e1')).toBe(false);
+        seen.add('e1');
+        seen.add('e1');
+        seen.add('e2');
+        seen.add('e3');
+        expect(['e1', 'e2', 'e3'].map((k) => seen.has(k))).toEqual([true, true, true]);
+        seen.add('e4');
+        expect(['e1', 'e2', 'e3', 'e4'].map((k) => seen.has(k))).toEqual([false, true, true, true]);
+        // Another handle on the same set sees the same keys; another set is separate.
+        expect(stores.group.runtime.seenKeys('agent', 3).has('e4')).toBe(true);
+        const relay = stores.group.runtime.seenKeys('relay', 3);
+        expect(relay.has('e4')).toBe(false);
+        relay.add('e4');
+        expect(seen.has('e2')).toBe(true);
+        // An evicted key can be seen again.
+        seen.add('e1');
+        expect(seen.has('e1')).toBe(true);
+        expect(seen.has('e2')).toBe(false);
+        expectTravError(() => stores.group.runtime.seenKeys('agent', 0), 'invalid_argument');
+        expectTravError(() => stores.group.runtime.seenKeys('', 3), 'invalid_argument');
+      });
+
+      it('jobs: put replaces by id and moves it to the back; delete of an unknown id is a no-op', () => {
+        const rt = stores.group.runtime;
+        const job = (jobId: string, runAt = T0): ScheduledJob => ({
+          jobId,
+          groupId: G,
+          tripId: TRIP,
+          kind: 'proposal_expiry',
+          runAt,
+          payload: { proposalId: `prop_${jobId}` },
+        });
+        rt.putJob(job('a'));
+        rt.putJob(job('b'));
+        rt.putJob(job('a', '2026-03-15T10:00:00+01:00'));
+        expect(rt.listJobs().map((j) => [j.jobId, j.runAt])).toEqual([
+          ['b', T0],
+          ['a', '2026-03-15T10:00:00+01:00'],
+        ]);
+        rt.deleteJob('b');
+        rt.deleteJob('nope');
+        expect(rt.listJobs().map((j) => j.jobId)).toEqual(['a']);
+      });
+
+      it('a stored scheduler on these stores behaves exactly like the in-memory scheduler', () => {
+        const stored = createStoredScheduler(stores.group.runtime);
+        const memory = createInMemoryScheduler();
+        const job = (jobId: string, runAt: string): ScheduledJob => ({
+          jobId,
+          groupId: G,
+          tripId: null,
+          kind: 'morning_after',
+          runAt,
+          payload: {},
+        });
+        const ops: ((s: Scheduler) => unknown)[] = [
+          (s) => s.schedule(job('a', '2026-03-15T10:00:00+01:00')),
+          (s) => s.schedule(job('b', '2026-03-15T09:00:00+00:00')), // same instant as a
+          (s) => s.schedule(job('c', '2026-03-14T23:00:00+01:00')),
+          (s) => s.schedule(job('a', '2026-03-15T10:00:00+01:00')), // moves behind b
+          (s) => s.peek(),
+          (s) => s.list(),
+          (s) => s.cancel('c'),
+          (s) => s.schedule(job('d', '2026-03-16T10:00:00+01:00')),
+          (s) => s.drain('2026-03-15T10:00:00+01:00'),
+          (s) => s.list(),
+          (s) => s.drain('2026-03-17T10:00:00+01:00'),
+          (s) => s.peek(),
+        ];
+        for (const op of ops) expect(op(stored)).toEqual(op(memory));
+        expect(() => stored.schedule(job('', T0))).toThrow(TravError);
+        expect(() => stored.schedule(job('x', '2026-03-15T10:00:00'))).toThrow(TravError);
+        expect(stores.group.runtime.listJobs()).toEqual([]);
+      });
+
+      it('private runtime state is owner-scoped, branded, and goes with the partition', () => {
+        const p = stores.private;
+        p.putRuntimeState(DEAN, entry('dm', [{ text: 'dean dm' }], G, 'recent'));
+        p.putRuntimeState(DEAN, entry('dm', 'lisbon', G2, 'recent'));
+        p.putRuntimeState(DEAN, entry('x', 1, null, 'recent'));
+        p.putRuntimeState(CHASE, entry('dm', [{ text: 'chase dm' }], G, 'recent'));
+        expect(p.getRuntimeState(DEAN, 'recent', G, 'dm')?.value).toEqual([{ text: 'dean dm' }]);
+        expect(p.getRuntimeState(CHASE, 'recent', G, 'dm')?.value).toEqual([{ text: 'chase dm' }]);
+        expect(p.getRuntimeState(HENRY, 'recent', G, 'dm')).toBeUndefined();
+        expect(p.listRuntimeState(DEAN, 'recent').map((e) => e.value)).toEqual([
+          [{ text: 'dean dm' }],
+          'lisbon',
+          1,
+        ]);
+        expect(p.listRuntimeState(DEAN, 'recent', { groupId: G2 }).map((e) => e.value)).toEqual([
+          'lisbon',
+        ]);
+        expect(p.listRuntimeState(DEAN, 'recent', { groupId: null }).map((e) => e.key)).toEqual([
+          'x',
+        ]);
+        // The entry shape is the GroupStore's: no owner column leaks into it.
+        expect(Object.keys(p.getRuntimeState(DEAN, 'recent', G, 'dm') ?? {}).sort()).toEqual([
+          'groupId',
+          'key',
+          'namespace',
+          'value',
+        ]);
+        // Nothing of it is in the GroupStore's runtime state.
+        expect(stores.group.runtime.list('recent')).toEqual([]);
+        expect(p.deleteRuntimeState(CHASE, 'recent', G, 'x')).toBe(false);
+        expect(p.deleteRuntimeState(DEAN, 'recent', null, 'x')).toBe(true);
+        expect(p.deletePartition(DEAN).private_runtime_state).toBe(2);
+        expect(p.listRuntimeState(DEAN, 'recent')).toEqual([]);
+        expect(p.getRuntimeState(CHASE, 'recent', G, 'dm')?.value).toEqual([{ text: 'chase dm' }]);
+        expectTravError(() => p.putRuntimeState('', entry('k', 1)), 'invalid_argument');
+        expectTravError(() => p.listRuntimeState(DEAN, ''), 'invalid_argument');
       });
     });
 

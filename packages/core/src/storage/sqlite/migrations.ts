@@ -73,10 +73,23 @@ const V2 = [
 /** T-166 (D-043): members' payment apps, favourite and handles (PrivateStore). */
 const V3 = table('payment_profiles', ['owner_member_id']);
 
+/**
+ * T-185 (D-054): the agent runtime's state survives a restart. Ids and
+ * group-lane state in GroupStore tables; a member's DM-lane state in the
+ * owner-scoped `private_runtime_state`.
+ */
+const V4 = [
+  table('runtime_state', ['state_ns', 'group_id']),
+  table('seen_keys', ['state_ns']),
+  table('scheduled_jobs', ['group_id', 'trip_id']),
+  table('private_runtime_state', ['owner_member_id', 'state_ns', 'group_id']),
+].join('\n\n');
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, sql: V1 },
   { version: 2, sql: V2 },
   { version: 3, sql: V3 },
+  { version: 4, sql: V4 },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]?.version ?? 0;

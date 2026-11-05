@@ -10,7 +10,7 @@
  */
 import { parseIso } from '../../clock.js';
 import type { MemberId, PrivateItemId } from '../../primitives.js';
-import type { PrivateStore } from '../../repositories.js';
+import type { PrivateStore, RuntimeStateEntry } from '../../repositories.js';
 import type {
   CardTransaction,
   EmailReceipt,
@@ -20,6 +20,7 @@ import type {
 import { markPrivate } from '../../privacy.js';
 import { TravError } from '../../errors.js';
 import type { Backend, PrivateTableName, RowTable } from './backend.js';
+import type { StoredPrivateRuntimeEntry } from './schema.js';
 import { PRIVATE_TABLES } from './backend.js';
 import {
   cardTransactionsSpec,
@@ -29,10 +30,13 @@ import {
   memberPrefsSpec,
   paymentProfilesSpec,
   pendingItemsSpec,
+  privateRuntimeStateKey,
+  privateRuntimeStateSpec,
   receiptScansSpec,
   ticketArtifactsSpec,
 } from './schema.js';
 import { requireId } from './util.js';
+import { requireEntry, requireGroupScope, requireKey } from './runtimeState.js';
 
 function notOwner(table: string, ownerMemberId: string, itemId: string): TravError {
   // Ids only, never contents (SAFETY §2.9 logging rules).
@@ -70,6 +74,11 @@ function scopedPut<T>(
   table.upsert(row);
 }
 
+/** The stored row without its partition column (the caller already knows the owner). */
+function toEntry(row: StoredPrivateRuntimeEntry): RuntimeStateEntry {
+  return { namespace: row.namespace, groupId: row.groupId, key: row.key, value: row.value };
+}
+
 export function createPrivateStore(backend: Backend): PrivateStore {
   const cards = backend.table(cardTransactionsSpec);
   const emails = backend.table(emailReceiptsSpec);
@@ -80,6 +89,7 @@ export function createPrivateStore(backend: Backend): PrivateStore {
   const memory = backend.table(memberMemorySpec);
   const tickets = backend.table(ticketArtifactsSpec);
   const paymentProfiles = backend.table(paymentProfilesSpec);
+  const runtime = backend.table(privateRuntimeStateSpec);
 
   const tablesByName: Readonly<Record<PrivateTableName, RowTable<unknown>>> = {
     card_transactions: cards,
@@ -91,6 +101,7 @@ export function createPrivateStore(backend: Backend): PrivateStore {
     member_memory: memory,
     ticket_artifacts: tickets,
     payment_profiles: paymentProfiles,
+    private_runtime_state: runtime,
   };
 
   const owner = (ownerMemberId: MemberId): string => requireId(ownerMemberId, 'ownerMemberId');
@@ -265,6 +276,44 @@ export function createPrivateStore(backend: Backend): PrivateStore {
     },
     listTickets: (ownerMemberId, bookingId) =>
       tickets.find({ owner_member_id: owner(ownerMemberId), booking_id: bookingId }),
+
+    // ---------- DM-lane runtime state (T-185, D-054) ----------
+    putRuntimeState(ownerMemberId, entry) {
+      const o = owner(ownerMemberId);
+      requireEntry(entry);
+      // The owner is part of the key, so no write can reach another partition.
+      runtime.upsert({
+        ownerMemberId: o,
+        namespace: entry.namespace,
+        groupId: entry.groupId,
+        key: entry.key,
+        value: entry.value,
+      });
+    },
+    getRuntimeState(ownerMemberId, namespace, groupId, key) {
+      const o = owner(ownerMemberId);
+      requireId(namespace, 'namespace');
+      const row = runtime.get(
+        privateRuntimeStateKey(o, namespace, requireGroupScope(groupId), requireKey(key)),
+      );
+      return row === undefined ? undefined : markPrivate(toEntry(row));
+    },
+    listRuntimeState(ownerMemberId, namespace, opts) {
+      const o = owner(ownerMemberId);
+      requireId(namespace, 'namespace');
+      const where =
+        opts?.groupId === undefined
+          ? { owner_member_id: o, state_ns: namespace }
+          : { owner_member_id: o, state_ns: namespace, group_id: requireGroupScope(opts.groupId) };
+      return runtime.find(where).map((row) => markPrivate(toEntry(row)));
+    },
+    deleteRuntimeState(ownerMemberId, namespace, groupId, key) {
+      const o = owner(ownerMemberId);
+      requireId(namespace, 'namespace');
+      return runtime.deleteKey(
+        privateRuntimeStateKey(o, namespace, requireGroupScope(groupId), requireKey(key)),
+      );
+    },
 
     // ---------- retention (SAFETY §2.9) ----------
     deletePartition(ownerMemberId) {

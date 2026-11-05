@@ -79,8 +79,20 @@ export interface RosterCheckStore {
   latest(groupId: GroupId): RosterCheck | undefined;
 }
 
-export function createRosterCheckStore(cap = ROSTER_CHECK_CAP): RosterCheckStore {
-  const byId = new Map<MessageId, RosterCheck>();
+/** The `Map` operations the store needs (T-185: the loop passes one written through to the stores). */
+export interface RosterCheckMap {
+  readonly size: number;
+  get(key: MessageId): RosterCheck | undefined;
+  set(key: MessageId, value: RosterCheck): unknown;
+  delete(key: MessageId): boolean;
+  keys(): IterableIterator<MessageId>;
+  values(): IterableIterator<RosterCheck>;
+}
+
+export function createRosterCheckStore(
+  cap = ROSTER_CHECK_CAP,
+  byId: RosterCheckMap = new Map<MessageId, RosterCheck>(),
+): RosterCheckStore {
   return {
     save(check) {
       byId.delete(check.messageId);

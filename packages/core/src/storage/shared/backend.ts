@@ -40,6 +40,8 @@ export interface RowTable<T> {
   find(where: Where): T[];
   /** The most recently inserted row matching `where`. */
   last(where: Where): T | undefined;
+  /** The earliest inserted row matching `where` (T-185: a bounded seen-key set drops it first). */
+  first(where: Where): T | undefined;
   count(where: Where): number;
   /** Returns the number of rows deleted. `{}` deletes nothing (refuses to wipe a table). */
   deleteWhere(where: Where): number;
@@ -73,6 +75,10 @@ export const GROUP_TABLES = [
   'audit_events',
   'group_memory',
   'settlements',
+  // T-185 (D-054): the agent runtime's own state (ids and group-lane state only).
+  'runtime_state',
+  'seen_keys',
+  'scheduled_jobs',
 ] as const;
 
 export const PRIVATE_TABLES = [
@@ -85,6 +91,8 @@ export const PRIVATE_TABLES = [
   'member_memory',
   'ticket_artifacts',
   'payment_profiles',
+  // T-185 (D-054): a member's DM-lane runtime state (their DM lines, DM cards, questions).
+  'private_runtime_state',
 ] as const;
 
 export type GroupTableName = (typeof GROUP_TABLES)[number];

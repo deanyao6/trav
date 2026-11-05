@@ -31,8 +31,8 @@ import type {
   Trip,
 } from '@trav/core';
 import {
-  createInMemoryScheduler,
   createSimulatedClock,
+  createStoredScheduler,
   createUlidIdGenerator,
   DEFAULT_GROUP_SETTINGS,
   defaultSpendingPolicy,
@@ -218,7 +218,9 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
     lodging: options.providers?.lodging ?? createMockLodging({ clock }),
     payments: options.providers?.payments ?? createMockBookingPayments({ clock }),
   };
-  const scheduler = options.scheduler ?? createInMemoryScheduler();
+  // T-185 (D-054): the queue is in the stores (`GroupStore.runtime`), so a
+  // pending proposal's expiry and a held notice still run after a restart.
+  const scheduler = options.scheduler ?? createStoredScheduler(stores.group.runtime);
   const transactions =
     options.transactions === false
       ? undefined

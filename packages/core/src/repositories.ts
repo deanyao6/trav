@@ -45,9 +45,11 @@ import type {
   EmailReceipt,
   PendingPrivateItem,
   PendingItemStatus,
+  Private,
   ReceiptScan,
   TicketArtifact,
 } from './privacy.js';
+import type { ScheduledJobStore } from './clock.js';
 
 // ---------- GroupStore ----------
 
@@ -188,6 +190,52 @@ export interface GroupMemoryRepository {
   delete(factId: string): void;
 }
 
+/**
+ * T-185 (D-054): one entry of the agent runtime's own state (the pending card
+ * index, recent group lines, who was asked what, dedupe keys…), so a restart
+ * keeps it. `value` is any JSON value; it is stored as JSON (undefined fields
+ * dropped, no object identity). GroupStore entries hold ids and group-lane
+ * state only; a member's DM-lane state goes to `PrivateStore.putRuntimeState`.
+ */
+export interface RuntimeStateEntry {
+  /** What the entry is, e.g. `'card'`, `'recent'`. */
+  readonly namespace: string;
+  /** The group it belongs to; `null` for runtime-wide entries. */
+  readonly groupId: GroupId | null;
+  readonly key: string;
+  readonly value: unknown;
+}
+
+/**
+ * A bounded set of keys already handled (inbound dedupe: the agent's event
+ * keys, a relay's provider message ids). Keys only, never text. Structurally
+ * the relay channel's `RelaySeenStore` (T-187), so a channel can take one.
+ */
+export interface SeenKeyStore {
+  has(key: string): boolean;
+  /** Adds the key (no-op when present); past the cap, the oldest key is dropped. */
+  add(key: string): void;
+}
+
+export interface RuntimeStateRepository extends ScheduledJobStore {
+  /** Upsert by (namespace, groupId, key); an existing entry keeps its position in `list`. */
+  put(entry: RuntimeStateEntry): void;
+  get(namespace: string, groupId: GroupId | null, key: string): RuntimeStateEntry | undefined;
+  /**
+   * Entries of a namespace in first-put order (a delete then put moves an
+   * entry to the back). `groupId` limits it to one group (`null`: the
+   * runtime-wide ones); omitted ⇒ all.
+   */
+  list(
+    namespace: string,
+    opts?: { readonly groupId?: GroupId | null },
+  ): readonly RuntimeStateEntry[];
+  /** Returns whether an entry was deleted. */
+  delete(namespace: string, groupId: GroupId | null, key: string): boolean;
+  /** The seen-key set named `namespace` (e.g. `'agent'`, `'relay'`), at most `cap` keys. */
+  seenKeys(namespace: string, cap: number): SeenKeyStore;
+}
+
 export interface GroupStore {
   readonly groups: GroupRepository;
   readonly members: MemberRepository;
@@ -197,6 +245,8 @@ export interface GroupStore {
   readonly bookings: BookingRepository;
   readonly audit: AuditRepository;
   readonly groupMemory: GroupMemoryRepository;
+  /** T-185: the agent runtime's state, dedupe keys and scheduled jobs. */
+  readonly runtime: RuntimeStateRepository;
 }
 
 // ---------- PrivateStore ----------
@@ -246,6 +296,29 @@ export interface PrivateStore {
   // payment profile (T-166): apps, favourite, handles. Owner-only like the rest.
   getPaymentProfile(ownerMemberId: MemberId): PaymentProfile | undefined;
   putPaymentProfile(ownerMemberId: MemberId, profile: PaymentProfile): void;
+
+  // runtime state of the owner's DM lane (T-185, D-054): their DM lines, the
+  // cards and questions Trav sent them. Same entry shape as GroupStore.runtime.
+  /** Upsert by (namespace, groupId, key) within the owner's partition. */
+  putRuntimeState(ownerMemberId: MemberId, entry: RuntimeStateEntry): void;
+  getRuntimeState(
+    ownerMemberId: MemberId,
+    namespace: string,
+    groupId: GroupId | null,
+    key: string,
+  ): Private<RuntimeStateEntry> | undefined;
+  /** The owner's entries of a namespace in first-put order; `groupId` limits it to one group. */
+  listRuntimeState(
+    ownerMemberId: MemberId,
+    namespace: string,
+    opts?: { readonly groupId?: GroupId | null },
+  ): readonly Private<RuntimeStateEntry>[];
+  deleteRuntimeState(
+    ownerMemberId: MemberId,
+    namespace: string,
+    groupId: GroupId | null,
+    key: string,
+  ): boolean;
 
   // retention (SAFETY §2.9)
   /** Deletes the whole partition; returns per-table row counts for `data.deleted`. */

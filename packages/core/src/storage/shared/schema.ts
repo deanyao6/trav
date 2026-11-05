@@ -3,7 +3,9 @@
  * groups. The SQLite migrations (`../sqlite/migrations.ts`) create these exact
  * columns; `sqlite.test.ts` checks the two agree.
  */
-import type { AuditEventId, ProposalId } from '../../primitives.js';
+import type { AuditEventId, MemberId, ProposalId } from '../../primitives.js';
+import type { ScheduledJob } from '../../clock.js';
+import type { RuntimeStateEntry } from '../../repositories.js';
 import type { Group, Member } from '../../domain/group.js';
 import type { Activity, Attendance, Trip } from '../../domain/trip.js';
 import type {
@@ -249,6 +251,66 @@ export const paymentProfilesSpec: TableSpec<PaymentProfile> = {
   columns: { owner_member_id: (p) => p.memberId },
 };
 
+// ---------- runtime state (T-185, D-054) ----------
+
+/** One seen key of a named set (agent dedupe, relay provider ids). */
+export interface StoredSeenKey {
+  readonly namespace: string;
+  readonly key: string;
+}
+
+/** A DM-lane runtime entry in its owner's partition. */
+export interface StoredPrivateRuntimeEntry extends RuntimeStateEntry {
+  readonly ownerMemberId: MemberId;
+}
+
+/** The composite keys are JSON arrays, so no separator inside a part can collide. */
+export function runtimeStateKey(namespace: string, groupId: string | null, key: string): string {
+  return JSON.stringify([namespace, groupId, key]);
+}
+
+export function privateRuntimeStateKey(
+  ownerMemberId: string,
+  namespace: string,
+  groupId: string | null,
+  key: string,
+): string {
+  return JSON.stringify([ownerMemberId, namespace, groupId, key]);
+}
+
+export function seenKeyKey(namespace: string, key: string): string {
+  return JSON.stringify([namespace, key]);
+}
+
+export const runtimeStateSpec: TableSpec<RuntimeStateEntry> = {
+  name: 'runtime_state',
+  key: (e) => runtimeStateKey(e.namespace, e.groupId, e.key),
+  columns: { state_ns: (e) => e.namespace, group_id: (e) => e.groupId },
+};
+
+export const seenKeysSpec: TableSpec<StoredSeenKey> = {
+  name: 'seen_keys',
+  key: (s) => seenKeyKey(s.namespace, s.key),
+  columns: { state_ns: (s) => s.namespace },
+};
+
+export const scheduledJobsSpec: TableSpec<ScheduledJob> = {
+  name: 'scheduled_jobs',
+  key: (j) => j.jobId,
+  // trip_id: "forget this trip" drops the trip's queued jobs (SAFETY §2.9).
+  columns: { group_id: (j) => j.groupId, trip_id: (j) => j.tripId },
+};
+
+export const privateRuntimeStateSpec: TableSpec<StoredPrivateRuntimeEntry> = {
+  name: 'private_runtime_state',
+  key: (e) => privateRuntimeStateKey(e.ownerMemberId, e.namespace, e.groupId, e.key),
+  columns: {
+    owner_member_id: (e) => e.ownerMemberId,
+    state_ns: (e) => e.namespace,
+    group_id: (e) => e.groupId,
+  },
+};
+
 /** Every spec, keyed by table name (the SQLite schema test iterates this). */
 export const ALL_SPECS: Readonly<Record<TableName, TableSpec<never>>> = {
   groups: groupsSpec as TableSpec<never>,
@@ -274,4 +336,8 @@ export const ALL_SPECS: Readonly<Record<TableName, TableSpec<never>>> = {
   member_memory: memberMemorySpec as TableSpec<never>,
   ticket_artifacts: ticketArtifactsSpec as TableSpec<never>,
   payment_profiles: paymentProfilesSpec as TableSpec<never>,
+  runtime_state: runtimeStateSpec as TableSpec<never>,
+  seen_keys: seenKeysSpec as TableSpec<never>,
+  scheduled_jobs: scheduledJobsSpec as TableSpec<never>,
+  private_runtime_state: privateRuntimeStateSpec as TableSpec<never>,
 };

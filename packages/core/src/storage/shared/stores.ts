@@ -24,6 +24,7 @@ import {
   pendingItemsSpec,
   proposalsSpec,
   receiptScansSpec,
+  scheduledJobsSpec,
   settlementsSpec,
   ticketArtifactsSpec,
   tripsSpec,
@@ -64,6 +65,7 @@ export function createStoresOnBackend(backend: Backend, deps: StoreDeps): Stores
   const pending = backend.table(pendingItemsSpec);
   const memberMemory = backend.table(memberMemorySpec);
   const tickets = backend.table(ticketArtifactsSpec);
+  const jobs = backend.table(scheduledJobsSpec);
 
   /**
    * Rewrites payloads to `{ redacted: true, payloadHash }` (SAFETY §2.9, D-016).
@@ -111,6 +113,8 @@ export function createStoresOnBackend(backend: Backend, deps: StoreDeps): Stores
         counts.activities = activities.deleteWhere(byTrip);
         counts.group_memory = groupMemory.deleteWhere({ source_trip_id: tripId });
         counts.trips = trips.deleteKey(tripId) ? 1 : 0;
+        // T-185: the trip's queued jobs (recaps, expiries) never run on a forgotten trip.
+        counts.scheduled_jobs = jobs.deleteWhere(byTrip);
         // Private rows of every owner linked to the trip (SAFETY §2.9 "all owners").
         // A pending item and its source row are one unit: if either is on the
         // trip, both go, so no raw text survives behind a half-deleted pair.

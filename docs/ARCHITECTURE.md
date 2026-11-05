@@ -158,8 +158,8 @@ Two stores, one facade (`core/repositories.ts`), both implemented twice (in-memo
 
 | Store | Tables (repositories) | May reach the group chat? |
 |---|---|---|
-| `GroupStore` | groups, members, trips, activities, attendance, expenses + ledger entries, proposals, decisions, grants, bookings (ticket **refs** only), audit events, group memory | yes |
-| `PrivateStore` | card_transactions, email_receipts, receipt_scans, pending_private_items, consent, member_prefs, member_memory, ticket_artifacts (QR payloads) | **no**; only via `promote()` (field-stripped) or as a per-owner COUNT |
+| `GroupStore` | groups, members, trips, activities, attendance, expenses + ledger entries, proposals, decisions, grants, bookings (ticket **refs** only), audit events, group memory, agent runtime state (group-lane entries, seen event keys, scheduled jobs; T-185, D-054) | yes |
+| `PrivateStore` | card_transactions, email_receipts, receipt_scans, pending_private_items, consent, member_prefs, member_memory, ticket_artifacts (QR payloads), payment_profiles, private_runtime_state (the owner's DM-lane runtime state; D-054) | **no**; only via `promote()` (field-stripped) or as a per-owner COUNT |
 
 Structural enforcement (D-007):
 1. Every `PrivateStore` method takes `ownerMemberId` first; there is no list-all and no cross-owner method, not even a count (D-031).
@@ -192,7 +192,7 @@ Implemented in `packages/agent/src/model/` (D-006). The default for every test, 
 
 `core/clock.ts` (D-008). `Clock { now(), nowMs() }` is injected into every function that needs time; `SimulatedClock` adds `set/advanceMs/advanceHours/nextMorning(tz)`. ESLint forbids `Date.now()` and `new Date()` under `packages/*/src` and `apps/*/src` except `clock.ts`, tests and `core/src/storage/**`. Only `apps/*` entry points and live scripts construct `createSystemClock()`. Mocks read the clock for hold/offer expiry; the policy reads `ctx.now`; audit events get `ts` from the repository's clock.
 
-`Scheduler` is a time-ordered queue of `ScheduledJob { jobId, groupId, tripId, kind, runAt, payload }`; `schedule` replaces by `jobId`, `drain(now)` returns due jobs. Whoever owns the clock (simulator top bar, CLI, eval runner) advances it and drains. `createInMemoryScheduler()` is the only v0 implementation (T-056).
+`Scheduler` is a time-ordered queue of `ScheduledJob { jobId, groupId, tripId, kind, runAt, payload }`; `schedule` replaces by `jobId`, `drain(now)` returns due jobs. Whoever owns the clock (simulator top bar, CLI, eval runner) advances it and drains. `createInMemoryScheduler()` (T-056) and `createStoredScheduler(GroupStore.runtime)` (T-185, D-054; the runtime's default, so the queue survives a restart over SQLite) have the same semantics.
 
 Time helpers (`localDate`, `localHour`, `tripDayNumber`, `formatTime`, `addMinutes`, `isAfter`) take explicit instants and the trip's IANA zone; use `Intl.DateTimeFormat`, no date library.
 

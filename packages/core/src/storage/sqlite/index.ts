@@ -177,6 +177,12 @@ export function createSqliteBackend(path?: string): Backend {
             stmt(`SELECT json FROM ${name}${w.sql} ORDER BY seq DESC LIMIT 1`).get(...w.params),
           );
         },
+        first(where) {
+          const w = whereSql(where);
+          return parse(
+            stmt(`SELECT json FROM ${name}${w.sql} ORDER BY seq ASC LIMIT 1`).get(...w.params),
+          );
+        },
         count(where) {
           const w = whereSql(where);
           return Number(stmt(`SELECT COUNT(*) AS n FROM ${name}${w.sql}`).get(...w.params)?.n ?? 0);

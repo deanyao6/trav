@@ -478,6 +478,55 @@ export function createInMemoryScheduler(): Scheduler {
 }
 
 /**
+ * Where a stored scheduler keeps its queue (T-185, D-054): the runtime state
+ * repository (`GroupStore.runtime`) implements it on both storage backends.
+ */
+export interface ScheduledJobStore {
+  /** Replaces by `jobId`; a replaced job moves to the back of the scheduling order. */
+  putJob(job: ScheduledJob): void;
+  /** No-op for an unknown id. */
+  deleteJob(jobId: JobId): void;
+  /** Every queued job, in scheduling order (the order they were last put). */
+  listJobs(): readonly ScheduledJob[];
+}
+
+/**
+ * A `Scheduler` over a `ScheduledJobStore` (T-185): the same semantics as
+ * `createInMemoryScheduler` (runAt order, ties in scheduling order, replace by
+ * jobId), but the queue survives a restart when the store is SQLite, so a
+ * pending proposal's expiry or a held notice still runs after a crash.
+ */
+export function createStoredScheduler(store: ScheduledJobStore): Scheduler {
+  const sorted = (): QueueEntry[] =>
+    store
+      .listJobs()
+      .map((job, seq) => ({ job, runAtMs: parseIso(job.runAt), seq }))
+      .sort(compareEntries);
+
+  return {
+    schedule(job) {
+      assertJob(job);
+      store.putJob(job);
+    },
+    cancel(jobId) {
+      store.deleteJob(jobId);
+    },
+    drain(now) {
+      const nowMs = parseIso(now);
+      const due = sorted().filter((e) => e.runAtMs <= nowMs);
+      for (const e of due) store.deleteJob(e.job.jobId);
+      return due.map((e) => e.job);
+    },
+    peek() {
+      return sorted()[0]?.job;
+    },
+    list() {
+      return sorted().map((e) => e.job);
+    },
+  };
+}
+
+/**
  * The first instant strictly after `after` whose wall-clock time in `tz` is
  * `hour:00`. DST-aware: a non-existent hour (spring-forward gap) resolves
  * forward, like `SimulatedClock.nextMorning`. Rendered with the zone's offset

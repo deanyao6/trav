@@ -126,6 +126,16 @@ export function createMemoryBackend(): Backend {
           }
           return best === undefined ? undefined : (JSON.parse(best.json) as T);
         },
+        first(where) {
+          ensureOpen();
+          let best: StoredRow | undefined;
+          for (const row of rows.values()) {
+            if (matchesWhere(row.cols, where) && (best === undefined || row.seq < best.seq)) {
+              best = row;
+            }
+          }
+          return best === undefined ? undefined : (JSON.parse(best.json) as T);
+        },
         count: (where) => matching(where).length,
         deleteWhere(where) {
           if (Object.keys(where).length === 0) {

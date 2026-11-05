@@ -37,6 +37,7 @@ import {
   tripsSpec,
 } from './schema.js';
 import { createAuditRepository } from './auditRepository.js';
+import { createRuntimeStateRepository } from './runtimeState.js';
 import { requireId, sortByInstant } from './util.js';
 
 function notFound(what: string, id: string): TravError {
@@ -505,5 +506,6 @@ export function createGroupStore(backend: Backend, clock: Clock, ids: IdGenerato
     bookings: createBookingRepository(backend),
     audit: createAuditRepository(backend, clock, ids),
     groupMemory: createGroupMemoryRepository(backend),
+    runtime: createRuntimeStateRepository(backend),
   };
 }

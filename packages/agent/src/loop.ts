@@ -125,6 +125,16 @@ import {
   whichOptionText,
   type RosterCheck,
 } from './booking/rosterCheck.js';
+import {
+  GROUP_WIDE,
+  PersistedMap,
+  PersistedSet,
+  groupScope,
+  persistLaneTextGuard,
+  privateScope,
+  type RuntimeStateDeps,
+  type StateScope,
+} from './state/persisted.js';
 import { parseProposeInput } from './tools/proposeBooking.js';
 import type { BookingExecutor, ProviderRegistry } from './booking/executor.js';
 import { buildGroupContext, renderGroupPrompt, sanitizeInline } from './context/groupContext.js';
@@ -677,6 +687,21 @@ function attendanceClause(text: string): { clause: string; tail: string } | unde
 
 // ---------- helpers ----------
 
+/**
+ * T-185: where a lane-keyed entry is filed (`laneKey` below): the group lane
+ * under its group, a member's DM lane in that member's private partition. A DM
+ * lane with no member (`?`) stays in memory.
+ */
+function laneScope(key: string): StateScope {
+  if (key.endsWith(':group')) return groupScope(key.slice(0, -':group'.length));
+  const at = key.lastIndexOf(':dm:');
+  if (at > 0) {
+    const memberId = key.slice(at + ':dm:'.length);
+    if (memberId !== '' && memberId !== '?') return privateScope(memberId, key.slice(0, at));
+  }
+  return { kind: 'memory' };
+}
+
 function dedupeKey(event: InboundEvent): string {
   switch (event.type) {
     case 'message':
@@ -773,15 +798,28 @@ export function createTravAgent(input: AgentDeps): TravAgent {
   // redacted and still goes out (`privacy/guardSend.ts`).
   /** Ids of group-lane drafts the model wrote; taken off as the guard checks them. */
   const modelReplyIds = new Set<string>();
-  const laneText = createLaneTextGuard({
-    extraPrivate: (groupId) =>
-      input.stores.group.members.listByGroup(groupId).flatMap((m) =>
-        input.memberMemory
-          .recall(m.memberId, groupId)
-          .filter((f) => f.sourceLane === 'private')
-          .map((f) => ({ ownerId: m.memberId, text: f.text })),
-      ),
-  });
+  // T-185 (D-054): the runtime state below is written through to the stores,
+  // so a restart over the same SQLite file keeps pending cards, dedupe keys,
+  // Trav's last questions and the lane guard's DM corpus (`state/persisted.ts`).
+  const stateDeps: RuntimeStateDeps = {
+    stores: input.stores,
+    owners: () =>
+      input.stores.group.groups
+        .list()
+        .flatMap((g) => input.stores.group.members.listByGroup(g.groupId).map((m) => m.memberId)),
+  };
+  const laneText = persistLaneTextGuard(
+    createLaneTextGuard({
+      extraPrivate: (groupId) =>
+        input.stores.group.members.listByGroup(groupId).flatMap((m) =>
+          input.memberMemory
+            .recall(m.memberId, groupId)
+            .filter((f) => f.sourceLane === 'private')
+            .map((f) => ({ ownerId: m.memberId, text: f.text })),
+        ),
+    }),
+    stateDeps,
+  );
   const notices = createExpenseNotices({
     stores: input.stores,
     clock: input.clock,
@@ -799,26 +837,46 @@ export function createTravAgent(input: AgentDeps): TravAgent {
   const maxRounds = Math.max(1, deps.maxToolRounds ?? DEFAULT_MAX_TOOL_ROUNDS);
   const recentLimit = deps.recentMessageLimit ?? DEFAULT_RECENT_LIMIT;
 
-  const seen = new Set<string>();
-  const seenOrder: string[] = [];
-  const recent = new Map<string, GroupMessageSummary[]>();
-  const lastQuestionAt = new Map<string, IsoDateTime>();
-  const lastQuestionRef = new Map<string, PendingCardRef>();
-  const cards = new Map<MessageId, PendingCardRef>();
+  /** Inbound event keys already handled (T-185: persisted, so a replay after a restart is a no-op). */
+  const seen = stores.group.runtime.seenKeys('agent', SEEN_CAP);
+  /** Lane transcripts: the group lane in the GroupStore, Trav's DMs in the member's partition. */
+  const recent = new PersistedMap<GroupMessageSummary[]>(stateDeps, 'recent', laneScope);
+  const lastQuestionAt = new PersistedMap<IsoDateTime>(stateDeps, 'last_question_at', laneScope);
+  const lastQuestionRef = new PersistedMap<PendingCardRef>(
+    stateDeps,
+    'last_question_ref',
+    laneScope,
+  );
+  /**
+   * Trav's cards by message id. Filed where they were sent (`setIn`): a group
+   * card under its group, a DM card in the recipient's partition. The filing
+   * is also which group each card was sent in: the index never answers
+   * across groups (`cardGroupOf`).
+   */
+  const cards = new PersistedMap<PendingCardRef>(stateDeps, 'card', () => ({ kind: 'memory' }));
+  const cardGroupOf = (messageId: MessageId): GroupId | undefined => {
+    const scope = cards.scopeOf(messageId);
+    return scope === undefined || scope.kind === 'memory'
+      ? undefined
+      : (scope.groupId ?? undefined);
+  };
   /** Trav's newest card in each group thread (any type): what a bare text pick may bind to (T-168). */
-  const newestGroupCard = new Map<GroupId, PendingCardRef>();
-  /** Which group each card was sent in: the index never answers across groups. */
-  const cardGroup = new Map<MessageId, GroupId>();
+  const newestGroupCard = new PersistedMap<PendingCardRef>(stateDeps, 'newest_group_card', (g) =>
+    groupScope(g),
+  );
   /** T-198: open "who's in? … 👍 if that's right" checks, by question message id. */
-  const rosterChecks = createRosterCheckStore();
+  const rosterChecks = createRosterCheckStore(
+    undefined,
+    new PersistedMap<RosterCheck>(stateDeps, 'roster_check', (_k, v) => groupScope(v.groupId)),
+  );
   /** T-198: options cards already answered with "which one?" (asked once, VOICE §2). */
-  const optionsNudged = new Set<string>();
-  const guestsTold = new Set<string>();
+  const optionsNudged = new PersistedSet(stateDeps, 'options_nudged', () => GROUP_WIDE);
+  const guestsTold = new PersistedSet(stateDeps, 'guest_told', () => GROUP_WIDE);
   /**
    * When members spoke in each group thread (T-015's "chat after midnight"
    * night-out signal). Times only, never text; guests and DMs never count.
    */
-  const chatTimes = new Map<GroupId, IsoDateTime[]>();
+  const chatTimes = new PersistedMap<IsoDateTime[]>(stateDeps, 'chat_times', (g) => groupScope(g));
   const noteChatTime = (groupId: GroupId, at: IsoDateTime): void => {
     const cutoff = parseIso(at) - CHAT_TIMES_KEEP_MS;
     const list = (chatTimes.get(groupId) ?? []).filter((t) => parseIso(t) >= cutoff);
@@ -868,11 +926,6 @@ export function createTravAgent(input: AgentDeps): TravAgent {
   const remember = (key: string): boolean => {
     if (seen.has(key)) return false;
     seen.add(key);
-    seenOrder.push(key);
-    if (seenOrder.length > SEEN_CAP) {
-      const old = seenOrder.shift();
-      if (old !== undefined) seen.delete(old);
-    }
     return true;
   };
 
@@ -893,7 +946,9 @@ export function createTravAgent(input: AgentDeps): TravAgent {
    * line of the last `LEFT_LOOKBACK_MIN`, at most `RIDE_LINES_CAP`. Same text
    * `recent` keeps (markers for pasted/guest text); never sent to a model.
    */
-  const rideLines = new Map<GroupId, GroupMessageSummary[]>();
+  const rideLines = new PersistedMap<GroupMessageSummary[]>(stateDeps, 'ride_lines', (g) =>
+    groupScope(g),
+  );
   const noteRideLine = (groupId: GroupId, summary: GroupMessageSummary): void => {
     if (summary.senderMemberId === null || summary.fromTrav) return;
     const cutoff = parseIso(summary.at) - LEFT_LOOKBACK_MIN * 60_000;
@@ -910,7 +965,7 @@ export function createTravAgent(input: AgentDeps): TravAgent {
    */
   function cardIndexFor(groupId: GroupId | undefined): PendingCardIndex {
     const inGroup = (messageId: MessageId): boolean =>
-      groupId === undefined || cardGroup.get(messageId) === groupId;
+      groupId === undefined || cardGroupOf(messageId) === groupId;
     return {
       byMessageId(messageId) {
         const ref = cards.get(messageId);
@@ -1072,10 +1127,15 @@ export function createTravAgent(input: AgentDeps): TravAgent {
           ...(msg.expiresAt !== undefined ? { expiresAt: msg.expiresAt } : {}),
           sentAt: r.now,
         };
-        cards.set(msg.id, ref);
+        cards.setIn(
+          msg.id,
+          ref,
+          msg.to.kind === 'member'
+            ? privateScope(msg.to.memberId, r.group.groupId)
+            : groupScope(r.group.groupId),
+        );
         // T-168 r1 #1-2: a bare text pick binds only to Trav's newest group card.
         if (msg.to.kind === 'group') newestGroupCard.set(r.group.groupId, ref);
-        cardGroup.set(msg.id, r.group.groupId);
         if (/\?/.test(msg.text)) lastQuestionRef.set(key, ref);
       }
       if (/\?/.test(msg.text)) lastQuestionAt.set(key, r.now);
@@ -1127,7 +1187,6 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     for (const [id, ref] of cards) {
       if (ref.proposalId !== proposalId) continue;
       cards.delete(id);
-      cardGroup.delete(id);
     }
     return true;
   }
@@ -3466,7 +3525,7 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     let best: PendingCardRef | undefined;
     for (const [id, ref] of cards) {
       if (ref.card.type !== 'recap' || ref.card.photos.length === 0) continue;
-      if (cardGroup.get(id) !== groupId) continue;
+      if (cardGroupOf(id) !== groupId) continue;
       if (best === undefined || parseIso(ref.sentAt) >= parseIso(best.sentAt)) best = ref;
     }
     return best?.card.type === 'recap' ? best.card : undefined;
@@ -3524,7 +3583,7 @@ export function createTravAgent(input: AgentDeps): TravAgent {
   function latestExpenseCard(groupId: GroupId): PendingCardRef | undefined {
     let best: PendingCardRef | undefined;
     for (const [id, ref] of cards) {
-      if (!isLoggedExpenseCard(ref) || cardGroup.get(id) !== groupId) continue;
+      if (!isLoggedExpenseCard(ref) || cardGroupOf(id) !== groupId) continue;
       if (best === undefined || parseIso(ref.sentAt) > parseIso(best.sentAt)) best = ref;
     }
     return best;
@@ -3545,7 +3604,7 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     if (ref.card.type !== 'expense_confirm' || !isLoggedExpenseCard(ref))
       return silent('undo:not_expense');
     if (r.me === null || !canRequest(r.identity)) return silent('undo:guest');
-    if (cardGroup.get(ref.messageId) !== r.group.groupId) return silent('undo:wrong_group');
+    if (cardGroupOf(ref.messageId) !== r.group.groupId) return silent('undo:wrong_group');
     // One message that logged several expenses (T-010) carries them all in
     // `digestItems`; its one 👎 undoes every one still logged.
     const digest = ref.card.digestItems ?? [];
@@ -3556,7 +3615,6 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     const expense = live[0];
     if (expense === undefined) {
       cards.delete(ref.messageId);
-      cardGroup.delete(ref.messageId);
       return silent('undo:not_logged');
     }
     const trip = r.trip;
@@ -3580,7 +3638,6 @@ export function createTravAgent(input: AgentDeps): TravAgent {
       );
     }
     cards.delete(ref.messageId);
-    cardGroup.delete(ref.messageId);
     for (const e of live) {
       audit(r, {
         type: 'ledger.entry_deleted',
@@ -3630,14 +3687,14 @@ export function createTravAgent(input: AgentDeps): TravAgent {
   // ---------- "i've paid" on the final settle card (T-141) ----------
 
   /** (card message, member) pairs already sent the current card for a stale 👍. */
-  const settleStaleReplied = new Set<string>();
+  const settleStaleReplied = new PersistedSet(stateDeps, 'settle_stale_replied', () => GROUP_WIDE);
 
   /** A final settle_up card Trav posted in this group's thread. */
   function isFinalSettleCard(r: Resolved, ref: PendingCardRef): boolean {
     return (
       ref.card.type === 'settle_up' &&
       ref.card.mode === 'final' &&
-      cardGroup.get(ref.messageId) === r.group.groupId
+      cardGroupOf(ref.messageId) === r.group.groupId
     );
   }
 
@@ -4276,7 +4333,6 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     for (const [id, ref] of cards) {
       if (ref.proposalId !== proposalId) continue;
       cards.delete(id);
-      cardGroup.delete(id);
     }
     const r: Resolved = {
       group,
@@ -4386,11 +4442,13 @@ export function createTravAgent(input: AgentDeps): TravAgent {
   /**
    * T-067: the saved Plaid cursor per (group, owner, trip) for the runtime's
    * own provider, so a sync for one trip never skips rows another trip's sync
-   * consumed (r1 #6). In memory: a restart re-syncs from the start, which the
-   * import absorbs (rows upsert by provider id, items are found again, nothing
-   * is re-asked, purged descriptors stay purged).
+   * consumed (r1 #6). T-185: kept in the owner's private partition, so a
+   * restart resumes from it (before, a restart re-synced from the start, which
+   * the import absorbs: rows upsert by provider id, nothing is re-asked).
    */
-  const cardCursors = new Map<string, string>();
+  const cardCursors = new PersistedMap<string>(stateDeps, 'card_cursor', () => ({
+    kind: 'memory',
+  }));
   const cursorKey = (groupId: GroupId, memberId: MemberId, trip: Trip | null): string =>
     `${groupId}|${memberId}|${trip?.tripId ?? '-'}`;
 
@@ -4446,7 +4504,9 @@ export function createTravAgent(input: AgentDeps): TravAgent {
       { ...input, adapter, ...(cursor !== undefined ? { cursor } : {}) },
       { stores, clock, ids, model, group, members, trip },
     );
-    if (own && outcome.nextCursor !== undefined) cardCursors.set(key, outcome.nextCursor);
+    if (own && outcome.nextCursor !== undefined) {
+      cardCursors.setIn(key, outcome.nextCursor, privateScope(owner.memberId, group.groupId));
+    }
     // T-090: an owner-initiated sync with import off gets one DM line on how to
     // turn it on (the provider was never called; scheduled jobs never ask for this).
     const drafts =
