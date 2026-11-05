@@ -161,22 +161,19 @@ export interface RoastSuppression {
 
 /** Why `gatedRoastLines` dropped `line` (the line text itself is never audited). */
 function roastSuppression(line: string, ctx: RenderContext, sc: SafetyContext): RoastSuppression {
+  // One cause vocabulary with the outbound screen (SAFETY §2.2).
+  const known = (c: string): safety.RoastSuppressedAuditCause =>
+    (safety.ROAST_AUDIT_CAUSES as readonly string[]).includes(c)
+      ? (c as safety.RoastSuppressedAuditCause)
+      : 'minor_in_group';
   const block = safety.groupRoastBlock(sc.group, ctx.members, sc.trip, ctx.now);
-  if (block !== null) {
-    const known: readonly string[] = ['mode_off', 'minor_in_group', 'age_unconfirmed', 'trip_over'];
-    return {
-      cause: (known.includes(block) ? block : 'minor_in_group') as safety.RoastSuppressedAuditCause,
-    };
-  }
+  if (block !== null) return { cause: known(block) };
   const topic = safety.roastTopicBlocked(line);
   if (topic !== null) return { cause: 'topic_blocked', topicCategory: topic };
-  const named = ctx.members.filter((m) => line.includes(m.displayName));
-  if (
-    named.some(
-      (m) => !safety.roastAllowed(sc.group, ctx.members, m, sc.consent, sc.trip, ctx.now).allowed,
-    )
-  )
-    return { cause: 'member_opted_out' };
+  for (const m of ctx.members.filter((x) => line.includes(x.displayName))) {
+    const r = safety.roastAllowed(sc.group, ctx.members, m, sc.consent, sc.trip, ctx.now);
+    if (!r.allowed) return { cause: known(r.cause) };
+  }
   return { cause: 'line_limit' };
 }
 

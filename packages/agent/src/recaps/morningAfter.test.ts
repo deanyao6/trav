@@ -925,10 +925,20 @@ describe('T-015 review round 1', () => {
       '@trav never remove photo 2',
       '@trav no need to drop that one',
       '@trav dont hide the last photo',
+      // review r2 #1: more negations, questions, reported wishes
+      "@trav you can't drop that one, it's the only group pic",
+      '@trav cannot drop that one',
+      '@trav cant drop photo 2',
+      "@trav i didn't say drop that one",
+      '@trav shouldnt remove the first one',
+      '@trav should we drop that one?',
+      '@trav why would you drop photo 2',
+      "@trav Sam wants to drop that one, don't",
+      '@trav maya said to drop photo 2',
     ])
       expect(parseDropPhoto(t), t).toBeUndefined();
-    // A negation in an earlier clause does not cancel a clear ask.
-    expect(parseDropPhoto('not bad, but @trav drop photo 2')).toEqual({ position: 2 });
+    // A drop is permanent, so any negation in the message means no (r2 #1).
+    expect(parseDropPhoto('not bad, but @trav drop photo 2')).toBeUndefined();
 
     const w = barcelonaAt(AT);
     const job = morningAfterJobFor(w.stores.group.trips.get(BARCELONA.tripId)!, '2026-03-15');
@@ -1046,32 +1056,42 @@ describe('T-015 review round 1', () => {
     rt.close();
   });
 
-  it('#7 the family "yesterday" line says who paid', async () => {
-    const clock = createSimulatedClock('2026-06-21T10:00:00-04:00');
-    const ids = createDeterministicIdGenerator('p');
-    const stores = createMemoryStores({ clock, ids });
-    stores.group.groups.create(TCI.group);
-    for (const m of TCI.members) stores.group.members.upsert(m);
-    stores.group.trips.create(TCI.trip);
-    const snorkel: Expense = {
-      ...lateExpense('exp_tci_snork', 'snorkel tour', 'activities', 'mem_tci_dad'),
-      groupId: TCI.group.groupId,
-      tripId: TCI.trip.tripId,
-      amount: { amountMinor: 26000, currency: 'USD' },
-      paidBy: [{ memberId: 'mem_tci_dad', amount: { amountMinor: 26000, currency: 'USD' } }],
-      occurredAt: '2026-06-20T14:00:00-04:00',
-      createdAt: '2026-06-20T14:00:00-04:00',
-    };
-    writeExpenses(stores, [snorkel], TCI.members);
-    const r = await composeMorningAfter(
-      { stores, clock, ids },
-      TCI.group.groupId,
-      TCI.trip.tripId,
-      '2026-06-21',
-    );
-    if (r.kind !== 'ok') throw new Error(r.kind);
-    expect(r.message.text.split('\n')[1]).toBe('yesterday: snorkel tour $260 on Dad');
-  });
+  for (const ageKnown of [true, false])
+    it(`#7 the family "yesterday" line says who paid, only for a confirmed adult (age known: ${String(ageKnown)})`, async () => {
+      const clock = createSimulatedClock('2026-06-21T10:00:00-04:00');
+      const ids = createDeterministicIdGenerator('p');
+      const stores = createMemoryStores({ clock, ids });
+      stores.group.groups.create(TCI.group);
+      for (const m of TCI.members) {
+        if (ageKnown || m.memberId !== 'mem_tci_dad') stores.group.members.upsert(m);
+        else {
+          const { birthDate: _b, ageBand: _a, ...rest } = m;
+          stores.group.members.upsert(rest as Member);
+        }
+      }
+      stores.group.trips.create(TCI.trip);
+      const snorkel: Expense = {
+        ...lateExpense('exp_tci_snork', 'snorkel tour', 'activities', 'mem_tci_dad'),
+        groupId: TCI.group.groupId,
+        tripId: TCI.trip.tripId,
+        amount: { amountMinor: 26000, currency: 'USD' },
+        paidBy: [{ memberId: 'mem_tci_dad', amount: { amountMinor: 26000, currency: 'USD' } }],
+        occurredAt: '2026-06-20T14:00:00-04:00',
+        createdAt: '2026-06-20T14:00:00-04:00',
+      };
+      writeExpenses(stores, [snorkel], TCI.members);
+      const r = await composeMorningAfter(
+        { stores, clock, ids },
+        TCI.group.groupId,
+        TCI.trip.tripId,
+        '2026-06-21',
+      );
+      if (r.kind !== 'ok') throw new Error(r.kind);
+      // An unknown age counts as a possible minor in family mode (review r2 #4).
+      expect(r.message.text.split('\n')[1]).toBe(
+        ageKnown ? 'yesterday: snorkel tour $260 on Dad' : 'yesterday: snorkel tour $260',
+      );
+    });
 
   it('SAFETY §2.8: a roast line the gates drop is audited as roast.suppressed, cause only', async () => {
     const w = barcelonaAt(AT, { roast: true, roastConsent: (id) => id !== 'mem_sam' });
@@ -1083,5 +1103,19 @@ describe('T-015 review round 1', () => {
     expect(rows.length).toBeGreaterThan(0);
     expect(rows[0]!.payload).toMatchObject({ cause: 'member_opted_out' });
     expect(JSON.stringify(rows.map((x) => x.payload))).not.toMatch(/Sam|tab remembers/);
+  });
+
+  it('review r2 #2: a line naming a member who left is audited as target_inactive', async () => {
+    const w = barcelonaAt(AT, { roast: true, roastConsent: () => true });
+    const sam = w.stores.group.members.get('mem_sam')!;
+    w.stores.group.members.upsert({ ...sam, leftAt: '2026-03-14T12:00:00+01:00' });
+    const job = morningAfterJobFor(w.stores.group.trips.get(BARCELONA.tripId)!, '2026-03-15');
+    const turn = await w.h.runtime.agent.runScheduled(job);
+    const causes = w.h
+      .audit()
+      .filter((e) => e.type === 'roast.suppressed' && turn.auditEventIds.includes(e.id))
+      .map((e) => (e.payload as { cause: string }).cause);
+    expect(causes).toContain('target_inactive');
+    expect(causes).not.toContain('member_opted_out');
   });
 });

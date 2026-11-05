@@ -48,16 +48,22 @@ export interface DropPhotoRequest {
   readonly position?: number | 'last';
 }
 
-/** A negation in the same clause before the verb ("don't drop", "do NOT delete", "no need to hide"). */
+/**
+ * Any negation anywhere in the message ("don't", "can't", "didn't", "no need
+ * to", with or without the apostrophe). A drop is permanent, so the whole
+ * message counts, not just the clause before the verb (T-015 review r2 #1).
+ */
 const NEGATION_RE =
-  /\b(?:don['’]?t|do\s+not|dont|never|no\s+need\s+to|not|shouldn['’]?t|won['’]?t|wouldn['’]?t|please\s+no)\b/i;
-const CLAUSE_BREAK = /[.!?;,\n]|\b(?:but|and then|then)\b/gi;
+  /\b(?:(?:do|does|did|is|are|was|ca|could|should|would|wo|have|has)n['’]?t|cant|cannot|can\s+not|do\s+not|never|no\s+need\s+to|not|please\s+no|leave\s+it|keep\s+it)\b/i;
+/** A question is not an instruction ("should we drop that one?", "why would you drop photo 2"). */
+const QUESTION_RE =
+  /\?|^\s*(?:@trav\s*,?\s*)?(?:should|would|why|did|can|could|shall|do|does|is)\b/i;
+/** Someone else's wish, reported, is not a drop ("Sam wants to drop that one"). */
+const REPORTED_RE =
+  /\b(?:wants?|wanted|wanna|said|says|asked)\s+(?:to\s+|you\s+to\s+|me\s+to\s+)?(?:drop|remove|delete|hide|ditch|lose|cut)\b/i;
 
-function negated(text: string, at: number): boolean {
-  const before = text.slice(0, at);
-  let start = 0;
-  for (const m of before.matchAll(CLAUSE_BREAK)) start = (m.index ?? 0) + m[0].length;
-  return NEGATION_RE.test(before.slice(start));
+function doubtful(text: string): boolean {
+  return NEGATION_RE.test(text) || QUESTION_RE.test(text) || REPORTED_RE.test(text);
 }
 
 /**
@@ -66,16 +72,15 @@ function negated(text: string, at: number): boolean {
  * T-015 review #2): a drop is permanent, so doubt means no.
  */
 export function parseDropPhoto(text: string): DropPhotoRequest | undefined {
+  if (doubtful(text)) return undefined;
   const n = NUMBER_RE.exec(text);
-  if (n?.[1] !== undefined) return negated(text, n.index) ? undefined : { position: Number(n[1]) };
+  if (n?.[1] !== undefined) return { position: Number(n[1]) };
   const o = ORDINAL_RE.exec(text);
   if (o?.[1] !== undefined) {
-    if (negated(text, o.index)) return undefined;
     const p = ORDINALS[o[1].toLowerCase()];
     return p === undefined ? {} : { position: p };
   }
-  const t = THAT_RE.exec(text);
-  return t === null || negated(text, t.index) ? undefined : {};
+  return THAT_RE.test(text) ? {} : undefined;
 }
 
 export const DROPPED_TEXT = "dropped it. it won't come back in a recap or the wrapped";

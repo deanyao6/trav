@@ -163,13 +163,13 @@ export function renderRecap(
         (prev === undefined || !sameCrew(prev.attendees, e.attendees))
           ? ` (${String(e.attendees.length)} of you${notInText})`
           : '';
-      // "yesterday:" names who paid (VOICE §4.7 C); a minor is never shown as a payer (VOICE §8).
+      // "yesterday:" names who paid (VOICE §4.7 C); only a confirmed adult is shown as a payer (VOICE §8: unknown age counts as a possible minor).
       const payer =
         !morningAfter && e.amount !== undefined && e.paidBy !== undefined
           ? ctx.members.find((m) => m.memberId === e.paidBy)
           : undefined;
       const on =
-        payer !== undefined && !safety.isMinor(payer, ctx.now)
+        payer !== undefined && safety.isConfirmedAdult(payer, ctx.now)
           ? ` on ${nameOf(ctx, payer.memberId)}`
           : '';
       return `${e.label}${who}${e.amount !== undefined ? ` ${formatMoney(e.amount)}` : ''}${on}`;
