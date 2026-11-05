@@ -92,4 +92,17 @@ describe('held tickets (T-188 r1 #1)', () => {
     // The ticket itself went with the partition: nothing to deliver.
     expect(await h.runtime.agent.deliverHeld('mem_chase')).toEqual([]);
   });
+
+  it('"forget this trip" (deleteTrip) takes the held pointer too', async () => {
+    const held = new Set(['mem_chase']);
+    const h = setup(held);
+    await h.say('h_dean', RAZZMATAZZ_ASK);
+    const [pointer] = heldTicketsFor(h.runtime.stores, 'mem_chase');
+    expect(pointer?.tripId).toBeTruthy();
+    h.runtime.stores.deleteTrip(pointer!.tripId!);
+    h.runtime.agent.forgetRuntimeState({ tripId: pointer!.tripId! });
+    expect(heldTicketsFor(h.runtime.stores, 'mem_chase')).toHaveLength(0);
+    held.delete('mem_chase');
+    expect(await h.runtime.agent.deliverHeld('mem_chase')).toEqual([]);
+  });
 });

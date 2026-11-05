@@ -73,8 +73,11 @@ export const STOP_GROUP_TEXT =
 export const START_TEXT = "you're back in. i'll text you again when there's something for you";
 export const DELETED_TEXT =
   'done, i deleted your private data. your share of the group tab stays so the balances still add up';
-/** r1 #3: a repeat request (every count 0): no second "done", no audit. */
-export const ALREADY_DELETED_TEXT = 'nothing left to delete, your private data is already gone';
+/**
+ * r1 #3: nothing to delete (every count 0, a repeat or an empty partition):
+ * no "done", no audit. Worded so it fits a first request too.
+ */
+export const ALREADY_DELETED_TEXT = "i don't have any private data of yours, nothing to delete";
 /** A guest: no member rows, so no private partition (the audit log keeps who spoke, SAFETY §2.5). */
 export const NOTHING_TO_DELETE_TEXT =
   "you're not a member here, so i have no private data of yours to delete";
