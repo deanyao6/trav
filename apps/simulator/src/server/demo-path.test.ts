@@ -4,7 +4,7 @@
  * offline:
  *
  *   replay ▸ (step by step up to the Razzmatazz booking)
- *   → switch to Sam: "simulate a card charge" → the "looks shared?" Uber prompt → Share it
+ *   → switch to Crowley: "simulate a card charge" → the "looks shared?" Uber prompt → Share it
  *   → next morning → the Morning After card (T-015)
  *   → end of trip  → the Wrapped card (T-016): trip name, dates, final settle
  *
@@ -21,11 +21,11 @@ import { loadAgentBackend } from './runtime.js';
 import { demoBackend } from './testkit.js';
 
 const SCRIPT = loadBarcelonaScript();
-/** Last line of the Razzmatazz moment (Sam's late Approve on a done proposal). */
+/** Last line of the Razzmatazz moment (Crowley's late Approve on a done proposal). */
 const AFTER_FLAGSHIP = SCRIPT.findIndex((l) => l.id === 'msg_bcn_0134') + 1;
 const FLAGSHIP_ASK = SCRIPT.findIndex((l) => l.id === 'msg_bcn_0130');
-/** Through Sam's waters at the club (msg_bcn_0139); the next line is his card sync (sys_bcn_0155). */
-const BEFORE_SAM_SYNC = SCRIPT.findIndex((l) => l.id === 'msg_bcn_0139') + 1;
+/** Through Crowley's waters at the club (msg_bcn_0139); the next line is his card sync (sys_bcn_0155). */
+const BEFORE_CROWLEY_SYNC = SCRIPT.findIndex((l) => l.id === 'msg_bcn_0139') + 1;
 
 function bcn(state: SimState): GroupView {
   return state.groups.find((g) => g.group.groupId === BARCELONA.groupId)!;
@@ -47,8 +47,8 @@ function expectGroupClean(state: SimState): void {
     }
   }
   const group = JSON.stringify(state.groups.map((g) => g.thread));
-  // Sam's private Uber charge and Priya's DM-only diet note never reach the group
-  // as themselves. Once Sam taps Share it, the €23.40 is on the group tab, so the
+  // Crowley's private Uber charge and Arjun's DM-only diet note never reach the group
+  // as themselves. Once Crowley taps Share it, the €23.40 is on the group tab, so the
   // end-of-trip recap / Wrapped totals may carry it (VOICE §3.7: "the group sees
   // it in the next recap"); no other group message ever does.
   const live = state.groups.map((g) =>
@@ -91,7 +91,7 @@ async function servedBackend(kind: Kind) {
 }
 
 describe.each<Kind>(['seeded', 'bare'])('demo clicked in order (real runtime, %s)', (kind) => {
-  it('replay → Sam shares the Uber → next morning → end of trip', async () => {
+  it('replay → Crowley shares the Uber → next morning → end of trip', async () => {
     const b = await servedBackend(kind);
     expect(b.state().controls).toMatchObject({
       replay: true,
@@ -128,7 +128,7 @@ describe.each<Kind>(['seeded', 'bare'])('demo clicked in order (real runtime, %s
     expect(
       thread.filter((m) => m.card?.type === 'receipt' && /razzmatazz/i.test(m.text)),
     ).toHaveLength(1);
-    for (const id of ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam']) {
+    for (const id of ['mem_dean', 'mem_chase', 'mem_piotr', 'mem_arjun', 'mem_crowley']) {
       expect(
         messages(bcn(s3).dms[id]!).filter(
           (m) => m.card?.type === 'ticket' && /razzmatazz/i.test(m.card.event.name),
@@ -137,23 +137,25 @@ describe.each<Kind>(['seeded', 'bare'])('demo clicked in order (real runtime, %s
       ).toHaveLength(1);
     }
 
-    // --- state 4: the night goes on (Sam's waters at the club go on the tab from chat,
-    // msg_bcn_0139); Sam's 2:14am ride hasn't happened yet, so his rail offers no card sync.
-    expect(bcn(s3).intake['mem_sam']).toEqual([]);
-    const s3b = await replayTo(b, BEFORE_SAM_SYNC);
+    // --- state 4: the night goes on (Crowley's waters at the club go on the tab from chat,
+    // msg_bcn_0139); Crowley's 2:14am ride hasn't happened yet, so his rail offers no card sync.
+    expect(bcn(s3).intake['mem_crowley']).toEqual([]);
+    const s3b = await replayTo(b, BEFORE_CROWLEY_SYNC);
     expect(s3b.now).toBe('2026-03-15T01:30:00+01:00');
-    expect(bcn(s3b).intake['mem_sam']).toEqual([]);
-    // +1 hour: after the ride. Send as Sam; his rail offers his card; it syncs for real
+    expect(bcn(s3b).intake['mem_crowley']).toEqual([]);
+    // +1 hour: after the ride. Send as Crowley; his rail offers his card; it syncs for real
     // (T-067: the runtime's provider on the simulated clock) and asks about the Uber only.
     const s3c = await post(b, '/api/clock', { step: 'hour', groupId: BARCELONA.groupId });
-    expect(bcn(s3c).intake['mem_sam']).toEqual([{ docId: 'doc_bcn_sam_card_1', kind: 'card' }]);
-    const s4 = await post(b, '/api/intake', { docId: 'doc_bcn_sam_card_1' });
+    expect(bcn(s3c).intake['mem_crowley']).toEqual([
+      { docId: 'doc_bcn_crowley_card_1', kind: 'card' },
+    ]);
+    const s4 = await post(b, '/api/intake', { docId: 'doc_bcn_crowley_card_1' });
     expect(
-      messages(bcn(s4).dms['mem_sam']!).filter(
+      messages(bcn(s4).dms['mem_crowley']!).filter(
         (m) => m.card?.type === 'expense_confirm' && m.card.status === 'pending',
       ),
     ).toHaveLength(1);
-    const prompt = messages(bcn(s4).dms['mem_sam']!).find(
+    const prompt = messages(bcn(s4).dms['mem_crowley']!).find(
       (m) => m.card?.type === 'expense_confirm' && m.card.status === 'pending',
     )!;
     expect(prompt.text).toMatch(/^saw €23\.40 from Uber at 2:14am/);
@@ -161,16 +163,16 @@ describe.each<Kind>(['seeded', 'bare'])('demo clicked in order (real runtime, %s
     expect(bcn(s4).dms['mem_henry']!.length).toBe(henryBefore);
 
     const s4b = await post(b, '/api/button-taps', {
-      from: 'h_sam',
+      from: 'h_crowley',
       cardMessageId: prompt.messageId,
       actionId: 'confirm',
     });
-    // Shared (T-013): the card in Sam's DM is now `logged`, split with the 5 who went;
+    // Shared (T-013): the card in Crowley's DM is now `logged`, split with the 5 who went;
     // the group is not pinged now, it sees it in the next recap (VOICE §3.7, §4.5).
-    const logged = messages(bcn(s4b).dms['mem_sam']!).find(
+    const logged = messages(bcn(s4b).dms['mem_crowley']!).find(
       (m) => m.seq > prompt.seq && m.card?.type === 'expense_confirm' && m.card.status === 'logged',
     );
-    expect(logged, 'Sam sees it went on the tab').toBeDefined();
+    expect(logged, 'Crowley sees it went on the tab').toBeDefined();
     const card = logged!.card;
     const participants = card?.type === 'expense_confirm' ? card.split.participants : [];
     expect(participants.map((p) => p.memberId)).not.toContain('mem_henry');
@@ -181,25 +183,25 @@ describe.each<Kind>(['seeded', 'bare'])('demo clicked in order (real runtime, %s
     expect(named).toBe(false);
     expect(bcn(s4b).status).toBeUndefined();
 
-    // --- state 4, email (T-012): the replay fed Priya's Uber receipt (sys_bcn_0113) and her
-    // 👍 (msg_bcn_d_0009). Positive branch: the private prompt, then a `logged` card in her DM.
+    // --- state 4, email (T-012): the replay fed Arjun's Uber receipt (sys_bcn_0113) and Arjun's
+    // 👍 (msg_bcn_d_0009). Positive branch: the private prompt, then a `logged` card in Arjun's DM.
     const s4d = s4b;
-    expect(bcn(s4d).intake['mem_priya']).toEqual([]); // fed once, by the replay
-    const emailPrompt = messages(bcn(s4d).dms['mem_priya']!).find(
+    expect(bcn(s4d).intake['mem_arjun']).toEqual([]); // fed once, by the replay
+    const emailPrompt = messages(bcn(s4d).dms['mem_arjun']!).find(
       (m) =>
         m.card?.type === 'expense_confirm' &&
         m.card.status === 'pending' &&
         m.card.source === 'email_receipt',
     )!;
-    expect(emailPrompt, 'Priya got the "looks shared?" receipt in her DM').toBeDefined();
+    expect(emailPrompt, 'Arjun got the "looks shared?" receipt in a DM').toBeDefined();
     expect(emailPrompt.text).toMatch(/^Uber receipt from .+: €18\.60/);
     expect(emailPrompt.actions.map((a) => a.label)).toEqual(['Share it', 'Keep private']);
-    // Shared: a `logged` expense card in Priya's DM for €18.60; the group was not pinged.
-    const emailLogged = messages(bcn(s4d).dms['mem_priya']!).find(
+    // Shared: a `logged` expense card in Arjun's DM for €18.60; the group was not pinged.
+    const emailLogged = messages(bcn(s4d).dms['mem_arjun']!).find(
       (m) =>
         m.seq > emailPrompt.seq && m.card?.type === 'expense_confirm' && m.card.status === 'logged',
     );
-    expect(emailLogged, 'Priya sees it went on the tab').toBeDefined();
+    expect(emailLogged, 'Arjun sees it went on the tab').toBeDefined();
     expect(emailLogged!.card?.type === 'expense_confirm' && emailLogged!.card.amount).toEqual({
       amountMinor: 1860,
       currency: 'EUR',
@@ -212,7 +214,7 @@ describe.each<Kind>(['seeded', 'bare'])('demo clicked in order (real runtime, %s
         ),
       ),
     ).not.toContain('18.60');
-    for (const id of ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_sam', 'mem_henry']) {
+    for (const id of ['mem_dean', 'mem_chase', 'mem_piotr', 'mem_crowley', 'mem_henry']) {
       expect(JSON.stringify(bcn(s4d).dms[id]), id).not.toContain('18.60');
     }
 
@@ -224,7 +226,7 @@ describe.each<Kind>(['seeded', 'bare'])('demo clicked in order (real runtime, %s
     // T-015: one scheduled post, which speaks for itself (no status line).
     expect(posted5).toHaveLength(1);
     expect(bcn(s5).status).toBeUndefined();
-    // The Razzmatazz booking + Sam's 2:14am Uber (now shared) = a night out: the full recap,
+    // The Razzmatazz booking + Crowley's 2:14am Uber (now shared) = a night out: the full recap,
     // the 5 who went, "not Henry" as a fact and never the reason.
     const recap = posted5[0]!;
     expect(recap.card?.type).toBe('recap');
@@ -273,7 +275,7 @@ describe.each<Kind>(['seeded', 'bare'])('demo clicked in order (real runtime, %s
     });
     // Never rewound.
     expect(end.now).toBe('2026-03-18T10:00:00+01:00');
-    expect(bcn(end).intake['mem_sam']).toEqual([]);
+    expect(bcn(end).intake['mem_crowley']).toEqual([]);
   });
 
   it('replay alone: each 10am clock line moves the clock and names what is missing', async () => {

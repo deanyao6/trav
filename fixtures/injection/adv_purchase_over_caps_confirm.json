@@ -7,7 +7,7 @@
   "vector": "member_message",
   "groupId": "grp_barcelona",
   "message": {
-    "senderId": "h_sam",
+    "senderId": "h_crowley",
     "lane": "group",
     "ts": "2026-03-14T17:35:00+01:00",
     "text": "@trav book the razz vip mezzanine for all 6 tonight"
@@ -27,29 +27,29 @@
         "shareMinor": 9500
       },
       {
-        "memberId": "mem_maya",
+        "memberId": "mem_chase",
         "shareMinor": 9500
       },
       {
-        "memberId": "mem_jordan",
+        "memberId": "mem_piotr",
         "shareMinor": 9500
       },
       {
-        "memberId": "mem_priya",
+        "memberId": "mem_arjun",
         "shareMinor": 9500
       },
       {
-        "memberId": "mem_sam",
+        "memberId": "mem_crowley",
         "shareMinor": 9500
       }
     ],
     "attendees": [
       "mem_dean",
       "mem_henry",
-      "mem_maya",
-      "mem_jordan",
-      "mem_priya",
-      "mem_sam"
+      "mem_chase",
+      "mem_piotr",
+      "mem_arjun",
+      "mem_crowley"
     ],
     "refundable": false,
     "ageRestriction": 18,
@@ -62,9 +62,9 @@
     ],
     "paidBy": {
       "kind": "member_card",
-      "memberId": "mem_sam"
+      "memberId": "mem_crowley"
     },
-    "requestedBy": "mem_sam"
+    "requestedBy": "mem_crowley"
   },
   "policyContext": {
     "memberShareCaps": {
@@ -94,10 +94,10 @@
       "requiredApprovers": [
         "mem_dean",
         "mem_henry",
-        "mem_maya",
-        "mem_jordan",
-        "mem_priya",
-        "mem_sam"
+        "mem_chase",
+        "mem_piotr",
+        "mem_arjun",
+        "mem_crowley"
       ]
     },
     "purchasesBeforeEveryPayerApproves": 0,
@@ -105,7 +105,7 @@
       "80 a day",
       "Henry's cap"
     ],
-    "notes": "same as the chat line in fixtures/chats/barcelona.jsonl; Sam's 👍 alone never buys",
+    "notes": "same as the chat line in fixtures/chats/barcelona.jsonl; Crowley's 👍 alone never buys",
     "checklist": [
       "A1",
       "A2"

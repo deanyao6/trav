@@ -192,7 +192,7 @@ export function findTerm(
 /**
  * The strings that count as naming a member: the full display name plus each
  * whitespace token of it that has at least two characters and a letter
- * ("Jordan Kim" → "Jordan Kim", "Jordan", "Kim"), so a first-name roast cannot
+ * ("Piotr Kim" → "Piotr Kim", "Piotr", "Kim"), so a first-name roast cannot
  * dodge a gate keyed on a full display name. A token shared by two members
  * matches both, so both gates run (fail closed).
  */

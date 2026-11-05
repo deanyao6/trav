@@ -13,7 +13,7 @@ import {
   scoreItinerary,
 } from './index.js';
 import type { GroupItinerary } from './index.js';
-import { BARCELONA_MEMBERS, MAYA, barcelonaInput } from './testkit.js';
+import { BARCELONA_MEMBERS, CHASE, barcelonaInput } from './testkit.js';
 
 const keyOf = (it: GroupItinerary): string => it.picks.map((p) => p.offerId).join('|');
 const eur = (major: number) => money(major * 100, 'EUR');
@@ -80,7 +80,7 @@ describe('Barcelona: 6 origins, 6 different return cities', () => {
     ]);
   });
 
-  it('the default 25% fairness limit holds for the top pick (Maya €538 vs median €437.50)', () => {
+  it('the default 25% fairness limit holds for the top pick (Chase €538 vs median €437.50)', () => {
     const top = optimizeGroupFlights(input).itineraries[0] as GroupItinerary;
     expect(top.relaxed).toEqual([]);
     expect(top.perPerson[1]?.price).toEqual(eur(538));
@@ -93,8 +93,8 @@ describe('Barcelona: 6 origins, 6 different return cities', () => {
     const top = r.itineraries[0] as GroupItinerary;
     expect(top.relaxed).toEqual([]);
     // The limit is about the gap between members, so the optimizer lifts the
-    // median (Dean and Sam on slightly pricier mid-morning fares) rather than
-    // send Maya on the 22:15 landing; still +€153 over the 25% pick.
+    // median (Dean and Crowley on slightly pricier mid-morning fares) rather than
+    // send Chase on the 22:15 landing; still +€153 over the 25% pick.
     expect(keyOf(top)).toBe('bos-4|sfo-2|ord-2|atl-2|den-3|iad-2');
     const prices = top.perPerson.map((p) => p.price.amountMinor).sort((a, b) => a - b);
     const median2 = (prices[2] ?? 0) + (prices[3] ?? 0);
@@ -102,9 +102,9 @@ describe('Barcelona: 6 origins, 6 different return cities', () => {
       expect(2 * p.price.amountMinor * 100).toBeLessThanOrEqual(median2 * 115);
   });
 
-  it('with Maya opted out of the fairness limit, the 25% pick comes back under 15%', () => {
+  it('with Chase opted out of the fairness limit, the 25% pick comes back under 15%', () => {
     const members = BARCELONA_MEMBERS.map((m) =>
-      m.memberId === MAYA ? { ...m, fairnessOptOut: true } : m,
+      m.memberId === CHASE ? { ...m, fairnessOptOut: true } : m,
     );
     const r = optimizeGroupFlights(
       barcelonaInput({ members, constraints: { fairnessMaxAboveMedian: 0.15 } }),
@@ -113,7 +113,7 @@ describe('Barcelona: 6 origins, 6 different return cities', () => {
     expect(r.itineraries[0]?.relaxed).toEqual([]);
   });
 
-  it('cap €538: Maya lands exactly at the cap and nothing is relaxed', () => {
+  it('cap €538: Chase lands exactly at the cap and nothing is relaxed', () => {
     const r = optimizeGroupFlights(
       barcelonaInput({ constraints: { perPersonCap: eur(538), fairnessMaxAboveMedian: 0.25 } }),
     );
@@ -131,7 +131,7 @@ describe('Barcelona: 6 origins, 6 different return cities', () => {
     );
     const top = r.itineraries[0] as GroupItinerary;
     expect(top.relaxed).toEqual([
-      { constraint: 'perPersonCap', reason: "over the €450/person cap: Maya's cheapest is €498" },
+      { constraint: 'perPersonCap', reason: "over the €450/person cap: Chase's cheapest is €498" },
     ]);
     expect(top.rationale.endsWith(' · cap relaxed')).toBe(true);
     // Fairness was not relaxed and still holds.
@@ -188,7 +188,7 @@ describe('Barcelona: 6 origins, 6 different return cities', () => {
     ]);
     for (const x of top.relaxed) expect(x.reason).toMatch(/^[a-z]/);
     expect(top.relaxed[2]?.reason).toBe(
-      "over the €400/person cap: Maya's cheapest is €498, Priya's cheapest is €405 and Sam's cheapest is €420",
+      "over the €400/person cap: Chase's cheapest is €498, Arjun's cheapest is €405 and Crowley's cheapest is €420",
     );
     // Fairness 5% was kept, so every fare is within 5% of the median.
     const prices = top.perPerson.map((p) => p.price.amountMinor).sort((a, b) => a - b);

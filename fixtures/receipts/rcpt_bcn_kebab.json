@@ -7,7 +7,7 @@
   "imageFile": "fixtures/receipts/rcpt_bcn_kebab.png",
   "imageMimeType": "image/png",
   "imageSha256": "3713887a6969fca57c4ea07d5cc8be3cdb725723b9467aec64c3e41a20c31f03",
-  "postedBy": "mem_jordan",
+  "postedBy": "mem_piotr",
   "postedInGroup": false,
   "ocrText": "KEBAB RAMBLA 24H\nRambla del Raval 9, Barcelona\nOBERT 24H\n15/03/2026   02:05\n----------------------------------\n5 DURUM MIXT                 42,50\n5 REFRESC LLAUNA             12,50\n1 PATATES FREGIDES            7,00\n----------------------------------\nTOTAL                      62,00 €\nIVA 10% INCLOS         5,64\nCARD                         62,00\nGRACIES",
   "parsed": {
@@ -83,15 +83,15 @@
       "kind": "item"
     }
   ],
-  "payer": "mem_jordan",
+  "payer": "mem_piotr",
   "split": {
     "method": "equal",
     "participants": [
       "mem_dean",
-      "mem_maya",
-      "mem_jordan",
-      "mem_priya",
-      "mem_sam"
+      "mem_chase",
+      "mem_piotr",
+      "mem_arjun",
+      "mem_crowley"
     ]
   },
   "expectedShares": [
@@ -103,28 +103,28 @@
       }
     },
     {
-      "memberId": "mem_maya",
+      "memberId": "mem_chase",
       "amount": {
         "amountMinor": 1240,
         "currency": "EUR"
       }
     },
     {
-      "memberId": "mem_jordan",
+      "memberId": "mem_piotr",
       "amount": {
         "amountMinor": 1240,
         "currency": "EUR"
       }
     },
     {
-      "memberId": "mem_priya",
+      "memberId": "mem_arjun",
       "amount": {
         "amountMinor": 1240,
         "currency": "EUR"
       }
     },
     {
-      "memberId": "mem_sam",
+      "memberId": "mem_crowley",
       "amount": {
         "amountMinor": 1240,
         "currency": "EUR"

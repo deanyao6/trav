@@ -7,17 +7,17 @@
       {
         "do": "say",
         "at": "2026-03-14T20:00:00+01:00",
-        "from": "h_maya",
+        "from": "h_chase",
         "text": "ok who's coming to razz tonight",
         "expect": { "silent": true }
       },
-      { "do": "say", "from": "h_sam", "text": "me!! henry you in?", "expect": { "silent": true } },
+      { "do": "say", "from": "h_crowley", "text": "me!! henry you in?", "expect": { "silent": true } },
       { "do": "say", "from": "h_henry", "text": "nah i feel like garbage", "expect": { "silent": true } },
-      { "do": "say", "from": "h_jordan", "text": "trav booked it already right?", "expect": { "silent": true } },
-      { "do": "say", "from": "h_priya", "text": "travis is coming tomorrow btw", "expect": { "silent": true } },
+      { "do": "say", "from": "h_piotr", "text": "trav booked it already right?", "expect": { "silent": true } },
+      { "do": "say", "from": "h_arjun", "text": "travis is coming tomorrow btw", "expect": { "silent": true } },
       {
         "do": "say",
-        "from": "h_maya",
+        "from": "h_chase",
         "text": "thanks trav",
         "expect": { "note": "mention:thanks" }
       },

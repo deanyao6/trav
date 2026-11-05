@@ -32,7 +32,7 @@ The generator (`fixtures/_gen/`) is deterministic: no wall clock, no `Math.rando
 
 | Trip | Group / trip ids | Members | Currency | Dates |
 |---|---|---|---|---|
-| **Barcelona** (flagship) | `grp_barcelona` / `trip_barcelona` | Dean (lead), Henry, Maya, Jordan, Priya, Sam: six college friends, 20–22 | EUR | Thu 2026-03-12 → Tue 2026-03-17 |
+| **Barcelona** (flagship) | `grp_barcelona` / `trip_barcelona` | Dean (lead), Henry, Chase, Piotr, Arjun, Crowley: six college friends, 20–22 | EUR | Thu 2026-03-12 → Tue 2026-03-17 |
 | **Lisbon** | `grp_lisbon` / `trip_lisbon` | Dean (lead), Dad | EUR | 2026-04-15 → 2026-04-20 |
 | **Turks and Caicos** | `grp_turks_caicos` / `trip_turks_caicos` | Mom (lead), Dad (guardian), Dean, Lily (14, `under18`) | USD | 2026-06-20 → 2026-06-27 |
 
@@ -55,7 +55,7 @@ Turks and Caicos: family mode (Lily is 14): no nightlife or alcohol suggestions 
 | `receipts/<id>.json` + `.png` | Receipt photo ground truth; 7 rendered PNGs (one blurred on purpose), 1 JSON-only | see [receipts](#receipts) |
 | `emails/<id>.json` | Fictional ride/restaurant/pharmacy/promo emails as `InboundEmail` + expected parse | `{ groupId, tripId, forwardingAddress, email: InboundEmail, expected }` |
 | `transactions/<memberId>.json` | Plaid `/transactions/sync`-shaped pages per member + per-transaction labels | see [transactions](#transactions) |
-| `flights/barcelona-groundtruth.json` | Brute-force reference answers over the preserved `flights/barcelona.json` | `{ source, sourceSha256, travelers[], offers[], groundTruth{ naiveCheapestPerPerson, minArrivalSpread, minArrivalSpreadWithoutJordanBefore7am, cheapestAllRefundable, minPricePerMember, groupTotalLowerBound }, expectations[] }` |
+| `flights/barcelona-groundtruth.json` | Brute-force reference answers over the preserved `flights/barcelona.json` | `{ source, sourceSha256, travelers[], offers[], groundTruth{ naiveCheapestPerPerson, minArrivalSpread, minArrivalSpreadWithoutPiotrBefore7am, cheapestAllRefundable, minPricePerMember, groupTotalLowerBound }, expectations[] }` |
 | `tickets/barcelona-labels.json` | Expected outcomes over the preserved Barcelona ticket inventory (flagship, sold out, over cap, redirect-only, slot not in inventory) | `{ inventory, labels[{ case, request, offerId, eventId, perPerson, quantity, total, available, refundable, … }] }` |
 | `tickets/lisbon.json`, `tickets/turks-and-caicos.json` | Ticket inventories (Benfica/Sporting/Porto, fado, Sintra; snorkel, cruise, jet ski 16+, bar trivia 18+, casino 21+) | same schema as `tickets/barcelona.json` with flat `offers[]` carrying `eventId`, plus `mockHints`, `labels` |
 | `album/<trip>.json` | Photo/video metadata as `Photo` (adapters `album.ts`) + who is in each shot, place, consent timeline | `{ photos: Photo[], labels{ <photoId>: { inPhoto, placeName, activityId, isVideo, durationSec?, includesMinor, visibleWithFinalConsent, highlightCandidate, note? } }, consentTimeline[], minorConsentNote? }` |
@@ -134,10 +134,10 @@ Adversarial requests: roast about dating, roast about an outfit, clubs/bars with
 
 - **Money** is always `{ amountMinor, currency }` (integer minor units). Display follows VOICE §3.4 (`€90`, `€16.80`).
 - **Ids** are hand-written with the core prefixes (`mem_dean`, `grp_barcelona`, `act_bcn_razzmatazz`, `exp_bcn_001`). Member order (for rounding and listing) is the order of `members` in `groups/<trip>.json`.
-- **Rounding** (mirrors `packages/core/src/ledger/splits.ts`): odd minor units go to the largest fractional remainder first; ties go to the payer, then the other participants in member order. Itemized receipts are rounded once over exact per-member fractions; tax/tip/service/fee lines are allocated pro-rata to item subtotals; a claimed adjustment goes to its claimants. Example: €32 taxi for Dean, Maya, Sam paid by Dean → €10.67 / €10.67 / €10.66.
+- **Rounding** (mirrors `packages/core/src/ledger/splits.ts`): odd minor units go to the largest fractional remainder first; ties go to the payer, then the other participants in member order. Itemized receipts are rounded once over exact per-member fractions; tax/tip/service/fee lines are allocated pro-rata to item subtotals; a claimed adjustment goes to its claimants. Example: €32 taxi for Dean, Chase, Crowley paid by Dean → €10.67 / €10.67 / €10.66.
 - **Policy** (mirrors `packages/core/src/approval/policy.ts`): rules D1–D10 then C1–C9, every rule runs, "at the cap" is inside the cap, `default_confirm` when the auto-approve cap is 0. Barcelona caps €60/person and €500/day; Henry's private €80 share cap applies from his DM on 2026-03-11.
 - `packages/core/src/fixtures.test.ts` re-computes every expected share, balance and policy decision with core itself, so the labels cannot drift from the implementation silently.
-- **Privacy labels**: `mustNotContain` lists private values (Sam's €9.80 solo Uber, card masks, "vegetarian", Dad's €100/day); `mustNotStore` lists health details ("sick", "garbage", "advil") that must never be persisted or roasted.
+- **Privacy labels**: `mustNotContain` lists private values (Crowley's €9.80 solo Uber, card masks, "vegetarian", Dad's €100/day); `mustNotStore` lists health details ("sick", "garbage", "advil") that must never be persisted or roasted.
 
 ## Known gaps and inconsistencies (from preserved files)
 

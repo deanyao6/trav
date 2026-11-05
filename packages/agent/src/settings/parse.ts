@@ -67,7 +67,7 @@ export function commandText(text: string): string {
   t = t.replace(LEADING_TRAV, '');
   t = t
     .toLowerCase()
-    // "same, roast me", "ok roast sam for the ubers", "me too, photos on": a
+    // "same, roast me", "ok roast crowley for the ubers", "me too, photos on": a
     // leading agreement word before the command is not part of it.
     .replace(/^(?:(?:same|me too|ok|okay|yeah|yep|alright|and|also)(?:\s*[,:]\s*|\s+))+(?=\S)/u, '')
     .replace(/^(?:can you|could you|pls|please)\s+/u, '')

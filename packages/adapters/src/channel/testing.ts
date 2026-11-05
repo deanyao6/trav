@@ -57,10 +57,10 @@ export const barcelona: SimulatorConversation = {
   conversationId: BCN_CONVERSATION,
   participants: [
     { handle: 'h_dean', displayName: 'Dean', memberId: 'mem_dean' },
-    { handle: 'h_maya', displayName: 'Maya', memberId: 'mem_maya' },
-    { handle: 'h_jordan', displayName: 'Jordan', memberId: 'mem_jordan' },
-    { handle: 'h_priya', displayName: 'Priya', memberId: 'mem_priya' },
-    { handle: 'h_sam', displayName: 'Sam', memberId: 'mem_sam' },
+    { handle: 'h_chase', displayName: 'Chase', memberId: 'mem_chase' },
+    { handle: 'h_piotr', displayName: 'Piotr', memberId: 'mem_piotr' },
+    { handle: 'h_arjun', displayName: 'Arjun', memberId: 'mem_arjun' },
+    { handle: 'h_crowley', displayName: 'Crowley', memberId: 'mem_crowley' },
     { handle: 'h_henry', displayName: 'Henry', memberId: 'mem_henry' },
   ],
 };
@@ -85,7 +85,7 @@ export const PROPOSAL_ACTIONS: readonly Action[] = [
   action('decline', 'Decline'),
 ];
 
-const five = ['Dean', 'Maya', 'Jordan', 'Priya', 'Sam'].map((name) => ({
+const five = ['Dean', 'Chase', 'Piotr', 'Arjun', 'Crowley'].map((name) => ({
   memberId: `mem_${name.toLowerCase()}`,
   name,
   share: eur(1800),
@@ -93,7 +93,7 @@ const five = ['Dean', 'Maya', 'Jordan', 'Priya', 'Sam'].map((name) => ({
 
 export const PROPOSAL_TEXT = [
   'razzmatazz tonight, 5 tickets',
-  'Dean, Maya, Jordan, Priya, Sam (not Henry)',
+  'Dean, Chase, Piotr, Arjun, Crowley (not Henry)',
   '€18 each · €90 total · refundable until 10pm',
   "charged to Dean's card, split 5 ways on the tab",
   '👍 to book. price held for 15 min',
@@ -183,7 +183,7 @@ export function privateExpenseCard(cardId = 'exp-card-1'): ExpenseConfirmCard {
     visibility: 'private',
     description: 'uber',
     amount: { amountMinor: 2340, currency: 'USD' },
-    paidBy: 'mem_sam',
+    paidBy: 'mem_crowley',
     split: { method: 'equal', participants: [] },
   };
 }

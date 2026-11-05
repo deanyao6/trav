@@ -22,14 +22,14 @@ pnpm demo:barcelona
 
 Runs the flagship Barcelona trip end to end through the real Trav runtime, offline, on a simulated clock, and prints the chat as it goes:
 
-trip setup → multi-origin group flights → lodging → Barça tickets (6, over the cap, everyone confirms) → dinner logged from chat → Priya's Uber email receipt (DM-only "looks shared?" → share) → €84 dinner split "everyone but Henry" → **"@trav get the 5 of us Razzmatazz tickets, Henry's sick"** → approval → one mock purchase → receipt in the group → 5 per-person ticket DMs → €90 split among only those 5 → Sam's 2am Uber from the Plaid-shaped card feed (DM-only confirm) → Morning After recap → "@trav settle now" → end-of-trip Wrapped.
+trip setup → multi-origin group flights → lodging → Barça tickets (6, over the cap, everyone confirms) → dinner logged from chat → Arjun's Uber email receipt (DM-only "looks shared?" → share) → €84 dinner split "everyone but Henry" → **"@trav get the 5 of us Razzmatazz tickets, Henry's sick"** → approval → one mock purchase → receipt in the group → 5 per-person ticket DMs → €90 split among only those 5 → Crowley's 2am Uber from the Plaid-shaped card feed (DM-only confirm) → Morning After recap → "@trav settle now" → end-of-trip Wrapped.
 
 It checks 40 things along the way (ledger sums in integer cents, the approval and audit trail, Henry never being charged or told why he's out, nothing private ever landing in the group) and exits 0 only if all of them pass. The transcript is written to [`docs/DEMO_TRANSCRIPT.md`](docs/DEMO_TRANSCRIPT.md).
 
 - `pnpm demo:barcelona --no-write` prints without touching `docs/DEMO_TRANSCRIPT.md`.
 - `pnpm demo:barcelona --quiet` prints only the PASS/FAIL line (and any failed checks).
 
-The demo is always offline, even if a key is set. The transcript header lists the three steps that v0 can't do fully in chat yet (proposing and booking flights, proposing and booking a stay, marking a settle-up as paid; the settle-up card's [Paid] button does nothing yet). For those, the demo runs the real optimizer and mock provider directly and says so. It also names one known gap that the demo checks as-is rather than hiding: Priya's Uber email lists 4 riders, but it is split among all 6 (fix tracked as T-075).
+The demo is always offline, even if a key is set. The transcript header lists the three steps that v0 can't do fully in chat yet (proposing and booking flights, proposing and booking a stay, marking a settle-up as paid; the settle-up card's [Paid] button does nothing yet). For those, the demo runs the real optimizer and mock provider directly and says so. It also names one known gap that the demo checks as-is rather than hiding: Arjun's Uber email lists 4 riders, but it is split among all 6 (fix tracked as T-075).
 
 ## The group chat simulator
 

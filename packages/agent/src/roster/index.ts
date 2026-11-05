@@ -488,7 +488,7 @@ const SELF_WORDS = new Set(['i', "i'm", 'im', 'me', 'myself']);
 
 /**
  * A whole-message roster override: "Henry's sick", "i'm out tonight", "count
- * me in", "Sam's a maybe for razzmatazz". Returns who and the new status; the
+ * me in", "Crowley's a maybe for razzmatazz". Returns who and the new status; the
  * reason ("sick") is matched only to recognize the sentence and is not part
  * of the result. Anything longer than one such sentence is not an override.
  */
@@ -549,7 +549,7 @@ const ME_TICKET = new RegExp(
 );
 /**
  * A tail that is more than a reason (T-137 r1 #2): a second request ("and
- * book sam a vip table"), a joiner word, or a condition on who pays or how
+ * book crowley a vip table"), a joiner word, or a condition on who pays or how
  * it splits ("if dean pays"). Such an ask is the model's, never a card.
  */
 const TAIL_NOT_A_REASON =

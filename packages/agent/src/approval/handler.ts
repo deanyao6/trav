@@ -165,7 +165,7 @@ export function chargeFailedText(
  * VOICE §4.10 for a group flight set where some orders landed and the rest
  * did not (T-074): whose order failed (and whether that is certainly no
  * charge), who was never sent because Trav stopped there, what's next. Names
- * are already lists ("Maya", "Jordan, Priya").
+ * are already lists ("Chase", "Piotr, Arjun").
  */
 export function partialFlightsText(input: {
   readonly failed: string;

@@ -129,7 +129,7 @@ describe('fallback responders', () => {
     const at = (t: string) =>
       r.classify?.(cls('roast_guard_v1', ['allowed', 'blocked'] as const, t))?.label;
     expect(at("henry's sick so he missed razzmatazz")).toBe('blocked');
-    expect(at('maya was so drunk')).toBe('blocked');
+    expect(at('chase was so drunk')).toBe('blocked');
     expect(at('leo spent €140 on ubers in one day')).toBe('allowed');
     expect(at('dean was late to the airport again')).toBe('allowed');
   });
@@ -148,10 +148,10 @@ describe('fallback responders', () => {
       query: 'barça',
     });
     expect(
-      extractBookingIntent('@trav grab the four of us sagrada familia tickets except Sam'),
+      extractBookingIntent('@trav grab the four of us sagrada familia tickets except Crowley'),
     ).toMatchObject({
       quantity: 4,
-      excludedNames: ['Sam'],
+      excludedNames: ['Crowley'],
     });
     expect(extractBookingIntent('we should get tickets at some point')).toBeUndefined();
   });

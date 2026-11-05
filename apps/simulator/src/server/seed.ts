@@ -96,12 +96,12 @@ export const SEED_START: IsoDateTime = `2026-03-14T17:30:00${OFFSET}`;
 
 /** Demo state 1 in the Barcelona chat: all six talking about tonight, nobody @'s Trav. */
 export const BARCELONA_SEED: readonly SeedLine[] = [
-  ['17:30', 'h_sam', 'pregame at the apartment at 11, razz after?'],
-  ['17:31', 'h_jordan', 'razz tonight yesss'],
+  ['17:30', 'h_crowley', 'pregame at the apartment at 11, razz after?'],
+  ['17:31', 'h_piotr', 'razz tonight yesss'],
   ['17:33', 'h_henry', 'i might be out tonight, feel worse again'],
   ['20:30', 'h_henry', 'yeah im out tonight, sorry guys. have fun'],
-  ['20:31', 'h_priya', 'feel better henry!!'],
-  ['21:36', 'h_maya', 'someone get tickets before it sells out'],
+  ['20:31', 'h_arjun', 'feel better henry!!'],
+  ['21:36', 'h_chase', 'someone get tickets before it sells out'],
   ['21:37', 'h_dean', 'on it'],
 ].map(([time, from, text]) => ({
   at: `2026-03-14T${time}:00${OFFSET}`,

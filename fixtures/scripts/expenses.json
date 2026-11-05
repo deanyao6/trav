@@ -1,9 +1,9 @@
 [
   {
-    "key": "ba2cc391cefca500962a076d4cc24dd911db22cecf8e5d83471d7f1f7ba7e108",
+    "key": "03e28f17279ab589be4886088724845ca6fae69ad423cde5c057c834763b07ec",
     "model": "main",
     "systemPromptId": "expense_text_v1",
-    "lastUserText": "Dean: @trav i paid 60 and jordan paid 40 for the boat, split with everyone",
+    "lastUserText": "Dean: @trav i paid 60 and piotr paid 40 for the boat, split with everyone",
     "toolNames": [],
     "response": {
       "kind": "completion",
@@ -24,19 +24,19 @@
             "category": "activities",
             "amount": "40",
             "currency": null,
-            "paidBy": "Jordan",
+            "paidBy": "Piotr",
             "split": { "kind": "everyone", "members": [] }
           }
         ]
       }
     },
-    "note": "T-010: two payers in one clause is past the deterministic parser (ingest/expenseText.ts returns unsure), so the flow makes one zero-tool expense_text_v1 extraction call. The JSON is two expenses (Dean €60, Jordan €40, both split with everyone); they go through the same checks as a parsed message and are logged as message:<id>#1 and #2."
+    "note": "T-010: two payers in one clause is past the deterministic parser (ingest/expenseText.ts returns unsure), so the flow makes one zero-tool expense_text_v1 extraction call. The JSON is two expenses (Dean €60, Piotr €40, both split with everyone); they go through the same checks as a parsed message and are logged as message:<id>#1 and #2."
   },
   {
-    "key": "ca17dd563db0ea4ef4e81b08f2b1b3aff8fe9656337334193cba7effa3319fa4",
+    "key": "749fceb76ed474083cf66a6a0c7e5be405ddac2c543c0749b1979156a96bd38c",
     "model": "fast",
     "systemPromptId": "mention_v1",
-    "lastUserText": "trav the taxi was €32, me and Sam, Sam had the suitcase so he pays 20",
+    "lastUserText": "trav the taxi was €32, me and Crowley, Crowley had the suitcase so he pays 20",
     "toolNames": [],
     "response": {
       "kind": "classify",

@@ -67,51 +67,53 @@ describe('mock transactions: Plaid-shaped sync over pinned fixtures', () => {
   });
 
   it('pages with cursors until hasMore is false', async () => {
-    const first = await pinned.sync('mem_sam');
+    const first = await pinned.sync('mem_crowley');
     expect(first.ok).toBe(true);
     if (!first.ok) return;
     expect(first.value.hasMore).toBe(true);
     expect(first.value.added).toHaveLength(12);
-    expect(first.value.nextCursor).toBe('txcur.v1.item_mem_sam.1');
+    expect(first.value.nextCursor).toBe('txcur.v1.item_mem_crowley.1');
 
-    const { pages, cursor } = await syncAll(pinned, 'mem_sam');
+    const { pages, cursor } = await syncAll(pinned, 'mem_crowley');
     expect(pages.length).toBeGreaterThanOrEqual(2);
     expect(pages.at(-1)?.hasMore).toBe(false);
 
     // At the end: an empty update with the same cursor.
-    const tail = await pinned.sync('mem_sam', cursor);
+    const tail = await pinned.sync('mem_crowley', cursor);
     expect(tail).toEqual({
       ok: true,
       value: { added: [], modified: [], removed: [], nextCursor: cursor, hasMore: false },
     });
     // Empty-string cursor is the initial sync (Plaid).
-    const again = await pinned.sync('mem_sam', '');
-    expect(again.ok && again.value.nextCursor).toBe('txcur.v1.item_mem_sam.1');
+    const again = await pinned.sync('mem_crowley', '');
+    expect(again.ok && again.value.nextCursor).toBe('txcur.v1.item_mem_crowley.1');
   });
 
   it('a posted transaction replacing a pending one carries pendingTransactionId and removes the pending row', async () => {
-    const { pages } = await syncAll(pinned, 'mem_sam');
+    const { pages } = await syncAll(pinned, 'mem_crowley');
     const pageOfPosted = pages.findIndex((p) =>
-      p.added.some((t) => t.transactionId === 'txn_sam_uber_0315'),
+      p.added.some((t) => t.transactionId === 'txn_crowley_uber_0315'),
     );
     const pageOfPending = pages.findIndex((p) =>
-      p.added.some((t) => t.transactionId === 'txn_sam_uber_0315_p'),
+      p.added.some((t) => t.transactionId === 'txn_crowley_uber_0315_p'),
     );
     expect(pageOfPending).toBeGreaterThanOrEqual(0);
     expect(pageOfPosted).toBeGreaterThanOrEqual(pageOfPending);
 
     const pending = pages[pageOfPending]?.added.find(
-      (t) => t.transactionId === 'txn_sam_uber_0315_p',
+      (t) => t.transactionId === 'txn_crowley_uber_0315_p',
     );
-    const posted = pages[pageOfPosted]?.added.find((t) => t.transactionId === 'txn_sam_uber_0315');
+    const posted = pages[pageOfPosted]?.added.find(
+      (t) => t.transactionId === 'txn_crowley_uber_0315',
+    );
     expect(pending?.pending).toBe(true);
     expect(pending?.amount).toEqual({ amountMinor: 1980, currency: 'EUR' });
     expect(posted?.pending).toBe(false);
-    expect(posted?.pendingTransactionId).toBe('txn_sam_uber_0315_p');
+    expect(posted?.pendingTransactionId).toBe('txn_crowley_uber_0315_p');
     expect(posted?.amount).toEqual({ amountMinor: 2340, currency: 'EUR' });
     expect(pages[pageOfPosted]?.removed).toContainEqual({
-      transactionId: 'txn_sam_uber_0315_p',
-      accountId: 'acc_sam_cc',
+      transactionId: 'txn_crowley_uber_0315_p',
+      accountId: 'acc_crowley_cc',
     });
   });
 
@@ -132,11 +134,13 @@ describe('mock transactions: Plaid-shaped sync over pinned fixtures', () => {
   });
 
   it('refunds are credits with a positive amount', async () => {
-    const { pages } = await syncAll(pinned, 'mem_sam');
-    const refund = rowsOf(pages).find((t) => t.transactionId === 'txn_sam_sunglasses_refund_0316');
+    const { pages } = await syncAll(pinned, 'mem_crowley');
+    const refund = rowsOf(pages).find(
+      (t) => t.transactionId === 'txn_crowley_sunglasses_refund_0316',
+    );
     expect(refund?.direction).toBe('credit');
     expect(refund?.amount).toEqual({ amountMinor: 3500, currency: 'EUR' });
-    const purchase = rowsOf(pages).find((t) => t.transactionId === 'txn_sam_sunglasses_0314');
+    const purchase = rowsOf(pages).find((t) => t.transactionId === 'txn_crowley_sunglasses_0314');
     expect(purchase?.direction).toBe('debit');
   });
 
@@ -179,29 +183,29 @@ describe('mock transactions: strict per-member scoping', () => {
   });
 
   it("a request with another member's item cursor fails without leaking", async () => {
-    const sam = await adapter.sync('mem_sam');
-    expect(sam.ok).toBe(true);
-    if (!sam.ok) return;
-    const stolen = await adapter.sync('mem_dean', sam.value.nextCursor);
+    const crowley = await adapter.sync('mem_crowley');
+    expect(crowley.ok).toBe(true);
+    if (!crowley.ok) return;
+    const stolen = await adapter.sync('mem_dean', crowley.value.nextCursor);
     expect(stolen.ok).toBe(false);
     if (stolen.ok) return;
     expect(stolen.error.code).toBe('invalid_request');
-    expect(stolen.error.message).not.toMatch(/sam/i);
+    expect(stolen.error.message).not.toMatch(/crowley/i);
 
-    const forged = await adapter.sync('mem_dean', 'txcur.v1.item_mem_sam.0');
+    const forged = await adapter.sync('mem_dean', 'txcur.v1.item_mem_crowley.0');
     expect(forged.ok ? 'ok' : forged.error.code).toBe('invalid_request');
-    expect(adapter.itemIdFor('mem_sam')).toBe('item_mem_sam');
+    expect(adapter.itemIdFor('mem_crowley')).toBe('item_mem_crowley');
     expect(adapter.itemIdFor('mem_nobody')).toBeUndefined();
   });
 
   it('rejects malformed and out-of-range cursors', async () => {
     for (const bad of [
-      'cur_sam_1',
-      'txcur.v1.item_mem_sam',
-      'txcur.v1.item_mem_sam.-1',
-      'txcur.v1.item_mem_sam.99',
+      'cur_crowley_1',
+      'txcur.v1.item_mem_crowley',
+      'txcur.v1.item_mem_crowley.-1',
+      'txcur.v1.item_mem_crowley.99',
     ]) {
-      const r = await adapter.sync('mem_sam', bad);
+      const r = await adapter.sync('mem_crowley', bad);
       expect(r.ok ? 'ok' : r.error.code).toBe('invalid_request');
     }
   });
@@ -227,9 +231,9 @@ describe('mock transactions: strict per-member scoping', () => {
 
   it('disconnect unlinks the member only', async () => {
     const local = createMockTransactions({ fixtureDir: PINNED });
-    expect(await local.disconnect('mem_sam')).toEqual({ ok: true, value: undefined });
-    expect(await local.listAccounts('mem_sam')).toEqual({ ok: true, value: [] });
-    const r = await local.sync('mem_sam');
+    expect(await local.disconnect('mem_crowley')).toEqual({ ok: true, value: undefined });
+    expect(await local.listAccounts('mem_crowley')).toEqual({ ok: true, value: [] });
+    const r = await local.sync('mem_crowley');
     expect(r.ok ? 'ok' : r.error.code).toBe('not_found');
     const dean = await local.sync('mem_dean');
     expect(dean.ok).toBe(true);
@@ -476,21 +480,21 @@ describe('mock transactions on the simulated clock (T-067)', () => {
   const ids = (pages: readonly TransactionsSyncResult[]): string[] =>
     rowsOf(pages).map((t) => t.transactionId);
 
-  it("Sam's card the morning after Razzmatazz: only what already happened, the posted Uber without its pending row", async () => {
+  it("Crowley's card the morning after Razzmatazz: only what already happened, the posted Uber without its pending row", async () => {
     const clock = createSimulatedClock('2026-03-15T09:00:00+01:00');
     const adapter = createMockTransactions({ fixtureDir: PINNED, clock });
-    const { pages, cursor } = await syncAll(adapter, 'mem_sam');
+    const { pages, cursor } = await syncAll(adapter, 'mem_crowley');
     expect(pages).toHaveLength(1);
     const seen = ids(pages);
-    expect(seen).toContain('txn_sam_uber_0315');
-    expect(seen).toContain('txn_sam_waters_0315');
-    expect(seen).not.toContain('txn_sam_uber_0315_p');
+    expect(seen).toContain('txn_crowley_uber_0315');
+    expect(seen).toContain('txn_crowley_waters_0315');
+    expect(seen).not.toContain('txn_crowley_uber_0315_p');
     expect(pages[0]!.removed).toEqual([]);
     for (const later of [
-      'txn_sam_pizza_0316',
-      'txn_sam_sunglasses_refund_0316',
-      'txn_sam_apolo_0316',
-      'txn_sam_home_09',
+      'txn_crowley_pizza_0316',
+      'txn_crowley_sunglasses_refund_0316',
+      'txn_crowley_apolo_0316',
+      'txn_crowley_home_09',
     ]) {
       expect(seen).not.toContain(later);
     }
@@ -500,7 +504,7 @@ describe('mock transactions on the simulated clock (T-067)', () => {
     }
 
     // Nothing new until the clock moves; the cursor stays put.
-    const idle = await adapter.sync('mem_sam', cursor);
+    const idle = await adapter.sync('mem_crowley', cursor);
     expect(idle).toEqual({
       ok: true,
       value: { added: [], modified: [], removed: [], nextCursor: cursor, hasMore: false },
@@ -508,44 +512,44 @@ describe('mock transactions on the simulated clock (T-067)', () => {
 
     // The next noon: the 2:30am pizza and the 11:00 refund, not the 17:05 Apolo.
     clock.set('2026-03-16T12:00:00+01:00');
-    const next = await syncAll(adapter, 'mem_sam', cursor);
+    const next = await syncAll(adapter, 'mem_crowley', cursor);
     expect(ids(next.pages).sort()).toEqual([
-      'txn_sam_pizza_0316',
-      'txn_sam_sunglasses_refund_0316',
+      'txn_crowley_pizza_0316',
+      'txn_crowley_sunglasses_refund_0316',
     ]);
     clock.set('2026-03-21T00:00:00+01:00');
-    const rest = await syncAll(adapter, 'mem_sam', next.cursor);
-    expect(ids(rest.pages)).toContain('txn_sam_apolo_0316');
-    expect(ids(rest.pages)).toContain('txn_sam_home_11');
+    const rest = await syncAll(adapter, 'mem_crowley', next.cursor);
+    expect(ids(rest.pages)).toContain('txn_crowley_apolo_0316');
+    expect(ids(rest.pages)).toContain('txn_crowley_home_11');
   });
 
   it('before anything happened: an empty, final update; cursors ahead of the item or of another member are refused', async () => {
     const clock = createSimulatedClock('2026-01-01T00:00:00Z');
     const adapter = createMockTransactions({ fixtureDir: PINNED, clock });
-    const r = await adapter.sync('mem_sam');
+    const r = await adapter.sync('mem_crowley');
     expect(r).toEqual({
       ok: true,
       value: {
         added: [],
         modified: [],
         removed: [],
-        nextCursor: 'txcur.v1.item_mem_sam.0',
+        nextCursor: 'txcur.v1.item_mem_crowley.0',
         hasMore: false,
       },
     });
-    const ahead = await adapter.sync('mem_sam', 'txcur.v1.item_mem_sam.1');
+    const ahead = await adapter.sync('mem_crowley', 'txcur.v1.item_mem_crowley.1');
     expect(ahead.ok ? 'ok' : ahead.error.code).toBe('invalid_request');
-    const stolen = await adapter.sync('mem_dean', 'txcur.v1.item_mem_sam.0');
+    const stolen = await adapter.sync('mem_dean', 'txcur.v1.item_mem_crowley.0');
     expect(stolen.ok ? 'ok' : stolen.error.code).toBe('invalid_request');
   });
 
   it('a fresh initial sync replays the delivered pages in order (Plaid paging)', async () => {
     const clock = createSimulatedClock('2026-03-14T00:00:00+01:00');
     const adapter = createMockTransactions({ fixtureDir: PINNED, clock });
-    const first = await syncAll(adapter, 'mem_sam');
+    const first = await syncAll(adapter, 'mem_crowley');
     clock.set('2026-03-15T09:00:00+01:00');
-    const second = await syncAll(adapter, 'mem_sam', first.cursor);
-    const replay = await syncAll(adapter, 'mem_sam');
+    const second = await syncAll(adapter, 'mem_crowley', first.cursor);
+    const replay = await syncAll(adapter, 'mem_crowley');
     expect(replay.pages).toHaveLength(2);
     expect(replay.pages[0]!.hasMore).toBe(true);
     expect(ids(replay.pages)).toEqual([...ids(first.pages), ...ids(second.pages)]);

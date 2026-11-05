@@ -83,7 +83,7 @@ const RETURN_TAIL = String.raw`(?:\s+in)?(?:\s+(?:too|again|after all))?${WHEN_T
 /** "henry's back", "henry is back in": a return. Only inside a combined message ("back" alone is ambiguous). */
 const OTHER_BACK = new RegExp(String.raw`^(?<name>${NAME})(?:'s| is)\s+back${RETURN_TAIL}`, 'iu');
 const ME_BACK = new RegExp(String.raw`^(?:i'?m|im|i am)\s+back${RETURN_TAIL}`, 'iu');
-/** "henry and maya are out", "sam & jordan are back". */
+/** "henry and chase are out", "crowley & piotr are back". */
 const PAIR = new RegExp(
   String.raw`^(?<a>${NAME})\s+(?:and|&)\s+(?<b>${NAME})\s+(?:are|'re)\s+(?<what>out|in|back|not coming|staying in|coming)${WHEN_TAIL}$`,
   'iu',
@@ -398,7 +398,7 @@ export type PartyPlan =
     };
 
 /**
- * "Sam stays off this plan, it's not all-ages" (VOICE §4.12 C, §8): names the
+ * "Crowley stays off this plan, it's not all-ages" (VOICE §4.12 C, §8): names the
  * minors so the adults know whose plan changes, never an age or a reason.
  * Positive "all-ages" phrasing (VOICE §8 wording rules): "adults only" is an
  * 18+ term the outbound screen suppresses in a group with a minor, so a line

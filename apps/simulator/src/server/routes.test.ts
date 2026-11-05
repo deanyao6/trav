@@ -45,8 +45,8 @@ describe('simulator API routes', () => {
     const henry = await handleApi(b, { method: 'GET', path: '/api/dms/mem_henry' });
     expect(henry.status).toBe(200);
     expect((henry.body as { thread: unknown[] }).thread).toEqual([]);
-    const priya = await handleApi(b, { method: 'GET', path: '/api/dms/mem_priya' });
-    expect((priya.body as { thread: ThreadMessage[] }).thread.map((m) => m.card?.type)).toEqual([
+    const arjun = await handleApi(b, { method: 'GET', path: '/api/dms/mem_arjun' });
+    expect((arjun.body as { thread: ThreadMessage[] }).thread.map((m) => m.card?.type)).toEqual([
       'ticket',
     ]);
   });

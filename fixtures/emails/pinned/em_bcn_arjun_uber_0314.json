@@ -2,14 +2,14 @@
   "fixtureVersion": 1,
   "groupId": "grp_barcelona",
   "tripId": "trip_barcelona",
-  "forwardingAddress": "priya.k7f3@in.trav.example.test",
+  "forwardingAddress": "arjun.k7f3@in.trav.example.test",
   "email": {
-    "emailId": "em_bcn_priya_uber_0314",
-    "ownerMemberId": "mem_priya",
+    "emailId": "em_bcn_arjun_uber_0314",
+    "ownerMemberId": "mem_arjun",
     "from": "Uber Receipts <noreply@uber-receipts.example.test>",
     "subject": "Your early Saturday ride receipt",
     "receivedAt": "2026-03-14T01:53:00+01:00",
-    "textBody": "Thanks for riding, Priya.\n\nTOTAL €18.60\nSaturday 14 March 2026\n\nFare breakdown\nTrip fare            €14.20\nBooking fee           €1.90\nLate-night surcharge  €2.50\nTotal                €18.60\n\nRiders on this trip: 4\nPickup   01:31  Carrer del Rec, El Born, Barcelona\nDropoff  01:52  Carrer d'Aragó, Eixample, Barcelona\nUberX · 3.4 km · 21 min\n\nCharged to your saved card (fictional test card).\nNeed help with this trip? Visit help.rides.example.test",
+    "textBody": "Thanks for riding, Arjun.\n\nTOTAL €18.60\nSaturday 14 March 2026\n\nFare breakdown\nTrip fare            €14.20\nBooking fee           €1.90\nLate-night surcharge  €2.50\nTotal                €18.60\n\nRiders on this trip: 4\nPickup   01:31  Carrer del Rec, El Born, Barcelona\nDropoff  01:52  Carrer d'Aragó, Eixample, Barcelona\nUberX · 3.4 km · 21 min\n\nCharged to your saved card (fictional test card).\nNeed help with this trip? Visit help.rides.example.test",
     "attachments": []
   },
   "expected": {
@@ -35,15 +35,15 @@
       "warnings": []
     },
     "ingestedInScenario": true,
-    "ingestReason": "Priya turned on emailImport 2026-03-12 16:10",
+    "ingestReason": "Arjun turned on emailImport 2026-03-12 16:10",
     "expectedShared": true,
     "suggestedParticipants": [
-      "mem_priya",
+      "mem_arjun",
       "mem_dean",
-      "mem_jordan",
-      "mem_sam"
+      "mem_piotr",
+      "mem_crowley"
     ],
-    "notes": "VOICE §4.5 C. 4 riders = Priya + the 3 others still out (Maya took a separate cab).",
+    "notes": "VOICE §4.5 C. 4 riders = Arjun + the 3 others still out (Chase took a separate cab).",
     "injectionPatterns": [],
     "injection": false
   }

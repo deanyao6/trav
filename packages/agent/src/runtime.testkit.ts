@@ -36,7 +36,7 @@ import type {
 import { createModelClient, readModelEnv } from './model/client.js';
 
 export const RAZZMATAZZ_ASK = "@trav get the 5 of us Razzmatazz tickets, Henry's sick";
-export const FIVE = ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam'] as const;
+export const FIVE = ['mem_dean', 'mem_chase', 'mem_piotr', 'mem_arjun', 'mem_crowley'] as const;
 
 export const GUESTS = [
   { handle: 'h_ava', displayName: 'Ava' },

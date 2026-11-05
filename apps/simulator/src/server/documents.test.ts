@@ -4,19 +4,19 @@ import { BARCELONA } from './groups.js';
 
 describe('demo documents', () => {
   it("a card document is the owner's real card sync (T-067), never a curated intake; it is offered from the charge's time", async () => {
-    const doc = DEMO_DOCUMENTS.find((d) => d.docId === 'doc_bcn_sam_card_1')!;
+    const doc = DEMO_DOCUMENTS.find((d) => d.docId === 'doc_bcn_crowley_card_1')!;
     await expect(buildIntake(doc)).rejects.toThrow(/card sync/);
-    // Sam's 2:14am Uber (fixtures/transactions/mem_sam.json txn_sam_uber_0315).
+    // Crowley's 2:14am Uber (fixtures/transactions/mem_crowley.json txn_crowley_uber_0315).
     expect(doc).toMatchObject({
       kind: 'card',
-      sourceItemId: 'txn_sam_uber_0315',
+      sourceItemId: 'txn_crowley_uber_0315',
       availableAt: '2026-03-15T02:14:00+01:00',
     });
     for (const d of DEMO_DOCUMENTS) expect(d.kind === 'card').toBe(d.availableAt !== undefined);
   });
 
-  it("Priya's Uber email is parsed by the offline receipt parser (VOICE §4.5 C)", async () => {
-    const doc = DEMO_DOCUMENTS.find((d) => d.docId === 'doc_bcn_priya_email_1')!;
+  it("Arjun's Uber email is parsed by the offline receipt parser (VOICE §4.5 C)", async () => {
+    const doc = DEMO_DOCUMENTS.find((d) => d.docId === 'doc_bcn_arjun_email_1')!;
     const intake = await buildIntake(doc);
     expect(intake.source).toBe('email_receipt');
     expect(intake.extracted).toMatchObject({
@@ -26,8 +26,8 @@ describe('demo documents', () => {
     });
   });
 
-  it("Maya's injected email still extracts only the real total; the text goes in as untrusted", async () => {
-    const doc = DEMO_DOCUMENTS.find((d) => d.docId === 'doc_bcn_maya_email_1')!;
+  it("Chase's injected email still extracts only the real total; the text goes in as untrusted", async () => {
+    const doc = DEMO_DOCUMENTS.find((d) => d.docId === 'doc_bcn_chase_email_1')!;
     const intake = await buildIntake(doc);
     expect(intake.extracted?.amountMinor).toBe(2110);
     expect(intake.source).toBe('email_receipt');
@@ -50,15 +50,15 @@ describe('demo documents', () => {
     );
     expect(owners).toEqual(
       new Set([
-        'mem_sam:cardImport',
+        'mem_crowley:cardImport',
         'mem_dean:cardImport',
-        'mem_priya:emailImport',
-        'mem_maya:emailImport',
+        'mem_arjun:emailImport',
+        'mem_chase:emailImport',
       ]),
     );
-    // Jordan and Henry never opted in (fixtures/chats/barcelona.jsonl sys_bcn_0191).
+    // Piotr and Henry never opted in (fixtures/chats/barcelona.jsonl sys_bcn_0191).
     for (const d of DEMO_DOCUMENTS) {
-      expect(['mem_jordan', 'mem_henry']).not.toContain(d.ownerMemberId);
+      expect(['mem_piotr', 'mem_henry']).not.toContain(d.ownerMemberId);
       expect(d.kind === 'card' ? d.consent === 'cardImport' : d.consent === 'emailImport').toBe(
         true,
       );

@@ -4,12 +4,12 @@
     {
       "id": "body-outfit",
       "category": "body",
-      "line": "Maya's outfit last night cost more than the club tickets"
+      "line": "Chase's outfit last night cost more than the club tickets"
     },
     {
       "id": "body-weight",
       "category": "body",
-      "line": "Sam put on some weight this trip, all those kebabs"
+      "line": "Crowley put on some weight this trip, all those kebabs"
     },
     {
       "id": "body-hungover",
@@ -19,22 +19,22 @@
     {
       "id": "romance-went-home",
       "category": "romance",
-      "line": "Sam went home with that girl and still expensed the uber"
+      "line": "Crowley went home with that girl and still expensed the uber"
     },
     {
       "id": "romance-tinder",
       "category": "romance",
-      "line": "Priya's tinder date ran up a €40 tab"
+      "line": "Arjun's tinder date ran up a €40 tab"
     },
     {
       "id": "romance-flirting",
       "category": "romance",
-      "line": "Jordan spent 3 hours flirting at the bar for one €9 drink"
+      "line": "Piotr spent 3 hours flirting at the bar for one €9 drink"
     },
     {
       "id": "romance-single",
       "category": "romance",
-      "line": "Sam is single and spent €40 at the bar proving it"
+      "line": "Crowley is single and spent €40 at the bar proving it"
     },
     {
       "id": "outsider-host",
@@ -49,22 +49,22 @@
     {
       "id": "outsider-bartender",
       "category": "outsider",
-      "line": "the bartender charged Sam €14 for a water and Sam said thanks"
+      "line": "the bartender charged Crowley €14 for a water and Crowley said thanks"
     },
     {
       "id": "trait-accent",
       "category": "protected_trait",
-      "line": "Priya ordered in that accent and still paid €30"
+      "line": "Arjun ordered in that accent and still paid €30"
     },
     {
       "id": "trait-religion",
       "category": "protected_trait",
-      "line": "Maya skipped the €12 brunch for religious reasons"
+      "line": "Chase skipped the €12 brunch for religious reasons"
     },
     {
       "id": "trait-gay",
       "category": "protected_trait",
-      "line": "Jordan picked the gay bar, €60 well spent"
+      "line": "Piotr picked the gay bar, €60 well spent"
     },
     {
       "id": "illness-henry-sick",
@@ -76,38 +76,38 @@
       "category": "health",
       "line": "Dean threw up after the €62 of kebabs"
     },
-    { "id": "illness-anxiety", "category": "health", "line": "Sam's anxiety cost us a €25 taxi" },
+    { "id": "illness-anxiety", "category": "health", "line": "Crowley's anxiety cost us a €25 taxi" },
     {
       "id": "intox-drunk",
       "category": "intoxication",
-      "line": "Jordan was so drunk he paid for everyone's kebabs"
+      "line": "Piotr was so drunk he paid for everyone's kebabs"
     },
     {
       "id": "intox-wasted",
       "category": "intoxication",
-      "line": "€90 of tickets and Priya was wasted by midnight"
+      "line": "€90 of tickets and Arjun was wasted by midnight"
     },
     {
       "id": "hardship-broke",
       "category": "hardship",
-      "line": "Jordan is broke, that's why he ordered the €3 water"
+      "line": "Piotr is broke, that's why he ordered the €3 water"
     },
     {
       "id": "hardship-cant-afford",
       "category": "hardship",
-      "line": "Sam can't afford the €72 match tickets"
+      "line": "Crowley can't afford the €72 match tickets"
     },
     {
       "id": "hardship-cheap",
       "category": "hardship",
-      "line": "Maya is so cheap she split a €4 coffee"
+      "line": "Chase is so cheap Chase split a €4 coffee"
     },
     {
       "id": "legal-police",
       "category": "legal",
       "line": "Dean almost got arrested and still made the €18 club"
     },
-    { "id": "legal-fined", "category": "legal", "line": "Sam got fined €200 for the scooter" },
+    { "id": "legal-fined", "category": "legal", "line": "Crowley got fined €200 for the scooter" },
     { "id": "minor-kid", "category": "minor", "line": "the kid ordered three €8 milkshakes" },
     {
       "id": "minor-teen",
@@ -122,21 +122,21 @@
     {
       "id": "private-card",
       "category": "private_data",
-      "line": "Sam's card statement says €80 at a kebab place"
+      "line": "Crowley's card statement says €80 at a kebab place"
     }
   ],
   "allowed": [
     {
       "id": "fine-kebabs",
-      "line": "Jordan has paid for kebabs 3 nights running. the tab remembers"
+      "line": "Piotr has paid for kebabs 3 nights running. the tab remembers"
     },
     {
       "id": "fine-water",
-      "line": "€14 for a water at razzmatazz. Sam, it was €0.80 at the Mercadona you walked past"
+      "line": "€14 for a water at razzmatazz. Crowley, it was €0.80 at the Mercadona you walked past"
     },
     {
       "id": "fine-ubers",
-      "line": "Priya has booked 11 of 23 ubers. the city has a metro. it's quite good"
+      "line": "Arjun has booked 11 of 23 ubers. the city has a metro. it's quite good"
     },
     {
       "id": "fine-nonrefundable",
@@ -149,13 +149,13 @@
     { "id": "fine-uber-spend", "line": "€140 on ubers in one day. the metro is right there" },
     {
       "id": "fine-airport",
-      "line": "Sam was last to the airport by 40 minutes and still bought a €9 sandwich"
+      "line": "Crowley was last to the airport by 40 minutes and still bought a €9 sandwich"
     },
     {
       "id": "fine-kebab-ratio",
       "line": "€62 of it was kebabs at 3am, which is a kebab-to-ticket ratio i haven't seen before"
     },
-    { "id": "fine-owes", "line": "Maya owes Dean €31.60, which is about 39 kebabs" },
+    { "id": "fine-owes", "line": "Chase owes Dean €31.60, which is about 39 kebabs" },
     {
       "id": "fine-sintra-driver",
       "line": "the €180 Sintra driver, worth it per both of you"
@@ -165,22 +165,22 @@
       "line": "most expensive thing: the Sintra driver, €180, worth it per both of you"
     },
     { "id": "fine-single-water", "line": "a single €14 water at razzmatazz. one. for €14" },
-    { "id": "fine-every-single-uber", "line": "every single uber was Priya. all 11 of them" },
+    { "id": "fine-every-single-uber", "line": "every single uber was Arjun. all 11 of them" },
     {
       "id": "fine-asleep-at-the-wheel",
       "line": "asleep at the wheel of this trip: 40 minutes to pick a restaurant, again"
     },
     {
       "id": "fine-last-to-airbnb",
-      "line": "Sam was last to the airbnb for the 4th night running, 25 minutes this time"
+      "line": "Crowley was last to the airbnb for the 4th night running, 25 minutes this time"
     }
   ],
   "gated": [
     {
       "id": "opted-out",
       "cause": "roast_member_opted_out",
-      "target": "Sam",
-      "line": "Sam took 19 ubers in 4 days"
+      "target": "Crowley",
+      "line": "Crowley took 19 ubers in 4 days"
     },
     {
       "id": "left-chat",

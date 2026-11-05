@@ -30,7 +30,7 @@
           "input": {
             "kind": "ticket",
             "query": "razzmatazz",
-            "attendeeMemberIds": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"],
+            "attendeeMemberIds": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
             "excludedMemberIds": ["mem_henry"],
             "activityId": "act_bcn_razzmatazz",
             "requestText": "@trav get the 5 of us Razzmatazz tickets, Henry's sick"
@@ -74,17 +74,17 @@
             "returnDate": "2026-03-17",
             "travelers": [
               { "member": "mem_dean", "origin": "BOS", "returnTo": "JFK" },
-              { "member": "mem_maya", "origin": "SFO", "returnTo": "LAX" },
-              { "member": "mem_jordan", "origin": "ORD", "returnTo": "ORD" },
-              { "member": "mem_priya", "origin": "JFK", "returnTo": "IAD" },
-              { "member": "mem_sam", "origin": "LAX", "returnTo": "SEA" },
+              { "member": "mem_chase", "origin": "SFO", "returnTo": "LAX" },
+              { "member": "mem_piotr", "origin": "ORD", "returnTo": "ORD" },
+              { "member": "mem_arjun", "origin": "JFK", "returnTo": "IAD" },
+              { "member": "mem_crowley", "origin": "LAX", "returnTo": "SEA" },
               { "member": "mem_henry", "origin": "MIA", "returnTo": "ATL" }
             ]
           }
         }
       ]
     },
-    "note": "T-074 (was T-021 step 2): the multi-origin flights ask in pnpm demo:barcelona. The model maps each member to the origin and return airport they said earlier in the chat (Dean BOS out, JFK back; Maya SFO/LAX; Jordan ORD both ways; Priya JFK/IAD; Sam LAX/SEA; Henry MIA/ATL) and calls search_flights in its group form: one provider search per traveler, flights.optimizeGroupFlights ranks whole-group itineraries (refundable first), and the options card is the terminal result the loop posts as is. \"@trav book option 1\" then goes through propose_booking kind flight."
+    "note": "T-074 (was T-021 step 2): the multi-origin flights ask in pnpm demo:barcelona. The model maps each member to the origin and return airport they said earlier in the chat (Dean BOS out, JFK back; Chase SFO/LAX; Piotr ORD both ways; Arjun JFK/IAD; Crowley LAX/SEA; Henry MIA/ATL) and calls search_flights in its group form: one provider search per traveler, flights.optimizeGroupFlights ranks whole-group itineraries (refundable first), and the options card is the terminal result the loop posts as is. \"@trav book option 1\" then goes through propose_booking kind flight."
   },
   {
     "key": "e74686eb90b8efe246480594f0bdee17ef8e2abf7c3813075fff0b63ed191b92",

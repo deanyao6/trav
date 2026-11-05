@@ -3,7 +3,7 @@
  * VOICE §4.4 C, §4.10 D, §4.11; SAFETY §2.4).
  *
  * A member posts a photo addressed to Trav ("@trav [photo] dinner, i paid,
- * Priya didn't drink"). In order:
+ * Arjun didn't drink"). In order:
  *
  *  1. The image is read from an allowed local root only (no network, size and
  *     type checked against the file's magic bytes).
@@ -18,7 +18,7 @@
  *  5. `checkReceipt`: lines must add up to the printed total and every amount
  *     used must be printed on the receipt; anything off (or an injection, or a
  *     low model confidence) makes the card low-confidence.
- *  6. The caption's own words ("i paid", "Priya didn't drink", "Sam's paying
+ *  6. The caption's own words ("i paid", "Arjun didn't drink", "Crowley's paying
  *     his own") set the payer and the claims (`receiptClaims.ts`); the table is
  *     the plan's roster at that time, else everyone.
  *  7. ONE group card (`render/receiptRead.ts`) shows the total, the split and
@@ -898,7 +898,7 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
     }
     if (parse.ops.length === 0) return undefined;
     if (!onCard && parse.noise > 0) return undefined;
-    // "Sam is out" off the card is a roll call unless the receipt was just
+    // "Crowley is out" off the card is a roll call unless the receipt was just
     // discussed by its confirmer and no booking is waiting on the roster (r2 #2).
     const exclusionOnly = !hasItemInfo(parse.ops) && !parse.ops.some((op) => op.op === 'payer');
     if (!onCard && exclusionOnly && (!fresh || !canConfirm || input.otherPending === true))

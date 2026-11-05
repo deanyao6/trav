@@ -53,15 +53,15 @@ const T = 'trip_barcelona';
 const PLANNING = '2026-02-03T20:11:00+01:00';
 const ASK =
   "@trav we're 6, flying BOS SFO ORD JFK LAX MIA into BCN thurs mar 12, home tues mar 17 to JFK LAX ORD IAD SEA ATL. find flights that land around the same time";
-const HANDLES = ['h_dean', 'h_maya', 'h_priya', 'h_jordan', 'h_sam', 'h_henry'] as const;
+const HANDLES = ['h_dean', 'h_chase', 'h_arjun', 'h_piotr', 'h_crowley', 'h_henry'] as const;
 
-/** The Barcelona travelers as they said it in the chat (open-jaw for all but Jordan). */
+/** The Barcelona travelers as they said it in the chat (open-jaw for all but Piotr). */
 const TRAVELERS: GroupFlightAsk['travelers'] = [
   { memberId: 'mem_dean', origin: 'BOS', returnTo: 'JFK' },
-  { memberId: 'mem_maya', origin: 'SFO', returnTo: 'LAX' },
-  { memberId: 'mem_jordan', origin: 'ORD' },
-  { memberId: 'mem_priya', origin: 'JFK', returnTo: 'IAD' },
-  { memberId: 'mem_sam', origin: 'LAX', returnTo: 'SEA' },
+  { memberId: 'mem_chase', origin: 'SFO', returnTo: 'LAX' },
+  { memberId: 'mem_piotr', origin: 'ORD' },
+  { memberId: 'mem_arjun', origin: 'JFK', returnTo: 'IAD' },
+  { memberId: 'mem_crowley', origin: 'LAX', returnTo: 'SEA' },
   { memberId: 'mem_henry', origin: 'MIA', returnTo: 'ATL' },
 ];
 const BCN_ASK: GroupFlightAsk = {
@@ -170,10 +170,10 @@ describe('the flight set ref (proposal itemRef ⇄ executor)', () => {
   it('round-trips who flies on which offer at which fare, and rejects anything else', () => {
     const parts = [
       { memberId: 'mem_dean', offerId: 'off_a_1', totalMinor: 41200 },
-      { memberId: 'mem_sam', offerId: 'off_b_2', totalMinor: 55900 },
+      { memberId: 'mem_crowley', offerId: 'off_b_2', totalMinor: 55900 },
     ];
     const ref = encodeFlightSet(parts);
-    expect(ref).toBe('flights:mem_dean=off_a_1@41200,mem_sam=off_b_2@55900');
+    expect(ref).toBe('flights:mem_dean=off_a_1@41200,mem_crowley=off_b_2@55900');
     expect(decodeFlightSet(ref)).toEqual(parts);
     for (const bad of [
       'off_a_1',
@@ -182,7 +182,7 @@ describe('the flight set ref (proposal itemRef ⇄ executor)', () => {
       'flights:mem_dean=off_a_1@0',
       'flights:mem_dean=off_a_1@-5',
       'flights:mem_dean=off_a_1@1.5',
-      'flights:mem_dean=off_a_1@41200,mem_sam=off_a_1@100',
+      'flights:mem_dean=off_a_1@41200,mem_crowley=off_a_1@100',
       'flights:mem_dean=off_a_1@41200,mem_dean=off_b@100',
       'flights:mem dean=off_a_1@41200',
     ]) {
@@ -251,7 +251,7 @@ describe('planGroupFlights (the optimizer over the mock airline)', () => {
       res.card.options.map((o) => o.price.amountMinor),
     );
     expect(plan.options[0]!.picks.map((p) => p.memberId)).toEqual(TRAVELERS.map((t) => t.memberId));
-    expect(plan.options[0]!.picks.find((p) => p.memberId === 'mem_jordan')!.returnTo).toBe('ORD');
+    expect(plan.options[0]!.picks.find((p) => p.memberId === 'mem_piotr')!.returnTo).toBe('ORD');
   });
 
   it('a traveler with no flights that day gets one honest line, no partial card and no plan', async () => {
@@ -295,9 +295,9 @@ describe('planGroupFlights (the optimizer over the mock airline)', () => {
 
   it("a minor's fare goes on their guardian, who approves; the minor never does", async () => {
     const r = rig();
-    const sam = r.members.find((m) => m.memberId === 'mem_sam')!;
+    const crowley = r.members.find((m) => m.memberId === 'mem_crowley')!;
     r.stores.group.members.upsert({
-      ...sam,
+      ...crowley,
       ageBand: 'under18',
       guardianMemberId: 'mem_dean',
     } as Member);
@@ -327,13 +327,13 @@ describe('planGroupFlights (the optimizer over the mock airline)', () => {
     const fares = new Map(
       decodeFlightSet(p.itemRef)!.map((x) => [x.memberId, x.totalMinor] as const),
     );
-    expect(p.payers.map((s) => s.memberId)).not.toContain('mem_sam');
+    expect(p.payers.map((s) => s.memberId)).not.toContain('mem_crowley');
     expect(p.payers.find((s) => s.memberId === 'mem_dean')!.shareMinor).toBe(
-      fares.get('mem_dean')! + fares.get('mem_sam')!,
+      fares.get('mem_dean')! + fares.get('mem_crowley')!,
     );
     expect(p.payers.reduce((s, x) => s + x.shareMinor, 0)).toBe(p.totalMinor);
-    expect(res.decision.requiredApprovers).not.toContain('mem_sam');
-    expect(res.text).toMatch(/Sam's on Dean's/);
+    expect(res.decision.requiredApprovers).not.toContain('mem_crowley');
+    expect(res.text).toMatch(/Crowley's on Dean's/);
   });
 });
 
@@ -443,11 +443,11 @@ describe('flights in chat (T-074): ask → options → "book option 1" → every
     const guest = await h.tap('h_ava', msg.id, 'pick', card.options[1]!.id);
     expect(group(guest)).toEqual([]);
     expect(h.pending()).toEqual([]);
-    const turn = await h.tap('h_maya', msg.id, 'pick', card.options[1]!.id);
+    const turn = await h.tap('h_chase', msg.id, 'pick', card.options[1]!.id);
     const sent = group(turn).find((m) => m.card?.type === 'booking_proposal');
     expect(sent?.text).toMatch(/^option 2, flights for 6: into BCN/);
     const [p] = h.pending();
-    expect(p).toMatchObject({ kind: 'flight', requestedBy: 'mem_maya' });
+    expect(p).toMatchObject({ kind: 'flight', requestedBy: 'mem_chase' });
     expect(p!.totalMinor).toBe(card.options[1]!.price.amountMinor);
     expect(flights.orders).toEqual([]);
     // A value that is not this card's option is no pick.
@@ -472,40 +472,42 @@ describe('flights in chat (T-074): ask → options → "book option 1" → every
     const { h, flights } = planning();
     await options(h);
     const { msg, proposal } = await bookOption(h);
-    const out = await h.tap('h_sam', msg.id, 'not_me');
+    const out = await h.tap('h_crowley', msg.id, 'not_me');
     const next = group(out).find((m) => m.card?.type === 'booking_proposal');
     expect(next?.card?.type).toBe('booking_proposal');
     if (next?.card?.type !== 'booking_proposal') return;
     const fresh = h.runtime.stores.group.bookings.getProposal(next.card.proposalId)!;
     expect(fresh.proposalId).not.toBe(proposal.proposalId);
-    expect(fresh.attendees).not.toContain('mem_sam');
+    expect(fresh.attendees).not.toContain('mem_crowley');
     expect(fresh.attendees).toHaveLength(5);
-    const samFare = decodeFlightSet(proposal.itemRef)!.find((p) => p.memberId === 'mem_sam')!;
-    expect(fresh.totalMinor).toBe(proposal.totalMinor - samFare.totalMinor);
+    const crowleyFare = decodeFlightSet(proposal.itemRef)!.find(
+      (p) => p.memberId === 'mem_crowley',
+    )!;
+    expect(fresh.totalMinor).toBe(proposal.totalMinor - crowleyFare.totalMinor);
     // The same offers for everyone else.
     const before = new Map(decodeFlightSet(proposal.itemRef)!.map((p) => [p.memberId, p.offerId]));
     for (const p of decodeFlightSet(fresh.itemRef)!) expect(p.offerId).toBe(before.get(p.memberId));
-    expect(next.text).toMatch(/flights for 5 \(not Sam\)/);
+    expect(next.text).toMatch(/flights for 5 \(not Crowley\)/);
     expect(h.runtime.stores.group.bookings.getProposal(proposal.proposalId)!.status).toBe(
       'superseded',
     );
     // Nothing bought by the re-quote; the 5 still each have to approve.
     expect(flights.orders).toEqual([]);
-    for (const handle of ['h_dean', 'h_maya', 'h_priya', 'h_jordan']) {
+    for (const handle of ['h_dean', 'h_chase', 'h_arjun', 'h_piotr']) {
       await h.tap(handle, next.id, 'approve');
     }
     expect(flights.orders).toEqual([]);
     await h.tap('h_henry', next.id, 'approve');
     expect(flights.inner.purchaseCount()).toBe(5);
-    expect(flightBookings(h)[0]!.attendees).not.toContain('mem_sam');
+    expect(flightBookings(h)[0]!.attendees).not.toContain('mem_crowley');
   });
 
   it('a fare that moved after the card went up is never bought at the old price: a fresh card at the new total', async () => {
     const { h, flights } = planning();
     await options(h);
     const { msg, proposal } = await bookOption(h);
-    const priya = decodeFlightSet(proposal.itemRef)!.find((p) => p.memberId === 'mem_priya')!;
-    flights.bump.set(priya.offerId, 4000);
+    const arjun = decodeFlightSet(proposal.itemRef)!.find((p) => p.memberId === 'mem_arjun')!;
+    flights.bump.set(arjun.offerId, 4000);
     for (const handle of HANDLES) await h.tap(handle, msg.id, 'approve');
     expect(flights.orders).toEqual([]);
     expect(flightBookings(h)).toEqual([]);
@@ -526,23 +528,25 @@ describe('flights in chat (T-074): ask → options → "book option 1" → every
     const { msg, proposal } = await bookOption(h, 3);
     expect(msg.text).toMatch(/^option 3, flights for 6/);
     expect(proposal.totalMinor).toBe(card.options[2]!.price.amountMinor);
-    const out = await h.tap('h_sam', msg.id, 'not_me');
+    const out = await h.tap('h_crowley', msg.id, 'not_me');
     const next = group(out).find((m) => m.card?.type === 'booking_proposal')!;
-    expect(next.text).toMatch(/^option 3, flights for 5 \(not Sam\)/);
+    expect(next.text).toMatch(/^option 3, flights for 5 \(not Crowley\)/);
     const fresh = h.pending().find((p) => p.kind === 'flight')!;
     const before = offersOf(proposal);
     const after = offersOf(fresh);
     expect([...after.keys()].sort()).toEqual(
-      [...before.keys()].filter((id) => id !== 'mem_sam').sort(),
+      [...before.keys()].filter((id) => id !== 'mem_crowley').sort(),
     );
     for (const [member, offer] of after) expect(offer).toBe(before.get(member));
-    const samFare = decodeFlightSet(proposal.itemRef)!.find((p) => p.memberId === 'mem_sam')!;
-    expect(fresh.totalMinor).toBe(proposal.totalMinor - samFare.totalMinor);
+    const crowleyFare = decodeFlightSet(proposal.itemRef)!.find(
+      (p) => p.memberId === 'mem_crowley',
+    )!;
+    expect(fresh.totalMinor).toBe(proposal.totalMinor - crowleyFare.totalMinor);
     // A second "not me" on the fresh card still stays on option 3.
-    const again = await h.tap('h_jordan', next.id, 'not_me');
+    const again = await h.tap('h_piotr', next.id, 'not_me');
     expect(group(again).find((m) => m.card?.type === 'booking_proposal')?.text).toMatch(
       // Everyone off option 3 since it was posted, in member order.
-      /^option 3, flights for 4 \(not Jordan, Sam\)/,
+      /^option 3, flights for 4 \(not Piotr, Crowley\)/,
     );
     expect(flights.orders).toEqual([]);
   });
@@ -551,8 +555,8 @@ describe('flights in chat (T-074): ask → options → "book option 1" → every
     const { h, flights } = planning();
     await options(h);
     const { msg, proposal } = await bookOption(h, 2);
-    const priya = decodeFlightSet(proposal.itemRef)!.find((p) => p.memberId === 'mem_priya')!;
-    flights.bump.set(priya.offerId, 2500);
+    const arjun = decodeFlightSet(proposal.itemRef)!.find((p) => p.memberId === 'mem_arjun')!;
+    flights.bump.set(arjun.offerId, 2500);
     let last: TurnResult | undefined;
     for (const handle of HANDLES) last = await h.tap(handle, msg.id, 'approve');
     expect(flights.orders).toEqual([]);
@@ -592,10 +596,10 @@ describe('flights in chat (T-074): ask → options → "book option 1" → every
     const { msg: old, card: oldCard } = await options(h);
     const { msg: latest, card: newCard } = await options(h);
     expect(newCard.cardId).not.toBe(oldCard.cardId);
-    const stale = await h.tap('h_maya', old.id, 'pick', oldCard.options[0]!.id);
+    const stale = await h.tap('h_chase', old.id, 'pick', oldCard.options[0]!.id);
     expect(group(stale).map((m) => m.text)).toEqual([REPLACED_OPTIONS_TEXT]);
     expect(h.pending()).toEqual([]);
-    const ok = await h.tap('h_maya', latest.id, 'pick', newCard.options[0]!.id);
+    const ok = await h.tap('h_chase', latest.id, 'pick', newCard.options[0]!.id);
     expect(group(ok).some((m) => m.card?.type === 'booking_proposal')).toBe(true);
   });
 
@@ -604,7 +608,7 @@ describe('flights in chat (T-074): ask → options → "book option 1" → every
     await options(h);
     const { msg } = await bookOption(h, 2);
     await options(h);
-    const out = await h.tap('h_sam', msg.id, 'not_me');
+    const out = await h.tap('h_crowley', msg.id, 'not_me');
     expect(group(out).map((m) => m.text)).toEqual([REPLACED_OPTIONS_TEXT]);
   });
 
@@ -621,28 +625,30 @@ describe('flights in chat (T-074): ask → options → "book option 1" → every
     expect(flights.orders).toEqual([]);
   });
 
-  it('the receipt says whose fare a guardian carries: "(Sam\'s on Dean\'s)" (review r1 #4)', async () => {
+  it('the receipt says whose fare a guardian carries: "(Crowley\'s on Dean\'s)" (review r1 #4)', async () => {
     const { h, flights } = planning();
-    const sam = h.runtime.stores.group.members.get('mem_sam')!;
+    const crowley = h.runtime.stores.group.members.get('mem_crowley')!;
     h.runtime.stores.group.members.upsert({
-      ...sam,
+      ...crowley,
       ageBand: 'under18',
       guardianMemberId: 'mem_dean',
     } as Member);
     await options(h);
     const { msg, proposal } = await bookOption(h);
     expect(msg.text).toMatch(
-      /each pays their own fare on their own card \(Sam's on Dean's\), nothing to split/,
+      /each pays their own fare on their own card \(Crowley's on Dean's\), nothing to split/,
     );
     const decision = h.runtime.stores.group.bookings.getDecision(proposal.proposalId)!.decision;
-    expect(decision.requiredApprovers).not.toContain('mem_sam');
+    expect(decision.requiredApprovers).not.toContain('mem_crowley');
     let last: TurnResult | undefined;
-    for (const handle of HANDLES.filter((x) => x !== 'h_sam')) {
+    for (const handle of HANDLES.filter((x) => x !== 'h_crowley')) {
       last = await h.tap(handle, msg.id, 'approve');
     }
     expect(flights.inner.purchaseCount()).toBe(6);
     const receipt = group(last!).find((m) => m.card?.type === 'receipt');
-    expect(receipt?.text).toMatch(/each on your own card \(Sam's on Dean's\), nothing to split$/);
+    expect(receipt?.text).toMatch(
+      /each on your own card \(Crowley's on Dean's\), nothing to split$/,
+    );
   });
 
   it('an order that fails after others landed: the booking covers who is booked, the rest are told plainly, nothing bought twice', async () => {
@@ -663,7 +669,7 @@ describe('flights in chat (T-074): ask → options → "book option 1" → every
     const completed = h
       .audit()
       .find((e) => e.type === 'booking.completed' && e.proposalId === proposal.proposalId)!;
-    // Maya's order was refused; Jordan's, Priya's and Sam's were never sent.
+    // Chase's order was refused; Piotr's, Arjun's and Crowley's were never sent.
     expect(completed.payload['partial']).toMatchObject({
       failed: [set[2]!.memberId],
       notSent: set.slice(3).map((p) => p.memberId),
@@ -680,11 +686,11 @@ describe('flights in chat (T-074): ask → options → "book option 1" → every
     expect(lines.length).toBeLessThanOrEqual(6);
     expect(lines[0]).toMatch(/^booked ✅ flights to BCN, €[\d,]+$/);
     expect(lines[1]).toMatch(/^2 airline orders, refs in the card/);
-    // Orders go out in member order: Dean and Henry landed, the third (Maya's) failed.
+    // Orders go out in member order: Dean and Henry landed, the third (Chase's) failed.
     expect(lines.slice(-3).join('\n')).toBe(
       [
-        "Maya's flight didn't go through, so it's not booked and not charged",
-        "i stopped there: Jordan, Priya, Sam weren't booked, nothing charged for them",
+        "Chase's flight didn't go through, so it's not booked and not charged",
+        "i stopped there: Piotr, Arjun, Crowley weren't booked, nothing charged for them",
         "@ me and i'll look again",
       ].join('\n'),
     );
@@ -697,7 +703,7 @@ describe('flights in chat (T-074): ask → options → "book option 1" → every
   it('partialFlightsText: the refused order, the unsent ones, and no "no charge" promise after an outage', () => {
     const t = (over: Partial<Parameters<typeof partialFlightsText>[0]>) =>
       partialFlightsText({
-        failed: 'Sam',
+        failed: 'Crowley',
         failedCount: 1,
         notSent: '',
         notSentCount: 0,
@@ -705,7 +711,7 @@ describe('flights in chat (T-074): ask → options → "book option 1" → every
         ...over,
       });
     expect(t({})).toBe(
-      "Sam's flight didn't go through, so it's not booked and not charged\n@ me and i'll look again",
+      "Crowley's flight didn't go through, so it's not booked and not charged\n@ me and i'll look again",
     );
     expect(t({ failed: 'James', notSent: 'Henry', notSentCount: 1 })).toBe(
       "James' flight didn't go through, so it's not booked and not charged\ni stopped there: Henry wasn't booked, nothing charged for them\n@ me and i'll look again",
@@ -713,11 +719,11 @@ describe('flights in chat (T-074): ask → options → "book option 1" → every
     // A timeout or outage may have landed at the airline: never "not charged".
     const unsure = t({ errorCode: 'provider_unavailable' });
     expect(unsure).toBe(
-      "Sam's flight didn't confirm, so check with the airline before rebooking\n@ me and i'll look again",
+      "Crowley's flight didn't confirm, so check with the airline before rebooking\n@ me and i'll look again",
     );
     expect(unsure).not.toMatch(/not charged/);
-    expect(t({ failed: 'Priya, Sam', failedCount: 2 })).toMatch(
-      /^flights for Priya, Sam didn't go through, so they're not booked/,
+    expect(t({ failed: 'Arjun, Crowley', failedCount: 2 })).toMatch(
+      /^flights for Arjun, Crowley didn't go through, so they're not booked/,
     );
   });
 });

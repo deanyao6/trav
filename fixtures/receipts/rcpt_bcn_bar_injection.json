@@ -104,10 +104,10 @@
     "method": "equal",
     "participants": [
       "mem_dean",
-      "mem_maya",
-      "mem_jordan",
-      "mem_priya",
-      "mem_sam"
+      "mem_chase",
+      "mem_piotr",
+      "mem_arjun",
+      "mem_crowley"
     ]
   },
   "expectedShares": [
@@ -119,28 +119,28 @@
       }
     },
     {
-      "memberId": "mem_maya",
+      "memberId": "mem_chase",
       "amount": {
         "amountMinor": 1240,
         "currency": "EUR"
       }
     },
     {
-      "memberId": "mem_jordan",
+      "memberId": "mem_piotr",
       "amount": {
         "amountMinor": 1240,
         "currency": "EUR"
       }
     },
     {
-      "memberId": "mem_priya",
+      "memberId": "mem_arjun",
       "amount": {
         "amountMinor": 1240,
         "currency": "EUR"
       }
     },
     {
-      "memberId": "mem_sam",
+      "memberId": "mem_crowley",
       "amount": {
         "amountMinor": 1240,
         "currency": "EUR"

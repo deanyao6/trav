@@ -103,7 +103,7 @@ describe('AppView renders demo states 1–3', () => {
     const henry = render(s2, 'h_henry');
     expect(henry).not.toContain('data-testid="action-approve"');
     // Any one of the 5 charged can ok it under the cap; Henry is not charged, so not named.
-    expect(henry).toContain('waiting on Dean, Maya +3');
+    expect(henry).toContain('waiting on Dean, Chase +3');
   });
 
   it('state 2: the typing indicator renders while Trav works', async () => {
@@ -125,7 +125,7 @@ describe('AppView renders demo states 1–3', () => {
     expect(html).toContain('RZ-48213');
     expect(html).toContain('5 tickets sent');
     expect(html).toContain('data-testid="dm-tab-mem_henry" data-count="0"');
-    for (const id of ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam']) {
+    for (const id of ['mem_dean', 'mem_chase', 'mem_piotr', 'mem_arjun', 'mem_crowley']) {
       expect(html).toContain(`data-testid="dm-tab-${id}" data-count="1"`);
     }
     // Dean's own DM tab is open: his ticket renders there (once), with the lock line.
@@ -160,48 +160,48 @@ describe('AppView renders demo states 1–3', () => {
 
   it("another member's DM tab is view-only: no card buttons, no tapback picker", async () => {
     const { s3 } = await states();
-    const sam = BARCELONA.members.find((m) => m.handle === 'h_sam')!;
+    const crowley = BARCELONA.members.find((m) => m.handle === 'h_crowley')!;
     const privateExpense: ExpenseConfirmCard = {
       ...expense,
       cardId: 'card_private',
       visibility: 'private',
       status: 'pending',
-      paidBy: sam.memberId,
+      paidBy: crowley.memberId,
     };
     const shareIt = {
       id: 'confirm',
       label: 'Share it',
       style: 'primary',
       textAliases: ['share'],
-      allowedMemberIds: [sam.memberId],
+      allowedMemberIds: [crowley.memberId],
     } as const;
     const dmCard: ThreadMessage = {
       ...cardMessage(privateExpense, [shareIt]),
       lane: 'dm',
-      messageId: 'm_sam_private',
+      messageId: 'm_crowley_private',
     };
     const state: SimState = {
       ...s3,
       groups: s3.groups.map((g, i) =>
-        i === 0 ? { ...g, dms: { ...g.dms, [sam.memberId]: [dmCard] } } : g,
+        i === 0 ? { ...g, dms: { ...g.dms, [crowley.memberId]: [dmCard] } } : g,
       ),
     };
     const dmPart = (html: string) => html.slice(html.indexOf('class="right-rail"'));
 
-    // Sending as Dean, looking at Sam's DM: look, don't tap.
-    const asDean = dmPart(render(state, 'h_dean', { dmMemberId: sam.memberId }));
-    expect(asDean).toContain('only Sam sees this');
+    // Sending as Dean, looking at Crowley's DM: look, don't tap.
+    const asDean = dmPart(render(state, 'h_dean', { dmMemberId: crowley.memberId }));
+    expect(asDean).toContain('only Crowley sees this');
     expect(asDean).toContain('data-testid="dm-readonly"');
     expect(asDean).toContain('€84');
     expect(asDean).not.toContain('>Share it<');
     expect(asDean).toContain('data-tapbacks="off"');
     expect(asDean).not.toContain('data-tapbacks="on"');
 
-    // Sending as Sam, Sam's own DM: the buttons and tapbacks are live.
-    const asSam = dmPart(render(state, 'h_sam', { dmMemberId: sam.memberId }));
-    expect(asSam).not.toContain('data-testid="dm-readonly"');
-    expect(asSam).toContain('>Share it<');
-    expect(asSam).toContain('data-tapbacks="on"');
+    // Sending as Crowley, Crowley's own DM: the buttons and tapbacks are live.
+    const asCrowley = dmPart(render(state, 'h_crowley', { dmMemberId: crowley.memberId }));
+    expect(asCrowley).not.toContain('data-testid="dm-readonly"');
+    expect(asCrowley).toContain('>Share it<');
+    expect(asCrowley).toContain('data-tapbacks="on"');
   });
 
   it('the group thread markup never contains a ticket, whoever is selected', async () => {
@@ -232,9 +232,9 @@ const settle: SettleUpCard = {
   currency: 'EUR',
   balances: [
     { memberId: 'mem_dean', name: 'Dean', net: eur(3160) },
-    { memberId: 'mem_maya', name: 'Maya', net: eur(-3160) },
+    { memberId: 'mem_chase', name: 'Chase', net: eur(-3160) },
   ],
-  transfers: [{ from: 'mem_maya', to: 'mem_dean', amount: eur(3160) }],
+  transfers: [{ from: 'mem_chase', to: 'mem_dean', amount: eur(3160) }],
   totalSpent: eur(184000),
 };
 
@@ -252,7 +252,7 @@ const expense: ExpenseConfirmCard = {
   paidBy: 'mem_dean',
   split: {
     method: 'exclude',
-    participants: ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam'].map(
+    participants: ['mem_dean', 'mem_chase', 'mem_piotr', 'mem_arjun', 'mem_crowley'].map(
       (memberId) => ({
         memberId,
         name: memberId,
@@ -272,7 +272,7 @@ const recap: RecapCard = {
   date: '2026-03-15',
   dayNumber: 4,
   lastNight: {
-    events: [{ label: 'Razzmatazz', attendees: ['mem_dean', 'mem_sam'], amount: eur(9000) }],
+    events: [{ label: 'Razzmatazz', attendees: ['mem_dean', 'mem_crowley'], amount: eur(9000) }],
     total: eur(9000),
   },
   settle: { ...settle, mode: 'running' },
@@ -295,7 +295,12 @@ const wrapped: WrappedCard = {
   },
   stats: [{ label: 'ubers', value: '23' }],
   awards: [
-    { title: 'night owl', memberId: 'mem_sam', evidence: 'latest receipt 4:12am', basis: 'ledger' },
+    {
+      title: 'night owl',
+      memberId: 'mem_crowley',
+      evidence: 'latest receipt 4:12am',
+      basis: 'ledger',
+    },
   ],
   photos: [],
   finalSettle: settle,
@@ -381,7 +386,7 @@ describe('Card renders every RichCard type', () => {
     ]);
     expect(html).toContain('+€31.60');
     expect(html).toContain('-€31.60');
-    expect(html).toContain('Maya → Dean €31.60');
+    expect(html).toContain('Chase → Dean €31.60');
     expect(html).toContain('>Paid<');
     expect(html).toContain('€1,840');
   });
@@ -427,7 +432,7 @@ describe('Card renders every RichCard type', () => {
           tradeoff: '',
           details: [
             'Dean BOS 7:10am → BCN 7:35pm · home 11am to JFK · €412',
-            'Maya SFO wed 10:30pm → BCN 9:40pm, 1 stop · home 10am to LAX · €538',
+            'Chase SFO wed 10:30pm → BCN 9:40pm, 1 stop · home 10am to LAX · €538',
           ],
         },
       ],
@@ -435,7 +440,7 @@ describe('Card renders every RichCard type', () => {
     const html = r(flights);
     expect(html).toContain('data-testid="option-details-1"');
     expect(html).toContain('Dean BOS 7:10am → BCN 7:35pm · home 11am to JFK · €412');
-    expect(html).toContain('Maya SFO wed 10:30pm');
+    expect(html).toContain('Chase SFO wed 10:30pm');
   });
 
   it('an unknown card type renders its text fallback inside the panel, not an empty box', () => {

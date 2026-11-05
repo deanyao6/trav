@@ -108,7 +108,7 @@ describe('parseSettingsCommand', () => {
   it.each([
     'lol stop roasting him',
     'the photos on the beach were great',
-    'roast Sam for the ubers',
+    'roast Crowley for the ubers',
     'what are the odds',
     "@trav get the 5 of us Razzmatazz tickets, Henry's sick",
     'my card got charged twice',

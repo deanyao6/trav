@@ -3,7 +3,7 @@
  * the "read it" card, never by the photo message itself (SAFETY D5:
  * "extracted amounts never enter the ledger without a member-confirmed
  * card"). The scenario and the Barcelona chat fixture both carry that 👍
- * step; every amount and share is what it was (Priya €21, others €32.60;
+ * step; every amount and share is what it was (Arjun €21, others €32.60;
  * lunch €108.90).
  */
 import { readFileSync } from 'node:fs';
@@ -49,12 +49,12 @@ const chat = (): ChatLine[] =>
 const GATBLAU_SHARES = {
   mem_dean: 3260,
   mem_henry: 3260,
-  mem_maya: 3260,
-  mem_jordan: 3260,
-  mem_priya: 2100,
-  mem_sam: 3260,
+  mem_chase: 3260,
+  mem_piotr: 3260,
+  mem_arjun: 2100,
+  mem_crowley: 3260,
 };
-const LUNCH_SHARES = { mem_dean: 3872, mem_maya: 3872, mem_priya: 3146 };
+const LUNCH_SHARES = { mem_dean: 3872, mem_chase: 3872, mem_arjun: 3146 };
 
 describe('receipt_photo_itemized: logged on the payer 👍, not on the photo (T-083)', () => {
   it('passes ledger_ground_truth, and the only write is on the payer 👍 step', async () => {
@@ -65,9 +65,9 @@ describe('receipt_photo_itemized: logged on the payer 👍, not on the photo (T-
     expect(ep.error).toBeUndefined();
     const [photo, other, payer] = ep.steps;
     expect(photo!.newExpenseIds).toEqual([]);
-    expect(other!.from).toBe('h_maya');
+    expect(other!.from).toBe('h_chase');
     expect(other!.newExpenseIds).toEqual([]);
-    expect(payer!.from).toBe('h_jordan');
+    expect(payer!.from).toBe('h_piotr');
     expect(payer!.kind).toBe('react');
     expect(payer!.newExpenseIds).toHaveLength(1);
     expect(ep.snapshot.expenses).toHaveLength(1);
@@ -111,8 +111,8 @@ describe('fixtures/chats/barcelona.jsonl: both receipt photos wait for the payer
   const byId = new Map(lines.map((l) => [l.id, l]));
 
   it.each([
-    ['msg_bcn_0093', 'msg_bcn_0093a', 'h_jordan', 'mem_jordan', 18400, GATBLAU_SHARES],
-    ['msg_bcn_0161', 'msg_bcn_0161a', 'h_maya', 'mem_maya', 10890, LUNCH_SHARES],
+    ['msg_bcn_0093', 'msg_bcn_0093a', 'h_piotr', 'mem_piotr', 18400, GATBLAU_SHARES],
+    ['msg_bcn_0161', 'msg_bcn_0161a', 'h_chase', 'mem_chase', 10890, LUNCH_SHARES],
   ] as const)(
     '%s posts the card, %s (the payer 👍) writes the expense',
     (cardLine, okLine, handle, payer, total, shares) => {

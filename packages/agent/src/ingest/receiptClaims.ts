@@ -2,8 +2,8 @@
  * "Who had what?" (T-011), the deterministic half: a member's words about a
  * receipt → claim operations → the T-003 itemized split.
  *
- * The poster's caption ("dinner, i paid, Priya didn't drink") and any later
- * answer ("dean and i split the paella, priya had the burrata, the cava was
+ * The poster's caption ("dinner, i paid, Arjun didn't drink") and any later
+ * answer ("dean and i split the paella, arjun had the burrata, the cava was
  * the 3 of us") are parsed clause by clause into `ClaimOp`s. Each op names
  * members (by name, "i/me/mine", "everyone", "the 3 of us", "he/she" for the
  * last person named) and lines (`matchLines`: "drinks", "the wine", "the
@@ -67,7 +67,7 @@ export function hasItemInfo(ops: readonly ClaimOp[]): boolean {
   return ops.some(
     (o) =>
       o.op === 'claim' ||
-      // "Sam only had water" with no water line is an exclusion, not a claim
+      // "Crowley only had water" with no water line is an exclusion, not a claim
       (o.op === 'only' && o.lineIds.length > 0) ||
       o.op === 'no_drinks' ||
       o.op === 'rest' ||
@@ -279,7 +279,7 @@ function parseClause(c: string, ctx: ClaimContext, last: readonly MemberId[] | u
       const who = ids(p);
       if (who === undefined) return { kind: 'question', question: whoQuestion(m[1]!) };
       const lm = matchLines(m[2]!, ctx.lines);
-      // "Sam only had water" with no water on the receipt: Sam had nothing on it.
+      // "Crowley only had water" with no water on the receipt: Crowley had nothing on it.
       const lineIds = lm.kind === 'lines' ? lm.lineIds : [];
       if (lm.kind === 'ambiguous') return { kind: 'ops', ops: [{ op: 'only', memberIds: who, lineIds: lm.lineIds }], subject: who };
       return { kind: 'ops', ops: [{ op: 'only', memberIds: who, lineIds }], subject: who };
@@ -318,7 +318,7 @@ function parseClause(c: string, ctx: ClaimContext, last: readonly MemberId[] | u
     if (m !== null) {
       const subject = m[1]!.trim();
       const rest = m[2]!.trim();
-      // "the wine was mine", "the cava was the 3 of us", "the burrata was priya's", "the wine was shared"
+      // "the wine was mine", "the cava was the 3 of us", "the burrata was arjun's", "the wine was shared"
       const p = /^(?:shared|for (?:the )?table)$/.test(rest) ? ({ ok: true, ref: { kind: 'table' } } as const) : people(rest);
       return itemOps(subject, p, ctx);
     }
@@ -341,7 +341,7 @@ function parseOne(
 ): Clause {
   const direct = parseClause(c, ctx, last);
   if (direct.kind === 'ops') return direct;
-  // "dean and i split the paella and priya had the burrata": try each " and " split
+  // "dean and i split the paella and arjun had the burrata": try each " and " split
   const ands = [...c.matchAll(/ and /g)].map((m) => m.index);
   for (const at of ands) {
     const left = parseClause(c.slice(0, at).trim(), ctx, last);
@@ -394,7 +394,7 @@ export function parseClaims(text: string, ctx: ClaimContext): ClaimParse {
 // ---------- questions (VOICE §4.11: one question, the last line) ----------
 
 export const GENERIC_QUESTION =
-  'didn\'t catch that one. who had what? like "priya had the burrata, the wine was mine"';
+  'didn\'t catch that one. who had what? like "arjun had the burrata, the wine was mine"';
 
 function quoted(s: string): string {
   const t = s.replace(/["\n]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -494,7 +494,7 @@ export function applyClaims(
         break;
       }
       case 'include': {
-        // "sam was there" undoes "sam only had water" (a line-less `only`) too
+        // "crowley was there" undoes "crowley only had water" (a line-less `only`) too
         const allowed = Object.fromEntries(
           Object.entries(s.allowed).filter(([m]) => !o.memberIds.includes(m)),
         );

@@ -1782,8 +1782,8 @@ export function bookedAttendees(
 
 /**
  * The "who's in" half of the which-one question (T-143 r1 #1, VOICE §4.11 A):
- * from the plan that night when one has attendance ("is it Dean, Maya,
- * Jordan, Priya, Sam? Henry's out"), else everyone active. One "?" only,
+ * from the plan that night when one has attendance ("is it Dean, Chase,
+ * Piotr, Arjun, Crowley? Henry's out"), else everyone active. One "?" only,
  * no reason why anyone is out.
  */
 function whoIsInThat(
@@ -1888,8 +1888,8 @@ function createActivity(
  *
  * Every name, in or out, is resolved before any question (T-158), so the
  * "who's in?" lists who Trav has as going: the named people it could match
- * when the ask named people (r1 #4: "for maya, sam and zed" ⇒ "i've got
- * Maya, Sam", never the whole group), else everyone still in; never anyone
+ * when the ask named people (r1 #4: "for chase, crowley and zed" ⇒ "i've got
+ * Chase, Crowley", never the whole group), else everyone still in; never anyone
  * the member just excluded or who is marked out.
  */
 export function resolveParty(a: {

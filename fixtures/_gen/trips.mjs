@@ -11,29 +11,29 @@ export const BCN = {
   off: '+01:00',
   dean: 'mem_dean',
   henry: 'mem_henry',
-  maya: 'mem_maya',
-  jordan: 'mem_jordan',
-  priya: 'mem_priya',
-  sam: 'mem_sam',
+  chase: 'mem_chase',
+  piotr: 'mem_piotr',
+  arjun: 'mem_arjun',
+  crowley: 'mem_crowley',
 };
 /** Group member order (VOICE §3.5 lists people in this order). */
-BCN.all = [BCN.dean, BCN.henry, BCN.maya, BCN.jordan, BCN.priya, BCN.sam];
+BCN.all = [BCN.dean, BCN.henry, BCN.chase, BCN.piotr, BCN.arjun, BCN.crowley];
 BCN.five = BCN.all.filter((m) => m !== BCN.henry);
 BCN.handle = {
   [BCN.dean]: 'h_dean',
   [BCN.henry]: 'h_henry',
-  [BCN.maya]: 'h_maya',
-  [BCN.jordan]: 'h_jordan',
-  [BCN.priya]: 'h_priya',
-  [BCN.sam]: 'h_sam',
+  [BCN.chase]: 'h_chase',
+  [BCN.piotr]: 'h_piotr',
+  [BCN.arjun]: 'h_arjun',
+  [BCN.crowley]: 'h_crowley',
 };
 BCN.name = {
   [BCN.dean]: 'Dean',
   [BCN.henry]: 'Henry',
-  [BCN.maya]: 'Maya',
-  [BCN.jordan]: 'Jordan',
-  [BCN.priya]: 'Priya',
-  [BCN.sam]: 'Sam',
+  [BCN.chase]: 'Chase',
+  [BCN.piotr]: 'Piotr',
+  [BCN.arjun]: 'Arjun',
+  [BCN.crowley]: 'Crowley',
 };
 
 export const LIS = {
@@ -156,10 +156,10 @@ export function barcelonaTrip() {
   const members = [
     member(g.groupId, g.dean, 'Dean', 'lead', 'h_dean', '2004-05-02', 'adult', created, { homeAirport: 'BOS' }),
     member(g.groupId, g.henry, 'Henry', 'member', 'h_henry', '2003-11-19', 'adult', created, { homeAirport: 'MIA' }),
-    member(g.groupId, g.maya, 'Maya', 'member', 'h_maya', '2005-01-27', 'adult', created, { homeAirport: 'SFO' }),
-    member(g.groupId, g.jordan, 'Jordan', 'member', 'h_jordan', '2005-08-14', 'adult', created, { homeAirport: 'ORD' }),
-    member(g.groupId, g.priya, 'Priya', 'member', 'h_priya', '2004-09-03', 'adult', created, { homeAirport: 'JFK' }),
-    member(g.groupId, g.sam, 'Sam', 'member', 'h_sam', '2005-12-30', 'adult', created, { homeAirport: 'LAX' }),
+    member(g.groupId, g.chase, 'Chase', 'member', 'h_chase', '2005-01-27', 'adult', created, { homeAirport: 'SFO' }),
+    member(g.groupId, g.piotr, 'Piotr', 'member', 'h_piotr', '2005-08-14', 'adult', created, { homeAirport: 'ORD' }),
+    member(g.groupId, g.arjun, 'Arjun', 'member', 'h_arjun', '2004-09-03', 'adult', created, { homeAirport: 'JFK' }),
+    member(g.groupId, g.crowley, 'Crowley', 'member', 'h_crowley', '2005-12-30', 'adult', created, { homeAirport: 'LAX' }),
   ];
   const group = {
     groupId: g.groupId,
@@ -210,55 +210,55 @@ export function barcelonaTrip() {
     ...attendanceRows('act_bcn_flights_out', allIn(g.all), '2026-02-03T20:29:00-05:00', '@ref:bcn_flights_complete', g.dean),
     ...attendanceRows('act_bcn_lodging', allIn(g.all), '2026-02-03T20:40:00-05:00', '@ref:bcn_lodging_complete', g.dean),
     ...attendanceRows('act_bcn_barca', allIn(g.all), '2026-02-10T19:35:00-05:00', '@ref:bcn_barca_request', g.dean),
-    ...attendanceRows('act_bcn_sagrada', allIn(g.all), '2026-03-10T12:05:00-04:00', '@ref:bcn_sagrada_request', g.maya),
-    ...attendanceRows('act_bcn_parkguell', allIn(g.all), '2026-03-10T12:20:00-04:00', '@ref:bcn_parkguell_request', g.jordan),
-    ...attendanceRows('act_bcn_razzmatazz', allIn(g.all), '2026-03-10T12:30:00-04:00', '@ref:bcn_razz_plan', g.sam),
+    ...attendanceRows('act_bcn_sagrada', allIn(g.all), '2026-03-10T12:05:00-04:00', '@ref:bcn_sagrada_request', g.chase),
+    ...attendanceRows('act_bcn_parkguell', allIn(g.all), '2026-03-10T12:20:00-04:00', '@ref:bcn_parkguell_request', g.piotr),
+    ...attendanceRows('act_bcn_razzmatazz', allIn(g.all), '2026-03-10T12:30:00-04:00', '@ref:bcn_razz_plan', g.crowley),
     ...attendanceRows('act_bcn_flights_home', allIn(g.all), '2026-02-03T20:29:00-05:00', '@ref:bcn_flights_complete', g.dean),
   ];
   // Airports match the preserved flight inventory (fixtures/flights/barcelona.json `travelers`).
   const travel = [
     { memberId: g.dean, origin: 'BOS', returnTo: 'JFK' },
     { memberId: g.henry, origin: 'MIA', returnTo: 'ATL' },
-    { memberId: g.maya, origin: 'SFO', returnTo: 'LAX' },
-    { memberId: g.jordan, origin: 'ORD', returnTo: 'ORD' },
-    { memberId: g.priya, origin: 'JFK', returnTo: 'IAD' },
-    { memberId: g.sam, origin: 'LAX', returnTo: 'SEA' },
+    { memberId: g.chase, origin: 'SFO', returnTo: 'LAX' },
+    { memberId: g.piotr, origin: 'ORD', returnTo: 'ORD' },
+    { memberId: g.arjun, origin: 'JFK', returnTo: 'IAD' },
+    { memberId: g.crowley, origin: 'LAX', returnTo: 'SEA' },
   ];
   // `cardCity` = where the preserved card fixtures put each member's home-life noise
   // (fixtures/transactions/<member>.json). It is not always the departure city.
   const homes = {
     [g.dean]: { departCity: 'Boston', returnCity: 'New York', cardCity: 'Boston, then New York', why: 'starts an internship in NYC' },
     [g.henry]: { departCity: 'Miami', returnCity: 'Atlanta', cardCity: 'Chicago', why: 'visiting family before and after' },
-    [g.maya]: { departCity: 'San Francisco', returnCity: 'Los Angeles', cardCity: 'San Francisco, then Los Angeles', why: "cousin's thing on the 18th" },
-    [g.jordan]: { departCity: 'Chicago', returnCity: 'Chicago', cardCity: 'Atlanta' },
-    [g.priya]: { departCity: 'New York', returnCity: 'Washington DC', cardCity: 'Washington DC' },
-    [g.sam]: { departCity: 'Los Angeles', returnCity: 'Seattle', cardCity: 'Miami, then Austin', why: 'spring internship in Seattle' },
+    [g.chase]: { departCity: 'San Francisco', returnCity: 'Los Angeles', cardCity: 'San Francisco, then Los Angeles', why: "cousin's thing on the 18th" },
+    [g.piotr]: { departCity: 'Chicago', returnCity: 'Chicago', cardCity: 'Atlanta' },
+    [g.arjun]: { departCity: 'New York', returnCity: 'Washington DC', cardCity: 'Washington DC' },
+    [g.crowley]: { departCity: 'Los Angeles', returnCity: 'Seattle', cardCity: 'Miami, then Austin', why: 'spring internship in Seattle' },
   };
   const consent = consentRows(g.groupId, g.all, created);
   // Changes the chat replay makes (all owner-initiated; ground truth for consent gates).
   const consentScenario = [
     { at: '2026-03-12T16:00:00+01:00', memberId: g.dean, flag: 'photos', to: true, via: 'dm', sourceMessageRef: '@ref:bcn_dm_dean_photos' },
-    { at: '2026-03-12T16:02:00+01:00', memberId: g.maya, flag: 'photos', to: true, via: 'group', sourceMessageRef: '@ref:bcn_maya_photos' },
-    { at: '2026-03-12T16:03:00+01:00', memberId: g.priya, flag: 'photos', to: true, via: 'group', sourceMessageRef: '@ref:bcn_priya_photos' },
-    { at: '2026-03-12T16:05:00+01:00', memberId: g.sam, flag: 'photos', to: true, via: 'dm', sourceMessageRef: '@ref:bcn_dm_sam_photos' },
-    { at: '2026-03-12T16:06:00+01:00', memberId: g.sam, flag: 'cardImport', to: true, via: 'dm', sourceMessageRef: '@ref:bcn_dm_sam_card' },
+    { at: '2026-03-12T16:02:00+01:00', memberId: g.chase, flag: 'photos', to: true, via: 'group', sourceMessageRef: '@ref:bcn_chase_photos' },
+    { at: '2026-03-12T16:03:00+01:00', memberId: g.arjun, flag: 'photos', to: true, via: 'group', sourceMessageRef: '@ref:bcn_arjun_photos' },
+    { at: '2026-03-12T16:05:00+01:00', memberId: g.crowley, flag: 'photos', to: true, via: 'dm', sourceMessageRef: '@ref:bcn_dm_crowley_photos' },
+    { at: '2026-03-12T16:06:00+01:00', memberId: g.crowley, flag: 'cardImport', to: true, via: 'dm', sourceMessageRef: '@ref:bcn_dm_crowley_card' },
     { at: '2026-03-12T16:08:00+01:00', memberId: g.dean, flag: 'cardImport', to: true, via: 'dm', sourceMessageRef: '@ref:bcn_dm_dean_card' },
-    { at: '2026-03-12T16:10:00+01:00', memberId: g.priya, flag: 'emailImport', to: true, via: 'dm', sourceMessageRef: '@ref:bcn_dm_priya_email' },
-    { at: '2026-03-12T16:11:00+01:00', memberId: g.maya, flag: 'emailImport', to: true, via: 'dm', sourceMessageRef: '@ref:bcn_dm_maya_email' },
-    { at: '2026-03-14T10:50:00+01:00', memberId: g.sam, flag: 'roast', to: true, via: 'group', sourceMessageRef: '@ref:bcn_sam_roast_me' },
-    { at: '2026-03-14T10:51:00+01:00', memberId: g.jordan, flag: 'roast', to: true, via: 'group', sourceMessageRef: '@ref:bcn_jordan_roast_me' },
-    { at: '2026-03-16T12:00:00+01:00', memberId: g.priya, flag: 'photos', to: false, via: 'group', sourceMessageRef: '@ref:bcn_priya_photos_off' },
+    { at: '2026-03-12T16:10:00+01:00', memberId: g.arjun, flag: 'emailImport', to: true, via: 'dm', sourceMessageRef: '@ref:bcn_dm_arjun_email' },
+    { at: '2026-03-12T16:11:00+01:00', memberId: g.chase, flag: 'emailImport', to: true, via: 'dm', sourceMessageRef: '@ref:bcn_dm_chase_email' },
+    { at: '2026-03-14T10:50:00+01:00', memberId: g.crowley, flag: 'roast', to: true, via: 'group', sourceMessageRef: '@ref:bcn_crowley_roast_me' },
+    { at: '2026-03-14T10:51:00+01:00', memberId: g.piotr, flag: 'roast', to: true, via: 'group', sourceMessageRef: '@ref:bcn_piotr_roast_me' },
+    { at: '2026-03-16T12:00:00+01:00', memberId: g.arjun, flag: 'photos', to: false, via: 'group', sourceMessageRef: '@ref:bcn_arjun_photos_off' },
   ];
   const groupMemory = [
     { factId: 'gm_bcn_1', groupId: g.groupId, sourceTripId: g.tripId, category: 'taste', text: 'the group are big soccer fans, barça especially', aboutMemberIds: [], sourceMessageId: '@ref:bcn_barca_hype', learnedAt: '2026-02-10T19:30:00-05:00' },
-    { factId: 'gm_bcn_2', groupId: g.groupId, sourceTripId: g.tripId, category: 'inside_joke', text: 'jordan always picks the restaurant and it is always good', aboutMemberIds: [g.jordan], sourceMessageId: '@ref:bcn_remember_jordan', learnedAt: '2026-03-12T20:41:00+01:00' },
-    { factId: 'gm_bcn_3', groupId: g.groupId, sourceTripId: g.tripId, category: 'preference', text: 'jordan does not want flights before 7am', aboutMemberIds: [g.jordan], sourceMessageId: '@ref:bcn_jordan_no_5am', learnedAt: '2026-02-03T20:12:00-05:00' },
+    { factId: 'gm_bcn_2', groupId: g.groupId, sourceTripId: g.tripId, category: 'inside_joke', text: 'piotr always picks the restaurant and it is always good', aboutMemberIds: [g.piotr], sourceMessageId: '@ref:bcn_remember_piotr', learnedAt: '2026-03-12T20:41:00+01:00' },
+    { factId: 'gm_bcn_3', groupId: g.groupId, sourceTripId: g.tripId, category: 'preference', text: 'piotr does not want flights before 7am', aboutMemberIds: [g.piotr], sourceMessageId: '@ref:bcn_piotr_no_5am', learnedAt: '2026-02-03T20:12:00-05:00' },
   ];
   // Member memory is PrivateStore data (branded Private<> in code; plain JSON here).
   const memberMemory = [
-    { factId: 'mm_bcn_priya_1', ownerMemberId: g.priya, groupId: g.groupId, sourceTripId: g.tripId, category: 'dietary', text: 'priya is vegetarian', sourceLane: 'private', sourceMessageId: '@ref:bcn_dm_priya_veg', learnedAt: '2026-03-11T09:00:00-04:00' },
+    { factId: 'mm_bcn_arjun_1', ownerMemberId: g.arjun, groupId: g.groupId, sourceTripId: g.tripId, category: 'dietary', text: 'arjun is vegetarian', sourceLane: 'private', sourceMessageId: '@ref:bcn_dm_arjun_veg', learnedAt: '2026-03-11T09:00:00-04:00' },
     { factId: 'mm_bcn_henry_1', ownerMemberId: g.henry, groupId: g.groupId, sourceTripId: g.tripId, category: 'budget', text: 'henry wants to keep his share under €80 a day', sourceLane: 'private', sourceMessageId: '@ref:bcn_dm_henry_budget', learnedAt: '2026-03-11T10:00:00-05:00' },
-    { factId: 'mm_bcn_jordan_1', ownerMemberId: g.jordan, groupId: g.groupId, sourceTripId: g.tripId, category: 'preference', text: 'jordan does not want flights before 7am', sourceLane: 'group', sourceMessageId: '@ref:bcn_jordan_no_5am', learnedAt: '2026-02-03T20:12:00-05:00' },
+    { factId: 'mm_bcn_piotr_1', ownerMemberId: g.piotr, groupId: g.groupId, sourceTripId: g.tripId, category: 'preference', text: 'piotr does not want flights before 7am', sourceLane: 'group', sourceMessageId: '@ref:bcn_piotr_no_5am', learnedAt: '2026-02-03T20:12:00-05:00' },
   ];
   const memberPrefs = [
     { memberId: g.henry, perBookingShareCapMinor: 8000, dailyShareCapMinor: 8000 },
@@ -292,7 +292,7 @@ export function barcelonaTrip() {
         act_bcn_dinner_d3: { in: g.five, out: [g.henry] },
         act_bcn_razzmatazz: { in: g.five, out: [g.henry] },
         act_bcn_barca: { in: g.all, out: [] },
-        act_bcn_lunch_d5: { in: [g.dean, g.maya, g.priya, g.sam], out: [g.henry, g.jordan] },
+        act_bcn_lunch_d5: { in: [g.dean, g.chase, g.arjun, g.crowley], out: [g.henry, g.piotr] },
         act_bcn_club_d5: { in: g.all, out: [] },
       },
       privateFactsNeverInGroup: ['vegetarian', '€80 a day'],

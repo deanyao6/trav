@@ -234,7 +234,7 @@ describe('expense details', () => {
   it('itemized splits compare their line items, not just the people', () => {
     const items = (claimed: string[]) => ({
       method: 'itemized',
-      participants: ['mem_dean', 'mem_maya'],
+      participants: ['mem_dean', 'mem_chase'],
       lineItems: [
         { amount: { amountMinor: 1200 }, kind: 'item', claimedBy: claimed },
         { amount: { amountMinor: 300 }, kind: 'tax', claimedBy: [] },
@@ -242,7 +242,9 @@ describe('expense details', () => {
     });
     const want = items(['mem_dean']);
     expect(failing(...pair(line({ split: want }, { split: items(['mem_dean']) })))).toEqual([]);
-    expect(failing(...pair(line({ split: want }, { split: items(['mem_maya']) })))).toHaveLength(1);
+    expect(failing(...pair(line({ split: want }, { split: items(['mem_chase']) })))).toHaveLength(
+      1,
+    );
   });
 
   it('checks nothing when the line wrote no expense (ledger_ground_truth owns that)', () => {
@@ -326,7 +328,7 @@ describe('proposal details', () => {
 // ---------------------------------------------------------------- booking
 
 describe('booking', () => {
-  const holders = ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam'];
+  const holders = ['mem_dean', 'mem_chase', 'mem_piotr', 'mem_arjun', 'mem_crowley'];
   const base = episode();
   const tickets = (
     owners: string[],
@@ -370,7 +372,7 @@ describe('booking', () => {
             totalMinor: 9000,
             orderRef: 'RZZ-1234',
             providerRef: 'ord_1',
-            paidBy: { kind: 'member', memberId: 'mem_priya' },
+            paidBy: { kind: 'member', memberId: 'mem_arjun' },
             attendees: holders,
             tickets: (over.holders ?? holders).map((h) => ({ holderMemberId: h })),
           } as never,
@@ -388,7 +390,7 @@ describe('booking', () => {
     orders: 1,
     purchasesPerOrder: 1,
     ledgerWrites: 1,
-    paidBy: { memberId: 'mem_priya', kind: 'member' },
+    paidBy: { memberId: 'mem_arjun', kind: 'member' },
     ticketsPerHolder: 1,
     qrInGroup: false,
   };
@@ -399,21 +401,21 @@ describe('booking', () => {
     expect(failing(ep, s)).toEqual([]);
   });
 
-  it('fails when a QR lands in the group, Sam gets none, or the ledger is written twice', () => {
-    const msgs = tickets(holders.filter((h) => h !== 'mem_sam'));
+  it('fails when a QR lands in the group, Crowley gets none, or the ledger is written twice', () => {
+    const msgs = tickets(holders.filter((h) => h !== 'mem_crowley'));
     msgs.push(
       message({
         text: 'here you go',
-        card: { ...ticketCard('mem_sam'), bookingId: 'bkg_1' } as never,
+        card: { ...ticketCard('mem_crowley'), bookingId: 'bkg_1' } as never,
       }),
     );
     const [ep, s] = setup(want, msgs, { expenses: ['exp_1', 'exp_2'] });
     const bad = failing(ep, s).join('\n');
     expect(bad).toMatch(/1 group message\(s\) carry a ticket or QR payload/);
     expect(bad).toMatch(/wrote 2 ledger expense\(s\), expected 1/);
-    // Sam's only ticket went to the group: not a DM delivery.
-    expect(failing(...setup({ ticketDeliveredTo: { mem_sam: 'mem_sam' } }, msgs))).toEqual([
-      expect.stringMatching(/mem_sam's ticket went to \[group\], expected mem_sam/),
+    // Crowley's only ticket went to the group: not a DM delivery.
+    expect(failing(...setup({ ticketDeliveredTo: { mem_crowley: 'mem_crowley' } }, msgs))).toEqual([
+      expect.stringMatching(/mem_crowley's ticket went to \[group\], expected mem_crowley/),
     ]);
   });
 
@@ -514,25 +516,25 @@ describe('settle-up transfers, mark-paid, night-out framing', () => {
     return [episode({ steps: [s] }), s] as const;
   };
   const want = [
-    { from: 'mem_maya', to: 'mem_dean', amountMinor: 1000 },
-    { from: 'mem_sam', to: 'mem_maya', amountMinor: 500 },
+    { from: 'mem_chase', to: 'mem_dean', amountMinor: 1000 },
+    { from: 'mem_crowley', to: 'mem_chase', amountMinor: 500 },
   ];
 
   it('equal nets pass even when the transfer graph differs', () => {
     const card = settle([
-      { from: 'mem_maya', to: 'mem_dean', amountMinor: 500 },
-      { from: 'mem_sam', to: 'mem_dean', amountMinor: 500 },
+      { from: 'mem_chase', to: 'mem_dean', amountMinor: 500 },
+      { from: 'mem_crowley', to: 'mem_dean', amountMinor: 500 },
     ]);
     expect(failing(...line({ transfers: want }, [card]))).toEqual([]);
   });
 
   it('one cent off fails and names the members', () => {
     const card = settle([
-      { from: 'mem_maya', to: 'mem_dean', amountMinor: 501 },
-      { from: 'mem_sam', to: 'mem_dean', amountMinor: 500 },
+      { from: 'mem_chase', to: 'mem_dean', amountMinor: 501 },
+      { from: 'mem_crowley', to: 'mem_dean', amountMinor: 500 },
     ]);
     expect(failing(...line({ transfers: want }, [card]))).toEqual([
-      expect.stringMatching(/mem_maya -501 vs -500, mem_dean 1001 vs 1000/),
+      expect.stringMatching(/mem_chase -501 vs -500, mem_dean 1001 vs 1000/),
     ]);
     expect(failing(...line({ transfers: want }, []))).toEqual([
       expect.stringMatching(/no settle-up card/),
@@ -540,11 +542,11 @@ describe('settle-up transfers, mark-paid, night-out framing', () => {
   });
 
   it('markedPaidBy needs that member’s transfer shown as paid', () => {
-    const paid = settle([{ from: 'mem_maya', to: 'mem_dean', amountMinor: 500, paid: true }]);
-    const unpaid = settle([{ from: 'mem_maya', to: 'mem_dean', amountMinor: 500 }]);
-    expect(failing(...line({ markedPaidBy: 'mem_maya' }, [paid]))).toEqual([]);
-    expect(failing(...line({ markedPaidBy: 'mem_maya' }, [unpaid]))).toHaveLength(1);
-    expect(failing(...line({ markedPaidBy: 'mem_sam' }, [paid]))).toHaveLength(1);
+    const paid = settle([{ from: 'mem_chase', to: 'mem_dean', amountMinor: 500, paid: true }]);
+    const unpaid = settle([{ from: 'mem_chase', to: 'mem_dean', amountMinor: 500 }]);
+    expect(failing(...line({ markedPaidBy: 'mem_chase' }, [paid]))).toEqual([]);
+    expect(failing(...line({ markedPaidBy: 'mem_chase' }, [unpaid]))).toHaveLength(1);
+    expect(failing(...line({ markedPaidBy: 'mem_crowley' }, [paid]))).toHaveLength(1);
   });
 
   it('nightOutFraming false fails on a recap of last night’s events', () => {

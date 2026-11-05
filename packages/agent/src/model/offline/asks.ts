@@ -1356,7 +1356,7 @@ export const lodgingResponder: FallbackResponder = {
 const HEALTH_RE =
   /\b(?:sick|sickness|ill|illness|unwell|hospital\w*|meds?|medicin\w*|medication|prescription|pills?|pregnan\w*|therapy|therapist|psychiatr\w*|depress\w*|anxiety|panic attacks?|adhd|autis\w*|bipolar|allerg\w*|epipen|inhaler|asthma\w*|diabet\w*|insulin|injur\w*|hungover|hangover|surgery|doctor|dr|clinic|er|urgent care|diagnos\w*|migraines?|headaches?|covid\w*|flu|fever\w*|a cold|cough\w*|nause\w*|vomit\w*|puk\w*|threw up|throw(?:ing)? up|food poisoning|stomach\w*|concuss\w*|seizures?|epilep\w*|sprain\w*|fractur\w*|broken (?:arm|leg|wrist|ankle|foot|hand|rib)|stitches|infection|antibiotics?|rash|blood pressure|heart condition|cancer|chemo|cramps?|disab\w*|wheelchair|sober|rehab)\b/;
 
-/** "remember jordan always picks …", "fyi i'm vegetarian, keep that in mind" ⇒ the fact, or undefined. */
+/** "remember piotr always picks …", "fyi i'm vegetarian, keep that in mind" ⇒ the fact, or undefined. */
 export function parseRememberAsk(text: string): string | undefined {
   const t = text.replace(/\s+/g, ' ').trim();
   const lead = /^(?:pls |please )?(?:remember|note|don'?t forget)(?: that)?[,:]?\s+(.{3,})$/i.exec(
@@ -1551,7 +1551,7 @@ export const honestGapsResponder: FallbackResponder = {
         }),
       ]);
     }
-    // "dinner, i paid, Priya didn't drink": the expense flow found no amount.
+    // "dinner, i paid, Arjun didn't drink": the expense flow found no amount.
     // Nothing is logged; ask for the whole thing in one line (VOICE §4.11).
     if (PAID_NO_AMOUNT_RE.test(t) && !/\d/.test(t)) return response(req, EXPENSE_RESTATE_TEXT, []);
     if (SPEND_RE.test(t)) return undefined;

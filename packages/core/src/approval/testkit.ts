@@ -1,6 +1,6 @@
 /**
- * Builders for approval/audit tests: a Barcelona-shaped group (Dean, Sam, Ava,
- * Maya, Leo, Henry; a minor "Kid" under Dean; a guest "Stranger"), the
+ * Builders for approval/audit tests: a Barcelona-shaped group (Dean, Crowley, Ava,
+ * Chase, Leo, Henry; a minor "Kid" under Dean; a guest "Stranger"), the
  * Razzmatazz proposal and the default policy. Fictional data only.
  */
 import type { IsoDateTime, MemberId } from '../primitives.js';
@@ -27,7 +27,13 @@ export const ageBandDeps: ApprovalDeps = {
   isMinor: (m) => m.ageBand === 'under18',
 };
 
-export const FIVE: readonly MemberId[] = ['mem_dean', 'mem_sam', 'mem_ava', 'mem_maya', 'mem_leo'];
+export const FIVE: readonly MemberId[] = [
+  'mem_dean',
+  'mem_crowley',
+  'mem_ava',
+  'mem_chase',
+  'mem_leo',
+];
 
 export function member(id: string, overrides: Partial<Member> = {}): Member {
   const name = id.replace(/^mem_/, '');
@@ -47,9 +53,9 @@ export function member(id: string, overrides: Partial<Member> = {}): Member {
 export function barcelonaMembers(): Member[] {
   return [
     member('mem_dean', { role: 'lead' }),
-    member('mem_sam'),
+    member('mem_crowley'),
     member('mem_ava'),
-    member('mem_maya'),
+    member('mem_chase'),
     member('mem_leo'),
     member('mem_henry'),
     member('mem_kid', { ageBand: 'under18', guardianMemberId: 'mem_dean' }),

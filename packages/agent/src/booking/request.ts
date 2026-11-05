@@ -392,7 +392,7 @@ const TICKET_WORD = /\b(?:tickets?|tix|passes|entry|entries|spots)\b/;
  * word after it (`SOFT_ASK`) or the venue and the whole party (`SOFT_PARTY`),
  * with only venue words and a count in between and only a night, the party
  * and who's out after. So "we need razz passes printed", "need razz passes
- * from sam" and "we need razz tickets lol jk" are chat, not asks.
+ * from crowley" and "we need razz tickets lol jk" are chat, not asks.
  */
 const SOFT_VERB = String.raw`(?:need|pick(?: us| me)? up|sort(?: us| me)?(?: out)?|line(?: us| me)? up|set (?:us|me) up|hook (?:us|me) up|organi[sz]e|arrange|could use)`;
 /**
@@ -473,7 +473,7 @@ const SOFT_TAIL_OK: ReadonlySet<string> = new Set([
   'than',
   'apart',
 ]);
-/** After these, a soft ask's tail may name people ("for maya and me", "minus henry"). */
+/** After these, a soft ask's tail may name people ("for chase and me", "minus henry"). */
 const SOFT_NAME_LEAD: ReadonlySet<string> = new Set([
   'for',
   'minus',
@@ -679,7 +679,7 @@ function exclusionName(word: string | undefined, sender: string | undefined): st
   return w;
 }
 
-/** Negations that govern a name: "don't count henry (or maya)", "henry doesn't want to come". */
+/** Negations that govern a name: "don't count henry (or chase)", "henry doesn't want to come". */
 const NAME_NEGATIONS: readonly string[] = [
   String.raw`\b(?:don'?t|dont|do not)\s+(?:count|include|add)\s+${NAME}(?:\s+(?:and|or|&)\s+${NAME})?(?:\s+(?:in|out))?`,
   String.raw`\bnot\s+(?:counting|including)\s+${NAME}(?:\s+(?:and|or|&)\s+${NAME})?`,
@@ -751,7 +751,7 @@ const OUT_REASON = String.raw`(?:sick|ill|unwell|poorly|rough|under the weather|
 /**
  * A clause that only says a member (or two) is out: "henry's feeling rough",
  * "henry is under the weather", "and henry's not coming", "since henry is
- * sick", "maya and henry are sick". The names are groups 1 and 2.
+ * sick", "chase and henry are sick". The names are groups 1 and 2.
  */
 const OUT_CLAUSE = new RegExp(
   String.raw`^(?:(?:and|but|also|plus|oh|btw|since|because|cause|cuz|as)\s+)*(i'?m|i am|i'?ve been|[a-z][a-z-]{1,29})(?:\s+(?:and|&)\s+([a-z][a-z-]{1,29}))?(?:'s|\s+is|\s+are|\s+were|\s+has been|\s+have been|'s been)?\s+(?:(?:feeling|looking|a bit|a little|kinda|kind of|so|too|pretty|really|super|still|very|totally|completely)\s+)*${OUT_REASON}(?:\s+(?:and\s+)?${OUT_REASON})*(?:\s+(?:tonight|today|rn|right now|again|lol|tho|though))*$`,
@@ -790,7 +790,7 @@ function exclusions(
   for (const m of folded.matchAll(
     new RegExp(
       // "but" excludes only after a whole-group word ("everyone but Henry");
-      // "Henry's out but Maya might join" names no one else out (T-081 r1 #9).
+      // "Henry's out but Chase might join" names no one else out (T-081 r1 #9).
       String.raw`(?:\b(?:everyone|everybody|all(?: of us)?|all \d{1,2}|us|the group|whole group)\s+but|\b(?:except(?: for)?|minus|without|excluding|sans|other than|apart from))\s+${NAME}(?:\s+(?:and|or|&)\s+${NAME})?`,
       'g',
     ),
@@ -818,7 +818,7 @@ function exclusions(
   // only matched to recognize the clause and is never kept.
   // "henry is under the weather so we need 5 razz tickets": a reason clause
   // also ends at "so", "because", "since", "but", or an "and" before
-  // "<name>'s" / "<name> is" ("maya and henry are sick" stays whole).
+  // "<name>'s" / "<name> is" ("chase and henry are sick" stays whole).
   for (const clause of folded.split(
     /[,.;!?]|\s+-\s+|\s+(?:so|and so|because|since|but)\s+|\s+and\s+(?=\S+(?:'s|\s+is|\s+has)\s)/,
   )) {
@@ -861,7 +861,7 @@ function exclusions(
 }
 
 /**
- * "for me and Maya", "for just me and Sam", "for me, maya and sam", "get me
+ * "for me and Chase", "for just me and Crowley", "for me, chase and crowley", "get me
  * and mom …" ⇒ the sender plus those names (T-081 r1 #2). A plain "for me" ⇒
  * just the sender. Something after "and" that isn't a name ("for me and the
  * kids") ⇒ `ambiguous`: no guess, so the ask isn't taken. A comma followed by
@@ -941,7 +941,7 @@ function rosterMap(names: readonly string[] | undefined): ReadonlyMap<string, st
     if (folded.length === 0) continue;
     if (/^[a-z][a-z'-]*$/.test(folded)) out.set(folded, n);
     const f = folded.split(/\s+/)[0]!;
-    // Two members called Sam: "sam" names neither (the service would ask anyway).
+    // Two members called Crowley: "crowley" names neither (the service would ask anyway).
     if (firsts.get(f) === 1 && !out.has(f)) out.set(f, n);
   }
   return out;
@@ -953,7 +953,7 @@ function displayName(word: string, ctx: Reading): string {
 
 /**
  * Words that are never a person in a list: a reason someone is out, a verb,
- * a pronoun, a laugh (T-158 r1 #1: "for maya and sam, henry is sick" must
+ * a pronoun, a laugh (T-158 r1 #1: "for chase and crowley, henry is sick" must
  * never name "Is" or "Sick").
  */
 const NOT_IN_LIST: ReadonlySet<string> = new Set([
@@ -1010,7 +1010,7 @@ const NOT_IN_LIST: ReadonlySet<string> = new Set([
   'haha',
   'jk',
   'tho',
-  // A conjunction starts the next clause ("for maya and sam since henry is sick").
+  // A conjunction starts the next clause ("for chase and crowley since henry is sick").
   'since',
   'because',
   'cause',
@@ -1158,11 +1158,11 @@ function venueWords(match: VenueMatch): ReadonlySet<string> {
 
 /**
  * The people a "for …" names when it doesn't start with "me" (T-158): "for
- * dean maya jordan sam and me", "for maya and sam", "for maya, sam and me".
+ * dean chase piotr crowley and me", "for chase and crowley", "for chase, crowley and me".
  * Names may be joined by commas, "and", "&", "+" or plain spaces; "me" is
  * the sender. Undefined when "for" isn't followed by a name ("for all of us",
  * "for 5", "for tonight", "for real"). A list whose "and" leads to a non-name
- * ("for maya and the kids") is `ambiguous`: no guess. Every name still has to
+ * ("for chase and the kids") is `ambiguous`: no guess. Every name still has to
  * match the roster in the proposal service, which asks when one doesn't.
  * `t` is the ask from its own clause on; the first "for" that names a party
  * ("for us", "for all 6") settles it, so "get razz tickets for us, save one
@@ -1172,8 +1172,8 @@ function venueWords(match: VenueMatch): ReadonlySet<string> {
  * reason word ("sick", "is"), a word that starts a new clause ("henry is
  * sick": a name followed by a verb is that clause's subject), or, with the
  * roster known, anything not on it. A comma that leads into anything but more
- * names ends the list at the comma: "for maya and sam, henry is sick" is
- * Maya and Sam, never Henry, "Is" or "Sick".
+ * names ends the list at the comma: "for chase and crowley, henry is sick" is
+ * Chase and Crowley, never Henry, "Is" or "Sick".
  */
 function namedList(
   t: string,
@@ -1452,7 +1452,7 @@ const JOKE_CUE = /\b(?:jk|j\/k|just kidding|just joking|kidding|joking|jokes asi
 const HEDGE_CUE =
   /\b(?:maybe|perhaps|idk|dunno|not sure|eventually|at some point|some ?day|thinking (?:about|of)|probably|possibly|might)\b/;
 /**
- * `t` without hedges about one member coming ("maya might join", "sam
+ * `t` without hedges about one member coming ("chase might join", "crowley
  * maybe comes later"): that's who's in, not whether to book (T-081 r1 #9).
  */
 function withoutMemberHedges(t: string): string {
@@ -1461,7 +1461,7 @@ function withoutMemberHedges(t: string): string {
     ' ',
   );
 }
-/** Someone holds the tickets already ("sam has them", "henry's got the passes"), T-158 r1 #2. */
+/** Someone holds the tickets already ("crowley has them", "henry's got the passes"), T-158 r1 #2. */
 const HELD_CUE =
   /\b(?:has|have|got|holds|holding|already (?:has|have|got|bought))\s+(?:them|em|'em|those|ours|yours|(?:the|our|your|their|his|her)\s+(?:razz\s+)?(?:tickets?|tix|passes|entry|wristbands))\b|\b(?:'s|has|have)\s+got\s+(?:them|em|the\s+\w+)\b/;
 /**
@@ -1472,12 +1472,12 @@ const NOT_BUYING =
   /\b(?:tickets?|tix|passes|entry|entries|spots|wristbands)\s+(?:printed|print|sent|send|emailed|email|forwarded|forward|transferred|transfer|scanned|scan|refunded|refund|back|sorted|done|in hand|out of|downloaded|screenshotted|on (?:my|your|his|her|their) phones?)\b/;
 
 /**
- * "need razz passes from sam", "grab the tix off henry": tickets handed over
+ * "need razz passes from crowley", "grab the tix off henry": tickets handed over
  * by someone, never bought (T-158 r1 #2). Only a person-like word counts, so
  * "from the box office" isn't caught here (the determiner rule keeps it out).
  */
 function fromSomeone(clause: string, ctx: Reading): boolean {
-  // Only after the ticket word: "sam's friend from madrid 👋 book 7 barça
+  // Only after the ticket word: "crowley's friend from madrid 👋 book 7 barça
   // tickets" is about who is asking, not where tickets come from.
   const at = firstIndex(TICKET_WORD, clause);
   if (at < 0) return false;
@@ -1576,7 +1576,7 @@ export function parseBookingRequest(
   // Two venues ("we want razz tickets but henry wants apolo", "razz or
   // apolo"): which one is the member's call, never a mixed query (T-158 r1 #3).
   if (v.specificCount > 1) return undefined;
-  // "lol jk", "sam has them already", "maybe later": not an ask, whatever the verb (r1 #2).
+  // "lol jk", "crowley has them already", "maybe later": not an ask, whatever the verb (r1 #2).
   if (JOKE_CUE.test(t) || HELD_CUE.test(t) || HEDGE_CUE.test(withoutMemberHedges(t)))
     return undefined;
   const ctx: Reading = { skip: venueWords(v), sender, roster: rosterMap(options.roster) };
@@ -1596,12 +1596,12 @@ export function parseBookingRequest(
   // "get us a taxi to razz", "grab drinks at razz": the verb's object is not a ticket.
   if (aboutSomethingElse(anchor.clause, venue)) return undefined;
   if (SELF_DOING.test(anchor.clause)) return undefined;
-  // "get razz passes printed", "grab the razz tix from sam": tickets that
+  // "get razz passes printed", "grab the razz tix from crowley": tickets that
   // exist already, being handled or handed over (T-158 r1 #2).
   if (NOT_BUYING.test(anchor.clause) || fromSomeone(anchor.clause, ctx)) return undefined;
   const quantity = headcount(t);
   // A "for <names>" list is read from the ask's own clause to the end of its
-  // sentence, so a list with commas ("for maya, sam and me") stays whole.
+  // sentence, so a list with commas ("for chase, crowley and me") stays whole.
   const askOn = anchor.sentence.slice(Math.max(0, anchor.sentence.indexOf(anchor.clause)));
   const list = attendeeList(t, ctx, askOn);
   if (list === 'ambiguous') return undefined;

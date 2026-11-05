@@ -7,7 +7,7 @@
   "imageFile": "fixtures/receipts/rcpt_bcn_blurry.png",
   "imageMimeType": "image/png",
   "imageSha256": "2a389b85624247424b2fb3b4f095786ff459109c5bf9ac9fb9e7a5ca6edd1f40",
-  "postedBy": "mem_priya",
+  "postedBy": "mem_arjun",
   "postedInGroup": false,
   "ocrText": "GRANJA FICTÍCIA\nCarrer Petritxol 4, Barcelona\n15/03/2026   10:40\n----------------------------------\n4 XOCOLATA DESFETA           14,00\n2 XURROS                      7,00\n----------------------------------\nTOTAL                      21,00 €\nCARD                         21,00\nGRACIES",
   "parsed": null,
@@ -33,7 +33,7 @@
       "kind": "item"
     }
   ],
-  "payer": "mem_priya",
+  "payer": "mem_arjun",
   "split": null,
   "expectedShares": null,
   "labels": {

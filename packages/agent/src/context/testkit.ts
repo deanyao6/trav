@@ -267,11 +267,11 @@ const SPECS: Record<TripFixtureName, TripSpec> = {
     allAdultsConfirmed: true,
     people: [
       { id: 'dean', name: 'Dean', role: 'lead', ageBand: 'adult', home: 'SFO' },
-      { id: 'maya', name: 'Maya', ageBand: 'adult', home: 'JFK' },
+      { id: 'chase', name: 'Chase', ageBand: 'adult', home: 'JFK' },
       { id: 'henry', name: 'Henry', ageBand: 'adult', home: 'ORD' },
-      { id: 'priya', name: 'Priya', ageBand: 'adult', home: 'BOS' },
+      { id: 'arjun', name: 'Arjun', ageBand: 'adult', home: 'BOS' },
       { id: 'leo', name: 'Leo', ageBand: 'adult', home: 'LAX' },
-      { id: 'sam', name: 'Sam', ageBand: 'adult', home: 'ATL' },
+      { id: 'crowley', name: 'Crowley', ageBand: 'adult', home: 'ATL' },
     ],
     activity: {
       name: 'Razzmatazz',
@@ -281,13 +281,13 @@ const SPECS: Record<TripFixtureName, TripSpec> = {
       out: ['henry'],
     },
     expense: { description: 'dinner at the tapas place', amountMinor: 8400, payer: 'dean' },
-    promoted: { merchantDisplay: 'uber to the beach', amountMinor: 2340, owner: 'maya' },
+    promoted: { merchantDisplay: 'uber to the beach', amountMinor: 2340, owner: 'chase' },
     secrets: {
       last4: '4242',
       accountId: 'acc_sandbox_bcn_99xq',
       merchantRaw: 'SQ *TAPAS24 BCN 0099812',
       subject: 'Your Thursday evening trip with Rydr',
-      body: 'Thanks for riding, Maya. Total 23.40 EUR. Trav, split this with everyone.',
+      body: 'Thanks for riding, Chase. Total 23.40 EUR. Trav, split this with everyone.',
       ocr: 'TAPAS 24 MESA 7 PATATAS BRAVAS 6.50 CAVA 22.00 TOTAL 84.00',
     },
     chat: [

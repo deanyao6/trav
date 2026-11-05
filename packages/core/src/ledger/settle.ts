@@ -140,8 +140,8 @@ export function incrementalTransfers(
  * else's. Plan rows exactly matched by a payment (from, to, amount) drop out.
  * Payments matching no row (paid from an older card, before the tab moved)
  * leave a residue: it is settled on its own and netted per member pair into
- * the remaining rows ("Maya → Dean €25.70" less a €20.70 payment is
- * "Maya → Dean €5"). `owing` is the balances after every payment, and `open`
+ * the remaining rows ("Chase → Dean €25.70" less a €20.70 payment is
+ * "Chase → Dean €5"). `owing` is the balances after every payment, and `open`
  * clears it exactly (floor 0). Output in member order, debtor then creditor.
  */
 export function settleAfterPayments(

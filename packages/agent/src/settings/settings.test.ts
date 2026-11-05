@@ -104,10 +104,10 @@ function onTab(
   );
 }
 
-/** Razzmatazz night on the tab: Jordan's 2:07am kebabs, Sam's 2:14am uber. */
+/** Razzmatazz night on the tab: Piotr's 2:07am kebabs, Crowley's 2:14am uber. */
 function razzNight(h: Harness): void {
-  onTab(h, 'kebab', 'mem_jordan', eur(6200), '2026-03-15T02:07:00+01:00', 'late-night kebabs', 'food');
-  onTab(h, 'uber', 'mem_sam', eur(2340), '2026-03-15T02:14:00+01:00', 'uber back', 'transport');
+  onTab(h, 'kebab', 'mem_piotr', eur(6200), '2026-03-15T02:07:00+01:00', 'late-night kebabs', 'food');
+  onTab(h, 'uber', 'mem_crowley', eur(2340), '2026-03-15T02:14:00+01:00', 'uber back', 'transport');
 }
 
 function optIn(h: Harness, memberId: MemberId): void {
@@ -133,7 +133,7 @@ function voiceClean(msg: OutboundMessage, members: readonly Member[], kind: safe
 describe('@trav settings', () => {
   it('shows roast mode, replies, caps and the trip currency in the group', async () => {
     const h = harness();
-    const r = await h.say('h_sam', '@trav settings');
+    const r = await h.say('h_crowley', '@trav settings');
     expect(r.note).toBe('settings:show');
     expect(r.modelSources).toEqual([]);
     expect(only(r).text).toBe(
@@ -148,9 +148,9 @@ describe('@trav settings', () => {
 
   it("in a DM: that member's own consent flags (all off by default), no one else's", async () => {
     const h = harness();
-    const r = await h.dm('h_priya', 'settings');
+    const r = await h.dm('h_arjun', 'settings');
     const msg = only(r);
-    expect(msg.to).toEqual({ kind: 'member', memberId: 'mem_priya' });
+    expect(msg.to).toEqual({ kind: 'member', memberId: 'mem_arjun' });
     expect(msg.text.split('\n')[0]).toBe(
       'yours: photos off · roasts off · card import off · email import off · memory across trips off',
     );
@@ -163,8 +163,8 @@ describe('roast mode (VOICE §7.2, SAFETY §2.8)', () => {
   it('is off by default and only a lead turns it on; the change is audited', async () => {
     const h = harness();
     expect(group(h).settings.roastMode).toBe(false);
-    const sam = await h.say('h_sam', '@trav roast mode on');
-    expect(only(sam).text).toBe(T.ROAST_LEAD_ONLY_TEXT);
+    const crowley = await h.say('h_crowley', '@trav roast mode on');
+    expect(only(crowley).text).toBe(T.ROAST_LEAD_ONLY_TEXT);
     expect(group(h).settings.roastMode).toBe(false);
     expect(auditOf(h, 'settings.changed')).toEqual([]);
 
@@ -182,15 +182,15 @@ describe('roast mode (VOICE §7.2, SAFETY §2.8)', () => {
     const h = harness();
     const g = group(h);
     h.runtime.stores.group.groups.update({ ...g, settings: { ...g.settings, allAdultsConfirmed: false } });
-    const sam = h.runtime.stores.group.members.get('mem_sam')!;
-    const { birthDate: _b, ...noBirth } = sam;
+    const crowley = h.runtime.stores.group.members.get('mem_crowley')!;
+    const { birthDate: _b, ...noBirth } = crowley;
     h.runtime.stores.group.members.upsert({ ...noBirth, ageBand: 'unknown' });
 
     const ask = await h.say('h_dean', '@trav roast mode on');
     expect(only(ask).text).toBe(T.ROAST_AGE_QUESTION_TEXT);
     expect(group(h).settings.roastMode).toBe(false);
     // Someone else's "yes" is not the lead's answer.
-    await h.say('h_maya', 'yes');
+    await h.say('h_chase', 'yes');
     expect(group(h).settings.roastMode).toBe(false);
     const yes = await h.say('h_dean', 'yes');
     expect(only(yes).text).toBe(T.ROAST_ON_TEXT);
@@ -205,8 +205,8 @@ describe('roast mode (VOICE §7.2, SAFETY §2.8)', () => {
     const h = harness();
     const g = group(h);
     h.runtime.stores.group.groups.update({ ...g, settings: { ...g.settings, allAdultsConfirmed: false } });
-    const sam = h.runtime.stores.group.members.get('mem_sam')!;
-    const { birthDate: _b, ...noBirth } = sam;
+    const crowley = h.runtime.stores.group.members.get('mem_crowley')!;
+    const { birthDate: _b, ...noBirth } = crowley;
     h.runtime.stores.group.members.upsert({ ...noBirth, ageBand: 'unknown' });
     await h.say('h_dean', '@trav roast mode on');
     const no = await h.say('h_dean', 'no');
@@ -219,11 +219,11 @@ describe('roast mode (VOICE §7.2, SAFETY §2.8)', () => {
     razzNight(h);
     h.clock.set('2026-03-15T11:00:00+01:00');
     setRoastMode(h, true);
-    optIn(h, 'mem_jordan');
-    const off = await h.say('h_maya', '@trav stop roasting');
+    optIn(h, 'mem_piotr');
+    const off = await h.say('h_chase', '@trav stop roasting');
     expect(only(off).text).toBe('off');
     expect(group(h).settings.roastMode).toBe(false);
-    const next = await h.say('h_priya', '@trav roast Jordan for the kebabs');
+    const next = await h.say('h_arjun', '@trav roast Piotr for the kebabs');
     expect(only(next).text).toBe(T.REFUSE_MODE_OFF_TEXT);
     expect(only(next).roast).not.toBe(true);
     expect(auditOf(h, 'roast.suppressed').at(-1)?.payload).toMatchObject({ cause: 'mode_off' });
@@ -231,20 +231,20 @@ describe('roast mode (VOICE §7.2, SAFETY §2.8)', () => {
 
   it('"trav chill" is the off switch only while there is something to turn off', async () => {
     const h = harness();
-    const idle = await h.say('h_sam', 'trav, chill');
+    const idle = await h.say('h_crowley', 'trav, chill');
     expect(idle.note.startsWith('settings:')).toBe(false);
     setRoastMode(h, true);
-    expect(only(await h.say('h_sam', 'trav, chill')).text).toBe('off');
+    expect(only(await h.say('h_crowley', 'trav, chill')).text).toBe('off');
     expect(group(h).settings.roastMode).toBe(false);
   });
 
   it('the kill switch works said to the room while roast mode is on; ordinary chat is untouched', async () => {
     const h = harness();
     setRoastMode(h, true);
-    const chat = await h.say('h_sam', 'lol stop roasting him');
+    const chat = await h.say('h_crowley', 'lol stop roasting him');
     expect(chat.silent).toBe(true);
     expect(group(h).settings.roastMode).toBe(true);
-    const kill = await h.say('h_sam', 'stop roasting');
+    const kill = await h.say('h_crowley', 'stop roasting');
     expect(only(kill).text).toBe('off');
     expect(group(h).settings.roastMode).toBe(false);
   });
@@ -265,32 +265,32 @@ describe('roast consent: "roast me" / "stop roasting me" (SAFETY §2.6)', () => 
     razzNight(h);
     h.clock.set('2026-03-15T11:00:00+01:00');
     await h.say('h_dean', '@trav roast mode on');
-    expect(consent(h, 'mem_sam')).toBeUndefined();
+    expect(consent(h, 'mem_crowley')).toBeUndefined();
 
-    const notYet = await h.say('h_priya', '@trav roast Sam for the ubers');
-    expect(only(notYet).text).toBe(T.notOptedInText('Sam'));
+    const notYet = await h.say('h_arjun', '@trav roast Crowley for the ubers');
+    expect(only(notYet).text).toBe(T.notOptedInText('Crowley'));
 
-    const inR = await h.say('h_sam', '@trav roast me');
+    const inR = await h.say('h_crowley', '@trav roast me');
     expect(only(inR).text).toBe(T.ROAST_ME_ON_TEXT);
-    expect(consent(h, 'mem_sam')?.roast).toBe(true);
+    expect(consent(h, 'mem_crowley')?.roast).toBe(true);
     expect(auditOf(h, 'consent.changed').map((e) => [e.payload, e.visibility])).toEqual([
-      [{ memberId: 'mem_sam', flag: 'roast', from: false, to: true, via: 'chat' }, 'group'],
+      [{ memberId: 'mem_crowley', flag: 'roast', from: false, to: true, via: 'chat' }, 'group'],
     ]);
 
-    const roast = await h.say('h_priya', '@trav roast Sam for the ubers');
+    const roast = await h.say('h_arjun', '@trav roast Crowley for the ubers');
     const line = only(roast);
-    expect(line.text).toBe('€23.40 ride on Sam at 2:14am. walking is free');
+    expect(line.text).toBe('€23.40 ride on Crowley at 2:14am. walking is free');
     expect(line.roast).toBe(true);
     expect(auditOf(h, 'roast.generated').map((e) => e.payload)).toEqual([
-      { targets: ['mem_sam'], topics: ['rides'], place: 'aside', messageId: line.id },
+      { targets: ['mem_crowley'], topics: ['rides'], place: 'aside', messageId: line.id },
     ]);
 
     // "stop roasting me": a 👍 tapback, consent off, and the next ask is refused.
-    const out = await h.say('h_sam', 'trav, stop roasting me');
+    const out = await h.say('h_crowley', 'trav, stop roasting me');
     expect(out.outbound).toHaveLength(1);
     expect(out.outbound[0]).toMatchObject({ kind: 'reaction', emoji: '👍' });
-    expect(consent(h, 'mem_sam')?.roast).toBe(false);
-    const after = await h.say('h_jordan', '@trav roast Sam for the ubers');
+    expect(consent(h, 'mem_crowley')?.roast).toBe(false);
+    const after = await h.say('h_piotr', '@trav roast Crowley for the ubers');
     expect(only(after).text).toBe(T.REFUSE_OPTED_OUT_TEXT);
   });
 
@@ -299,25 +299,25 @@ describe('roast consent: "roast me" / "stop roasting me" (SAFETY §2.6)', () => 
     razzNight(h);
     h.clock.set('2026-03-15T11:00:00+01:00');
     setRoastMode(h, true);
-    optIn(h, 'mem_sam');
-    optIn(h, 'mem_jordan');
-    expect(only(await h.say('h_priya', '@trav roast Sam for the ubers')).roast).toBe(true);
-    const second = await h.say('h_priya', '@trav roast Jordan for the kebabs');
+    optIn(h, 'mem_crowley');
+    optIn(h, 'mem_piotr');
+    expect(only(await h.say('h_arjun', '@trav roast Crowley for the ubers')).roast).toBe(true);
+    const second = await h.say('h_arjun', '@trav roast Piotr for the kebabs');
     expect(only(second).text).toBe(T.REFUSE_DAILY_TEXT);
     h.clock.set('2026-03-16T11:00:00+01:00');
-    expect(only(await h.say('h_priya', '@trav roast Jordan for the kebabs')).roast).toBe(true);
+    expect(only(await h.say('h_arjun', '@trav roast Piotr for the kebabs')).roast).toBe(true);
   });
 
   it('Morning After drops the roast line the next morning after "stop roasting me" or "stop roasting"', async () => {
     const recapRoast = async (kill?: { from: string; text: string }) => {
       const h = harness();
-      // Jordan's 2:07am kebabs are the night's last receipt (the recap's roast candidate).
-      onTab(h, 'kebab', 'mem_jordan', eur(6200), '2026-03-15T02:07:00+01:00', 'late-night kebabs', 'food');
+      // Piotr's 2:07am kebabs are the night's last receipt (the recap's roast candidate).
+      onTab(h, 'kebab', 'mem_piotr', eur(6200), '2026-03-15T02:07:00+01:00', 'late-night kebabs', 'food');
       setRoastMode(h, true);
-      optIn(h, 'mem_jordan');
+      optIn(h, 'mem_piotr');
       // A second night-out signal (chat after midnight), so the recap is the full one.
       h.clock.set('2026-03-15T00:40:00+01:00');
-      await h.say('h_sam', 'where is everyone');
+      await h.say('h_crowley', 'where is everyone');
       h.clock.set('2026-03-15T09:00:00+01:00');
       if (kill !== undefined) await h.say(kill.from, kill.text);
       const trip = h.runtime.stores.group.trips.get(TRIP)!;
@@ -333,12 +333,12 @@ describe('roast consent: "roast me" / "stop roasting me" (SAFETY §2.6)', () => 
     };
     const control = await recapRoast();
     expect(control.roast).toBe(true);
-    expect(control.text).toMatch(/^Jordan paid for .* at 2:07am\. the tab remembers$/mu);
+    expect(control.text).toMatch(/^Piotr paid for .* at 2:07am\. the tab remembers$/mu);
 
     for (const kill of [
-      { from: 'h_jordan', text: '@trav stop roasting me' },
-      { from: 'h_maya', text: '@trav stop roasting' },
-      { from: 'h_jordan', text: 'trav, leave me out' },
+      { from: 'h_piotr', text: '@trav stop roasting me' },
+      { from: 'h_chase', text: '@trav stop roasting' },
+      { from: 'h_piotr', text: 'trav, leave me out' },
     ]) {
       const recap = await recapRoast(kill);
       expect(recap.roast, kill.text).not.toBe(true);
@@ -351,17 +351,17 @@ describe('roast consent: "roast me" / "stop roasting me" (SAFETY §2.6)', () => 
 
 describe('roast requests (VOICE §7.5) through the loop', () => {
   const REFUSALS: readonly [string, string][] = [
-    ["@trav roast Maya's outfit", T.REFUSE_BODY_TEXT],
+    ["@trav roast Chase's outfit", T.REFUSE_BODY_TEXT],
     ['@trav roast Henry for being hungover', T.REFUSE_HANGOVER_TEXT],
-    ['@trav roast Sam for going home with that girl', T.REFUSE_PERSONAL_TEXT],
+    ['@trav roast Crowley for going home with that girl', T.REFUSE_PERSONAL_TEXT],
     ["@trav roast the host, she's so annoying", "she's not in the chat, so no"],
-    ['@trav roast Jordan for being broke', T.REFUSE_HARDSHIP_TEXT],
+    ['@trav roast Piotr for being broke', T.REFUSE_HARDSHIP_TEXT],
   ];
   it.each(REFUSALS)('%s → refused, no emoji, roast.suppressed audited', async (ask, expected) => {
     const h = harness();
     setRoastMode(h, true);
     for (const m of BARCELONA.members) optIn(h, m.memberId);
-    const r = await h.say('h_priya', ask);
+    const r = await h.say('h_arjun', ask);
     const msg = only(r);
     expect(msg.text).toBe(expected);
     expect(msg.roast).not.toBe(true);
@@ -385,7 +385,7 @@ describe('settings edits need the requester\'s yes, then they are audited', () =
     expect(only(ask).text).toBe('change the per-person cap from €60 to €80? yes to confirm');
     expect(group(h).spendingPolicy.perPersonAutoCapMinor).toBe(6000);
     // Someone else's "yes" does nothing to Dean's change.
-    await h.say('h_sam', 'yes');
+    await h.say('h_crowley', 'yes');
     expect(group(h).spendingPolicy.perPersonAutoCapMinor).toBe(6000);
     const yes = await h.say('h_dean', 'yes');
     expect(only(yes).text).toBe('per-person cap is now €80');
@@ -417,7 +417,7 @@ describe('settings edits need the requester\'s yes, then they are audited', () =
 
   it('caps are a lead call; a minor or a guest changes nothing', async () => {
     const h = harness();
-    expect(only(await h.say('h_sam', '@trav set the per-person cap to €200')).text).toBe(T.LEAD_ONLY_TEXT);
+    expect(only(await h.say('h_crowley', '@trav set the per-person cap to €200')).text).toBe(T.LEAD_ONLY_TEXT);
     expect(only(await h.say('h_dean', '@trav set the per-person cap to $80')).text).toBe(
       T.capCurrencyText('EUR'),
     );
@@ -445,13 +445,13 @@ describe('settings edits need the requester\'s yes, then they are audited', () =
 
   it('reply mode: any adult member, confirmed, settings.changed', async () => {
     const h = harness();
-    expect(only(await h.say('h_maya', '@trav set reply mode to quiet')).text).toBe(
+    expect(only(await h.say('h_chase', '@trav set reply mode to quiet')).text).toBe(
       'change replies from normal to quiet? yes to confirm',
     );
-    await h.say('h_maya', 'yep');
+    await h.say('h_chase', 'yep');
     expect(group(h).settings.quietMode).toBe(true);
     expect(auditOf(h, 'settings.changed').at(-1)?.payload).toMatchObject({
-      memberId: 'mem_maya',
+      memberId: 'mem_chase',
       setting: 'quietMode',
       before: false,
       after: true,
@@ -474,53 +474,53 @@ describe('settings edits need the requester\'s yes, then they are audited', () =
 describe('consent flags (SAFETY §2.6)', () => {
   it('default false; only the owner flips them; every change is consent.changed', async () => {
     const h = harness();
-    const r = await h.say('h_maya', '@trav photos on');
+    const r = await h.say('h_chase', '@trav photos on');
     expect(only(r).text).toBe(T.PHOTOS_ON_TEXT);
-    expect(consent(h, 'mem_maya')).toMatchObject({ photos: true, roast: false, cardImport: false });
-    const other = await h.say('h_jordan', "@trav maya's photos off");
-    expect(only(other).text).toBe(T.ownerOnlyText('Maya'));
-    expect(consent(h, 'mem_maya')?.photos).toBe(true);
-    await h.dm('h_maya', 'memory across trips on');
-    await h.dm('h_maya', 'turn on email import');
+    expect(consent(h, 'mem_chase')).toMatchObject({ photos: true, roast: false, cardImport: false });
+    const other = await h.say('h_piotr', "@trav chase's photos off");
+    expect(only(other).text).toBe(T.ownerOnlyText('Chase'));
+    expect(consent(h, 'mem_chase')?.photos).toBe(true);
+    await h.dm('h_chase', 'memory across trips on');
+    await h.dm('h_chase', 'turn on email import');
     const events = auditOf(h, 'consent.changed');
     expect(events.map((e) => [e.payload['flag'], e.payload['to'], e.visibility])).toEqual([
       ['photos', true, 'group'],
       ['memoryAcrossTrips', true, 'owner'],
       ['emailImport', true, 'owner'],
     ]);
-    expect(events.every((e) => e.payload['memberId'] === 'mem_maya')).toBe(true);
-    expect(events.filter((e) => e.visibility === 'owner').every((e) => e.ownerId === 'mem_maya')).toBe(true);
+    expect(events.every((e) => e.payload['memberId'] === 'mem_chase')).toBe(true);
+    expect(events.filter((e) => e.visibility === 'owner').every((e) => e.ownerId === 'mem_chase')).toBe(true);
   });
 
   it('card import off drops pending "looks shared?" cards at once: off-then-on before a tap shares nothing (T-013 note)', async () => {
     const h = harness();
     h.clock.set('2026-03-17T21:00:00+01:00');
-    await h.dm('h_sam', 'turn on card import');
+    await h.dm('h_crowley', 'turn on card import');
     const imported = await h.runtime.agent.importCardTransactions({
       groupId: G,
-      ownerMemberId: 'mem_sam',
+      ownerMemberId: 'mem_crowley',
       adapter: createMockTransactions(),
     });
     const card = imported.outbound.find(
       (o): o is OutboundMessage => !isReaction(o) && o.card?.type === 'expense_confirm',
     );
     expect(card).toBeDefined();
-    const pending = h.runtime.stores.private.listPendingItems('mem_sam', G, 'pending');
+    const pending = h.runtime.stores.private.listPendingItems('mem_crowley', G, 'pending');
     expect(pending.length).toBeGreaterThan(0);
 
-    const off = await h.dm('h_sam', 'card import off');
+    const off = await h.dm('h_crowley', 'card import off');
     expect(only(off).text).toBe(T.droppedPendingText(T.CARD_IMPORT_OFF_TEXT, pending.length));
-    expect(h.runtime.stores.private.listPendingItems('mem_sam', G, 'pending')).toEqual([]);
+    expect(h.runtime.stores.private.listPendingItems('mem_crowley', G, 'pending')).toEqual([]);
     expect(
       auditOf(h, 'private.item_dismissed').filter((e) => e.payload['cause'] === 'consent_revoked'),
     ).toHaveLength(pending.length);
-    expect(h.runtime.stores.private.listCardTransactions('mem_sam', G).every((t) => t.merchantRaw === '')).toBe(
+    expect(h.runtime.stores.private.listCardTransactions('mem_crowley', G).every((t) => t.merchantRaw === '')).toBe(
       true,
     );
 
-    await h.dm('h_sam', 'card import on');
-    expect(consent(h, 'mem_sam')?.cardImport).toBe(true);
-    const tap = await h.tap('h_sam', card!.id, 'confirm');
+    await h.dm('h_crowley', 'card import on');
+    expect(consent(h, 'mem_crowley')?.cardImport).toBe(true);
+    const tap = await h.tap('h_crowley', card!.id, 'confirm');
     expect(tap.note).not.toBe('looks_shared:shared');
     expect(
       h.runtime.stores.group.expenses.listByTrip(TRIP).filter((e) => e.source === 'card_transaction'),
@@ -533,12 +533,12 @@ describe('consent flags (SAFETY §2.6)', () => {
     h.clock.set('2026-03-13T23:32:00+01:00');
     await h.say('h_henry', 'im beat, heading back');
     h.clock.set('2026-03-14T00:40:00+01:00');
-    await h.say('h_maya', 'where r u guys');
+    await h.say('h_chase', 'where r u guys');
     h.clock.set('2026-03-14T10:00:00+01:00');
-    await h.dm('h_priya', 'turn on email import');
+    await h.dm('h_arjun', 'turn on email import');
     const imported = await h.runtime.agent.importEmailReceipts({
       groupId: G,
-      ownerMemberId: 'mem_priya',
+      ownerMemberId: 'mem_arjun',
       source: createMockEmailReceiptSource(),
       parser: createOfflineReceiptEmailParser(),
     });
@@ -546,16 +546,16 @@ describe('consent flags (SAFETY §2.6)', () => {
       (o): o is OutboundMessage => !isReaction(o) && o.card?.type === 'expense_confirm',
     );
     expect(card).toBeDefined();
-    const pending = h.runtime.stores.private.listPendingItems('mem_priya', G, 'pending');
+    const pending = h.runtime.stores.private.listPendingItems('mem_arjun', G, 'pending');
     expect(pending.length).toBeGreaterThan(0);
 
-    const off = await h.dm('h_priya', 'email import off');
+    const off = await h.dm('h_arjun', 'email import off');
     expect(only(off).text).toBe(T.droppedPendingText(T.EMAIL_IMPORT_OFF_TEXT, pending.length));
-    expect(h.runtime.stores.private.listPendingItems('mem_priya', G, 'pending')).toEqual([]);
+    expect(h.runtime.stores.private.listPendingItems('mem_arjun', G, 'pending')).toEqual([]);
 
-    await h.dm('h_priya', 'email import on');
-    expect(consent(h, 'mem_priya')?.emailImport).toBe(true);
-    const tap = await h.tap('h_priya', card!.id, 'confirm');
+    await h.dm('h_arjun', 'email import on');
+    expect(consent(h, 'mem_arjun')?.emailImport).toBe(true);
+    const tap = await h.tap('h_arjun', card!.id, 'confirm');
     expect(tap.note).not.toBe('looks_shared:shared');
     expect(
       h.runtime.stores.group.expenses.listByTrip(TRIP).filter((e) => e.source === 'email_receipt'),
@@ -568,9 +568,9 @@ describe('consent flags (SAFETY §2.6)', () => {
 describe('rule-made refusals', () => {
   it("VOICE §4.12 D: another member's card, never the model", async () => {
     const h = harness();
-    const r = await h.say('h_jordan', "@trav what did Sam's card get charged last night");
+    const r = await h.say('h_piotr', "@trav what did Crowley's card get charged last night");
     expect(only(r).text).toBe(
-      "that's Sam's, not mine to share. anything Sam confirms as shared shows up on the tab",
+      "that's Crowley's, not mine to share. anything Crowley confirms as shared shows up on the tab",
     );
     expect(r.modelSources).toEqual([]);
     expect(h.model.completions).toEqual([]);
@@ -579,42 +579,42 @@ describe('rule-made refusals', () => {
   it("T-112: another member's pending items (even a count) get the §4.12 D refusal; no group prompt carries a count", async () => {
     const h = harness();
     h.clock.set('2026-03-17T21:00:00+01:00');
-    await h.dm('h_sam', 'turn on card import');
+    await h.dm('h_crowley', 'turn on card import');
     await h.runtime.agent.importCardTransactions({
       groupId: G,
-      ownerMemberId: 'mem_sam',
+      ownerMemberId: 'mem_crowley',
       adapter: createMockTransactions(),
     });
-    const samPending = h.runtime.stores.private.listPendingItems('mem_sam', G, 'pending').length;
-    expect(samPending).toBeGreaterThan(0);
+    const crowleyPending = h.runtime.stores.private.listPendingItems('mem_crowley', G, 'pending').length;
+    expect(crowleyPending).toBeGreaterThan(0);
     const before = h.model.completions.length;
-    for (const text of ["@trav what's pending for sam", '@trav summarize the charges sam has pending']) {
-      const r = await h.say('h_jordan', text);
+    for (const text of ["@trav what's pending for crowley", '@trav summarize the charges crowley has pending']) {
+      const r = await h.say('h_piotr', text);
       expect(r.note).toBe('refusal:private_data');
       expect(only(r).text).toBe(
-        "that's Sam's, not mine to share. anything Sam confirms as shared shows up on the tab",
+        "that's Crowley's, not mine to share. anything Crowley confirms as shared shows up on the tab",
       );
       expect(r.modelSources).toEqual([]);
     }
     expect(h.model.completions.length).toBe(before);
     // A model turn in the group: its prompt carries nobody's pending count (C2-style scan).
-    await h.say('h_jordan', '@trav where are we at with money?');
+    await h.say('h_piotr', '@trav where are we at with money?');
     const names = BARCELONA.members.map((m) => m.name);
     const groupPrompts = h.model.completions.slice(before).map((c) => c.system);
     expect(groupPrompts.length).toBeGreaterThan(0);
     for (const p of groupPrompts) {
       expect(pendingCountLeaks(p, names)).toEqual([]);
-      expect(p).not.toMatch(new RegExp(String.raw`Sam\s*\(?${String(samPending)}\b`));
+      expect(p).not.toMatch(new RegExp(String.raw`Crowley\s*\(?${String(crowleyPending)}\b`));
       expect(p).toContain(GROUP_PENDING_RULE);
     }
-    // r1 #3: Sam's own DM prompt has his own count and not the group-only rule.
+    // r1 #3: Crowley's own DM prompt has his own count and not the group-only rule.
     const dmBefore = h.model.completions.length;
-    await h.dm('h_sam', 'trav what do i have waiting?');
+    await h.dm('h_crowley', 'trav what do i have waiting?');
     const dmPrompts = h.model.completions.slice(dmBefore).map((c) => c.system);
     expect(dmPrompts.length).toBeGreaterThan(0);
     for (const p of dmPrompts) {
       expect(p).not.toContain(GROUP_PENDING_RULE);
-      expect(p).toContain(`${String(samPending)} of their charges are waiting for a 👍`);
+      expect(p).toContain(`${String(crowleyPending)} of their charges are waiting for a 👍`);
     }
   });
 });
@@ -803,10 +803,10 @@ describe('family mode (VOICE §8): Turks and Caicos', () => {
 describe('T-017 r2: expenses that name a card are logged, not refused', () => {
   it.each([
     ["@trav split the €200 groceries with everyone, it went on Dean's card", 20000, 'mem_dean'],
-    ["@trav i paid €84 for dinner on Jordan's card, split with everyone", 8400, 'mem_jordan'],
+    ["@trav i paid €84 for dinner on Piotr's card, split with everyone", 8400, 'mem_piotr'],
   ])('%s', async (text, amountMinor, payer) => {
     const h = harness();
-    const r = await h.say('h_sam', text);
+    const r = await h.say('h_crowley', text);
     expect(r.note).not.toBe('refusal:private_data');
     const logged = h.runtime.stores.group.expenses.listByTrip(TRIP).filter((e) => e.status === 'logged');
     expect(logged).toHaveLength(1);
@@ -818,16 +818,16 @@ describe('T-017 r2: expenses that name a card are logged, not refused', () => {
     expect(only(r).card?.type).toBe('expense_confirm');
   });
 
-  it('"did sam\'s card go through for the tickets?" reaches the model with the booking in its context', async () => {
+  it('"did crowley\'s card go through for the tickets?" reaches the model with the booking in its context', async () => {
     const h = harness();
     const ask = await h.say('h_dean', RAZZMATAZZ_ASK);
     const card = only(ask);
     expect((await h.tap('h_dean', card.id, 'approve')).note).toBe('approval:handled');
     const booking = h.runtime.stores.group.bookings.listByTrip(TRIP)[0]!;
     const before = h.model.completions.length;
-    const r = await h.say('h_jordan', "@trav did sam's card go through for the tickets?");
+    const r = await h.say('h_piotr', "@trav did crowley's card go through for the tickets?");
     expect(r.note).not.toBe('refusal:private_data');
-    expect(r.outbound.some((o) => !isReaction(o) && o.text.startsWith("that's Sam's"))).toBe(false);
+    expect(r.outbound.some((o) => !isReaction(o) && o.text.startsWith("that's Crowley's"))).toBe(false);
     const req = h.model.completions.at(before);
     expect(req).toBeDefined();
     expect(req!.system).toContain(booking.description);
@@ -838,9 +838,9 @@ describe('T-017 r2: expenses that name a card are logged, not refused', () => {
     const h = harness();
     razzNight(h);
     h.clock.set('2026-03-15T11:00:00+01:00');
-    const tab = await h.say('h_maya', "@trav what did jordan's card get charged for the late-night kebabs");
+    const tab = await h.say('h_chase', "@trav what did piotr's card get charged for the late-night kebabs");
     expect(tab.note).not.toBe('refusal:private_data');
-    const priv = await h.say('h_maya', "@trav what did jordan's card get charged last night");
+    const priv = await h.say('h_chase', "@trav what did piotr's card get charged last night");
     expect(priv.note).toBe('refusal:private_data');
   });
 });
@@ -849,29 +849,29 @@ describe('T-017 r2: card/email import toggled in the group', () => {
   it('applies the change; the pending count goes to the owner by DM, the group gets a count-free 👍', async () => {
     const h = harness();
     h.clock.set('2026-03-17T21:00:00+01:00');
-    await h.dm('h_sam', 'turn on card import');
+    await h.dm('h_crowley', 'turn on card import');
     await h.runtime.agent.importCardTransactions({
       groupId: G,
-      ownerMemberId: 'mem_sam',
+      ownerMemberId: 'mem_crowley',
       adapter: createMockTransactions(),
     });
-    const pending = h.runtime.stores.private.listPendingItems('mem_sam', G, 'pending').length;
+    const pending = h.runtime.stores.private.listPendingItems('mem_crowley', G, 'pending').length;
     expect(pending).toBeGreaterThan(0);
 
-    const off = await h.say('h_sam', '@trav card import off');
-    expect(consent(h, 'mem_sam')?.cardImport).toBe(false);
-    expect(h.runtime.stores.private.listPendingItems('mem_sam', G, 'pending')).toEqual([]);
+    const off = await h.say('h_crowley', '@trav card import off');
+    expect(consent(h, 'mem_crowley')?.cardImport).toBe(false);
+    expect(h.runtime.stores.private.listPendingItems('mem_crowley', G, 'pending')).toEqual([]);
     const toGroup = off.outbound.filter((o) => o.to.kind === 'group');
     expect(toGroup).toHaveLength(1);
     expect(toGroup[0]).toMatchObject({ kind: 'reaction', emoji: '👍' });
     const dms = off.outbound.filter((o): o is OutboundMessage => !isReaction(o) && o.to.kind === 'member');
     expect(dms).toHaveLength(1);
-    expect(dms[0]!.to).toEqual({ kind: 'member', memberId: 'mem_sam' });
+    expect(dms[0]!.to).toEqual({ kind: 'member', memberId: 'mem_crowley' });
     expect(dms[0]!.text).toBe(T.droppedPendingText(T.CARD_IMPORT_OFF_TEXT, pending));
 
     // Turning it on from the group: applied, confirmation by DM too.
-    const on = await h.say('h_sam', '@trav email import on');
-    expect(consent(h, 'mem_sam')?.emailImport).toBe(true);
+    const on = await h.say('h_crowley', '@trav email import on');
+    expect(consent(h, 'mem_crowley')?.emailImport).toBe(true);
     expect(on.outbound.filter((o) => o.to.kind === 'group').every((o) => isReaction(o))).toBe(true);
     expect(
       on.outbound.filter((o): o is OutboundMessage => !isReaction(o) && o.to.kind === 'member').map((o) => o.text),

@@ -7,9 +7,9 @@
   "imageFile": "fixtures/receipts/rcpt_bcn_gatblau.png",
   "imageMimeType": "image/png",
   "imageSha256": "4bb4989e55fe4917d42882f73d56093d4f114d1fc170d461e83134897d6a1c30",
-  "postedBy": "mem_jordan",
+  "postedBy": "mem_piotr",
   "postedInGroup": true,
-  "chatText": "@trav dinner, i paid, Priya didn't drink",
+  "chatText": "@trav dinner, i paid, Arjun didn't drink",
   "ocrText": "TAVERNA DEL GAT BLAU\nCarrer de Verdi 12, Gracia\nBarcelona  NIF B-00000000\n13/03/2026   23:01   TAULA 7\n----------------------------------\n3 PA AMB TOMÀQUET            15,00\n2 PATATAS BRAVAS             13,80\n2 CROQUETES DE PERNIL        18,00\n1 POP A LA GALLEGA           21,60\n1 ESCALIVADA                 12,00\n1 ARRÒS NEGRE (2 PAX)        24,00\n3 CREMA CATALANA             15,00\n1 BOTTLE OF PRIORAT RED      32,00\n5 CAÑA                       15,00\n2 VERMUT                     11,00\n2 WATER 1L                    6,60\n----------------------------------\nTOTAL                     184,00 €\nIVA 10% INCLOS        16,73\nCARD                        184,00\nGRACIES! TORNEU AVIAT",
   "parsed": {
     "source": "restaurant",
@@ -197,9 +197,9 @@
       "claimedBy": [
         "mem_dean",
         "mem_henry",
-        "mem_maya",
-        "mem_jordan",
-        "mem_sam"
+        "mem_chase",
+        "mem_piotr",
+        "mem_crowley"
       ],
       "kind": "item"
     },
@@ -213,9 +213,9 @@
       "claimedBy": [
         "mem_dean",
         "mem_henry",
-        "mem_maya",
-        "mem_jordan",
-        "mem_sam"
+        "mem_chase",
+        "mem_piotr",
+        "mem_crowley"
       ],
       "kind": "item"
     },
@@ -229,9 +229,9 @@
       "claimedBy": [
         "mem_dean",
         "mem_henry",
-        "mem_maya",
-        "mem_jordan",
-        "mem_sam"
+        "mem_chase",
+        "mem_piotr",
+        "mem_crowley"
       ],
       "kind": "item"
     },
@@ -246,16 +246,16 @@
       "kind": "item"
     }
   ],
-  "payer": "mem_jordan",
+  "payer": "mem_piotr",
   "split": {
     "method": "itemized",
     "participants": [
       "mem_dean",
       "mem_henry",
-      "mem_maya",
-      "mem_jordan",
-      "mem_priya",
-      "mem_sam"
+      "mem_chase",
+      "mem_piotr",
+      "mem_arjun",
+      "mem_crowley"
     ],
     "lineItems": [
       {
@@ -338,9 +338,9 @@
         "claimedBy": [
           "mem_dean",
           "mem_henry",
-          "mem_maya",
-          "mem_jordan",
-          "mem_sam"
+          "mem_chase",
+          "mem_piotr",
+          "mem_crowley"
         ],
         "kind": "item"
       },
@@ -354,9 +354,9 @@
         "claimedBy": [
           "mem_dean",
           "mem_henry",
-          "mem_maya",
-          "mem_jordan",
-          "mem_sam"
+          "mem_chase",
+          "mem_piotr",
+          "mem_crowley"
         ],
         "kind": "item"
       },
@@ -370,9 +370,9 @@
         "claimedBy": [
           "mem_dean",
           "mem_henry",
-          "mem_maya",
-          "mem_jordan",
-          "mem_sam"
+          "mem_chase",
+          "mem_piotr",
+          "mem_crowley"
         ],
         "kind": "item"
       },
@@ -404,28 +404,28 @@
       }
     },
     {
-      "memberId": "mem_maya",
+      "memberId": "mem_chase",
       "amount": {
         "amountMinor": 3260,
         "currency": "EUR"
       }
     },
     {
-      "memberId": "mem_jordan",
+      "memberId": "mem_piotr",
       "amount": {
         "amountMinor": 3260,
         "currency": "EUR"
       }
     },
     {
-      "memberId": "mem_priya",
+      "memberId": "mem_arjun",
       "amount": {
         "amountMinor": 2100,
         "currency": "EUR"
       }
     },
     {
-      "memberId": "mem_sam",
+      "memberId": "mem_crowley",
       "amount": {
         "amountMinor": 3260,
         "currency": "EUR"
@@ -440,6 +440,6 @@
     "unreadable": false,
     "familyTab": false,
     "rounding": "per line: equal among claimants (payer absorbs the remainder); tax/tip/service/fee pro-rata to item subtotals (README \"Rounding\")",
-    "notes": "food (incl. water) split 6 ways €21 each; drinks (€58) split 5 ways without Priya. IVA is included in prices, so there is no tax line to allocate."
+    "notes": "food (incl. water) split 6 ways €21 each; drinks (€58) split 5 ways without Arjun. IVA is included in prices, so there is no tax line to allocate."
   }
 }

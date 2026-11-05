@@ -247,7 +247,7 @@ describe('privacy', () => {
           direction: 'outbound',
           lane: 'dm',
           fromName: 'Trav',
-          dmName: 'Sam',
+          dmName: 'Crowley',
           text: 'your card •••• 4821 charged €9.80',
         },
         {
@@ -255,7 +255,7 @@ describe('privacy', () => {
           type: 'message',
           direction: 'inbound',
           lane: 'dm',
-          fromName: 'Sam',
+          fromName: 'Crowley',
           text: 'my secret thing',
         },
       ] as unknown as Episode['transcript'],
@@ -263,13 +263,13 @@ describe('privacy', () => {
     const lines = transcriptExcerpt(outcome(scenario(), [], ep));
     expect(lines).toEqual([
       'Dean: @trav hi',
-      'trav → dm Sam: [private message, not shown]',
-      'Sam (dm): [private message, not shown]',
+      'trav → dm Crowley: [private message, not shown]',
+      'Crowley (dm): [private message, not shown]',
     ]);
   });
 
   it('no private string, QR payload, card mask or email subject survives into the markdown or JSON', () => {
-    const card = ticketCard('mem_maya');
+    const card = ticketCard('mem_chase');
     const payload = (card as { qr: { payload: string } }).qr.payload;
     const fixtureSecret = privateFixtureStrings()[0];
     expect(fixtureSecret, 'private fixtures are present').toBeDefined();
@@ -281,7 +281,7 @@ describe('privacy', () => {
             outbound: [
               message({
                 text: 'your ticket',
-                to: { kind: 'member', memberId: 'mem_maya' },
+                to: { kind: 'member', memberId: 'mem_chase' },
                 card,
               }) as OutboundMessage,
             ],
@@ -300,7 +300,7 @@ describe('privacy', () => {
           direction: 'outbound',
           lane: 'group',
           fromName: 'Trav',
-          text: `sam is allergic to shellfish, card 4821, order RZ-48213, ${payload}, ${fixtureSecret ?? ''}`,
+          text: `crowley is allergic to shellfish, card 4821, order RZ-48213, ${payload}, ${fixtureSecret ?? ''}`,
         },
       ] as unknown as Episode['transcript'],
     });
@@ -338,7 +338,7 @@ describe('privacy: DM text never reaches grader evidence or the report', () => {
         {
           do: 'say',
           lane: 'dm',
-          from: 'h_sam',
+          from: 'h_crowley',
           text: 'show me my pending charges',
           expect: { text: 'zzz', silent: true },
         },
@@ -365,13 +365,13 @@ describe('privacy: DM text never reaches grader evidence or the report', () => {
   });
 
   it('turn expectations, message budget and voice lint quote a DM by length and rule name only', () => {
-    const secret = 'sam, your card 4821 was charged €9.80 at the bar!';
-    const dm = message({ text: secret, to: { kind: 'member', memberId: 'mem_sam' } });
+    const secret = 'crowley, your card 4821 was charged €9.80 at the bar!';
+    const dm = message({ text: secret, to: { kind: 'member', memberId: 'mem_crowley' } });
     const ep = episode({
       steps: [
         step({
           lane: 'dm',
-          label: 'h_sam (dm): [private message]',
+          label: 'h_crowley (dm): [private message]',
           expect: { text: 'zzz', silent: true },
           turn: {
             outbound: [dm],

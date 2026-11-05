@@ -14,14 +14,14 @@ import { TravError } from '../errors.js';
 import type { SplitContext } from './context.js';
 
 export const DEAN: MemberId = 'mem_dean';
-export const MAYA: MemberId = 'mem_maya';
-export const SAM: MemberId = 'mem_sam';
+export const CHASE: MemberId = 'mem_chase';
+export const CROWLEY: MemberId = 'mem_crowley';
 export const HENRY: MemberId = 'mem_henry';
-export const JORDAN: MemberId = 'mem_jordan';
-export const PRIYA: MemberId = 'mem_priya';
+export const PIOTR: MemberId = 'mem_piotr';
+export const ARJUN: MemberId = 'mem_arjun';
 
 /** Group member order for Barcelona. Remainders and ties follow this order. */
-export const BARCELONA_MEMBERS: readonly MemberId[] = [DEAN, MAYA, SAM, HENRY, JORDAN, PRIYA];
+export const BARCELONA_MEMBERS: readonly MemberId[] = [DEAN, CHASE, CROWLEY, HENRY, PIOTR, ARJUN];
 
 export const BARCELONA_CTX: SplitContext = {
   memberOrder: BARCELONA_MEMBERS,

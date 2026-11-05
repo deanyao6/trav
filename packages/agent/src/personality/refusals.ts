@@ -1,7 +1,7 @@
 /**
  * Deterministic guardrail refusals that do not need the model (T-017):
  *
- * - VOICE §4.12 D: "what did Sam's card get charged" ⇒ that's Sam's. The
+ * - VOICE §4.12 D: "what did Crowley's card get charged" ⇒ that's Crowley's. The
  *   group lane never answers about another member's card, email or bank;
  *   the answer comes from the rule, so no prompt ever carries the question.
  * - VOICE §4.12 C / §8 / SAFETY §2.7 rule 1: in family mode, a request for
@@ -32,9 +32,9 @@ function escapeRe(s: string): string {
 
 /**
  * A question or a reveal request: a clause that opens with a question word or
- * a "show me" verb ("what did Sam's card get charged", "show me sam's pending
+ * a "show me" verb ("what did Crowley's card get charged", "show me crowley's pending
  * charges", "..., and what's henry's budget"), or a message with a "?".
- * "i paid €84 on Jordan's card" and "it went on Dean's card" are statements.
+ * "i paid €84 on Piotr's card" and "it went on Dean's card" are statements.
  */
 const REVEAL_CLAUSE =
   /(?:^|[,.;:!?]\s*|\b(?:and|also|so|but|then|plus|or|like)\s+)(?:(?:pls|please|hey|ok|okay|wait|yo)\s+)?(?:(?:can|could|will|would) (?:you|u)\s+)?(?:what|what's|whats|how|show|tell|give|reveal|see|look|check|read|list|pull|open|share|send|dig|did|does|do|has|have|is|was|were|any|who|where|which|when|why)\b/u;
@@ -51,11 +51,11 @@ const PAYER_OR_SPLIT =
 const BOOKING =
   /\b(?:tickets?|booking|bookings|booked|reservations?|flights?|deposit|lodging|airbnb|hotel booking)\b/u;
 
-/** A payment put on a card: "it went on Dean's card", "put it on jordan's card". */
+/** A payment put on a card: "it went on Dean's card", "put it on piotr's card". */
 const PAID_ON_CARD =
   /\b(?:paid|put(?: it)?|went|goes|go|charged(?: it)?|was charged)\s+(?:\p{L}+\s+){0,3}?on\s+\p{L}[\p{L}-]*'s\s+(?:credit\s+|debit\s+)?card\b/u;
 
-/** "did sam's card go through for the tickets": whether a booking charge worked. */
+/** "did crowley's card go through for the tickets": whether a booking charge worked. */
 const WENT_THROUGH =
   /^(?:what\s+)?(?:did|has|have)\s+\p{L}[\p{L}-]*'s\s+(?:credit\s+|debit\s+)?card\s+(?:go|gone|get|got)\s+(?:through|charged|declined|approved)\s+for\s+(?:the|our|my|his|her|their)\s+[^,;.?!]{1,40}\??$/u;
 
@@ -66,8 +66,8 @@ const EXCLUSION =
 /**
  * Group facts that can be "pending" for someone (T-112 r1 #1-2): a booking
  * approval or vote, and the tab itself: settle-up, a transfer, a payment, a
- * share, a split, who owes what ("is sam's transfer to dean still pending",
- * "what's left pending for sam to pay", "is sam's share of dinner pending").
+ * share, a split, who owes what ("is crowley's transfer to dean still pending",
+ * "what's left pending for crowley to pay", "is crowley's share of dinner pending").
  */
 const GROUP_PENDING =
   /\b(?:approv\w*|proposals?|votes?|rsvps?|settle(?:[- ]?ups?|ments?|d|s)?|settling|transfers?|payments?|pay|pays|paying|paid|repay\w*|owe|owes|owed|owing|shares?|splits?|split|tab|ious?|venmo request|reimburse\w*)\b/u;
@@ -75,7 +75,7 @@ const GROUP_PENDING =
 /**
  * An exclusion that scopes a private remainder ("besides the tickets",
  * "anything else", "other than the approval"). A bare "anything/everything/
- * all" ("is anything pending for sam to approve?", "everything ok?") does not.
+ * all" ("is anything pending for crowley to approve?", "everything ok?") does not.
  */
 const SCOPED_EXCLUSION =
   /\b(?:besides|except|apart from|other than|aside from|outside of|on top of)\b|\b(?:anything|everything|what|something|stuff|all) else\b/u;
@@ -90,29 +90,29 @@ const ITEM_NOUN = String.raw`(?:charges?|items?|receipts?|stuff|things?|emails?|
  * "even a count is the owner's"). Each shape names exactly whose items they
  * are, so the subject is the possessor or the "for X" target, never a name
  * that merely sits near the word "pending":
- *   "what's pending for sam", "anything pending from Sam?"
- *   "sam's pending stuff", "2 of sam's charges are pending"
- *   "summarize the charges sam has pending", "does sam have anything unconfirmed"
- *   "is sam waiting on a tap for anything"
+ *   "what's pending for crowley", "anything pending from Crowley?"
+ *   "crowley's pending stuff", "2 of crowley's charges are pending"
+ *   "summarize the charges crowley has pending", "does crowley have anything unconfirmed"
+ *   "is crowley waiting on a tap for anything"
  */
 function pendingAbout(t: string, name: string): boolean {
   const n = String.raw`(?<![\p{L}])${name}(?![\p{L}'])`;
   const ns = String.raw`(?<![\p{L}])${name}'s`;
   const p = PENDING_WORD;
   return [
-    // "pending for sam" (the target directly after the preposition, not "sam's X")
+    // "pending for crowley" (the target directly after the preposition, not "crowley's X")
     String.raw`\b${p}\b[^.?!;]{0,40}?\b(?:for|of|from|by|on)\s+${n}`,
-    // "what's pending on sam's end" (T-112 r2 #2)
+    // "what's pending on crowley's end" (T-112 r2 #2)
     String.raw`\b${p}\b[^.?!;]{0,40}?\b(?:for|of|from|by|on)\s+${ns}\s+(?:end|side|stuff|account|thread|list|queue)\b`,
-    // "how many pending items does sam have" (T-112 r2 #3)
+    // "how many pending items does crowley have" (T-112 r2 #3)
     String.raw`\b${p}\s+${ITEM_NOUN}\s+(?:do|does|did)\s+${n}\s+(?:still\s+)?have\b`,
-    // "sam's pending charges", "sam's unconfirmed stuff"
+    // "crowley's pending charges", "crowley's unconfirmed stuff"
     String.raw`${ns}\s+(?:\p{L}+\s+){0,1}?${p}(?:\s+${ITEM_NOUN})?(?![\p{L}])`,
-    // "sam's charges are pending", "2 of sam's receipts still waiting on a tap"
+    // "crowley's charges are pending", "2 of crowley's receipts still waiting on a tap"
     String.raw`${ns}\s+(?:\p{L}+\s+){0,1}?${ITEM_NOUN}\s+(?:\p{L}+\s+){0,3}?${p}`,
-    // "the charges sam has pending", "does sam have anything unconfirmed"
+    // "the charges crowley has pending", "does crowley have anything unconfirmed"
     String.raw`${n}\s+(?:still\s+)?(?:has|have|had|got|is holding|keeps?)\s+(?:[\p{L}\d]+\s+){0,3}?${p}`,
-    // "is sam waiting on a tap"
+    // "is crowley waiting on a tap"
     String.raw`${n}\s+(?:is\s+|still\s+)*waiting (?:on|for) (?:a |their |his |her )?(?:taps?|👍|confirm\w*|thumbs? up)`,
   ].some((re) => new RegExp(re, 'u').test(t));
 }
@@ -128,11 +128,11 @@ function mentionsTabItem(t: string, tabItems: readonly string[]): boolean {
 
 /**
  * The member whose private data the message asks about, if any: "what did
- * Sam's card get charged", "what's on Jordan's statement", "what did Sam spend
+ * Crowley's card get charged", "what's on Piotr's statement", "what did Crowley spend
  * on his card", "what's dad's daily budget". Only questions or reveal requests
  * count. Never fired for an expense being logged ("i paid €84 for dinner on
- * Jordan's card, split with everyone": an amount plus a payer or split
- * instruction) or for a booking or tab item ("did sam's card go through for
+ * Piotr's card, split with everyone": an amount plus a payer or split
+ * instruction) or for a booking or tab item ("did crowley's card go through for
  * the tickets?": the booking is a group fact). The sender's own data is not
  * "someone else's".
  */
@@ -147,13 +147,13 @@ export function privateDataSubject(
   const question = text.includes('?') || REVEAL_CLAUSE.test(t);
   // Fails closed: any mention of another member's private data is refused
   // unless it is plainly an expense statement or the one booking question.
-  // A statement ("i paid €84 for dinner on Jordan's card, split with
+  // A statement ("i paid €84 for dinner on Piotr's card, split with
   // everyone") carries an amount plus a payer or split instruction, or puts a
   // payment on the card; it is never a question.
   if (!question && (AMOUNT.test(t) || PAID_ON_CARD.test(t)) && PAYER_OR_SPLIT.test(t)) {
     return undefined;
   }
-  // "did sam's card go through for the tickets?": only that shape, about a
+  // "did crowley's card go through for the tickets?": only that shape, about a
   // booking or a tab item, and never "besides / except / what else".
   if (
     WENT_THROUGH.test(t) &&
@@ -178,7 +178,7 @@ export function privateDataSubject(
     // anything else pending for another member is theirs ("besides the
     // tickets" / "anything else" never exempts). The group-fact word must sit
     // in the same clause as the pending question (T-112 r2 #1): "what's
-    // pending for sam and what's my share" is still about Sam's items.
+    // pending for crowley and what's my share" is still about Crowley's items.
     const groupFact = (s: string): boolean =>
       (BOOKING.test(s) || GROUP_PENDING.test(s) || mentionsTabItem(s, tabItems)) &&
       !SCOPED_EXCLUSION.test(t);

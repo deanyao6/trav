@@ -10,7 +10,7 @@
  * Every chat line, tapback and button tap goes through the simulator channel
  * into `agent.handleInbound`; every clock move drains the scheduler through
  * `agent.runScheduled` (the Morning Afters, Wrapped, and every consenting
- * owner's card import at 10:00 and 20:00, T-067); Sam's card syncing at 9am
+ * owner's card import at 10:00 and 20:00, T-067); Crowley's card syncing at 9am
  * is the real `agent.importCardTransactions` on the simulated clock, and the
  * email documents go through `agent.intakeDocument`. Group flights (T-074)
  * are the chat flow too: `search_flights` runs the core multi-origin
@@ -62,10 +62,16 @@ export interface DemoOptions {
 const G = BARCELONA;
 const TRIP_ID = 'trip_barcelona';
 const MEMBER_ORDER: readonly MemberId[] = G.members.map((m) => m.memberId);
-const FIVE: readonly MemberId[] = ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam'];
+const FIVE: readonly MemberId[] = [
+  'mem_dean',
+  'mem_chase',
+  'mem_piotr',
+  'mem_arjun',
+  'mem_crowley',
+];
 const HENRY: MemberId = 'mem_henry';
-/** The 4 riders on Priya's Uber email (`fixtures/emails/em_bcn_priya_uber_0314.json`). */
-const UBER_RIDERS: readonly MemberId[] = ['mem_priya', 'mem_dean', 'mem_jordan', 'mem_sam'];
+/** The 4 riders on Arjun's Uber email (`fixtures/emails/em_bcn_arjun_uber_0314.json`). */
+const UBER_RIDERS: readonly MemberId[] = ['mem_arjun', 'mem_dean', 'mem_piotr', 'mem_crowley'];
 /** The group chat the evening the trip became official (Madrid time, the trip's zone). */
 const DEMO_START: IsoDateTime = '2026-02-03T20:00:00+01:00';
 const BASES: readonly string[] = ['ledger', 'booking', 'attendance', 'album'];
@@ -78,7 +84,7 @@ export const OFFLINE_FALLBACK = "i'm not sure what you mean";
 
 /** The steps that have no chat flow in v0 (printed in the transcript header). */
 export const DEMO_NOTES: readonly string[] = [
-  'step 10 (settle-up): Trav answers "@trav settle now" with the transfers; Maya\'s 👍 on the card (or her [Paid] tap) records that she says she paid and re-posts the card with her row ticked (T-141). Payee confirmation, disputes and nudges are not built (T-037), so the demo applies the remaining transfers to the balances itself and checks that everyone ends at €0. No money moves.',
+  'step 10 (settle-up): Trav answers "@trav settle now" with the transfers; Chase\'s 👍 on the card (or a [Paid] tap) records that Chase says Chase paid and re-posts the card with Chase\'s row ticked (T-141). Payee confirmation, disputes and nudges are not built (T-037), so the demo applies the remaining transfers to the balances itself and checks that everyone ends at €0. No money moves.',
 ];
 
 function nameOf(id: string): string {
@@ -239,11 +245,11 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
     // ---------------- 1. trip setup ----------------
     await section('1. trip setup', '2026-02-03T20:02:00+01:00');
     await say('Dean', 'ok its official. BARCELONA mar 12-17 🇪🇸 everyone lock it in');
-    await say('Priya', "ok i'm at my sister's in nyc that week so jfk out, dc back");
-    await say('Maya', 'i have to fly out of SF but back to LA, cousins thing on the 18th');
-    await say('Sam', 'LA out, seattle back (new internship 🤠)');
+    await say('Arjun', "ok i'm at my sister's in nyc that week so jfk out, dc back");
+    await say('Chase', 'i have to fly out of SF but back to LA, cousins thing on the 18th');
+    await say('Crowley', 'LA out, seattle back (new internship 🤠)');
     await say('Henry', 'miami out, atlanta back. grandparents');
-    await say('Jordan', 'chicago both ways ✈️');
+    await say('Piotr', 'chicago both ways ✈️');
     await say('Dean', 'im bos out but jfk back, internship starts the 18th');
     const trip = rt().stores.group.trips.get(TRIP_ID);
     check(
@@ -288,7 +294,7 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
     );
 
     await say(
-      'Priya',
+      'Arjun',
       'option 1 looks good, everyone lands within like an hour',
       '2026-02-03T20:15:00+01:00',
     );
@@ -320,7 +326,7 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
           .stores.group.bookings.listByTrip(TRIP_ID)
           .filter((b) => b.kind === 'flight').length;
       // Flights are on every payer (SAFETY C2/C9): nothing books until the 6th 👍.
-      const order = ['Dean', 'Maya', 'Priya', 'Jordan', 'Sam', 'Henry'];
+      const order = ['Dean', 'Chase', 'Arjun', 'Piotr', 'Crowley', 'Henry'];
       for (const [i, name] of order.entries()) {
         const live = messageById(view(), flightCard.messageId);
         if (live?.cardState?.liveActionIds.includes('approve') !== true) break;
@@ -372,18 +378,18 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
     );
     if (stayCard) {
       // Lodging is on everyone paying (SAFETY C2): each of the 6 taps.
-      for (const name of ['Dean', 'Maya', 'Jordan', 'Priya', 'Sam']) {
+      for (const name of ['Dean', 'Chase', 'Piotr', 'Arjun', 'Crowley']) {
         const live = messageById(view(), stayCard.messageId);
         if (live?.cardState?.liveActionIds.includes('approve') !== true) break;
         await tap(name, live, 'approve');
       }
       // A relayed approval is never a grant (SAFETY §2.5).
-      await say('Jordan', "henry's at practice, i'll approve for him. go ahead trav");
+      await say('Piotr', "henry's at practice, i'll approve for him. go ahead trav");
       const stays = (): number =>
         rt()
           .stores.group.bookings.listByTrip(TRIP_ID)
           .filter((b) => b.kind === 'lodging').length;
-      check('Jordan\'s "i\'ll approve for him" books nothing', stays() === 0);
+      check('Piotr\'s "i\'ll approve for him" books nothing', stays() === 0);
       const live = messageById(view(), stayCard.messageId);
       if (live?.cardState?.liveActionIds.includes('approve') === true) {
         await tap('Henry', live, 'approve');
@@ -406,7 +412,7 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
 
     // ---------------- 4. Barça tickets ----------------
     await section('4. Barça tickets', '2026-02-10T19:30:00+01:00');
-    await say('Priya', 'WE HAVE TO SEE BARÇA. sevilla is at home sunday the 15th');
+    await say('Arjun', 'WE HAVE TO SEE BARÇA. sevilla is at home sunday the 15th');
     const barcaReply = await say(
       'Dean',
       '@trav get the 6 of us barça vs sevilla tickets for sunday mar 15',
@@ -419,7 +425,7 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
     );
     if (barcaCard) {
       // Over the per-person cap every payer has to tap (at most one tap per member).
-      for (const name of ['Dean', 'Henry', 'Maya', 'Jordan', 'Priya', 'Sam']) {
+      for (const name of ['Dean', 'Henry', 'Chase', 'Piotr', 'Arjun', 'Crowley']) {
         const live = messageById(view(), barcaCard.messageId);
         if (live?.cardState?.liveActionIds.includes('approve') !== true) break;
         await tap(name, live, 'approve');
@@ -438,18 +444,18 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
 
     // ---------------- 5. dinner expense ----------------
     await section('5. dinner expense', '2026-03-12T09:40:00+01:00');
-    await say('Maya', 'LANDED 🛬');
-    // Consent is per member and opt-in (SAFETY §2.6): Priya turns on email receipts, Sam card import.
-    await dm('Priya', 'email receipts on', '2026-03-12T16:07:00+01:00');
-    await dm('Sam', 'card import on');
+    await say('Chase', 'LANDED 🛬');
+    // Consent is per member and opt-in (SAFETY §2.6): Arjun turns on email receipts, Crowley card import.
+    await dm('Arjun', 'email receipts on', '2026-03-12T16:07:00+01:00');
+    await dm('Crowley', 'card import on');
     const dinner = await say(
-      'Jordan',
+      'Piotr',
       '@trav i paid €126 for dinner, everyone',
       '2026-03-12T23:50:00+01:00',
     );
     const e126 = expenseWith(rt(), 12600);
     check(
-      '€126 dinner logged on Jordan, 6 ways',
+      '€126 dinner logged on Piotr, 6 ways',
       dinner.length > 0 && sharesOf(rt(), e126).size === 6,
       dinner.map((m) => m.text).join(' | '),
     );
@@ -459,37 +465,37 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
 
     // ---------------- 6. Uber email ----------------
     // The El Born night, as the group thread had it (fixtures/chats/barcelona.jsonl
-    // msg_bcn_0094..0102): Henry heads back early, Maya loses the others.
+    // msg_bcn_0094..0102): Henry heads back early, Chase loses the others.
     await section('6. Uber email receipt', '2026-03-13T23:30:00+01:00');
-    await say('Sam', "bar crawl in el born?? who's in");
-    await say('Maya', 'me', '2026-03-13T23:31:00+01:00');
-    await say('Jordan', 'ya');
+    await say('Crowley', "bar crawl in el born?? who's in");
+    await say('Chase', 'me', '2026-03-13T23:31:00+01:00');
+    await say('Piotr', 'ya');
     await say('Henry', 'im beat, heading back', '2026-03-13T23:32:00+01:00');
-    await say('Priya', 'in');
+    await say('Arjun', 'in');
     await say('Dean', 'in', '2026-03-13T23:33:00+01:00');
-    await say('Maya', 'where r u guys', '2026-03-14T00:40:00+01:00');
-    await say('Priya', 'bar with the green door', '2026-03-14T00:41:00+01:00');
+    await say('Chase', 'where r u guys', '2026-03-14T00:40:00+01:00');
+    await say('Arjun', 'bar with the green door', '2026-03-14T00:41:00+01:00');
     await at('2026-03-14T09:00:00+01:00');
-    emit("- _Priya's Uber receipt email arrives (mock inbox): €18.60, 4 riders_");
-    await backend.intake!('doc_bcn_priya_email_1');
-    const emailPrompt = (flush().dms.get('mem_priya') ?? []).find(isPendingPrompt);
-    check('"looks shared?" prompt goes to Priya\'s DM only', emailPrompt !== undefined);
+    emit("- _Arjun's Uber receipt email arrives (mock inbox): €18.60, 4 riders_");
+    await backend.intake!('doc_bcn_arjun_email_1');
+    const emailPrompt = (flush().dms.get('mem_arjun') ?? []).find(isPendingPrompt);
+    check('"looks shared?" prompt goes to Arjun\'s DM only', emailPrompt !== undefined);
     check('the group sees nothing of the email', !JSON.stringify(view().thread).includes('18.60'));
-    // T-135 / T-075: "Riders on this trip: 4" with that night's thread is Priya,
-    // Dean, Jordan, Sam (Henry went back, Maya lost the group), never all 6.
+    // T-135 / T-075: "Riders on this trip: 4" with that night's thread is Arjun,
+    // Dean, Piotr, Crowley (Henry went back, Chase lost the group), never all 6.
     const promptCard = emailPrompt?.card?.type === 'expense_confirm' ? emailPrompt.card : undefined;
     const proposed = new Set((promptCard?.split.participants ?? []).map((p) => p.memberId));
     check(
-      "the card proposes the email's 4 riders: Priya, Dean, Jordan, Sam",
+      "the card proposes the email's 4 riders: Arjun, Dean, Piotr, Crowley",
       sameSet(proposed, UBER_RIDERS) && /4 riders/.test(emailPrompt?.text ?? ''),
       `${[...proposed].map(nameOf).join(', ')} | ${emailPrompt?.text ?? ''}`,
     );
-    if (emailPrompt) await tap('Priya', emailPrompt, 'confirm');
+    if (emailPrompt) await tap('Arjun', emailPrompt, 'confirm');
     const uber = expenseWith(rt(), 1860);
-    check("Priya's €18.60 Uber is on the tab once she shares it", uber !== undefined);
+    check("Arjun's €18.60 Uber is on the tab once Arjun shares it", uber !== undefined);
     const uberShares = shareAmounts(rt(), uber);
     check(
-      'the Uber is split among the 4 riders at €4.65 each (Maya and Henry owe nothing)',
+      'the Uber is split among the 4 riders at €4.65 each (Chase and Henry owe nothing)',
       sameSet(new Set(uberShares.keys()), UBER_RIDERS) &&
         [...uberShares.values()].every((v) => v === 465),
       [...uberShares].map(([id, v]) => `${nameOf(id)} ${String(v)}`).join(', '),
@@ -529,7 +535,7 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
     if (razz) {
       await react('Dean', razz);
       // A second 👍 after the booking never buys twice.
-      await react('Maya', razz);
+      await react('Chase', razz);
     }
     const receipt = messages(view().thread).find(
       (m) => razz !== undefined && m.seq > razz.seq && m.card?.type === 'receipt',
@@ -545,7 +551,7 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
     );
     const razzTickets = ticketDmsFor(view(), /razzmatazz/i);
     check(
-      '5 Razzmatazz ticket DMs, one each for Dean, Maya, Jordan, Priya, Sam',
+      '5 Razzmatazz ticket DMs, one each for Dean, Chase, Piotr, Arjun, Crowley',
       razzTickets.size === 5 && FIVE.every((id) => razzTickets.get(id) === 1),
       JSON.stringify([...razzTickets]),
     );
@@ -582,48 +588,50 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
     );
 
     // At the club (fixtures/chats/barcelona.jsonl msg_bcn_0139): on the tab
-    // from chat, so Sam's card charge for it is never asked about.
+    // from chat, so Crowley's card charge for it is never asked about.
     const waters = await say(
-      'Sam',
-      '@trav 2 waters in here were €28, €14 EACH, me and maya',
+      'Crowley',
+      '@trav 2 waters in here were €28, €14 EACH, me and chase',
       '2026-03-15T01:30:00+01:00',
     );
     check(
-      "Sam's €28 of waters logged from chat, split with Maya",
-      sameSet(sharesOf(rt(), expenseWith(rt(), 2800)), ['mem_sam', 'mem_maya']),
+      "Crowley's €28 of waters logged from chat, split with Chase",
+      sameSet(sharesOf(rt(), expenseWith(rt(), 2800)), ['mem_crowley', 'mem_chase']),
       waters.map((m) => m.text).join(' | '),
     );
 
     // ---------------- 8. card confirm ----------------
-    await section("8. card import: Sam's 2am Uber", '2026-03-15T09:00:00+01:00');
-    const samRuns = auditLog().filter(
-      (e) => e.type === 'card_import.ran' && e.ownerId === 'mem_sam',
+    await section("8. card import: Crowley's 2am Uber", '2026-03-15T09:00:00+01:00');
+    const crowleyRuns = auditLog().filter(
+      (e) => e.type === 'card_import.ran' && e.ownerId === 'mem_crowley',
     );
     check(
-      "Sam's card synced on the clock at the 10am/8pm slots since he turned it on (a slot the clock jumped past waits for the next), owner-only in the audit log, nothing to ask yet",
-      samRuns.some((e) => e.payload['status'] === 'imported') &&
-        samRuns.every(
+      "Crowley's card synced on the clock at the 10am/8pm slots since he turned it on (a slot the clock jumped past waits for the next), owner-only in the audit log, nothing to ask yet",
+      crowleyRuns.some((e) => e.payload['status'] === 'imported') &&
+        crowleyRuns.every(
           (e) =>
             e.visibility === 'owner' &&
             (e.payload['status'] === 'stale' || e.payload['prompted'] === 0),
         ),
-      samRuns.map((e) => `${String(e.payload['slot'])}:${String(e.payload['status'])}`).join(', '),
+      crowleyRuns
+        .map((e) => `${String(e.payload['slot'])}:${String(e.payload['status'])}`)
+        .join(', '),
     );
-    emit("- _Sam's card syncs (Plaid-shaped mock, simulated clock)_");
-    await backend.intake!('doc_bcn_sam_card_1');
-    const samDms = flush().dms.get('mem_sam') ?? [];
-    const cardPrompt = samDms.find(isPendingPrompt);
-    check('"looks shared?" prompt goes to Sam\'s DM only', cardPrompt !== undefined);
+    emit("- _Crowley's card syncs (Plaid-shaped mock, simulated clock)_");
+    await backend.intake!('doc_bcn_crowley_card_1');
+    const crowleyDms = flush().dms.get('mem_crowley') ?? [];
+    const cardPrompt = crowleyDms.find(isPendingPrompt);
+    check('"looks shared?" prompt goes to Crowley\'s DM only', cardPrompt !== undefined);
     check(
       'the 9am sync asks about the €23.40 Uber only: no later-day charges, not the waters already on the tab',
-      samDms.filter(isPendingPrompt).length === 1 &&
+      crowleyDms.filter(isPendingPrompt).length === 1 &&
         cardPrompt !== undefined &&
         cardPrompt.text.startsWith('saw €23.40 from Uber at 2:14am'),
       cardPrompt?.text,
     );
-    if (cardPrompt) await tap('Sam', cardPrompt, 'confirm');
+    if (cardPrompt) await tap('Crowley', cardPrompt, 'confirm');
     check(
-      "Sam's €23.40 Uber is shared with the 5 who went",
+      "Crowley's €23.40 Uber is shared with the 5 who went",
       sameSet(sharesOf(rt(), expenseWith(rt(), 2340)), FIVE),
     );
     check(
@@ -633,17 +641,17 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
 
     // ---------------- 9. Morning After ----------------
     await section('9. Morning After');
-    const samPrompts = (): number =>
-      messages(view().dms['mem_sam'] ?? []).filter(isPendingPrompt).length;
-    const promptsBefore = samPrompts();
+    const crowleyPrompts = (): number =>
+      messages(view().dms['mem_crowley'] ?? []).filter(isPendingPrompt).length;
+    const promptsBefore = crowleyPrompts();
     const morning = await clock('2026-03-15T10:00:00+01:00', 'next morning');
     check(
-      "Sam's 10am scheduled sync finds nothing new and stays quiet (the Uber was asked once)",
-      samPrompts() === promptsBefore &&
+      "Crowley's 10am scheduled sync finds nothing new and stays quiet (the Uber was asked once)",
+      crowleyPrompts() === promptsBefore &&
         auditLog().some(
           (e) =>
             e.type === 'card_import.ran' &&
-            e.ownerId === 'mem_sam' &&
+            e.ownerId === 'mem_crowley' &&
             e.payload['slot'] === '2026-03-15T10:00:00+01:00',
         ),
     );
@@ -670,22 +678,22 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
       lines.length > 0 && lines.every((l) => settleReply.includes(l)),
       settleReply,
     );
-    // Maya paid Dean outside Trav and says so with a 👍 (T-141): her row is
-    // ticked, the rest still owed. No money moves; it is her word, audited.
+    // Chase paid Dean outside Trav and says so with a 👍 (T-141): Chase's row is
+    // ticked, the rest still owed. No money moves; it is Chase's word, audited.
     const finalCard = settleNow.find((m) => m.card?.type === 'settle_up');
-    const mayaRow = expectedTransfers(rt()).find((t) => t.from === 'mem_maya');
-    if (finalCard !== undefined && mayaRow !== undefined) {
-      const ticked = (await react('Maya', finalCard)).find((m) => m.card?.type === 'settle_up');
+    const chaseRow = expectedTransfers(rt()).find((t) => t.from === 'mem_chase');
+    if (finalCard !== undefined && chaseRow !== undefined) {
+      const ticked = (await react('Chase', finalCard)).find((m) => m.card?.type === 'settle_up');
       const tcard = ticked?.card?.type === 'settle_up' ? ticked.card : undefined;
       check(
-        "Maya's 👍 ticks her transfer paid and leaves the rest owed",
+        "Chase's 👍 ticks Chase's transfer paid and leaves the rest owed",
         tcard !== undefined &&
           tcard.transfers
             .filter((t) => t.paid === true)
             .map((t) => t.from)
-            .join() === 'mem_maya' &&
+            .join() === 'mem_chase' &&
           (ticked?.text.includes(
-            `${nameOf(mayaRow.from)} → ${nameOf(mayaRow.to)} ${formatMoney(mayaRow.amount)} · paid`,
+            `${nameOf(chaseRow.from)} → ${nameOf(chaseRow.to)} ${formatMoney(chaseRow.amount)} · paid`,
           ) ??
             false),
         ticked?.text,

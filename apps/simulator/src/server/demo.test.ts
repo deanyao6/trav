@@ -2,7 +2,7 @@
  * VOICE §9.5 demo states 4–6 on top of 1–3, driven through the same backend
  * calls the UI makes (`routes.ts` → `SimulatorBackend`), offline:
  *
- *   4. switch to Sam → Sam's DM shows the "looks shared?" Uber prompt → Share it
+ *   4. switch to Crowley → Crowley's DM shows the "looks shared?" Uber prompt → Share it
  *   5. next morning → the clock moves, `scheduler.drain` runs, the Morning
  *      After job (T-015) decides: recap, running settle-up, or silence
  *   6. end of trip → same; the scheduled Wrapped (T-016) posts in the group
@@ -55,9 +55,9 @@ async function post(backend: SimulatorBackend, path: string, body: unknown = {})
   return (res.body as { state: SimState }).state;
 }
 
-/** T-090: Sam turns card import on by DM, the way a member would, before his card is read. */
-async function samOptsIn(b: SimulatorBackend) {
-  return post(b, '/api/messages', { from: 'h_sam', text: 'card import on', lane: 'dm' });
+/** T-090: Crowley turns card import on by DM, the way a member would, before his card is read. */
+async function crowleyOptsIn(b: SimulatorBackend) {
+  return post(b, '/api/messages', { from: 'h_crowley', text: 'card import on', lane: 'dm' });
 }
 
 /** Demo state 3 on the backend `pnpm sim` serves: seeded chat, the ask, Dean's Approve. */
@@ -80,82 +80,84 @@ async function toState3() {
 }
 
 describe('demo states 4–6 on the real runtime, opened on demo state 1, in order', () => {
-  it('3 → 4: Henry has no DM after the booking; Sam feeds his card and gets the uber prompt; Share it', async () => {
+  it('3 → 4: Henry has no DM after the booking; Crowley feeds his card and gets the uber prompt; Share it', async () => {
     const b = await toState3();
     const s3 = b.state();
     expect(s3.controls).toMatchObject({ clock: true, scheduler: true, intake: true, reset: true });
     expect(bcn(s3).dms['mem_henry']).toEqual([]);
-    expect(messages(bcn(s3).dms['mem_sam']!).map((m) => m.card?.type)).toEqual(['ticket']);
+    expect(messages(bcn(s3).dms['mem_crowley']!).map((m) => m.card?.type)).toEqual(['ticket']);
 
-    // T-067: Saturday 9:40pm, Sam's 2:14am ride hasn't happened, so no card sync is offered yet.
-    expect(bcn(s3).intake['mem_sam']).toEqual([]);
+    // T-067: Saturday 9:40pm, Crowley's 2:14am ride hasn't happened, so no card sync is offered yet.
+    expect(bcn(s3).intake['mem_crowley']).toEqual([]);
     await toMorningAfterRide(b);
     const s3b = b.state();
-    // Only Sam's own card is offered for Sam; the payload names no amount or merchant.
-    expect(bcn(s3b).intake['mem_sam']).toEqual([{ docId: 'doc_bcn_sam_card_1', kind: 'card' }]);
+    // Only Crowley's own card is offered for Crowley; the payload names no amount or merchant.
+    expect(bcn(s3b).intake['mem_crowley']).toEqual([
+      { docId: 'doc_bcn_crowley_card_1', kind: 'card' },
+    ]);
     expect(bcn(s3b).intake['mem_henry']).toEqual([]);
-    expect(bcn(s3b).intake['mem_jordan']).toEqual([]);
+    expect(bcn(s3b).intake['mem_piotr']).toEqual([]);
     expect(JSON.stringify(Object.values(bcn(s3b).intake))).not.toMatch(/€|23\.40|2340|uber/i);
 
-    await samOptsIn(b);
-    const s4 = await post(b, '/api/intake', { docId: 'doc_bcn_sam_card_1' });
+    await crowleyOptsIn(b);
+    const s4 = await post(b, '/api/intake', { docId: 'doc_bcn_crowley_card_1' });
     // The real sync (T-067): only what already happened, and the waters are on the tab.
     expect(
-      messages(bcn(s4).dms['mem_sam']!).filter(
+      messages(bcn(s4).dms['mem_crowley']!).filter(
         (m) => m.card?.type === 'expense_confirm' && m.card.status === 'pending',
       ),
     ).toHaveLength(1);
-    const samDm = messages(bcn(s4).dms['mem_sam']!);
-    const prompt = samDm.find((m) => m.card?.type === 'expense_confirm')!;
+    const crowleyDm = messages(bcn(s4).dms['mem_crowley']!);
+    const prompt = crowleyDm.find((m) => m.card?.type === 'expense_confirm')!;
     expect(prompt.text).toMatch(/^saw €23\.40 from Uber at 2:14am/);
     expect(prompt.text).toContain('looks shared');
     expect(prompt.card).toMatchObject({
       status: 'pending',
       visibility: 'private',
-      paidBy: 'mem_sam',
+      paidBy: 'mem_crowley',
     });
     expect(prompt.actions.map((a) => a.label)).toEqual(['Share it', 'Keep private']);
-    expect(bcn(s4).intake['mem_sam']).toEqual([]); // fed once
+    expect(bcn(s4).intake['mem_crowley']).toEqual([]); // fed once
 
-    // Privacy: nowhere but Sam's DM.
+    // Privacy: nowhere but Crowley's DM.
     expectGroupClean(s4);
     expect(groupPayload(s4)).not.toContain('23.40');
-    // The only expense card in the group is the waters Sam logged there himself.
+    // The only expense card in the group is the waters Crowley logged there himself.
     expect(groupPayload(s4)).not.toContain('"visibility":"private"');
     expect(groupPayload(s4)).not.toContain('"source":"card_transaction"');
-    for (const m of BARCELONA.members.filter((x) => x.memberId !== 'mem_sam')) {
+    for (const m of BARCELONA.members.filter((x) => x.memberId !== 'mem_crowley')) {
       expect(JSON.stringify(bcn(s4).dms[m.memberId])).not.toContain('23.40');
     }
     expect(bcn(s4).dms['mem_henry']).toEqual([]);
 
-    // Share it, as Sam (T-013): on the tab, split with the 5 who went. Sam's DM gets the
+    // Share it, as Crowley (T-013): on the tab, split with the 5 who went. Crowley's DM gets the
     // logged line; the group is not pinged now, it sees it in the next recap (VOICE §3.7).
     const groupBefore = messages(bcn(s4).thread).length;
     const s5 = await post(b, '/api/button-taps', {
-      from: 'h_sam',
+      from: 'h_crowley',
       cardMessageId: prompt.messageId,
       actionId: 'confirm',
     });
     expect(bcn(s5).status).toBeUndefined();
-    const samAfter = messages(bcn(s5).dms['mem_sam']!);
-    const logged = samAfter.find(
+    const crowleyAfter = messages(bcn(s5).dms['mem_crowley']!);
+    const logged = crowleyAfter.find(
       (m) => m.seq > prompt.seq && m.card?.type === 'expense_confirm' && m.card.status === 'logged',
     );
-    expect(logged, 'Sam sees it went on the tab').toBeDefined();
+    expect(logged, 'Crowley sees it went on the tab').toBeDefined();
     expect(logged!.text).toContain('€23.40');
     const card = logged!.card;
     if (card?.type !== 'expense_confirm') throw new Error('expected an expense_confirm card');
-    expect(card.paidBy).toBe('mem_sam');
+    expect(card.paidBy).toBe('mem_crowley');
     expect(card.split.participants.map((p) => p.memberId)).toEqual([
       'mem_dean',
-      'mem_maya',
-      'mem_jordan',
-      'mem_priya',
-      'mem_sam',
+      'mem_chase',
+      'mem_piotr',
+      'mem_arjun',
+      'mem_crowley',
     ]);
     expect(card.split.participants.reduce((s, p) => s + (p.share?.amountMinor ?? 0), 0)).toBe(2340);
     // The prompt's buttons are spent.
-    expect(samAfter.find((m) => m.messageId === prompt.messageId)!.cardState).toMatchObject({
+    expect(crowleyAfter.find((m) => m.messageId === prompt.messageId)!.cardState).toMatchObject({
       status: 'resolved',
       liveActionIds: [],
     });
@@ -165,7 +167,7 @@ describe('demo states 4–6 on the real runtime, opened on demo state 1, in orde
     // The status is Barcelona's only.
     expect(s5.groups.find((g) => g.group.groupId === LISBON.groupId)!.status).toBeUndefined();
 
-    // Someone else can't tap Sam's card (the channel refuses a tap from another DM).
+    // Someone else can't tap Crowley's card (the channel refuses a tap from another DM).
     const res = await handleApi(b, {
       method: 'POST',
       path: '/api/button-taps',
@@ -177,31 +179,31 @@ describe('demo states 4–6 on the real runtime, opened on demo state 1, in orde
     const again = await handleApi(b, {
       method: 'POST',
       path: '/api/intake',
-      body: { docId: 'doc_bcn_sam_card_1' },
+      body: { docId: 'doc_bcn_crowley_card_1' },
     });
     expect(again.status).toBe(409);
   });
 
   it('4, the other answer: Keep private stays private, Trav says nothing, the status line says so', async () => {
     const b = await toState3();
-    await samOptsIn(b);
+    await crowleyOptsIn(b);
     await toMorningAfterRide(b);
-    const s4 = await post(b, '/api/intake', { docId: 'doc_bcn_sam_card_1' });
-    const prompt = messages(bcn(s4).dms['mem_sam']!).find(
+    const s4 = await post(b, '/api/intake', { docId: 'doc_bcn_crowley_card_1' });
+    const prompt = messages(bcn(s4).dms['mem_crowley']!).find(
       (m) => m.card?.type === 'expense_confirm',
     )!;
-    const dmBefore = bcn(s4).dms['mem_sam']!.length;
+    const dmBefore = bcn(s4).dms['mem_crowley']!.length;
     const s5 = await post(b, '/api/button-taps', {
-      from: 'h_sam',
+      from: 'h_crowley',
       cardMessageId: prompt.messageId,
       actionId: 'keep_private',
     });
     expect(bcn(s5).status).toBe(KEPT_PRIVATE_STATUS);
     expect(bcn(s5).status).not.toMatch(/€|23\.40|uber/i);
-    expect(messages(bcn(s5).dms['mem_sam']!).filter((m) => m.isTrav && m.seq > prompt.seq)).toEqual(
-      [],
-    );
-    expect(bcn(s5).dms['mem_sam']!.length).toBeGreaterThanOrEqual(dmBefore);
+    expect(
+      messages(bcn(s5).dms['mem_crowley']!).filter((m) => m.isTrav && m.seq > prompt.seq),
+    ).toEqual([]);
+    expect(bcn(s5).dms['mem_crowley']!.length).toBeGreaterThanOrEqual(dmBefore);
     expectGroupClean(s5);
     expect(groupPayload(s5)).not.toContain('23.40');
   });
@@ -209,14 +211,14 @@ describe('demo states 4–6 on the real runtime, opened on demo state 1, in orde
   it('4 → 5 → 6: next morning and end of trip move the clock and drain; Wrapped posts at the end', async () => {
     const b = await toState3();
     await toMorningAfterRide(b, { waters: false });
-    // Sam never turned card import on: the sync reads nothing (he gets the T-090 hint).
-    const s4 = await post(b, '/api/intake', { docId: 'doc_bcn_sam_card_1' });
+    // Crowley never turned card import on: the sync reads nothing (he gets the T-090 hint).
+    const s4 = await post(b, '/api/intake', { docId: 'doc_bcn_crowley_card_1' });
     expect(
-      messages(bcn(s4).dms['mem_sam']!).filter((m) => m.card?.type === 'expense_confirm'),
+      messages(bcn(s4).dms['mem_crowley']!).filter((m) => m.card?.type === 'expense_confirm'),
     ).toEqual([]);
     const s5 = await post(b, '/api/clock', { step: 'morning', groupId: BARCELONA.groupId });
     expect(s5.now).toBe('2026-03-15T10:00:00+01:00');
-    // T-015: the Razzmatazz booking is the only thing on the tab overnight (Sam's card was
+    // T-015: the Razzmatazz booking is the only thing on the tab overnight (Crowley's card was
     // never read, so his Uber is not on it), so the Morning After posts the quiet running
     // tab: Dean is owed the 4 × €18. Never the private €23.40. A Trav post needs no status line.
     const posted = messages(bcn(s5).thread).filter((m) => m.isTrav && m.card?.type === 'settle_up');
@@ -236,7 +238,7 @@ describe('demo states 4–6 on the real runtime, opened on demo state 1, in orde
     expect(wrapped).toHaveLength(1);
     expect(wrapped[0]!.isTrav).toBe(true);
     expect(bcn(s6).status).toBeUndefined();
-    // Sam never tapped Share it, so his €23.40 card charge is still private and
+    // Crowley never tapped Share it, so his €23.40 card charge is still private and
     // the Wrapped must not carry it (the recap/Wrapped exemption in
     // expectGroupClean only covers a shared item; T-016 review #2).
     expect(JSON.stringify(wrapped)).not.toContain('23.40');
@@ -250,9 +252,9 @@ describe('demo states 4–6 on the real runtime, opened on demo state 1, in orde
 
   it('reset starts over: clock, transcript (back to the seeded chat) and fed documents', async () => {
     const b = await toState3();
-    await samOptsIn(b);
+    await crowleyOptsIn(b);
     await toMorningAfterRide(b);
-    await post(b, '/api/intake', { docId: 'doc_bcn_sam_card_1' });
+    await post(b, '/api/intake', { docId: 'doc_bcn_crowley_card_1' });
     await post(b, '/api/clock', { step: 'end_of_trip' });
     const s = await post(b, '/api/reset');
     expect(s.now).toBe('2026-03-14T21:39:30+01:00');
@@ -263,24 +265,24 @@ describe('demo states 4–6 on the real runtime, opened on demo state 1, in orde
     ).toBe('on it');
     expect(bookingCount(b)).toBe(0);
     expect(messages(bcn(s).thread).some((m) => m.isTrav)).toBe(false);
-    expect(bcn(s).dms['mem_sam']).toEqual([]);
+    expect(bcn(s).dms['mem_crowley']).toEqual([]);
     // Back before the ride: nothing to sync yet; past it, the card is offered again (not "fed").
-    expect(bcn(s).intake['mem_sam']).toEqual([]);
+    expect(bcn(s).intake['mem_crowley']).toEqual([]);
     await toMorningAfterRide(b, { waters: false });
-    expect(bcn(b.state()).intake['mem_sam']).toEqual([
-      { docId: 'doc_bcn_sam_card_1', kind: 'card' },
+    expect(bcn(b.state()).intake['mem_crowley']).toEqual([
+      { docId: 'doc_bcn_crowley_card_1', kind: 'card' },
     ]);
   });
 });
 
 describe('T-067: card sync on the simulated clock', () => {
-  it('two new shared-looking charges between digest slots wait for 10am, then go to Sam only (VOICE §2)', async () => {
+  it('two new shared-looking charges between digest slots wait for 10am, then go to Crowley only (VOICE §2)', async () => {
     const b = await toState3();
-    await samOptsIn(b);
+    await crowleyOptsIn(b);
     await toMorningAfterRide(b, { waters: false }); // the waters are not on the tab this time
-    const s4 = await post(b, '/api/intake', { docId: 'doc_bcn_sam_card_1' });
+    const s4 = await post(b, '/api/intake', { docId: 'doc_bcn_crowley_card_1' });
     const pending = (s: SimState) =>
-      messages(bcn(s).dms['mem_sam']!).filter(
+      messages(bcn(s).dms['mem_crowley']!).filter(
         (m) => m.card?.type === 'expense_confirm' && m.card.status === 'pending',
       );
     expect(pending(s4)).toEqual([]);
@@ -300,36 +302,36 @@ describe('T-067: card sync on the simulated clock', () => {
     expect(digest.card?.type === 'expense_confirm' && digest.card.digestItems?.length).toBe(2);
     expectGroupClean(s5);
     expect(groupPayload(s5)).not.toContain('23.40');
-    for (const m of BARCELONA.members.filter((x) => x.memberId !== 'mem_sam')) {
+    for (const m of BARCELONA.members.filter((x) => x.memberId !== 'mem_crowley')) {
       expect(JSON.stringify(bcn(s5).dms[m.memberId])).not.toContain('23.40');
     }
   });
 
   it('a card sync before the charge happened is refused, not offered', async () => {
     const b = await toState3();
-    expect(bcn(b.state()).intake['mem_sam']).toEqual([]);
+    expect(bcn(b.state()).intake['mem_crowley']).toEqual([]);
     const res = await handleApi(b, {
       method: 'POST',
       path: '/api/intake',
-      body: { docId: 'doc_bcn_sam_card_1' },
+      body: { docId: 'doc_bcn_crowley_card_1' },
     });
     expect(res.status).toBe(400);
   });
 });
 
 describe('T-090: the DM rail respects import consent', () => {
-  it("Sam's card before opt-in: one DM line on how to turn it on, no prompt, nothing on the tab; it stays feedable and works after opt-in", async () => {
+  it("Crowley's card before opt-in: one DM line on how to turn it on, no prompt, nothing on the tab; it stays feedable and works after opt-in", async () => {
     const b = await demoBackend();
     await toMorningAfterRide(b);
-    const before = await post(b, '/api/intake', { docId: 'doc_bcn_sam_card_1' });
-    const samDm = messages(bcn(before).dms['mem_sam']!);
+    const before = await post(b, '/api/intake', { docId: 'doc_bcn_crowley_card_1' });
+    const crowleyDm = messages(bcn(before).dms['mem_crowley']!);
     // T-067: the card sync is the real import; import off ⇒ the provider is never called.
-    expect(samDm.filter((m) => m.card?.type === 'expense_confirm')).toEqual([]);
-    expect(samDm.filter((m) => m.isTrav).map((m) => m.text)).toEqual([
+    expect(crowleyDm.filter((m) => m.card?.type === 'expense_confirm')).toEqual([]);
+    expect(crowleyDm.filter((m) => m.isTrav).map((m) => m.text)).toEqual([
       "card import's off, so i didn't look at that charge. say 'card import on' if you want me to",
     ]);
     // Owner-only: nobody else's DM tab has it.
-    for (const m of BARCELONA.members.filter((x) => x.memberId !== 'mem_sam')) {
+    for (const m of BARCELONA.members.filter((x) => x.memberId !== 'mem_crowley')) {
       expect(JSON.stringify(bcn(before).dms[m.memberId])).not.toContain("card import's off");
     }
     expect(groupPayload(before)).not.toContain("card import's off");
@@ -337,24 +339,26 @@ describe('T-090: the DM rail respects import consent', () => {
     expect(JSON.stringify(before)).not.toContain('23.40');
     expectGroupClean(before);
     // Nothing was read, so the document is still on the rail.
-    expect(bcn(before).intake['mem_sam']).toEqual([{ docId: 'doc_bcn_sam_card_1', kind: 'card' }]);
+    expect(bcn(before).intake['mem_crowley']).toEqual([
+      { docId: 'doc_bcn_crowley_card_1', kind: 'card' },
+    ]);
 
-    await samOptsIn(b);
-    const after = await post(b, '/api/intake', { docId: 'doc_bcn_sam_card_1' });
-    const prompt = messages(bcn(after).dms['mem_sam']!).find(
+    await crowleyOptsIn(b);
+    const after = await post(b, '/api/intake', { docId: 'doc_bcn_crowley_card_1' });
+    const prompt = messages(bcn(after).dms['mem_crowley']!).find(
       (m) => m.card?.type === 'expense_confirm',
     );
     expect(prompt?.text).toMatch(/^saw €23\.40 from Uber at 2:14am/);
-    expect(bcn(after).intake['mem_sam']).toEqual([]);
+    expect(bcn(after).intake['mem_crowley']).toEqual([]);
   });
 
-  it("Priya's and Maya's emails before opt-in: no prompt for either", async () => {
+  it("Arjun's and Chase's emails before opt-in: no prompt for either", async () => {
     const b = await demoBackend();
-    for (const docId of ['doc_bcn_priya_email_1', 'doc_bcn_maya_email_1']) {
+    for (const docId of ['doc_bcn_arjun_email_1', 'doc_bcn_chase_email_1']) {
       await post(b, '/api/intake', { docId });
     }
     const s = b.state();
-    for (const id of ['mem_priya', 'mem_maya']) {
+    for (const id of ['mem_arjun', 'mem_chase']) {
       expect(messages(bcn(s).dms[id]!).filter((m) => m.card?.type === 'expense_confirm')).toEqual(
         [],
       );
@@ -364,7 +368,7 @@ describe('T-090: the DM rail respects import consent', () => {
 });
 
 describe('real runtime without the seeded chat', () => {
-  it("Henry's DM stays empty after the Razzmatazz proposal and Dean's approve; Sam's uber prompt; group clean", async () => {
+  it("Henry's DM stays empty after the Razzmatazz proposal and Dean's approve; Crowley's uber prompt; group clean", async () => {
     const b = await loadAgentBackend({ offline: true });
     await post(b, '/api/messages', {
       from: 'h_dean',
@@ -387,10 +391,10 @@ describe('real runtime without the seeded chat', () => {
     expect(bcn(s).dms['mem_henry']).toEqual([]);
     expectGroupClean(s);
 
-    await samOptsIn(b);
+    await crowleyOptsIn(b);
     await toMorningAfterRide(b);
-    const s4 = await post(b, '/api/intake', { docId: 'doc_bcn_sam_card_1' });
-    const prompt = messages(bcn(s4).dms['mem_sam']!).find(
+    const s4 = await post(b, '/api/intake', { docId: 'doc_bcn_crowley_card_1' });
+    const prompt = messages(bcn(s4).dms['mem_crowley']!).find(
       (m) => m.card?.type === 'expense_confirm',
     )!;
     expect(prompt.text).toMatch(/^saw €23\.40 from Uber at 2:14am/);
@@ -421,14 +425,14 @@ describe('real runtime without the seeded chat', () => {
   it('reset gives a fresh runtime (new stores, clock back at the demo start)', async () => {
     const b = await loadAgentBackend({ offline: true });
     await toMorningAfterRide(b, { waters: false });
-    await post(b, '/api/intake', { docId: 'doc_bcn_sam_card_1' });
+    await post(b, '/api/intake', { docId: 'doc_bcn_crowley_card_1' });
     await post(b, '/api/clock', { step: 'morning' });
     const s = await post(b, '/api/reset');
     expect(s.controls.reset).toBe(true);
     expect(s.now).toBe('2026-03-14T21:39:30+01:00');
-    expect(bcn(s).dms['mem_sam']).toEqual([]);
-    expect(bcn(s).intake['mem_sam']).toEqual([]); // before the ride again
+    expect(bcn(s).dms['mem_crowley']).toEqual([]);
+    expect(bcn(s).intake['mem_crowley']).toEqual([]); // before the ride again
     await toMorningAfterRide(b, { waters: false });
-    expect(bcn(b.state()).intake['mem_sam']).toHaveLength(1);
+    expect(bcn(b.state()).intake['mem_crowley']).toHaveLength(1);
   });
 });

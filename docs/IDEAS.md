@@ -50,15 +50,15 @@ instead of a post-trip chore, and it is the first thing people share outside the
    ("€58/pp, budget €50 → 16% over; week pace is still fine").
 4. **Best moment** — one photo or one chat message, chosen by the highlight scorer (see Seed C).
    Caption is one sentence in Trav's voice; it may quote the chat.
-5. **Who owes whom** — net balances after last night plus the minimal transfer set ("Maya → Sam
-   €21, Dean → Sam €14"). One-tap "mark paid". Only shows people whose balance moved or who are
+5. **Who owes whom** — net balances after last night plus the minimal transfer set ("Chase → Crowley
+   €21, Dean → Crowley €14"). One-tap "mark paid". Only shows people whose balance moved or who are
    >€10 out of square.
 6. **Needs a tap** — count of card/email items that "look shared" and are waiting on their
    owner. The card shows only the count publicly; the items themselves go to each owner in the
    private lane (idea 6).
 7. **Photos** — 3–6 from the shared album, taken inside the night window (18:00 → 06:00),
    opt-in members only, picked by the highlight scorer. Each photo carries a tiny credit
-   ("Sam's"). Any member can say `@trav drop that one` and it is removed from this recap and
+   ("Crowley's"). Any member can say `@trav drop that one` and it is removed from this recap and
    excluded from Wrapped.
 8. **Roast line** — only if roast mode is on for this group and no minor is present; only
    about spending or trip events (VOICE.md and SAFETY.md govern wording).
@@ -230,7 +230,7 @@ in anything Trav uses for marketing.
   After's "who was out". Getting it from a lightweight poll instead of from the booker's memory is
   what makes "charge only those 5" trustworthy.
 - **Details.** Per-night attendance state with source (poll, explicit override, booking). Trav
-  reads the current count back before booking ("Booking for 5: Dean, Sam, Maya, Priya, Luis.
+  reads the current count back before booking ("Booking for 5: Dean, Crowley, Chase, Arjun, Luis.
   Henry's out. OK?"). Late joiners after a booking get offered a separate ticket. "Maybe"
   resolves to out at the booking moment unless confirmed.
 - **Effort** S. **Deps** T-002 Attendance type, T-007 agent loop, reactions in the simulator.
@@ -268,8 +268,8 @@ in anything Trav uses for marketing.
 - **Privacy.** Per-person budgets are private to the person; group sees only the group pace.
 
 #### 5. Settle-up flow — score 20
-- **Moment.** Morning After lists "Maya → Sam €21". Maya taps "mark paid" (or says "paid Sam"),
-  Sam confirms or Trav auto-confirms after 24h with no objection. Last day: "Everyone's square"
+- **Moment.** Morning After lists "Chase → Crowley €21". Chase taps "mark paid" (or says "paid Crowley"),
+  Crowley confirms or Trav auto-confirms after 24h with no objection. Last day: "Everyone's square"
   card, or a final transfer list.
 - **Why.** The Barcelona group was "never squared up". Minimal transfers plus a daily nudge plus
   a visible "square" state is the whole fix.
@@ -364,7 +364,7 @@ in anything Trav uses for marketing.
 - **Effort** M. **Deps** mock inventory with sold-out states (T-008), mock weather, T-024.
 
 #### 20. Arrival-day orchestration — score 8
-- **Moment.** Landing board: "Sam 14:10 T1, Maya 15:40 T1, Priya 15:55 T2. Sam and Maya share a
+- **Moment.** Landing board: "Crowley 14:10 T1, Chase 15:40 T1, Arjun 15:55 T2. Crowley and Chase share a
   cab? Check-in opens 15:00; I'll ping the code at 14:30." Uses the optimizer's chosen flights.
 - **Effort** M. **Deps** T-014 flight optimizer, lodging booking, scheduler.
 

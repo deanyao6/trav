@@ -49,7 +49,7 @@ const CLEAN: Scenario = {
     {
       do: 'say',
       at: '2026-03-14T21:40:00+01:00',
-      from: 'h_maya',
+      from: 'h_chase',
       text: 'dinner at 9?',
       expect: { silent: true },
     },

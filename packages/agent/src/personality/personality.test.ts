@@ -132,11 +132,11 @@ const ALL_BCN = BCN.members.map((m) => m.memberId);
 
 describe('parseRoastRequest', () => {
   it.each([
-    ["@trav roast Maya's outfit", 'maya', 'outfit'],
+    ["@trav roast Chase's outfit", 'chase', 'outfit'],
     ['@trav roast Henry for being hungover', 'henry', 'being hungover'],
     ['@trav roast the host, she is so annoying', 'the host, she is so annoying', ''],
     ['trav, roast everyone for the uber count', 'everyone', 'the uber count'],
-    ['@trav roast sam', 'sam', ''],
+    ['@trav roast crowley', 'crowley', ''],
     ['@trav roast me for the ubers', 'me', 'the ubers'],
   ])('%s', (text, target, topic) => {
     expect(parseRoastRequest(text)).toMatchObject({ targetText: target, topicText: topic });
@@ -151,12 +151,12 @@ describe('parseRoastRequest', () => {
 
 describe('VOICE §7.5 must refuse (any mode): a VOICE-compliant refusal, no emoji', () => {
   const cases: readonly [string, string, WorldOpts?][] = [
-    ["@trav roast Maya's outfit", T.REFUSE_BODY_TEXT],
+    ["@trav roast Chase's outfit", T.REFUSE_BODY_TEXT],
     ['@trav roast Henry for being hungover', T.REFUSE_HANGOVER_TEXT],
-    ['@trav roast Sam for going home with that girl', T.REFUSE_PERSONAL_TEXT],
+    ['@trav roast Crowley for going home with that girl', T.REFUSE_PERSONAL_TEXT],
     ["@trav roast the host, she's so annoying", "she's not in the chat, so no"],
-    ['@trav roast Jordan for being broke', T.REFUSE_HARDSHIP_TEXT],
-    ['@trav roast Maya for the €14 water', T.REFUSE_OPTED_OUT_TEXT, { optedOut: ['mem_maya'] }],
+    ['@trav roast Piotr for being broke', T.REFUSE_HARDSHIP_TEXT],
+    ['@trav roast Chase for the €14 water', T.REFUSE_OPTED_OUT_TEXT, { optedOut: ['mem_chase'] }],
   ];
 
   for (const roastMode of [true, false]) {
@@ -191,10 +191,10 @@ describe('VOICE §7.5 must refuse (any mode): a VOICE-compliant refusal, no emoj
 
   it('a mixed ask does only the allowed half and never mentions the rest (VOICE §7.5)', () => {
     const ctx = world('barcelona', { optedIn: ALL_BCN });
-    const a = ask('@trav roast Priya for the ubers and her outfit', ctx);
+    const a = ask("@trav roast Arjun for the ubers and Arjun's outfit", ctx);
     expect(a.kind).toBe('roast');
     if (a.kind !== 'roast') return;
-    expect(a.line).toBe('€18.60 ride on Priya at 1:52am. walking is free');
+    expect(a.line).toBe('€18.60 ride on Arjun at 1:52am. walking is free');
     expect(a.line).not.toMatch(/outfit|clothes/u);
     expect(a.dropped).toBe('body');
   });
@@ -202,9 +202,9 @@ describe('VOICE §7.5 must refuse (any mode): a VOICE-compliant refusal, no emoj
 
 describe('VOICE §7.5 fine examples pass every gate when roast mode is on and the named member opted in', () => {
   const FINE = [
-    'Jordan has paid for kebabs 3 nights running. the tab remembers',
-    '€14 for a water at razzmatazz. Sam, it was €0.80 at the Mercadona you walked past',
-    "Priya has booked 11 of 23 ubers. the city has a metro. it's quite good",
+    'Piotr has paid for kebabs 3 nights running. the tab remembers',
+    '€14 for a water at razzmatazz. Crowley, it was €0.80 at the Mercadona you walked past',
+    "Arjun has booked 11 of 23 ubers. the city has a metro. it's quite good",
     'Dean booked the non-refundable airbnb and then asked me what non-refundable means',
     '40 minutes to pick a restaurant, 6 minutes to eat. efficient',
   ];
@@ -221,7 +221,7 @@ describe('VOICE §7.5 fine examples pass every gate when roast mode is on and th
 
   it('the same lines are stripped once the named member is out, or roast mode is off', () => {
     const line = FINE[0]!;
-    expect(screened(line, world('barcelona', { optedIn: ['mem_sam'] }))).toBeNull();
+    expect(screened(line, world('barcelona', { optedIn: ['mem_crowley'] }))).toBeNull();
     expect(screened(line, world('barcelona', { roastMode: false, optedIn: ALL_BCN }))).toBeNull();
   });
 });
@@ -287,10 +287,10 @@ describe('fixtures/roast/requests.json', () => {
 describe('roast lines come from the tab', () => {
   const ctx = world('barcelona', { optedIn: ALL_BCN });
 
-  it('a pattern: the kebabs on Jordan', () => {
-    const a = ask('@trav roast Jordan for the kebabs', ctx);
-    expect(a).toMatchObject({ kind: 'roast', targets: ['mem_jordan'] });
-    expect(textOf(a)).toBe('€62 for late-night kebabs at 2:07am, on Jordan. the tab remembers');
+  it('a pattern: the kebabs on Piotr', () => {
+    const a = ask('@trav roast Piotr for the kebabs', ctx);
+    expect(a).toMatchObject({ kind: 'roast', targets: ['mem_piotr'] });
+    expect(textOf(a)).toBe('€62 for late-night kebabs at 2:07am, on Piotr. the tab remembers');
   });
 
   it('kebabs on three nights running reads as a pattern', () => {
@@ -299,15 +299,15 @@ describe('roast lines come from the tab', () => {
       (at, i): Expense => ({ ...kebab, expenseId: `exp_kebab_${String(i)}`, occurredAt: at }),
     );
     const a = ask(
-      '@trav roast Jordan for the kebabs',
+      '@trav roast Piotr for the kebabs',
       world('barcelona', { optedIn: ALL_BCN, expenses: [...ctx.expenses, ...nights] }),
     );
-    expect(textOf(a)).toBe('Jordan has paid for kebabs 3 nights running. the tab remembers');
+    expect(textOf(a)).toBe('Piotr has paid for kebabs 3 nights running. the tab remembers');
   });
 
   it('rides, and the whole group without naming anyone', () => {
-    expect(textOf(ask('@trav roast Sam for the ubers', ctx))).toBe(
-      '€23.40 ride on Sam at 2:14am. walking is free',
+    expect(textOf(ask('@trav roast Crowley for the ubers', ctx))).toBe(
+      '€23.40 ride on Crowley at 2:14am. walking is free',
     );
     const group = ask('@trav roast everyone for the uber count', ctx);
     expect(group.kind).toBe('roast');
@@ -316,7 +316,7 @@ describe('roast lines come from the tab', () => {
 
   it('nothing roastable on the tab ⇒ says so, no line', () => {
     const empty = world('barcelona', { optedIn: ALL_BCN, expenses: [] });
-    expect(ask('@trav roast Sam for the ubers', empty)).toMatchObject({
+    expect(ask('@trav roast Crowley for the ubers', empty)).toMatchObject({
       kind: 'nothing',
       text: T.NOTHING_TO_ROAST_TEXT,
     });
@@ -328,14 +328,14 @@ describe('roast lines come from the tab', () => {
       expenseId: 'exp_odd',
       description: 'hangover kebab',
     };
-    const a = ask('@trav roast Jordan for the kebab', world('barcelona', { optedIn: ALL_BCN, expenses: [odd] }));
+    const a = ask('@trav roast Piotr for the kebab', world('barcelona', { optedIn: ALL_BCN, expenses: [odd] }));
     expect(a.kind).toBe('nothing');
   });
 });
 
 describe('roast gates in order', () => {
   it('mode off, not opted in, opted out, left, one per day, DM', () => {
-    const t = '@trav roast Sam for the ubers';
+    const t = '@trav roast Crowley for the ubers';
     expect(ask(t, world('barcelona', { roastMode: false, optedIn: ALL_BCN }))).toMatchObject({
       kind: 'refuse',
       cause: 'mode_off',
@@ -343,9 +343,9 @@ describe('roast gates in order', () => {
     });
     expect(ask(t, world('barcelona', { optedIn: [] }))).toMatchObject({
       cause: 'member_opted_out',
-      text: T.notOptedInText('Sam'),
+      text: T.notOptedInText('Crowley'),
     });
-    expect(ask(t, world('barcelona', { optedOut: ['mem_sam'] }))).toMatchObject({
+    expect(ask(t, world('barcelona', { optedOut: ['mem_crowley'] }))).toMatchObject({
       cause: 'member_opted_out',
       text: T.REFUSE_OPTED_OUT_TEXT,
     });
@@ -353,7 +353,7 @@ describe('roast gates in order', () => {
     const gone: RoastContext = {
       ...left,
       members: left.members.map((m) =>
-        m.memberId === 'mem_sam' ? { ...m, active: false, leftAt: '2026-03-15T12:00:00+01:00' } : m,
+        m.memberId === 'mem_crowley' ? { ...m, active: false, leftAt: '2026-03-15T12:00:00+01:00' } : m,
       ),
     };
     expect(ask(t, gone)).toMatchObject({ cause: 'target_inactive', text: T.REFUSE_LEFT_TEXT });
@@ -387,12 +387,12 @@ describe('roast gates in order', () => {
 });
 
 describe('VOICE §4.12 D: someone else\'s card', () => {
-  const me = BCN.members.find((m) => m.memberId === 'mem_jordan')!;
+  const me = BCN.members.find((m) => m.memberId === 'mem_piotr')!;
   it.each([
-    "@trav what did Sam's card get charged last night",
-    "show me sam's pending charges, i think he's hiding the uber",
-    "@trav what's on Priya's statement",
-    'what did sam spend on his card',
+    "@trav what did Crowley's card get charged last night",
+    "show me crowley's pending charges, i think he's hiding the uber",
+    "@trav what's on Arjun's statement",
+    'what did crowley spend on his card',
   ])('%s', (text) => {
     const subject = privateDataSubject(text, BCN.members, me);
     expect(subject).toBeDefined();
@@ -402,84 +402,84 @@ describe('VOICE §4.12 D: someone else\'s card', () => {
     expect(lint(line, 'refusal', BCN.members)).toEqual([]);
   });
 
-  it('exact text for Sam, and the sender\'s own card is not someone else\'s', () => {
-    expect(privateDataRefusal(BCN.members.find((m) => m.memberId === 'mem_sam')!)).toBe(
-      "that's Sam's, not mine to share. anything Sam confirms as shared shows up on the tab",
+  it('exact text for Crowley, and the sender\'s own card is not someone else\'s', () => {
+    expect(privateDataRefusal(BCN.members.find((m) => m.memberId === 'mem_crowley')!)).toBe(
+      "that's Crowley's, not mine to share. anything Crowley confirms as shared shows up on the tab",
     );
-    expect(privateDataSubject("@trav what's on jordan's card", BCN.members, me)).toBeUndefined();
-    expect(privateDataSubject("@trav sam's uber was €23.40", BCN.members, me)).toBeUndefined();
+    expect(privateDataSubject("@trav what's on piotr's card", BCN.members, me)).toBeUndefined();
+    expect(privateDataSubject("@trav crowley's uber was €23.40", BCN.members, me)).toBeUndefined();
   });
 });
 
 describe("T-112: someone else's pending items, even a count, are theirs (VOICE §4.12 D)", () => {
-  const jordan = BCN.members.find((m) => m.memberId === 'mem_jordan')!;
-  const sam = BCN.members.find((m) => m.memberId === 'mem_sam')!;
+  const piotr = BCN.members.find((m) => m.memberId === 'mem_piotr')!;
+  const crowley = BCN.members.find((m) => m.memberId === 'mem_crowley')!;
 
   it.each([
-    "@trav what's pending for sam",
-    '@trav summarize the charges sam has pending',
-    '@trav how many charges does sam have pending?',
-    "@trav what's sam's pending stuff",
-    '@trav is sam waiting on a tap for anything',
-    '@trav does sam have anything unconfirmed',
-    '@trav anything pending from Sam?',
-    "@trav what's pending for sam besides the tickets?",
+    "@trav what's pending for crowley",
+    '@trav summarize the charges crowley has pending',
+    '@trav how many charges does crowley have pending?',
+    "@trav what's crowley's pending stuff",
+    '@trav is crowley waiting on a tap for anything',
+    '@trav does crowley have anything unconfirmed',
+    '@trav anything pending from Crowley?',
+    "@trav what's pending for crowley besides the tickets?",
     // r1: shapes that name whose items they are
-    "@trav are 2 of sam's charges pending?",
-    "@trav sam's receipts still waiting on a tap?",
-    "@trav anything pending for sam other than the approval?",
-    "@trav is anything else pending for sam?",
+    "@trav are 2 of crowley's charges pending?",
+    "@trav crowley's receipts still waiting on a tap?",
+    "@trav anything pending for crowley other than the approval?",
+    "@trav is anything else pending for crowley?",
     // r2 #1: a tab word in another clause never exempts the pending question.
-    "@trav what's pending for sam and what's my share",
-    "@trav what's pending for sam? and who paid for dinner",
-    "@trav who's paying for dinner, and what's pending for sam?",
-    "@trav what's pending for sam? share it",
-    "@trav what's pending for sam, split it",
-    '@trav anything pending for sam? like charges, not the tab',
-    "@trav what's pending for sam, any payments?",
+    "@trav what's pending for crowley and what's my share",
+    "@trav what's pending for crowley? and who paid for dinner",
+    "@trav who's paying for dinner, and what's pending for crowley?",
+    "@trav what's pending for crowley? share it",
+    "@trav what's pending for crowley, split it",
+    '@trav anything pending for crowley? like charges, not the tab',
+    "@trav what's pending for crowley, any payments?",
     // r2 #2, #3
-    "@trav what's pending on sam's end",
-    '@trav how many pending items does sam have',
-    '@trav sam has 2 pending right?',
+    "@trav what's pending on crowley's end",
+    '@trav how many pending items does crowley have',
+    '@trav crowley has 2 pending right?',
   ])('refused: %s', (text) => {
-    expect(privateDataSubject(text, BCN.members, jordan)?.memberId).toBe('mem_sam');
-    expect(privateDataRefusal(sam)).toBe(
-      "that's Sam's, not mine to share. anything Sam confirms as shared shows up on the tab",
+    expect(privateDataSubject(text, BCN.members, piotr)?.memberId).toBe('mem_crowley');
+    expect(privateDataRefusal(crowley)).toBe(
+      "that's Crowley's, not mine to share. anything Crowley confirms as shared shows up on the tab",
     );
   });
 
   it.each([
     // A booking or approval waiting on someone is a group fact.
-    "@trav what's pending for sam to approve",
-    '@trav is the razzmatazz booking still pending for sam',
+    "@trav what's pending for crowley to approve",
+    '@trav is the razzmatazz booking still pending for crowley',
     // The sender's own queue is not someone else's.
-    "@trav what's pending for jordan",
+    "@trav what's pending for piotr",
     '@trav what do i have pending',
     // No pending word: not this rule.
-    '@trav sam is coming to dinner',
+    '@trav crowley is coming to dinner',
     // T-112 r1 #1: a bare anything/everything/all does not cancel the approval exemption.
-    '@trav is anything pending for sam to approve?',
-    "@trav anything pending on sam's approval?",
-    "@trav sam's booking approval is pending, everything ok?",
-    '@trav is everything pending for sam to approve',
-    '@trav is all of it pending for sam to approve?',
+    '@trav is anything pending for crowley to approve?',
+    "@trav anything pending on crowley's approval?",
+    "@trav crowley's booking approval is pending, everything ok?",
+    '@trav is everything pending for crowley to approve',
+    '@trav is all of it pending for crowley to approve?',
     // T-112 r1 #2: the tab (settle-up, transfers, payments, shares) is a group fact.
-    "@trav is sam's transfer to dean still pending?",
-    "@trav is sam's payment pending",
-    '@trav is the settle up from sam still pending',
-    "@trav what's left pending for sam to pay",
-    "@trav is sam's share of dinner pending",
-    '@trav what does sam owe, is it still pending?',
-    "@trav is the split for sam's dinner pending",
+    "@trav is crowley's transfer to dean still pending?",
+    "@trav is crowley's payment pending",
+    '@trav is the settle up from crowley still pending',
+    "@trav what's left pending for crowley to pay",
+    "@trav is crowley's share of dinner pending",
+    '@trav what does crowley owe, is it still pending?',
+    "@trav is the split for crowley's dinner pending",
   ])('not refused: %s', (text) => {
-    expect(privateDataSubject(text, BCN.members, jordan)).toBeUndefined();
+    expect(privateDataSubject(text, BCN.members, piotr)).toBeUndefined();
   });
 
   it("r1 #2: the wrong-subject repro never refuses as Dean (or anyone)", () => {
-    const sam = BCN.members.find((m) => m.memberId === 'mem_sam')!;
-    for (const me of [jordan, sam]) {
+    const crowley = BCN.members.find((m) => m.memberId === 'mem_crowley')!;
+    for (const me of [piotr, crowley]) {
       expect(
-        privateDataSubject("@trav is sam's transfer to dean still pending?", BCN.members, me),
+        privateDataSubject("@trav is crowley's transfer to dean still pending?", BCN.members, me),
       ).toBeUndefined();
     }
   });
@@ -557,32 +557,32 @@ describe('VOICE §4.12 C: nightlife with a minor', () => {
 });
 
 describe('T-017 r2: privateDataSubject only fires on questions about private data', () => {
-  const sam = BCN.members.find((m) => m.memberId === 'mem_sam')!;
-  const jordan = BCN.members.find((m) => m.memberId === 'mem_jordan')!;
+  const crowley = BCN.members.find((m) => m.memberId === 'mem_crowley')!;
+  const piotr = BCN.members.find((m) => m.memberId === 'mem_piotr')!;
 
   it.each([
-    ["@trav split the €200 groceries with everyone, it went on Dean's card", sam],
-    ["@trav i paid €84 for dinner on Jordan's card, split with everyone", sam],
-    ["@trav put 45 euros for the taxi on Maya's card, split it 3 ways", jordan],
-    ["@trav did sam's card go through for the tickets?", jordan],
-    ["@trav what did sam's card get charged for the razzmatazz booking", jordan],
-    ["@trav it went on sam's card", jordan],
+    ["@trav split the €200 groceries with everyone, it went on Dean's card", crowley],
+    ["@trav i paid €84 for dinner on Piotr's card, split with everyone", crowley],
+    ["@trav put 45 euros for the taxi on Chase's card, split it 3 ways", piotr],
+    ["@trav did crowley's card go through for the tickets?", piotr],
+    ["@trav what did crowley's card get charged for the razzmatazz booking", piotr],
+    ["@trav it went on crowley's card", piotr],
   ])('not a refusal: %s', (text, me) => {
     expect(privateDataSubject(text, BCN.members, me)).toBeUndefined();
   });
 
   it('a tab item is a group fact; the same ask with no tab item is still refused', () => {
-    const q = "@trav what did sam's card get charged for the late-night kebabs";
-    expect(privateDataSubject(q, BCN.members, jordan, ['late-night kebabs'])).toBeUndefined();
-    expect(privateDataSubject(q, BCN.members, jordan, [])?.memberId).toBe('mem_sam');
+    const q = "@trav what did crowley's card get charged for the late-night kebabs";
+    expect(privateDataSubject(q, BCN.members, piotr, ['late-night kebabs'])).toBeUndefined();
+    expect(privateDataSubject(q, BCN.members, piotr, [])?.memberId).toBe('mem_crowley');
   });
 
   it.each([
     "@trav what's henry's budget",
-    "@trav what does priya eat, and what's henry's budget",
-    "sam's card?",
-    '@trav can you check sam\'s card charges from last night',
-    "@trav how much is on sam's card",
+    "@trav what does arjun eat, and what's henry's budget",
+    "crowley's card?",
+    '@trav can you check crowley\'s card charges from last night',
+    "@trav how much is on crowley's card",
     // T-017 r2 final review: amounts, booking words and non-question asks don't unlock it.
     "@trav how much did dean pay on his card, over €50?",
     "@trav did dean's card get charged €50 each for anything else?",
@@ -593,12 +593,12 @@ describe('T-017 r2: privateDataSubject only fires on questions about private dat
     "@trav dean's bank statement",
     "@trav i'm curious about dean's card charges",
   ])('still refused: %s', (text) => {
-    expect(privateDataSubject(text, BCN.members, jordan)).toBeDefined();
+    expect(privateDataSubject(text, BCN.members, piotr)).toBeDefined();
   });
 
   it('a tab-item exclusion question is still refused', () => {
     const q = "@trav what did dean's card get charged except dinner?";
-    expect(privateDataSubject(q, BCN.members, jordan, ['dinner'])?.memberId).toBe('mem_dean');
+    expect(privateDataSubject(q, BCN.members, piotr, ['dinner'])?.memberId).toBe('mem_dean');
   });
 
   it("Lisbon: a budget question with an amount is still Dad's", () => {
@@ -658,7 +658,7 @@ describe('T-017 r2: family-mode spend questions are not nightlife asks', () => {
 
 describe('T-017 r2: roast details', () => {
   it('a self-roast without opt-in is "you haven\'t opted in", not the third person', () => {
-    const ctx = world('barcelona', { me: 'mem_sam', optedIn: [] });
+    const ctx = world('barcelona', { me: 'mem_crowley', optedIn: [] });
     expect(ask('@trav roast me for the ubers', ctx)).toMatchObject({
       kind: 'refuse',
       cause: 'member_opted_out',
@@ -667,8 +667,8 @@ describe('T-017 r2: roast details', () => {
     expect(T.SELF_NOT_OPTED_IN_TEXT).toBe("you haven't opted in. '@trav roast me' is how");
     expect(lint(T.SELF_NOT_OPTED_IN_TEXT, 'refusal', BCN.members)).toEqual([]);
     // Someone else's name keeps the third person.
-    expect(textOf(ask('@trav roast Sam for the ubers', world('barcelona', { me: 'mem_jordan' })))).toBe(
-      T.notOptedInText('Sam'),
+    expect(textOf(ask('@trav roast Crowley for the ubers', world('barcelona', { me: 'mem_piotr' })))).toBe(
+      T.notOptedInText('Crowley'),
     );
   });
 

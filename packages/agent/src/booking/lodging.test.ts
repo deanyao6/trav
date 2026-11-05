@@ -38,7 +38,7 @@ const PLANNING = '2026-02-03T20:31:00+01:00';
 const ASK =
   'ok now a place. @trav find a 6 person airbnb in eixample or gracia, under €1500 total, refundable pls';
 const EIXAMPLE = 'rate_bcn_eixample_3br_flex';
-const SIX = ['mem_dean', 'mem_henry', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam'];
+const SIX = ['mem_dean', 'mem_henry', 'mem_chase', 'mem_piotr', 'mem_arjun', 'mem_crowley'];
 
 function group(r: TurnResult): OutboundMessage[] {
   return r.outbound.filter((o): o is OutboundMessage => !isReaction(o) && o.to.kind === 'group');
@@ -110,7 +110,7 @@ describe('lodging ask in chat (T-132)', () => {
         'found a place for 6: Eixample 3BR with balcony, mar 12–17',
         '€1,380 for 5 nights · €230 each · free cancel until mar 7',
         "there's a €1,250 one in Eixample but it's non-refundable, so i'd go with this",
-        "Dean, Henry, Maya, Jordan, Priya, Sam · on Dean's card, split 6 ways on the tab",
+        "Dean, Henry, Chase, Piotr, Arjun, Crowley · on Dean's card, split 6 ways on the tab",
         'lodging is on everyone paying, so all 6 of you have to 👍',
         '👍 to book, or say "not me" first. open for 15 min',
       ].join('\n'),
@@ -124,17 +124,17 @@ describe('lodging ask in chat (T-132)', () => {
     expect(stays(h)).toHaveLength(0);
   });
 
-  it("5 payers' 👍 and Jordan's relayed approval book nothing; Henry's own 👍 books once and splits €230 each", async () => {
+  it("5 payers' 👍 and Piotr's relayed approval book nothing; Henry's own 👍 books once and splits €230 each", async () => {
     const h = planning();
     const { card } = await ask(h);
     const cardId = card!.id;
-    for (const who of ['h_dean', 'h_jordan', 'h_sam', 'h_priya', 'h_maya']) {
+    for (const who of ['h_dean', 'h_piotr', 'h_crowley', 'h_arjun', 'h_chase']) {
       const t = await h.react(who, cardId, '👍');
       expect(t.note).toBe('approval:handled');
       expect(stays(h)).toHaveLength(0);
     }
     const relay = await h.say(
-      'h_jordan',
+      'h_piotr',
       "henry's at practice, i'll approve for him. go ahead trav",
     );
     expect(relay.note).toBe('approval:claimed_for_other');
@@ -149,7 +149,7 @@ describe('lodging ask in chat (T-132)', () => {
     const done = await h.react('h_henry', cardId, '👍');
     expect(done.note).toBe('approval:handled');
     expect(group(done)[0]!.text).toMatch(/^booked ✅ eixample 3br with balcony, €1,380\n/);
-    expect(group(done)[0]!.text).toContain('Henry, Maya, Jordan, Priya, Sam → Dean €230');
+    expect(group(done)[0]!.text).toContain('Henry, Chase, Piotr, Arjun, Crowley → Dean €230');
     expect(stays(h)).toHaveLength(1);
     const expense = h.runtime.stores.group.expenses
       .listByTrip(T)
@@ -210,15 +210,15 @@ describe('lodging ask in chat (T-132)', () => {
       partial: true,
     });
 
-    const jordan = await h.say('h_jordan', 'i approve for me and henry', {
+    const piotr = await h.say('h_piotr', 'i approve for me and henry', {
       replyToMessageId: cardId,
     });
-    expect(jordan.note).toBe('approval:handled');
-    expect(granted()).toEqual(['mem_dean', 'mem_jordan']);
+    expect(piotr.note).toBe('approval:handled');
+    expect(granted()).toEqual(['mem_dean', 'mem_piotr']);
     expect(lastInvalid()).toMatchObject({ claimedFor: 'mem_henry', claimedForAll: ['mem_henry'] });
     expect(stays(h)).toHaveLength(0);
 
-    for (const who of ['h_maya', 'h_priya', 'h_sam']) await h.react(who, cardId, '👍');
+    for (const who of ['h_chase', 'h_arjun', 'h_crowley']) await h.react(who, cardId, '👍');
     // Henry's part was never his: nothing is booked until his own 👍.
     expect(stays(h)).toHaveLength(0);
     await h.react('h_henry', cardId, '👍');
@@ -231,12 +231,12 @@ describe('lodging ask in chat (T-132)', () => {
     'should i approve for all of us',
     'no way i approve for all of us',
     'henry approves for me too',
-    'maya confirmed for the group',
+    'chase confirmed for the group',
   ])('"%s" from Dean never counts as his approval', async (text) => {
     const h = planning();
     const { card } = await ask(h);
     const cardId = card!.id;
-    for (const who of ['h_henry', 'h_maya', 'h_jordan', 'h_priya', 'h_sam']) {
+    for (const who of ['h_henry', 'h_chase', 'h_piotr', 'h_arjun', 'h_crowley']) {
       await h.react(who, cardId, '👍');
     }
     await h.say('h_dean', text, { replyToMessageId: cardId });
@@ -463,7 +463,7 @@ describe('proposal service, lodging (T-132)', () => {
     expect(res.proposal.payers).toEqual(five.map((memberId) => ({ memberId, shareMinor: 27600 })));
     expect(res.excluded).toEqual(['mem_henry']);
     expect(res.text).toContain('€1,380 for 5 nights · €276 each');
-    expect(res.text).toContain('Dean, Maya, Jordan, Priya, Sam (not Henry)');
+    expect(res.text).toContain('Dean, Chase, Piotr, Arjun, Crowley (not Henry)');
     expect(res.card.excluded).toEqual([{ memberId: 'mem_henry', name: 'Henry' }]);
     expect(res.card.item.details).toContain('€105 paid at the property, not charged by trav');
     const rows = s.stores.group.trips.listAttendance(res.proposal.activityId!);
@@ -520,7 +520,7 @@ describe('proposal service, lodging (T-132)', () => {
     s.stores.group.bookings.updateProposal({ ...first.proposal, status: 'superseded' });
     const again = await s.svc.repropose(
       first.proposal,
-      SIX.filter((id) => id !== 'mem_sam'),
+      SIX.filter((id) => id !== 'mem_crowley'),
       'm_not_me',
     );
     expect(again.kind).toBe('proposal');

@@ -106,7 +106,7 @@ describe('mock booking payments: charge', () => {
     ],
     ['one cent over', { amount: eur(9001) }, 'approval_exceeded'],
     ['currency mismatch', { amount: money(9000, 'USD') }, 'approval_invalid'],
-    ['payer did not approve', { payerMemberId: 'mem_maya' }, 'approval_invalid'],
+    ['payer did not approve', { payerMemberId: 'mem_chase' }, 'approval_invalid'],
     ['zero amount', { amount: eur(0) }, 'invalid_request'],
     ['fractional amount', { amount: { amountMinor: 89.99, currency: 'EUR' } }, 'invalid_request'],
     ['missing reference', { reference: '' }, 'invalid_request'],
@@ -138,9 +138,9 @@ describe('mock booking payments: charge', () => {
   });
 
   it('requires a saved payment method', async () => {
-    const { payments } = setup(['mem_maya']);
+    const { payments } = setup(['mem_chase']);
     expect(unwrap(await payments.hasPaymentMethod('mem_dean'))).toBe(false);
-    expect(unwrap(await payments.hasPaymentMethod('mem_maya'))).toBe(true);
+    expect(unwrap(await payments.hasPaymentMethod('mem_chase'))).toBe(true);
     expect(code(await payments.hasPaymentMethod(''))).toBe('invalid_request');
     expect(code(await payments.charge(charge()))).toBe('not_configured');
     expect(payments.chargeCount()).toBe(0);
@@ -286,7 +286,7 @@ describe('mock booking payments: refund', () => {
       { approval: proof({ approvalId: 'grant_lis', groupId: 'grp_lisbon' }) },
       'approval_invalid',
     ],
-    ['a requester who did not approve', { requestedBy: 'mem_maya' }, 'approval_invalid'],
+    ['a requester who did not approve', { requestedBy: 'mem_chase' }, 'approval_invalid'],
     [
       'an approval below the refund',
       { approval: proof({ approvalId: 'grant_small', maxAmount: eur(8999) }) },
@@ -318,10 +318,10 @@ describe('mock booking payments: refund', () => {
     const done = unwrap(
       await payments.refund(
         refundReq(intent.intentId, 'r1', {
-          requestedBy: 'mem_maya',
+          requestedBy: 'mem_chase',
           approval: proof({
             approvalId: 'grant_r1',
-            approvedBy: ['mem_dean', 'mem_maya'],
+            approvedBy: ['mem_dean', 'mem_chase'],
             maxAmount: eur(9000),
           }),
         }),
@@ -349,7 +349,7 @@ describe('mock booking payments: refund', () => {
           refundReq(intent.intentId, 'r1', {
             amount: eur(1000),
             approval,
-            requestedBy: 'mem_maya',
+            requestedBy: 'mem_chase',
           }),
         ),
       ),

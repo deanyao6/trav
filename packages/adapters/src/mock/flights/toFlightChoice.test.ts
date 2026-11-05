@@ -37,7 +37,7 @@ const twoSegmentOffer: FlightOffer = {
   provider: 'mock-flights',
   totalAmount: eur(100001),
   owner: XB,
-  passengerIds: ['mem_maya', 'mem_sam', 'mem_priya'],
+  passengerIds: ['mem_chase', 'mem_crowley', 'mem_arjun'],
   slices: [
     {
       origin: 'SFO',
@@ -68,8 +68,8 @@ const twoSegmentOffer: FlightOffer = {
 
 describe('toFlightChoice', () => {
   it('maps a 2-segment itinerary: layover minutes, instants, stops, per-person cost', () => {
-    const choice = toFlightChoice(twoSegmentOffer, 'mem_priya');
-    expect(choice.memberId).toBe('mem_priya');
+    const choice = toFlightChoice(twoSegmentOffer, 'mem_arjun');
+    expect(choice.memberId).toBe('mem_arjun');
     expect(choice.offerId).toBe('off_test_1');
     expect(choice.provider).toBe('mock-flights');
     expect(choice.refundable).toBe(true);
@@ -162,13 +162,13 @@ describe('toFlightChoice', () => {
 
   it('throws for a member who is not on the offer, and for malformed offers', () => {
     expect(() => toFlightChoice(twoSegmentOffer, 'mem_henry')).toThrow(TravError);
-    expect(() => toFlightChoice({ ...twoSegmentOffer, slices: [] }, 'mem_maya')).toThrow(
+    expect(() => toFlightChoice({ ...twoSegmentOffer, slices: [] }, 'mem_chase')).toThrow(
       /no slices/,
     );
     const first = twoSegmentOffer.slices[0];
     if (!first) throw new Error('unreachable');
     expect(() =>
-      toFlightChoice({ ...twoSegmentOffer, slices: [first, first, first] }, 'mem_maya'),
+      toFlightChoice({ ...twoSegmentOffer, slices: [first, first, first] }, 'mem_chase'),
     ).toThrow(/more than two/);
     expect(() => sliceToLeg({ ...first, segments: [] })).toThrow(TravError);
     const [a, b] = first.segments;
@@ -186,10 +186,10 @@ describe('toFlightChoice', () => {
         { origin: 'SFO', destination: 'BCN', departureDate: '2026-03-12' },
         { origin: 'BCN', destination: 'LAX', departureDate: '2026-03-17' },
       ],
-      passengers: [{ memberId: 'mem_maya', type: 'adult' }],
+      passengers: [{ memberId: 'mem_chase', type: 'adult' }],
     });
     if (!r.ok) throw new Error(r.error.message);
-    const choices = r.value.map((o) => toFlightChoice(o, 'mem_maya'));
+    const choices = r.value.map((o) => toFlightChoice(o, 'mem_chase'));
     expect(choices).toHaveLength(4);
     for (const c of choices) {
       expect(c.outbound.destination).toBe('BCN');

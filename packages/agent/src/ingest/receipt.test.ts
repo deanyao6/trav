@@ -83,7 +83,7 @@ function fixture(id: string): {
 const expectedOf = (id: string): Record<string, number> =>
   Object.fromEntries(fixture(id).expectedShares!.map((s) => [s.memberId, s.amount.amountMinor]));
 
-/** Sunday lunch with four of them in (Henry and Jordan stayed at the flat). */
+/** Sunday lunch with four of them in (Henry and Piotr stayed at the flat). */
 function addLunchPlan(h: Harness): void {
   const lunch: Activity = {
     activityId: 'act_bcn_lunch_beach',
@@ -98,21 +98,21 @@ function addLunchPlan(h: Harness): void {
     createdAt: '2026-03-15T20:00:00+01:00',
   };
   h.runtime.stores.group.trips.upsertActivity(lunch);
-  for (const memberId of ['mem_dean', 'mem_maya', 'mem_priya', 'mem_sam'])
+  for (const memberId of ['mem_dean', 'mem_chase', 'mem_arjun', 'mem_crowley'])
     h.runtime.stores.group.trips.setAttendance({
       activityId: lunch.activityId,
       memberId,
       status: 'in',
       updatedAt: '2026-03-15T20:00:00+01:00',
       sourceMessageId: 'msg_lunch_plan',
-      setBy: 'mem_maya',
+      setBy: 'mem_chase',
     });
 }
 
 describe('receipt photo → itemized split through the agent loop (T-011)', () => {
-  it('Gat Blau (VOICE §4.4 C): "Priya didn\'t drink" ⇒ card, nothing logged until the POSTER\'s 👍', async () => {
+  it('Gat Blau (VOICE §4.4 C): "Arjun didn\'t drink" ⇒ card, nothing logged until the POSTER\'s 👍', async () => {
     const h = harness();
-    const r = await h.say('h_jordan', "@trav dinner, i paid, Priya didn't drink", {
+    const r = await h.say('h_piotr', "@trav dinner, i paid, Arjun didn't drink", {
       attachments: photo('rcpt_bcn_gatblau'),
     });
     expect(r.note).toBe('receipt:read');
@@ -121,9 +121,9 @@ describe('receipt photo → itemized split through the agent loop (T-011)', () =
     expect(card.to).toEqual({ kind: 'group' });
     expect(card.text).toBe(
       [
-        'read it: Taverna del Gat Blau, €184 on Jordan',
-        'drinks (€58) split 5 ways without Priya, food 6 ways',
-        'Priya €21 · everyone else €32.60',
+        'read it: Taverna del Gat Blau, €184 on Piotr',
+        'drinks (€58) split 5 ways without Arjun, food 6 ways',
+        'Arjun €21 · everyone else €32.60',
         '👍 to log it, or send fixes ("the wine was mine")',
       ].join('\n'),
     );
@@ -133,25 +133,25 @@ describe('receipt photo → itemized split through the agent loop (T-011)', () =
     expect(h.auditTypes()).not.toContain('ledger.entry_created');
 
     // someone else's 👍 or tap does nothing
-    const maya = await h.react('h_maya', card.id, '👍');
-    expect(maya.silent).toBe(true);
-    expect(maya.note).toBe('receipt:not_poster');
-    const mayaTap = await h.tap('h_maya', card.id, 'confirm');
-    expect(mayaTap.silent).toBe(true);
+    const chase = await h.react('h_chase', card.id, '👍');
+    expect(chase.silent).toBe(true);
+    expect(chase.note).toBe('receipt:not_poster');
+    const chaseTap = await h.tap('h_chase', card.id, 'confirm');
+    expect(chaseTap.silent).toBe(true);
     const guest = await h.react('h_ava', card.id, '👍');
     expect(guest.silent).toBe(true);
     expect(expenses(h)).toEqual([]);
 
-    // Jordan's 👍 logs it
-    const ok = await h.react('h_jordan', card.id, '👍');
+    // Piotr's 👍 logs it
+    const ok = await h.react('h_piotr', card.id, '👍');
     expect(ok.note).toBe('receipt:logged');
-    expect(only(ok).text).toBe('logged: €184 dinner at Taverna del Gat Blau on Jordan\n👎 to undo');
+    expect(only(ok).text).toBe('logged: €184 dinner at Taverna del Gat Blau on Piotr\n👎 to undo');
     const [e] = expenses(h);
     expect(e).toBeDefined();
     expect(e!.source).toBe('receipt_photo');
     expect(e!.sourceRef).toEqual({ kind: 'message', id: h.last.message!.messageId });
     expect(e!.split.method).toBe('itemized');
-    expect(e!.paidBy).toEqual([{ memberId: 'mem_jordan', amount: { amountMinor: 18400, currency: 'EUR' } }]);
+    expect(e!.paidBy).toEqual([{ memberId: 'mem_piotr', amount: { amountMinor: 18400, currency: 'EUR' } }]);
     expect(e!.amount).toEqual({ amountMinor: 18400, currency: 'EUR' });
     const got = sharesOf(h, e!);
     expect(got).toEqual(expectedOf('rcpt_bcn_gatblau'));
@@ -161,57 +161,57 @@ describe('receipt photo → itemized split through the agent loop (T-011)', () =
     expect(created[0]!.payload).toMatchObject({ source: 'receipt_photo', splitMethod: 'itemized', lowConfidence: false });
 
     // a second 👍 on the same card logs nothing more
-    const again = await h.react('h_jordan', card.id, '👍');
+    const again = await h.react('h_piotr', card.id, '👍');
     expect(again.silent).toBe(true);
     expect(expenses(h)).toHaveLength(1);
 
     // the same photo again: one receipt
-    const dup = await h.say('h_jordan', '@trav', { attachments: photo('rcpt_bcn_gatblau') });
+    const dup = await h.say('h_piotr', '@trav', { attachments: photo('rcpt_bcn_gatblau') });
     expect(dup.note).toBe('receipt:duplicate_image');
     expect(only(dup).text).toBe('already got that one: €184 dinner at Taverna del Gat Blau');
 
     // 👎 on the logged line undoes it through the loop's undo path
-    const undo = await h.react('h_jordan', messages(ok)[0]!.id, '👎');
+    const undo = await h.react('h_piotr', messages(ok)[0]!.id, '👎');
     expect(undo.note).not.toMatch(/^receipt:/);
     expect(h.runtime.stores.group.expenses.get(e!.expenseId)?.status).toBe('undone');
     // …after which the same photo is read again
-    const reread = await h.say('h_jordan', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
+    const reread = await h.say('h_piotr', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
     expect(reread.note).toBe('receipt:who_had_what');
     expect(only(reread).text).toContain('who had what? or 👍 to split it 6 ways');
   });
 
-  it('acceptance: 3-item lunch, 4 at the table, Sam excluded, service + IVA pro-rata', async () => {
+  it('acceptance: 3-item lunch, 4 at the table, Crowley excluded, service + IVA pro-rata', async () => {
     const h = harness();
     h.clock.set('2026-03-16T14:05:00+01:00');
     addLunchPlan(h);
     const f = fixture('rcpt_bcn_lunch_service');
-    const r = await h.say('h_maya', f.chatText!, { attachments: photo('rcpt_bcn_lunch_service') });
+    const r = await h.say('h_chase', f.chatText!, { attachments: photo('rcpt_bcn_lunch_service') });
     expect(r.note).toBe('receipt:who_had_what');
     const first = only(r);
-    // the plan's four, minus Sam; nothing about lines yet, so Trav asks
+    // the plan's four, minus Crowley; nothing about lines yet, so Trav asks
     expect(first.text).toBe(
       [
-        'read it: Xiringuito Mar Blava, €108.90 on Maya',
-        '3 ways (not Sam) → €36.30 each',
+        'read it: Xiringuito Mar Blava, €108.90 on Chase',
+        '3 ways (not Crowley) → €36.30 each',
         'who had what? or 👍 to split it 3 ways',
       ].join('\n'),
     );
     expect(expenses(h)).toEqual([]);
 
-    // Maya answers without @trav (she's the poster, right after the question)
-    const claims = await h.say('h_maya', f.claimText!);
+    // Chase answers without @trav (Chase is the poster, right after the question)
+    const claims = await h.say('h_chase', f.claimText!);
     expect(claims.note).toBe('receipt:updated');
     const card = only(claims);
     expect(card.text).toBe(
       [
-        'read it: Xiringuito Mar Blava, €108.90 on Maya',
-        'paella marinera 2 ways, burrata on Priya, the rest 3 ways, tax + service by share',
-        'Dean €38.72 · Priya €31.46 · Maya €38.72',
+        'read it: Xiringuito Mar Blava, €108.90 on Chase',
+        'paella marinera 2 ways, burrata on Arjun, the rest 3 ways, tax + service by share',
+        'Dean €38.72 · Arjun €31.46 · Chase €38.72',
         '👍 to log it, or send fixes ("the wine was mine")',
       ].join('\n'),
     );
     // the first card is stale now: its 👍 does nothing
-    const stale = await h.react('h_maya', first.id, '👍');
+    const stale = await h.react('h_chase', first.id, '👍');
     expect(stale.note).toBe('receipt:stale_card');
     expect(only(stale).text).toBe(RECEIPT_STALE_TEXT); // r1 #5: one line, not silence
     // …but the same 👍 from someone else is still silent
@@ -219,16 +219,16 @@ describe('receipt photo → itemized split through the agent loop (T-011)', () =
     expect(expenses(h)).toEqual([]);
 
     // the button on the current card logs it
-    const ok = await h.tap('h_maya', card.id, 'confirm');
+    const ok = await h.tap('h_chase', card.id, 'confirm');
     expect(ok.note).toBe('receipt:logged');
-    expect(only(ok).text).toBe('logged: €108.90 lunch at Xiringuito Mar Blava on Maya\n👎 to undo');
+    expect(only(ok).text).toBe('logged: €108.90 lunch at Xiringuito Mar Blava on Chase\n👎 to undo');
     const [e] = expenses(h);
     expect(e!.split.method).toBe('itemized');
     expect(e!.activityId).toBe('act_bcn_lunch_beach');
     const got = sharesOf(h, e!);
     expect(got).toEqual(expectedOf('rcpt_bcn_lunch_service'));
-    expect(got).toEqual({ mem_dean: 3872, mem_maya: 3872, mem_priya: 3146 });
-    expect(got['mem_sam']).toBeUndefined();
+    expect(got).toEqual({ mem_dean: 3872, mem_chase: 3872, mem_arjun: 3146 });
+    expect(got['mem_crowley']).toBeUndefined();
     expect(Object.values(got).reduce((a, b) => a + b, 0)).toBe(10890);
     // service and IVA are lines on the receipt, allocated by core, not claimed
     const split = e!.split as Extract<Expense['split'], { method: 'itemized' }>;
@@ -240,30 +240,30 @@ describe('receipt photo → itemized split through the agent loop (T-011)', () =
 
   it('"yes" from the poster logs; "yes" or claims from someone else never confirm', async () => {
     const h = harness();
-    const r = await h.say('h_jordan', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
+    const r = await h.say('h_piotr', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
     expect(only(r).text).toContain('who had what? or 👍 to split it 6 ways');
-    const sam = await h.say('h_sam', '@trav yes');
-    expect(sam.note).not.toBe('receipt:logged');
+    const crowley = await h.say('h_crowley', '@trav yes');
+    expect(crowley.note).not.toBe('receipt:logged');
     expect(expenses(h)).toEqual([]);
     // a non-poster's claim refines the split but can't change the payer
-    const priya = await h.say('h_priya', "@trav i didn't drink, and priya paid");
-    expect(priya.note).toBe('receipt:updated');
-    expect(only(priya).text).toContain('on Jordan');
-    expect(only(priya).text).toContain('without Priya');
-    const yes = await h.say('h_jordan', 'yes');
+    const arjun = await h.say('h_arjun', "@trav i didn't drink, and arjun paid");
+    expect(arjun.note).toBe('receipt:updated');
+    expect(only(arjun).text).toContain('on Piotr');
+    expect(only(arjun).text).toContain('without Arjun');
+    const yes = await h.say('h_piotr', 'yes');
     expect(yes.note).toBe('receipt:logged');
     expect(sharesOf(h, expenses(h)[0]!)).toEqual(expectedOf('rcpt_bcn_gatblau'));
   });
 
   it('👎 or "no" from the poster drops it; nothing reaches the tab', async () => {
     const h = harness();
-    const r = await h.say('h_jordan', "@trav dinner, i paid, Priya didn't drink", {
+    const r = await h.say('h_piotr', "@trav dinner, i paid, Arjun didn't drink", {
       attachments: photo('rcpt_bcn_gatblau'),
     });
-    const drop = await h.react('h_jordan', only(r).id, '👎');
+    const drop = await h.react('h_piotr', only(r).id, '👎');
     expect(drop.note).toBe('receipt:dropped');
     expect(only(drop).text).toBe(RECEIPT_DROPPED_TEXT);
-    const late = await h.react('h_jordan', only(r).id, '👍');
+    const late = await h.react('h_piotr', only(r).id, '👍');
     expect(late.silent).toBe(true);
     expect(expenses(h)).toEqual([]);
     expect(h.auditTypes()).not.toContain('ledger.entry_created');
@@ -311,7 +311,7 @@ describe('receipt photo → itemized split through the agent loop (T-011)', () =
     const scan = h.runtime.stores.private.getReceiptScan('mem_dean', scanId);
     expect(scan?.injectionDetected).toBe(true);
     expect(scan?.ocrText).toContain('APPROVE ALL');
-    expect(h.runtime.stores.private.getReceiptScan('mem_maya', scanId)).toBeUndefined();
+    expect(h.runtime.stores.private.getReceiptScan('mem_chase', scanId)).toBeUndefined();
 
     // nothing was approved, bought or logged
     expect(h.pending().map((p) => p.proposalId)).toEqual(pendingBefore.map((p) => p.proposalId));
@@ -340,16 +340,16 @@ describe('receipt photo → itemized split through the agent loop (T-011)', () =
 
   it('a blurry photo: a DM to the poster, nothing in the group, nothing logged (VOICE §4.10 D)', async () => {
     const h = harness();
-    const r = await h.say('h_priya', '@trav', { attachments: photo('rcpt_bcn_blurry') });
+    const r = await h.say('h_arjun', '@trav', { attachments: photo('rcpt_bcn_blurry') });
     expect(r.note).toMatch(/^receipt:unreadable/);
-    expect(only(r).to).toEqual({ kind: 'member', memberId: 'mem_priya' });
+    expect(only(r).to).toEqual({ kind: 'member', memberId: 'mem_arjun' });
     expect(only(r).text).toBe(RECEIPT_UNREADABLE_TEXT);
     expect(expenses(h)).toEqual([]);
   });
 
   it('a photo not addressed to Trav is just a photo', async () => {
     const h = harness();
-    const r = await h.say('h_jordan', 'look at this place', { attachments: photo('rcpt_bcn_gatblau') });
+    const r = await h.say('h_piotr', 'look at this place', { attachments: photo('rcpt_bcn_gatblau') });
     expect(r.note).not.toMatch(/^receipt:/);
     expect(h.model.completions.some((c) => c.systemPromptId.startsWith('receipt_'))).toBe(false);
   });
@@ -357,10 +357,10 @@ describe('receipt photo → itemized split through the agent loop (T-011)', () =
   it('a receipt already logged from chat text gets a duplicate warning (kebab)', async () => {
     const h = harness();
     h.clock.set('2026-03-15T02:20:00+01:00');
-    const chat = await h.say('h_jordan', '@trav i paid €62 for kebabs, split with everyone but Henry');
+    const chat = await h.say('h_piotr', '@trav i paid €62 for kebabs, split with everyone but Henry');
     expect(chat.note).toMatch(/logged/);
     expect(expenses(h)).toHaveLength(1);
-    const r = await h.say('h_jordan', '@trav', { attachments: photo('rcpt_bcn_kebab') });
+    const r = await h.say('h_piotr', '@trav', { attachments: photo('rcpt_bcn_kebab') });
     const text = only(r).text;
     expect(text).toContain("looks like it's already on the tab: €62");
     expect(text.split('\n').at(-1)).toBe("👍 only if it's a different one");
@@ -379,7 +379,7 @@ describe('receipt photo → itemized split through the agent loop (T-011)', () =
   it('a photo in a DM is private: "looks shared?" to the owner only, nothing in the group', async () => {
     const h = harness();
     const event = await h.channel.injectMessage({
-      from: 'h_jordan',
+      from: 'h_piotr',
       text: '',
       lane: 'dm',
       attachments: photo('rcpt_bcn_kebab'),
@@ -387,9 +387,9 @@ describe('receipt photo → itemized split through the agent loop (T-011)', () =
     const r = await h.runtime.agent.handleInbound(event);
     expect(r.note).toBe('receipt:private');
     expect(messages(r).length).toBeGreaterThan(0);
-    for (const m of messages(r)) expect(m.to).toEqual({ kind: 'member', memberId: 'mem_jordan' });
+    for (const m of messages(r)) expect(m.to).toEqual({ kind: 'member', memberId: 'mem_piotr' });
     expect(messages(r)[0]!.text).toContain('€62');
-    const pending = h.runtime.stores.private.listPendingItems('mem_jordan', G);
+    const pending = h.runtime.stores.private.listPendingItems('mem_piotr', G);
     expect(pending.map((p) => p.amount.amountMinor)).toEqual([6200]);
     expect(h.runtime.stores.private.listPendingItems('mem_dean', G)).toEqual([]);
     expect(expenses(h)).toEqual([]);
@@ -401,9 +401,9 @@ describe('receipt photo → itemized split through the agent loop (T-011)', () =
       h.clock.set('2026-03-16T14:05:00+01:00');
       addLunchPlan(h);
       const f = fixture('rcpt_bcn_lunch_service');
-      const a = await h.say('h_maya', f.chatText!, { attachments: photo('rcpt_bcn_lunch_service') });
-      const b = await h.say('h_maya', f.claimText!);
-      const c = await h.react('h_maya', only(b).id, '👍');
+      const a = await h.say('h_chase', f.chatText!, { attachments: photo('rcpt_bcn_lunch_service') });
+      const b = await h.say('h_chase', f.claimText!);
+      const c = await h.react('h_chase', only(b).id, '👍');
       expect([...a.modelSources, ...b.modelSources, ...c.modelSources].every((s) => s !== 'live')).toBe(true);
       return {
         texts: [a, b, c].flatMap((t) => messages(t).map((m) => m.text)),
@@ -549,14 +549,14 @@ describe('family tab (Turks and Caicos): Conch Corner, tax + automatic gratuity 
 describe('review round 1 (T-011)', () => {
   it('#4 through the loop: a vague caption on a real receipt is still read (the transcription decides)', async () => {
     const h = harness();
-    const r = await h.say('h_jordan', '@trav look at this', { attachments: photo('rcpt_bcn_gatblau') });
+    const r = await h.say('h_piotr', '@trav look at this', { attachments: photo('rcpt_bcn_gatblau') });
     expect(r.note).toBe('receipt:who_had_what');
-    expect(only(r).text.split('\n')[0]).toBe('read it: Taverna del Gat Blau, €184 on Jordan');
+    expect(only(r).text.split('\n')[0]).toBe('read it: Taverna del Gat Blau, €184 on Piotr');
   });
 
   it('#1 an open receipt never swallows a booking, a balance question or a new expense', async () => {
     const h = harness();
-    const r = await h.say('h_jordan', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
+    const r = await h.say('h_piotr', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
     const card = only(r);
     const balance = await h.say('h_dean', "@trav what's the balance?");
     expect(balance.note.startsWith('receipt:')).toBe(false);
@@ -567,13 +567,13 @@ describe('review round 1 (T-011)', () => {
     expect(ask.note.startsWith('receipt:')).toBe(false);
     expect(h.pending()).toHaveLength(1);
     // the receipt is still there for its poster
-    const ok = await h.react('h_jordan', card.id, '👍');
+    const ok = await h.react('h_piotr', card.id, '👍');
     expect(ok.note).toBe('receipt:logged');
   });
 
   it('#1 "@trav henry\'s sick" while a receipt is open is a roll call, not a split question', async () => {
     const h = harness();
-    await h.say('h_jordan', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
+    await h.say('h_piotr', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
     const sick = await h.say('h_dean', "@trav henry's sick");
     expect(sick.note.startsWith('receipt:')).toBe(false);
     for (const m of messages(sick)) expect(m.text).not.toMatch(/who's "/);
@@ -581,43 +581,43 @@ describe('review round 1 (T-011)', () => {
 
   it('#1 a reply to the card that Trav can\'t place still gets the one question', async () => {
     const h = harness();
-    const r = await h.say('h_jordan', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
-    const q = await h.say('h_jordan', 'zed had the croquetes', { replyToMessageId: only(r).id });
+    const r = await h.say('h_piotr', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
+    const q = await h.say('h_piotr', 'zed had the croquetes', { replyToMessageId: only(r).id });
     expect(q.note).toBe('receipt:clarify');
     expect(only(q).text).toBe('who\'s "zed"? name them and i\'ll fix the split');
   });
 
   it('#2 a bare "ok" after someone else spoke is not a 👍; "perfect" alone never is', async () => {
     const h = harness();
-    await h.say('h_jordan', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
-    await h.say('h_maya', 'anyone want gelato?');
-    const ok = await h.say('h_jordan', 'ok');
+    await h.say('h_piotr', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
+    await h.say('h_chase', 'anyone want gelato?');
+    const ok = await h.say('h_piotr', 'ok');
     expect(ok.note).not.toBe('receipt:logged');
-    const no = await h.say('h_jordan', 'nah');
+    const no = await h.say('h_piotr', 'nah');
     expect(no.note).not.toBe('receipt:dropped');
     expect(expenses(h)).toEqual([]);
 
     const h2 = harness();
-    await h2.say('h_jordan', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
-    const perfect = await h2.say('h_jordan', 'perfect');
+    await h2.say('h_piotr', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
+    const perfect = await h2.say('h_piotr', 'perfect');
     expect(perfect.note).not.toBe('receipt:logged');
     expect(expenses(h2)).toEqual([]);
 
     // right under the card, or with "@trav", it is
     const h3 = harness();
-    await h3.say('h_jordan', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
-    expect((await h3.say('h_jordan', 'ok')).note).toBe('receipt:logged');
+    await h3.say('h_piotr', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
+    expect((await h3.say('h_piotr', 'ok')).note).toBe('receipt:logged');
     const h4 = harness();
-    await h4.say('h_jordan', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
-    await h4.say('h_maya', 'anyone want gelato?');
-    expect((await h4.say('h_jordan', '@trav yes')).note).toBe('receipt:logged');
+    await h4.say('h_piotr', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
+    await h4.say('h_chase', 'anyone want gelato?');
+    expect((await h4.say('h_piotr', '@trav yes')).note).toBe('receipt:logged');
   });
 
   it('#5 the poster\'s 👍 on an expired card gets one line, and nothing is logged', async () => {
     const h = harness();
-    const r = await h.say('h_jordan', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
+    const r = await h.say('h_piotr', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
     h.clock.advanceMs(RECEIPT_OPEN_TTL_MS + 60_000);
-    const late = await h.react('h_jordan', only(r).id, '👍');
+    const late = await h.react('h_piotr', only(r).id, '👍');
     expect(late.note).toBe('receipt:expired');
     expect(only(late).text).toBe(RECEIPT_EXPIRED_TEXT);
     expect(expenses(h)).toEqual([]);
@@ -627,41 +627,41 @@ describe('review round 1 (T-011)', () => {
 describe('review round 2 (T-011)', () => {
   it('#1 a "yes" replying to an older card never logs the newer split it did not show', async () => {
     const h = harness();
-    const r = await h.say('h_jordan', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
+    const r = await h.say('h_piotr', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
     const first = only(r);
-    const claim = await h.say('h_maya', '@trav the priorat red was mine', { replyToMessageId: first.id });
+    const claim = await h.say('h_chase', '@trav the priorat red was mine', { replyToMessageId: first.id });
     expect(claim.note).toBe('receipt:updated');
-    const yes = await h.say('h_jordan', 'yes', { replyToMessageId: first.id });
+    const yes = await h.say('h_piotr', 'yes', { replyToMessageId: first.id });
     expect(yes.note).toBe('receipt:stale_card');
     expect(only(yes).text).toBe(RECEIPT_STALE_TEXT);
     expect(expenses(h)).toEqual([]);
-    const ok = await h.say('h_jordan', 'yes', { replyToMessageId: only(claim).id });
+    const ok = await h.say('h_piotr', 'yes', { replyToMessageId: only(claim).id });
     expect(ok.note).toBe('receipt:logged');
   });
 
-  it('#2 "@trav sam\'s out" with a booking waiting is a roll call, never a receipt exclusion', async () => {
-    for (const words of ["@trav sam's out", '@trav sam is not in', '@trav not sam']) {
+  it('#2 "@trav crowley\'s out" with a booking waiting is a roll call, never a receipt exclusion', async () => {
+    for (const words of ["@trav crowley's out", '@trav crowley is not in', '@trav not crowley']) {
       const h = harness();
       await h.say('h_dean', RAZZMATAZZ_ASK);
-      await h.say('h_jordan', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
-      const out = await h.say('h_maya', words);
+      await h.say('h_piotr', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
+      const out = await h.say('h_chase', words);
       expect(out.note.startsWith('receipt:')).toBe(false);
     }
   });
 
   it('#3 a new expense replying to the card is not a split question', async () => {
     const h = harness();
-    const r = await h.say('h_jordan', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
-    const taxi = await h.say('h_jordan', 'i paid €20 for the taxi too', { replyToMessageId: only(r).id });
+    const r = await h.say('h_piotr', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
+    const taxi = await h.say('h_piotr', 'i paid €20 for the taxi too', { replyToMessageId: only(r).id });
     expect(taxi.note.startsWith('receipt:')).toBe(false);
     for (const m of messages(taxi)) expect(m.text).not.toMatch(/who's "/);
   });
 
   it('#4 the poster\'s unaddressed chatter after someone else spoke is not a claim', async () => {
     const h = harness();
-    await h.say('h_jordan', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
-    await h.say('h_maya', 'anyone want gelato?');
-    const lol = await h.say('h_jordan', 'lol i had way too much wine');
+    await h.say('h_piotr', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
+    await h.say('h_chase', 'anyone want gelato?');
+    const lol = await h.say('h_piotr', 'lol i had way too much wine');
     expect(lol.note).not.toBe('receipt:updated');
   });
 });

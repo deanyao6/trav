@@ -306,7 +306,7 @@ describe('normalizeApprovalEvent: buttons, tapbacks and text become one Approval
   });
 
   it("an alias that binds to nothing is still an event without a proposalId (the loop's gate binds it); non-aliases are none", () => {
-    expect(normalizeApprovalEvent(message('not me'), index(), 'mem_maya', NOW)).toEqual({
+    expect(normalizeApprovalEvent(message('not me'), index(), 'mem_chase', NOW)).toEqual({
       kind: 'event',
       event: { kind: 'not_me', senderId: 'h_dean', via: 'text', messageId: 'm_in', at: NOW },
     });
@@ -384,7 +384,7 @@ describe('isOwnCancelText (T-137)', () => {
 
   it.each([
     'cancel the vip thing, way too much',
-    'cancel that for sam',
+    'cancel that for crowley',
     'cancel that and book the vip',
     'can you cancel that?? lol what do you think',
     "don't cancel that",

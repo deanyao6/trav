@@ -41,9 +41,9 @@ export const REFUSE_BODY_TEXT = 'i only roast the receipts';
 export const REFUSE_HANGOVER_TEXT = "i don't do hangovers, only receipts";
 /** Health, illness, sleep. */
 export const REFUSE_HEALTH_TEXT = "i don't do health stuff, only receipts";
-/** §7.5 Sam: romance (and anything else personal). */
+/** §7.5 Crowley: romance (and anything else personal). */
 export const REFUSE_PERSONAL_TEXT = 'not touching that';
-/** §7.5 Jordan: financial hardship. */
+/** §7.5 Piotr: financial hardship. */
 export const REFUSE_HARDSHIP_TEXT = 'nah';
 /** §7.5: anyone who opted out. */
 export const REFUSE_OPTED_OUT_TEXT =

@@ -53,7 +53,7 @@ describe('normalizeText (revision flaw 6)', () => {
     expect(banned(`${FULLWIDTH_C}ertainly, booked`)).toEqual(['certainly']);
     expect(banned(`certa${DOTLESS_I}nly, booked`)).toEqual(['certainly']);
     expect(roastTopicBlocked(`Henry's s${SOFT_HYPHEN}ick, €0 for him`)).toBe('health');
-    expect(roastTopicBlocked(`Jordan was so dr${ZWSP}unk he paid twice`)).toBe('intoxication');
+    expect(roastTopicBlocked(`Piotr was so dr${ZWSP}unk he paid twice`)).toBe('intoxication');
   });
 });
 
@@ -111,14 +111,16 @@ describe('normalizeText: Greek and Cyrillic confusables (round 3 flaw 5)', () =>
   });
 
   it('gate 2 is not defeated by a Greek upsilon or a Cyrillic letter', () => {
-    expect(roastTopicBlocked(`Jordan was so dr${GREEK_UPSILON}nk he paid twice`)).toBe(
+    expect(roastTopicBlocked(`Piotr was so dr${GREEK_UPSILON}nk he paid twice`)).toBe(
       'intoxication',
     );
     expect(roastTopicBlocked(`Henry's s${GREEK_IOTA}ck, €0 for him`)).toBe('health');
-    expect(roastTopicBlocked(`Priya was ${CYRILLIC_EN}${CYRILLIC_A}mmered by midnight`)).toBe(
+    expect(roastTopicBlocked(`Arjun was ${CYRILLIC_EN}${CYRILLIC_A}mmered by midnight`)).toBe(
       'intoxication',
     );
-    expect(roastTopicBlocked(`Sam got was${CYRILLIC_TE}ed on €90 of tickets`)).toBe('intoxication');
+    expect(roastTopicBlocked(`Crowley got was${CYRILLIC_TE}ed on €90 of tickets`)).toBe(
+      'intoxication',
+    );
     expect(roastTopicBlocked(`Dean was drun${CYRILLIC_KA} at the €18 club`)).toBe('intoxication');
   });
 });
@@ -142,15 +144,15 @@ describe('minorReferentIncluded (round 3 flaw 6)', () => {
 
 describe('findNormalized (revision flaw 8)', () => {
   it('returns offsets into the original string', () => {
-    const hay = 'it’s a church. that is Jordan’s third kebab run';
-    const span = findNormalized(hay, "Jordan's third kebab run");
+    const hay = 'it’s a church. that is Piotr’s third kebab run';
+    const span = findNormalized(hay, "Piotr's third kebab run");
     expect(span).not.toBeNull();
-    expect(hay.slice(span!.start, span!.end)).toBe('Jordan’s third kebab run');
+    expect(hay.slice(span!.start, span!.end)).toBe('Piotr’s third kebab run');
   });
 
   it('maps across characters that change length under normalization', () => {
-    const hay = `morning ☀️\nSam was so dr${ZWSP}unk he paid twice\n€199 total`;
-    const span = findNormalized(hay, 'Sam was so drunk he paid twice');
+    const hay = `morning ☀️\nCrowley was so dr${ZWSP}unk he paid twice\n€199 total`;
+    const span = findNormalized(hay, 'Crowley was so drunk he paid twice');
     expect(span).not.toBeNull();
     expect(hay.slice(0, span!.start) + hay.slice(span!.end)).toBe('morning ☀️\n\n€199 total');
     expect(findNormalized(hay, 'not here')).toBeNull();
@@ -160,13 +162,13 @@ describe('findNormalized (revision flaw 8)', () => {
 
 describe('nameTokens / mentionsName (revision flaw 3)', () => {
   it('matches the full display name and each token', () => {
-    expect(nameTokens('Jordan Kim')).toEqual(['Jordan Kim', 'Jordan', 'Kim']);
+    expect(nameTokens('Piotr Kim')).toEqual(['Piotr Kim', 'Piotr', 'Kim']);
     expect(nameTokens('Dean Y.')).toEqual(['Dean Y.', 'Dean']);
     expect(nameTokens('  ')).toEqual([]);
-    expect(mentionsName('Jordan has paid for kebabs 3 nights running', 'Jordan Kim')).toBe(true);
-    expect(mentionsName("Kim's third kebab run", 'Jordan Kim')).toBe(true);
-    expect(mentionsName('Jordana paid', 'Jordan Kim')).toBe(false);
-    expect(mentionsName('the kimono shop', 'Jordan Kim')).toBe(false);
+    expect(mentionsName('Piotr has paid for kebabs 3 nights running', 'Piotr Kim')).toBe(true);
+    expect(mentionsName("Kim's third kebab run", 'Piotr Kim')).toBe(true);
+    expect(mentionsName('Piotra paid', 'Piotr Kim')).toBe(false);
+    expect(mentionsName('the kimono shop', 'Piotr Kim')).toBe(false);
   });
 });
 

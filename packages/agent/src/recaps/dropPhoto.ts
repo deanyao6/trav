@@ -58,7 +58,7 @@ const NEGATION_RE =
 /** A question is not an instruction ("should we drop that one?", "why would you drop photo 2"). */
 const QUESTION_RE =
   /\?|^\s*(?:@trav\s*,?\s*)?(?:should|would|why|did|can|could|shall|do|does|is)\b/i;
-/** Someone else's wish, reported, is not a drop ("Sam wants to drop that one"). */
+/** Someone else's wish, reported, is not a drop ("Crowley wants to drop that one"). */
 const REPORTED_RE =
   /\b(?:wants?|wanted|wanna|said|says|asked)\s+(?:to\s+|you\s+to\s+|me\s+to\s+)?(?:drop|remove|delete|hide|ditch|lose|cut)\b/i;
 

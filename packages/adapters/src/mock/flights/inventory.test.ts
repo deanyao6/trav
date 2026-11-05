@@ -228,7 +228,7 @@ describe('normalized (synthetic-data) shape', () => {
         ],
       },
     ],
-    passengerIds: ['mem_sam'],
+    passengerIds: ['mem_crowley'],
     conditions: {
       refundBeforeDeparture: refundable ? { allowed: true, penalty: eur(0) } : { allowed: false },
       changeBeforeDeparture: { allowed: true, penalty: eur(7500) },
@@ -244,23 +244,23 @@ describe('normalized (synthetic-data) shape', () => {
     destination: 'BCN',
     currency: 'EUR',
     provider: 'mock-flights',
-    members: [{ memberId: 'mem_sam', origin: 'MIA', returnTo: 'AUS' }],
-    offers: [offer('off_fl_sam_a', 45500, false), offer('off_fl_sam_d', 61000, true)] as Record<
-      string,
-      unknown
-    >[],
+    members: [{ memberId: 'mem_crowley', origin: 'MIA', returnTo: 'AUS' }],
+    offers: [
+      offer('off_fl_crowley_a', 45500, false),
+      offer('off_fl_crowley_d', 61000, true),
+    ] as Record<string, unknown>[],
     mockHints: {
-      off_fl_sam_a: { expiresInMinutes: 30, priceOnRecheck: eur(46900) },
-      off_fl_sam_d: { expiresInMinutes: 3 },
+      off_fl_crowley_a: { expiresInMinutes: 30, priceOnRecheck: eur(46900) },
+      off_fl_crowley_d: { expiresInMinutes: 3 },
     },
     groundTruth: { ignored: true },
   });
 
   it('maps offers, hints and members into templates', () => {
     const inv = parseMockFlightInventory(raw());
-    expect(inv.travelers).toEqual([{ memberId: 'mem_sam', origin: 'MIA', returnTo: 'AUS' }]);
+    expect(inv.travelers).toEqual([{ memberId: 'mem_crowley', origin: 'MIA', returnTo: 'AUS' }]);
     const [a, d] = inv.templates;
-    expect(a?.templateId).toBe('off_fl_sam_a');
+    expect(a?.templateId).toBe('off_fl_crowley_a');
     expect(a?.perPassengerTotal).toEqual(eur(45500));
     expect(a?.perPassengerTax).toEqual(eur(1800));
     expect(a?.reprice).toEqual({ afterMinutes: 0, perPassengerTotal: eur(46900) });
@@ -280,11 +280,11 @@ describe('normalized (synthetic-data) shape', () => {
         { origin: 'MIA', destination: 'BCN', departureDate: '2026-03-12' },
         { origin: 'BCN', destination: 'AUS', departureDate: '2026-03-17' },
       ],
-      passengers: [{ memberId: 'mem_sam', type: 'adult' }],
+      passengers: [{ memberId: 'mem_crowley', type: 'adult' }],
     });
     if (!r.ok) throw new Error(r.error.message);
-    const a = r.value.find((o) => o.offerId.endsWith('off_fl_sam_a'));
-    const d = r.value.find((o) => o.offerId.endsWith('off_fl_sam_d'));
+    const a = r.value.find((o) => o.offerId.endsWith('off_fl_crowley_a'));
+    const d = r.value.find((o) => o.offerId.endsWith('off_fl_crowley_d'));
     if (!a || !d) throw new Error('missing offers');
     expect(a.totalAmount).toEqual(eur(45500));
     const recheck = await flights.getOffer(a.offerId);
@@ -293,12 +293,12 @@ describe('normalized (synthetic-data) shape', () => {
     const expired = await flights.getOffer(d.offerId);
     expect(expired.ok ? 'ok' : expired.error.code).toBe('offer_expired');
     // A 3-segment slice maps to 2 stops.
-    expect(toFlightChoice(a, 'mem_sam').inbound?.stops).toBe(2);
+    expect(toFlightChoice(a, 'mem_crowley').inbound?.stops).toBe(2);
   });
 
   it('rejects totals that do not split evenly and wrong currencies', () => {
     const odd = raw();
-    (odd.offers[0] as Record<string, unknown>)['passengerIds'] = ['mem_sam', 'mem_dean'];
+    (odd.offers[0] as Record<string, unknown>)['passengerIds'] = ['mem_crowley', 'mem_dean'];
     (odd.offers[0] as Record<string, unknown>)['totalAmount'] = eur(45501);
     expect(() => parseMockFlightInventory(odd)).toThrow(/divide evenly/);
     const usd = raw();

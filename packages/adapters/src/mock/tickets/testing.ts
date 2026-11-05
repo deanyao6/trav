@@ -17,10 +17,10 @@ export const eur = (amountMinor: number): Money => money(amountMinor, 'EUR');
 /** The five going tonight; Henry is sick. */
 export const FIVE: readonly TicketHolder[] = [
   { memberId: 'mem_dean', name: 'Dean' },
-  { memberId: 'mem_maya', name: 'Maya' },
-  { memberId: 'mem_jordan', name: 'Jordan' },
-  { memberId: 'mem_priya', name: 'Priya' },
-  { memberId: 'mem_sam', name: 'Sam' },
+  { memberId: 'mem_chase', name: 'Chase' },
+  { memberId: 'mem_piotr', name: 'Piotr' },
+  { memberId: 'mem_arjun', name: 'Arjun' },
+  { memberId: 'mem_crowley', name: 'Crowley' },
 ];
 
 export function proof(overrides: Partial<ApprovalProof> = {}): ApprovalProof {

@@ -37,13 +37,13 @@ export function demoBackend(): Promise<SimulatorBackend> {
   return loadAgentBackend({ offline: true, seed: true });
 }
 
-/** Sam at the club (fixtures/chats/barcelona.jsonl msg_bcn_0139): the charge is on the tab from chat. */
-export const SAM_WATERS = '@trav 2 waters in here were €28, €14 EACH, me and maya';
+/** Crowley at the club (fixtures/chats/barcelona.jsonl msg_bcn_0139): the charge is on the tab from chat. */
+export const CROWLEY_WATERS = '@trav 2 waters in here were €28, €14 EACH, me and chase';
 
 /**
- * T-067: move on to 9am the morning after Razzmatazz, past Sam's 2:14am Uber
+ * T-067: move on to 9am the morning after Razzmatazz, past Crowley's 2:14am Uber
  * (his card sync only sees charges that already happened). With `waters`
- * (default), Sam logs his €28 of waters at the club at 1:30am first, as in the
+ * (default), Crowley logs his €28 of waters at the club at 1:30am first, as in the
  * script, so his card's only new shared-looking charge is the Uber.
  */
 export async function toMorningAfterRide(
@@ -54,8 +54,8 @@ export async function toMorningAfterRide(
     await b.advanceClock!({ to: '2026-03-15T01:30:00+01:00', groupId: BARCELONA.groupId });
     await b.inject({
       type: 'message',
-      from: 'h_sam',
-      text: SAM_WATERS,
+      from: 'h_crowley',
+      text: CROWLEY_WATERS,
       groupId: BARCELONA.groupId,
     });
   }
@@ -150,7 +150,7 @@ export function recapRuntime(): {
 }
 
 const eur = (minor: number) => money(minor, 'EUR');
-const FIVE = ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam'];
+const FIVE = ['mem_dean', 'mem_chase', 'mem_piotr', 'mem_arjun', 'mem_crowley'];
 
 export function barcelonaMembers(): Member[] {
   return BARCELONA.members.map((m) => ({
@@ -231,10 +231,10 @@ export function morningAfterMessage(
         balances: [
           { memberId: 'mem_dean', net: eur(7200) },
           { memberId: 'mem_henry', net: eur(0) },
-          { memberId: 'mem_maya', net: eur(-1800) },
-          { memberId: 'mem_jordan', net: eur(-1800) },
-          { memberId: 'mem_priya', net: eur(-1800) },
-          { memberId: 'mem_sam', net: eur(-1800) },
+          { memberId: 'mem_chase', net: eur(-1800) },
+          { memberId: 'mem_piotr', net: eur(-1800) },
+          { memberId: 'mem_arjun', net: eur(-1800) },
+          { memberId: 'mem_crowley', net: eur(-1800) },
         ],
         totalSpent: eur(23600),
         dayNumber: 4,
@@ -279,18 +279,23 @@ export function wrappedMessage(
           evidence: 'fronted the most',
           basis: 'ledger',
         },
-        { title: 'Uber Captain', memberId: 'mem_sam', evidence: 'the 2am ride', basis: 'ledger' },
-        { title: 'Night Owl', memberId: 'mem_jordan', evidence: 'kebabs at 2am', basis: 'ledger' },
+        {
+          title: 'Uber Captain',
+          memberId: 'mem_crowley',
+          evidence: 'the 2am ride',
+          basis: 'ledger',
+        },
+        { title: 'Night Owl', memberId: 'mem_piotr', evidence: 'kebabs at 2am', basis: 'ledger' },
       ],
       finalSettle: {
         currency: 'EUR',
         balances: [
           { memberId: 'mem_dean', net: eur(9000) },
           { memberId: 'mem_henry', net: eur(-1800) },
-          { memberId: 'mem_maya', net: eur(-3160) },
-          { memberId: 'mem_jordan', net: eur(1500) },
-          { memberId: 'mem_priya', net: eur(-2740) },
-          { memberId: 'mem_sam', net: eur(-2800) },
+          { memberId: 'mem_chase', net: eur(-3160) },
+          { memberId: 'mem_piotr', net: eur(1500) },
+          { memberId: 'mem_arjun', net: eur(-2740) },
+          { memberId: 'mem_crowley', net: eur(-2800) },
         ],
         totalSpent: eur(309364),
       },

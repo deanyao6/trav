@@ -1,6 +1,6 @@
 /**
  * The roster turn (T-030): "@trav who's in tonight?" and whole-message
- * overrides ("Henry's sick", "i'm out tonight", "count me in", "Sam's a
+ * overrides ("Henry's sick", "i'm out tonight", "count me in", "Crowley's a
  * maybe for razzmatazz") are answered deterministically, never by the model.
  * The loop calls `handleRosterMessage` once the message is addressed to Trav
  * and the sender is a member; `undefined` means "not a roster message" and
@@ -8,7 +8,7 @@
  *
  * Conservative by design: an unknown name, or a named activity that is not on
  * the plan, is not treated as a roster message (the model, or silence, takes
- * it), so "@trav Sam is going to be late" never writes a row. The reason a
+ * it), so "@trav Crowley is going to be late" never writes a row. The reason a
  * member is out is matched only to recognize the sentence and is dropped
  * before anything is written (`parseRosterUpdate` returns ids and statuses).
  */
@@ -192,7 +192,7 @@ export function handleRosterMessage(input: RosterTurnInput): RosterTurn | undefi
   if (activity === undefined) {
     // A named activity that is not on the plan is not ours to answer.
     if (hint !== undefined) return undefined;
-    // "Henry's sick" / "Maya is out tomorrow" with nothing planned that
+    // "Henry's sick" / "Chase is out tomorrow" with nothing planned that
     // night: nothing to mark them out of, and never some other night's roster.
     if (update !== undefined && update.who !== 'me') return undefined;
     return { kind: 'no_activity', text: `nothing on the plan for ${when ?? 'tonight'} yet` };
@@ -228,7 +228,7 @@ export function handleRosterMessage(input: RosterTurnInput): RosterTurn | undefi
   const memberId = update!.who === 'me' ? me.memberId : resolveMemberName(members, update!.who);
   if (memberId === undefined) return undefined;
   const status = update!.status;
-  // "@trav sam is in" for an adult-only plan with Sam under 18: no in or
+  // "@trav crowley is in" for an adult-only plan with Crowley under 18: no in or
   // maybe is written, whatever the headcount tail says. "out" is always fine.
   const keptOff = keptOffFor(group, activity, members, now);
   if (status !== 'out' && keptOff.has(memberId)) {
@@ -455,7 +455,7 @@ function handleCombined(input: RosterTurnInput, parsed: CombinedRoster): RosterT
   }
 
   // A headcount never fills a minor into an 18+ or alcohol plan, and naming
-  // one in ("5 of us, sam's in") writes no in or maybe for them (SAFETY
+  // one in ("5 of us, crowley's in") writes no in or maybe for them (SAFETY
   // minors, T-153). A stale in/maybe row of theirs is set to out first, so
   // the count and the reply agree.
   const noFill = keptOffFor(group, activity, members, now);

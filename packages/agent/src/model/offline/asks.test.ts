@@ -122,7 +122,7 @@ describe('booking request responder (T-081)', () => {
   it('Barça with a date and a seat tier, Park Güell with a count and a weekday', () => {
     // A weekday or a date looks first (T-143): a read-only search for the party…
     const barcaAsk = ask(
-      'Maya: @trav barça vs sevilla sunday mar 15, 6 tickets together, sideline',
+      'Chase: @trav barça vs sevilla sunday mar 15, 6 tickets together, sideline',
     );
     const look = book.complete(barcaAsk)!.toolCalls[0]!;
     expect(look).toMatchObject({ name: 'search_events', input: { quantity: 6 } });
@@ -146,7 +146,7 @@ describe('booking request responder (T-081)', () => {
       name: 'propose_booking',
       input: { quantity: 6, day: '03-15' },
     });
-    const guellAsk = ask('Priya: @trav park güell friday 10am for 6');
+    const guellAsk = ask('Arjun: @trav park güell friday 10am for 6');
     const guellLook = book.complete(guellAsk)!.toolCalls[0]!;
     expect(guellLook).toMatchObject({
       name: 'search_events',
@@ -184,10 +184,10 @@ describe('booking request responder: a named night with nothing on (T-143)', () 
     'members (8):',
     '- Dean (mem_dean) · lead',
     '- Henry (mem_henry) · member',
-    '- Maya (mem_maya) · member',
-    '- Jordan (mem_jordan) · member',
-    '- Priya (mem_priya) · member',
-    '- Sam (mem_sam) · member',
+    '- Chase (mem_chase) · member',
+    '- Piotr (mem_piotr) · member',
+    '- Arjun (mem_arjun) · member',
+    '- Crowley (mem_crowley) · member',
     '- Alex (g_alex) · guest',
     '- Kim (mem_kim) · member · left the group',
     '',
@@ -211,7 +211,7 @@ describe('booking request responder: a named night with nothing on (T-143)', () 
 
   it('msg_bcn_0052: "for all of us saturday" searches for everyone active, then names friday 10am; no proposal', () => {
     const first = groupAsk(
-      'Maya: @trav can you get sagrada familia tickets for all of us saturday at 3',
+      'Chase: @trav can you get sagrada familia tickets for all of us saturday at 3',
     );
     const look = book.complete(first)!;
     expect(look.text).toBe('');
@@ -242,7 +242,7 @@ describe('booking request responder: a named night with nothing on (T-143)', () 
   });
 
   it('refundable first, then cheapest (what a re-ask would propose); a non-refundable slot says so', () => {
-    const first = groupAsk('Jordan: @trav park güell friday 10am for 6');
+    const first = groupAsk('Piotr: @trav park güell friday 10am for 6');
     const look = book.complete(first)!.toolCalls[0]!;
     const guell = {
       ...sagrada,
@@ -269,7 +269,7 @@ describe('booking request responder: a named night with nothing on (T-143)', () 
   });
 
   it('the closest night wins, before the earliest', () => {
-    const first = groupAsk('Maya: @trav sagrada tickets for all of us monday');
+    const first = groupAsk('Chase: @trav sagrada tickets for all of us monday');
     const look = book.complete(first)!.toolCalls[0]!;
     const sunday = {
       ...sagrada,
@@ -282,7 +282,7 @@ describe('booking request responder: a named night with nothing on (T-143)', () 
   });
 
   it('anything matching on that night (even sold out or site-only), no calendar, or nothing bookable at all ⇒ propose_booking decides', () => {
-    const first = groupAsk('Maya: @trav sagrada tickets for all of us friday');
+    const first = groupAsk('Chase: @trav sagrada tickets for all of us friday');
     const look = book.complete(first)!.toolCalls[0]!;
     const soldOut = { ...sagrada, bookable: false, tiers: [] };
     for (const result of [
@@ -303,7 +303,7 @@ describe('booking request responder: a named night with nothing on (T-143)', () 
   });
 
   it('at 2am "friday" is still the night that is on (the night rolls over at 5am, like propose_booking)', () => {
-    const first = groupAsk('Maya: @trav sagrada tickets for all of us friday');
+    const first = groupAsk('Chase: @trav sagrada tickets for all of us friday');
     const look = book.complete(first)!.toolCalls[0]!;
     const twoAm = { tonight: '2026-03-13', tripStart: '2026-03-12', tripEnd: '2026-03-17' };
     const res = book.complete(after(first, look, { calendar: twoAm, events: [sagrada] }))!;
@@ -333,8 +333,8 @@ describe('booking request responder: a named night with nothing on (T-143)', () 
 
   it('tonight and tomorrow, or no member list, go straight to propose_booking', () => {
     for (const text of [
-      'Sam: @trav get us club tickets tonight',
-      'Sam: @trav razzmatazz tickets tomorrow for 6',
+      'Crowley: @trav get us club tickets tonight',
+      'Crowley: @trav razzmatazz tickets tomorrow for 6',
     ]) {
       expect(
         book.complete(groupAsk(text))!.toolCalls.map((c) => c.name),
@@ -342,19 +342,19 @@ describe('booking request responder: a named night with nothing on (T-143)', () 
       ).toEqual(['propose_booking']);
     }
     expect(
-      book.complete(ask('Maya: @trav sagrada tickets for all of us saturday'))!.toolCalls[0]!.name,
+      book.complete(ask('Chase: @trav sagrada tickets for all of us saturday'))!.toolCalls[0]!.name,
     ).toBe('propose_booking');
     // search_events not offered: no look.
     expect(
       book.complete({
-        ...ask('Maya: @trav sagrada tickets saturday for 6', ['propose_booking']),
+        ...ask('Chase: @trav sagrada tickets saturday for 6', ['propose_booking']),
         system: SYSTEM,
       })!.toolCalls[0]!.name,
     ).toBe('propose_booking');
   });
 
   it('r1 #6: a cut-short search, or tiers that missed a refundable one, hand off to propose_booking', () => {
-    const first = groupAsk('Maya: @trav sagrada tickets for all of us saturday');
+    const first = groupAsk('Chase: @trav sagrada tickets for all of us saturday');
     const look = book.complete(first)!.toolCalls[0]!;
     const cut = book.complete(
       after(first, look, { calendar: CAL, events: [sagrada], truncated: true }),
@@ -370,7 +370,7 @@ describe('booking request responder: a named night with nothing on (T-143)', () 
   });
 
   it('r1 #3: the asked time rides along to propose_booking and into the line', () => {
-    const first = groupAsk('Maya: @trav sagrada familia tickets for all of us saturday at 3');
+    const first = groupAsk('Chase: @trav sagrada familia tickets for all of us saturday at 3');
     const look = book.complete(first)!.toolCalls[0]!;
     const res = book.complete(after(first, look, { calendar: CAL, events: [sagrada] }))!;
     expect(res.text).toContain('on saturday at 3 that i can book');
@@ -384,7 +384,7 @@ describe('booking request responder: a named night with nothing on (T-143)', () 
   });
 
   it('answers only its own search round', () => {
-    const first = groupAsk('Maya: @trav sagrada tickets saturday for 6');
+    const first = groupAsk('Chase: @trav sagrada tickets saturday for 6');
     const other = { id: 'toolu_offline_venueq_1_x', name: 'search_events', input: {} };
     expect(
       book.complete(after(first, other, { calendar: CAL, events: [sagrada] })),
@@ -438,7 +438,7 @@ describe('a named night with nothing on, through the loop (T-143)', () => {
     h.clock.set('2026-03-10T12:05:00-04:00');
     const auditBefore = h.audit().length;
     const sagrada = await h.say(
-      'h_maya',
+      'h_chase',
       '@trav can you get sagrada familia tickets for all of us saturday at 3',
     );
     expect(sagrada.toolCalls).toEqual(['search_events']);
@@ -447,7 +447,7 @@ describe('a named night with nothing on, through the loop (T-143)', () => {
       'closest is fri mar 13 10am, €26 each · refundable. @ me if you want those instead',
     ]);
     h.clock.set('2026-03-10T12:20:00-04:00');
-    const guell = await h.say('h_jordan', '@trav park güell friday 10am for 6');
+    const guell = await h.say('h_piotr', '@trav park güell friday 10am for 6');
     expect(guell.toolCalls).toEqual(['search_events']);
     expect(textOf(guell)).toContain('nothing for park güell on friday');
     expect(textOf(guell)).toContain('closest is mon mar 16 9:30am, €18 each · non-refundable');
@@ -462,7 +462,7 @@ describe('a named night with nothing on, through the loop (T-143)', () => {
         .filter((t) => /^(booking|approval|proposal|policy)\./.test(t)),
     ).toEqual([]);
     // The member picks the offered night: a normal proposal, policy-evaluated, a 👍 away.
-    const pick = await h.say('h_maya', '@trav sagrada familia tickets for all of us friday');
+    const pick = await h.say('h_chase', '@trav sagrada familia tickets for all of us friday');
     expect(pick.toolCalls).toEqual(['search_events', 'propose_booking']);
     expect(h.pending()).toHaveLength(1);
     expect(h.auditTypes()).toContain('policy.evaluated');
@@ -471,16 +471,16 @@ describe('a named night with nothing on, through the loop (T-143)', () => {
 
   const makeMinor = (h: ReturnType<typeof harness>): void => {
     const stores = h.runtime.stores;
-    const sam = stores.group.members
+    const crowley = stores.group.members
       .listByGroup(BARCELONA.groupId)
-      .find((m) => m.memberId === 'mem_sam')!;
-    stores.group.members.upsert({ ...sam, birthDate: '2010-05-01', ageBand: 'under18' });
+      .find((m) => m.memberId === 'mem_crowley')!;
+    stores.group.members.upsert({ ...crowley, birthDate: '2010-05-01', ageBand: 'under18' });
   };
 
   it("r1 #3: an asked time that isn't on is said, nothing held; the matching time proposes", async () => {
     const h = harness();
     h.clock.set('2026-03-10T12:05:00-04:00');
-    const at3 = await h.say('h_maya', '@trav sagrada familia tickets for all of us friday at 3');
+    const at3 = await h.say('h_chase', '@trav sagrada familia tickets for all of us friday at 3');
     expect(at3.toolCalls).toEqual(['search_events', 'propose_booking']);
     expect(textOf(at3).split('\n')).toEqual([
       'nothing for sagrada família on friday at 3 that i can book. no charge',
@@ -488,12 +488,12 @@ describe('a named night with nothing on, through the loop (T-143)', () => {
     ]);
     expect(h.tickets.holdCount()).toBe(0);
     expect(h.pending()).toEqual([]);
-    const pm = await h.say('h_maya', '@trav sagrada familia tickets for all of us friday 4pm');
+    const pm = await h.say('h_chase', '@trav sagrada familia tickets for all of us friday 4pm');
     expect(textOf(pm)).toContain('on friday at 4pm that i can book');
     expect(h.tickets.holdCount()).toBe(0);
     // Within the hour of the start is that slot: a normal proposal, a 👍 away.
     const ten = await h.say(
-      'h_maya',
+      'h_chase',
       '@trav sagrada familia tickets for all of us friday at 10:30am',
     );
     expect(ten.toolCalls).toEqual(['search_events', 'propose_booking']);
@@ -504,7 +504,7 @@ describe('a named night with nothing on, through the loop (T-143)', () => {
   it('r1 #5: a category ask on a night with nothing lists the venues of the closest night', async () => {
     const h = harness();
     h.clock.set('2026-03-10T12:05:00-04:00');
-    const t = await h.say('h_sam', '@trav club tickets for all of us monday');
+    const t = await h.say('h_crowley', '@trav club tickets for all of us monday');
     expect(t.toolCalls).toEqual(['search_events']);
     const lines = textOf(t).split('\n');
     expect(lines[0]).toBe('nothing for clubs on monday that i can book, no charge. closest:');
@@ -661,7 +661,7 @@ describe('cheaper responder', () => {
     events: unknown[],
     opts: { query?: string; familyMode?: boolean } = {},
   ): CompletionResponse {
-    const first = ask('Sam: @trav anything cheaper');
+    const first = ask('Crowley: @trav anything cheaper');
     const c1 = cheaperResponder.complete(first)!.toolCalls[0]!;
     expect(c1.name).toBe('get_pending_proposals');
     const second = after(first, c1, { proposals });
@@ -713,7 +713,7 @@ describe('cheaper responder', () => {
       description: 'Flamenco at Tablao',
       tier: '',
     };
-    const first = ask('Sam: @trav anything cheaper');
+    const first = ask('Crowley: @trav anything cheaper');
     const c1 = cheaperResponder.complete(first)!.toolCalls[0]!;
     const res = cheaperResponder.complete(
       after(first, c1, { proposals: [barcaPending, razzPending, third] }),
@@ -836,7 +836,7 @@ describe('cheaper responder', () => {
       kind: 'lodging',
       description: 'Eixample 3BR',
     };
-    const first = ask('Sam: @trav anything cheaper');
+    const first = ask('Crowley: @trav anything cheaper');
     const c1 = cheaperResponder.complete(first)!.toolCalls[0]!;
     const alone = cheaperResponder.complete(after(first, c1, { proposals: [stay] }))!;
     expect(alone.toolCalls).toEqual([]);
@@ -862,7 +862,7 @@ describe('cheaper responder', () => {
     const whichLine = `- trav: ${WHICH.replace(/\n/g, ' ')}`;
 
     it('nothing named ⇒ a numbered which-one whose answer this flow reads', () => {
-      const res = pendingRound(ask('Sam: @trav anything cheaper'));
+      const res = pendingRound(ask('Crowley: @trav anything cheaper'));
       expect(res.toolCalls).toEqual([]);
       expect(res.text).toBe(WHICH);
     });
@@ -873,7 +873,7 @@ describe('cheaper responder', () => {
       ['@trav cheaper ones for barça?', 'fc barcelona vs sevilla fc'],
       ['@trav anything cheaper than the vip', 'razzmatazz'],
     ])('the ask names one: %s ⇒ searched directly', (text, query) => {
-      const res = pendingRound(ask(`Sam: ${text}`));
+      const res = pendingRound(ask(`Crowley: ${text}`));
       expect(res.toolCalls[0]).toMatchObject({ name: 'search_events', input: { query } });
     });
 
@@ -885,10 +885,10 @@ describe('cheaper responder', () => {
       ['@trav razz', 'razzmatazz'],
       ['barça', 'fc barcelona vs sevilla fc'],
     ])('a reply to the which-one, inside the window: %s', (text, query) => {
-      const first = withTranscript(`Sam: ${text}`, [
-        '- sam: @trav anything cheaper',
+      const first = withTranscript(`Crowley: ${text}`, [
+        '- crowley: @trav anything cheaper',
         whichLine,
-        `- sam: ${text}`,
+        `- crowley: ${text}`,
       ]);
       const c1 = cheaperResponder.complete(first)!.toolCalls[0]!;
       expect(c1.name).toBe('get_pending_proposals');
@@ -898,25 +898,25 @@ describe('cheaper responder', () => {
 
     it('a reply that names nothing from the question, or no which-one before it, is not claimed', () => {
       for (const text of ['lol ok', 'sounds good', '7', 'sagrada']) {
-        const req = withTranscript(`Sam: ${text}`, [whichLine, `- sam: ${text}`]);
+        const req = withTranscript(`Crowley: ${text}`, [whichLine, `- crowley: ${text}`]);
         expect(cheaperResponder.complete(req), text).toBeUndefined();
       }
       // Trav's last line was something else: "razzmatazz" is not an answer to it.
-      const stale = withTranscript('Sam: razzmatazz', [
+      const stale = withTranscript('Crowley: razzmatazz', [
         whichLine,
         '- trav: cheaper for razzmatazz: €18 each · General admission · refundable',
-        '- sam: razzmatazz',
+        '- crowley: razzmatazz',
       ]);
       expect(cheaperResponder.complete(stale)).toBeUndefined();
       // A member can't fake Trav's line: theirs is prefixed with their own name.
-      const spoof = withTranscript('Sam: 2', [`- sam: ${whichLine}`, '- sam: 2']);
+      const spoof = withTranscript('Crowley: 2', [`- crowley: ${whichLine}`, '- crowley: 2']);
       expect(cheaperResponder.complete(spoof)).toBeUndefined();
     });
 
     it('a name matching both asks again; a name matching neither says so', () => {
-      const both = pendingRound(ask('Sam: @trav anything cheaper for the tickets please'));
+      const both = pendingRound(ask('Crowley: @trav anything cheaper for the tickets please'));
       expect(both.text).toBe(WHICH);
-      const none = pendingRound(ask('Sam: @trav anything cheaper for sagrada'));
+      const none = pendingRound(ask('Crowley: @trav anything cheaper for sagrada'));
       expect(none.toolCalls).toEqual([]);
       expect(none.text).toBe(NOTHING_LIKE_THAT_CHEAPER_TEXT);
     });
@@ -932,7 +932,7 @@ describe('cheaper responder', () => {
     const [held] = h.pending();
     expect(held).toMatchObject({ itemRef: 'off_fcb_sev_tribuna', status: 'pending' });
     const auditBefore = h.audit().length;
-    const turn = await h.say('h_sam', '@trav anything cheaper');
+    const turn = await h.say('h_crowley', '@trav anything cheaper');
     expect(turn.toolCalls).toEqual(['get_pending_proposals', 'search_events']);
     const out = turn.outbound.map((o) => ('text' in o ? o.text : '')).join('\n');
     expect(out.split('\n')).toEqual(BARCA_CHEAPER);
@@ -949,7 +949,7 @@ describe('cheaper responder', () => {
     // The next step works as written: sending the quoted ask puts up a Gol Nord card
     // (a new proposal with its own 👍s); the sideline card is untouched.
     const quoted = /say "([^"]+)"/.exec(out)![1]!;
-    const swap = await h.say('h_sam', quoted);
+    const swap = await h.say('h_crowley', quoted);
     // The quoted ask names a date, so it looks first (T-143), then proposes.
     expect(swap.toolCalls).toEqual(['search_events', 'propose_booking']);
     expect(h.pending().map((p) => [p.itemRef, p.status])).toEqual([
@@ -962,11 +962,11 @@ describe('cheaper responder', () => {
 
   it('T-133 r1 #5: the quoted ask for a club tier proposes that tier', async () => {
     const h = harness();
-    await h.say('h_maya', '@trav book the razz vip mezzanine for all 6 tonight');
-    const turn = await h.say('h_sam', '@trav anything cheaper');
+    await h.say('h_chase', '@trav book the razz vip mezzanine for all 6 tonight');
+    const turn = await h.say('h_crowley', '@trav anything cheaper');
     const out = turn.outbound.map((o) => ('text' in o ? o.text : '')).join('\n');
     expect(out).toMatch(/^cheaper for razzmatazz: €18 each · General admission · refundable\n/);
-    const swap = await h.say('h_sam', /say "([^"]+)"/.exec(out)![1]!);
+    const swap = await h.say('h_crowley', /say "([^"]+)"/.exec(out)![1]!);
     expect(swap.toolCalls).toEqual(['search_events', 'propose_booking']);
     expect(h.pending().map((p) => p.itemRef)).toEqual([
       'off_rzm_20260314_vip',
@@ -981,25 +981,25 @@ describe('cheaper responder', () => {
       'h_dean',
       '@trav barça vs sevilla sunday mar 15, 6 tickets together, sideline not behind the goal',
     );
-    await h.say('h_maya', '@trav book the razz vip mezzanine for all 6 tonight');
+    await h.say('h_chase', '@trav book the razz vip mezzanine for all 6 tonight');
     expect(h.pending()).toHaveLength(2);
     const text = (t: { outbound: readonly unknown[] }): string =>
       t.outbound.map((o) => (o as { text?: string }).text ?? '').join('\n');
-    const q = await h.say('h_sam', '@trav anything cheaper');
+    const q = await h.say('h_crowley', '@trav anything cheaper');
     expect(text(q).split('\n').slice(0, 3)).toEqual([
       'which one?',
       '1. fc barcelona vs sevilla fc tribuna lateral · €432',
       '2. razzmatazz vip mezzanine · €570',
     ]);
-    const byName = await h.say('h_sam', 'razzmatazz');
+    const byName = await h.say('h_crowley', 'razzmatazz');
     expect(byName.toolCalls).toEqual(['get_pending_proposals', 'search_events']);
     expect(text(byName)).toMatch(
       /^cheaper for razzmatazz: €18 each · General admission · refundable\n/,
     );
-    await h.say('h_sam', '@trav anything cheaper');
-    const byNumber = await h.say('h_sam', '1');
+    await h.say('h_crowley', '@trav anything cheaper');
+    const byNumber = await h.say('h_crowley', '1');
     expect(text(byNumber)).toMatch(/^cheaper: €68 each · behind the goal/);
-    const direct = await h.say('h_jordan', '@trav anything cheaper for razzmatazz');
+    const direct = await h.say('h_piotr', '@trav anything cheaper for razzmatazz');
     expect(text(direct)).toMatch(/^cheaper for razzmatazz:/);
     // Read-only throughout.
     expect(h.pending()).toHaveLength(2);
@@ -1008,7 +1008,7 @@ describe('cheaper responder', () => {
 
   // T-133 r2 #1: after the which-one question, a new booking ask is a booking ask.
   it.each([
-    ['h_jordan', '@trav razzmatazz ga for 5'],
+    ['h_piotr', '@trav razzmatazz ga for 5'],
     ['h_henry', '@trav barça tickets for 2'],
     ['h_henry', '@trav book razzmatazz for 5'],
   ])(
@@ -1019,8 +1019,8 @@ describe('cheaper responder', () => {
         'h_dean',
         '@trav barça vs sevilla sunday mar 15, 6 tickets together, sideline not behind the goal',
       );
-      await h.say('h_maya', '@trav book the razz vip mezzanine for all 6 tonight');
-      await h.say('h_sam', '@trav anything cheaper');
+      await h.say('h_chase', '@trav book the razz vip mezzanine for all 6 tonight');
+      await h.say('h_crowley', '@trav anything cheaper');
       const turn = await h.say(who, text);
       expect(turn.toolCalls).not.toContain('search_events');
       expect(turn.toolCalls).not.toEqual(['get_pending_proposals', 'search_events']);
@@ -1179,17 +1179,17 @@ describe('lodging, remember, honest gaps', () => {
   });
 
   it('remember: a fact is stored; a health detail never is', () => {
-    expect(parseRememberAsk('remember jordan always picks the playlist')).toBe(
-      'jordan always picks the playlist',
+    expect(parseRememberAsk('remember piotr always picks the playlist')).toBe(
+      'piotr always picks the playlist',
     );
     const ok = rememberResponder.complete(
-      ask('Sam: @trav remember jordan always picks the playlist'),
+      ask('Crowley: @trav remember piotr always picks the playlist'),
     )!;
     expect(ok.toolCalls[0]).toMatchObject({
       name: 'remember',
-      input: { text: 'jordan always picks the playlist' },
+      input: { text: 'piotr always picks the playlist' },
     });
-    const health = rememberResponder.complete(ask("Sam: @trav remember henry's sick today"))!;
+    const health = rememberResponder.complete(ask("Crowley: @trav remember henry's sick today"))!;
     expect(health.toolCalls).toEqual([]);
     expect(health.text).toBe(HEALTH_MEMORY_TEXT);
   });
@@ -1285,14 +1285,14 @@ describe('T-081 r1 review repros (agent)', () => {
 
   it.each([
     'remember henry gets migraines',
-    'remember sam has asthma',
-    'remember maya had covid last month',
-    'remember jordan has the flu',
-    'remember priya threw up last night',
+    'remember crowley has asthma',
+    'remember chase had covid last month',
+    'remember piotr has the flu',
+    'remember arjun threw up last night',
     'remember henry had a concussion',
     'remember dean is running a fever',
   ])('#7 never stores a health detail: %s', (text) => {
-    const res = rememberResponder.complete(ask(`Sam: @trav ${text}`))!;
+    const res = rememberResponder.complete(ask(`Crowley: @trav ${text}`))!;
     expect(res.toolCalls).toEqual([]);
     expect(res.text).toBe(HEALTH_MEMORY_TEXT);
   });

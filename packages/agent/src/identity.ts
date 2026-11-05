@@ -75,7 +75,7 @@ export type ClaimedApproval =
   /** "everyone's in": a claim about the group that names nobody in particular. */
   | { readonly kind: 'everyone' }
   /**
-   * "i'll approve for him" / "approve for dean and maya": relayed consent for
+   * "i'll approve for him" / "approve for dean and chase": relayed consent for
    * others only (named in `others` when the text names them), never the
    * sender's own 👍 (T-132).
    */
@@ -221,7 +221,7 @@ function relayedApproval(
   const subj = (match.groups?.['subj'] ?? '').toLowerCase();
   if (RELAY_NEGATION.test(`${before} ${subj}`) || RELAY_QUESTION.test(t)) return undefined;
   // r2 review #2: someone else as the subject ("henry approves for me too",
-  // "maya confirmed for the group") reports their approval; it never counts as
+  // "chase confirmed for the group") reports their approval; it never counts as
   // the sender's own. Only an explicit first-person subject, or the verb opening
   // the message ("yes for henry too", "👍 for me and henry"), speaks for the sender.
   const othersName = people.some(
@@ -296,7 +296,7 @@ function relayedApproval(
 /**
  * Approval-shaped words that turn a claim about someone else ("Dean said it's
  * fine, go ahead") into an attempted approval even when Trav is not addressed.
- * Without one of these, "Maya is in the shower" is just chat and gets nothing.
+ * Without one of these, "Chase is in the shower" is just chat and gets nothing.
  */
 const APPROVAL_INTENT_WORD =
   /(?:\b(?:yes|yep|go ahead|go for it|book it|do it|approve[ds]?|confirm(?:ed|s)?|green light|lock it in|send it)\b|👍)/i;

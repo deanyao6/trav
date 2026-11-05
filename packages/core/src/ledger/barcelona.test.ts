@@ -15,10 +15,10 @@ import {
   BARCELONA_MEMBERS,
   DEAN,
   HENRY,
-  JORDAN,
-  MAYA,
-  PRIYA,
-  SAM,
+  PIOTR,
+  CHASE,
+  ARJUN,
+  CROWLEY,
   applyTransfers,
   eur,
   expense,
@@ -29,7 +29,7 @@ import {
 
 const RAZZMATAZZ_ROSTER: SplitContext = {
   memberOrder: BARCELONA_MEMBERS,
-  participantsUniverse: [DEAN, MAYA, SAM, JORDAN, PRIYA],
+  participantsUniverse: [DEAN, CHASE, CROWLEY, PIOTR, ARJUN],
 };
 
 function barcelonaExpenses(): Expense[] {
@@ -58,10 +58,10 @@ function barcelonaExpenses(): Expense[] {
       expenseId: 'exp_dinner',
       description: 'bar del pla',
       amount: eur(18400),
-      paidBy: [{ memberId: JORDAN, amount: eur(18400) }],
+      paidBy: [{ memberId: PIOTR, amount: eur(18400) }],
       split: itemized(BARCELONA_MEMBERS, [
         line('food', 12600),
-        line('drinks', 5800, [DEAN, MAYA, SAM, HENRY, JORDAN]),
+        line('drinks', 5800, [DEAN, CHASE, CROWLEY, HENRY, PIOTR]),
       ]),
     }),
     expense({
@@ -69,12 +69,12 @@ function barcelonaExpenses(): Expense[] {
       description: 'taxi from the airport',
       category: 'transport',
       amount: eur(3200),
-      paidBy: [{ memberId: MAYA, amount: eur(3200) }],
+      paidBy: [{ memberId: CHASE, amount: eur(3200) }],
       split: {
         method: 'weighted',
         weights: [
-          { memberId: SAM, weight: 20 },
-          { memberId: MAYA, weight: 12 },
+          { memberId: CROWLEY, weight: 20 },
+          { memberId: CHASE, weight: 12 },
         ],
       },
     }),
@@ -84,8 +84,8 @@ function barcelonaExpenses(): Expense[] {
       category: 'groceries',
       amount: eur(6117),
       paidBy: [
-        { memberId: SAM, amount: eur(4000) },
-        { memberId: PRIYA, amount: eur(2117) },
+        { memberId: CROWLEY, amount: eur(4000) },
+        { memberId: ARJUN, amount: eur(2117) },
       ],
       split: { method: 'equal', participants: BARCELONA_MEMBERS },
     }),
@@ -99,8 +99,8 @@ function barcelonaExpenses(): Expense[] {
         method: 'exact',
         amounts: [
           { memberId: DEAN, amount: eur(10000) },
-          { memberId: MAYA, amount: eur(10000) },
-          { memberId: JORDAN, amount: eur(10000) },
+          { memberId: CHASE, amount: eur(10000) },
+          { memberId: PIOTR, amount: eur(10000) },
         ],
       },
     }),
@@ -126,10 +126,10 @@ describe('Barcelona (6 friends)', () => {
     const razz = entries.filter((e) => e.expenseId === 'exp_razzmatazz');
     expect(razz.filter((e) => e.kind === 'owes').map((e) => e.memberId)).toEqual([
       DEAN,
-      MAYA,
-      SAM,
-      JORDAN,
-      PRIYA,
+      CHASE,
+      CROWLEY,
+      PIOTR,
+      ARJUN,
     ]);
     expect(razz.filter((e) => e.kind === 'owes').every((e) => e.amount.amountMinor === 2250)).toBe(
       true,
@@ -145,11 +145,11 @@ describe('Barcelona (6 friends)', () => {
     );
     expect(balances.map((b) => [b.memberId, b.net.amountMinor])).toEqual([
       [DEAN, 149720],
-      [MAYA, -39529],
-      [SAM, -29530],
+      [CHASE, -39529],
+      [CROWLEY, -29530],
       [HENRY, -29279],
-      [JORDAN, -23129],
-      [PRIYA, -28253],
+      [PIOTR, -23129],
+      [ARJUN, -28253],
     ]);
     expect(balances.reduce((acc, b) => acc + b.net.amountMinor, 0)).toBe(0);
   });
@@ -162,11 +162,11 @@ describe('Barcelona (6 friends)', () => {
     );
     const transfers = settle(balances);
     expect(transfers).toEqual([
-      { from: MAYA, to: DEAN, amount: eur(39529) },
-      { from: SAM, to: DEAN, amount: eur(29530) },
+      { from: CHASE, to: DEAN, amount: eur(39529) },
+      { from: CROWLEY, to: DEAN, amount: eur(29530) },
       { from: HENRY, to: DEAN, amount: eur(29279) },
-      { from: JORDAN, to: DEAN, amount: eur(23129) },
-      { from: PRIYA, to: DEAN, amount: eur(28253) },
+      { from: PIOTR, to: DEAN, amount: eur(23129) },
+      { from: ARJUN, to: DEAN, amount: eur(28253) },
     ]);
     expect(transfers.length).toBeLessThanOrEqual(BARCELONA_MEMBERS.length - 1);
     expect([...applyTransfers(balances, transfers).values()]).toEqual([0, 0, 0, 0, 0, 0]);

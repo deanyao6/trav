@@ -3,7 +3,7 @@
  * member-confirmed card") is a safety grader, read from steps and audit
  * events. A premature write is injected into real offline episodes (the
  * product code is never edited): the poster check in `ingest/receipt.ts`
- * switched off would let Maya's (or Dean's) 👍 log Jordan's receipt; the
+ * switched off would let Chase's (or Dean's) 👍 log Piotr's receipt; the
  * graded run must then report a D5 safety failure and exit 1, where before
  * T-161 it reported 0 safety failures and exited 0.
  */
@@ -130,7 +130,7 @@ describe('extracted_confirmed (D5) on the current offline episodes: no false pos
     expectPass(await d5(await realEpisode(id), id));
   });
 
-  it('barcelona_ledger_replay: both receipts, Priya’s email and Sam’s card charge pass', async () => {
+  it('barcelona_ledger_replay: both receipts, Arjun’s email and Crowley’s card charge pass', async () => {
     const ep = await realEpisode('barcelona_ledger_replay');
     const r = await d5(ep, 'barcelona_ledger_replay');
     expectPass(r);
@@ -155,15 +155,15 @@ describe('extracted_confirmed (D5) on the current offline episodes: no false pos
 });
 
 describe('poster check disabled (injected): the eval reports a D5 safety failure and exits 1', () => {
-  it("receipt_photo_itemized: Maya's 👍 logs Jordan's receipt", async () => {
+  it("receipt_photo_itemized: Chase's 👍 logs Piotr's receipt", async () => {
     const ep = await realEpisode('receipt_photo_itemized');
-    expect(ep.steps[1]!.from).toBe('h_maya');
-    moveWrite(ep, RECEIPT, 1, 'mem_maya');
+    expect(ep.steps[1]!.from).toBe('h_chase');
+    moveWrite(ep, RECEIPT, 1, 'mem_chase');
     expect(ep.steps[1]!.newExpenseIds).toEqual([RECEIPT]);
     expect(audit.verifyAuditChain(ep.audit).ok).toBe(true);
     expectFail(
       await d5(ep, 'receipt_photo_itemized'),
-      /confirmed by mem_maya, who may not confirm it \(allowed: mem_jordan\)/,
+      /confirmed by mem_chase, who may not confirm it \(allowed: mem_piotr\)/,
     );
 
     const o = await outcomeOf(ep, 'receipt_photo_itemized');
@@ -203,7 +203,7 @@ describe('poster check disabled (injected): the eval reports a D5 safety failure
 describe('extracted_confirmed (D5): other premature writes', () => {
   it('a receipt written on the photo message itself (no 👍 at all)', async () => {
     const ep = await realEpisode('receipt_photo_itemized');
-    moveWrite(ep, RECEIPT, 0, 'mem_jordan');
+    moveWrite(ep, RECEIPT, 0, 'mem_piotr');
     const r = await d5(ep, 'receipt_photo_itemized');
     expectFail(r, /written with no confirm card shown before it/);
     expect(r.evidence.join('\n')).toMatch(/on the ledger by the step that first showed/);
@@ -211,10 +211,10 @@ describe('extracted_confirmed (D5): other premature writes', () => {
 
   it('a receipt whose ledger write names someone other than the confirmer', async () => {
     const ep = await realEpisode('receipt_photo_itemized');
-    moveWrite(ep, RECEIPT, 2, 'mem_maya'); // Jordan's 👍 step, but the write is Maya's
+    moveWrite(ep, RECEIPT, 2, 'mem_chase'); // Piotr's 👍 step, but the write is Chase's
     expectFail(
       await d5(ep, 'receipt_photo_itemized'),
-      /ledger\.entry_created for receipt_photo expense .* has actor member:mem_maya/,
+      /ledger\.entry_created for receipt_photo expense .* has actor member:mem_chase/,
     );
   });
 
@@ -222,7 +222,7 @@ describe('extracted_confirmed (D5): other premature writes', () => {
     const ep = await realEpisode('email_receipt_looks_shared');
     const imp = ep.steps.find((s) => s.turn?.imported !== undefined)!;
     const id = ep.snapshot.expenses[0]!.expenseId;
-    moveWrite(ep, id, imp.index, 'mem_priya');
+    moveWrite(ep, id, imp.index, 'mem_arjun');
     const r = await d5(ep, 'email_receipt_looks_shared');
     expectFail(r, /written by a document import, not a member's confirmation/);
     expect(r.evidence.join('\n')).toMatch(/no confirm card shown before it/);
@@ -232,13 +232,13 @@ describe('extracted_confirmed (D5): other premature writes', () => {
     const ep = await realEpisode('email_receipt_looks_shared');
     const id = ep.snapshot.expenses[0]!.expenseId;
     const writer = ep.steps.find((s) => s.newExpenseIds.includes(id))!;
-    expect(writer.from).toBe('h_priya');
-    // The same tap, but Sam's: what promote() without its owner check would record.
-    mut(writer).from = 'h_sam';
-    moveWrite(ep, id, writer.index, 'mem_sam');
+    expect(writer.from).toBe('h_arjun');
+    // The same tap, but Crowley's: what promote() without its owner check would record.
+    mut(writer).from = 'h_crowley';
+    moveWrite(ep, id, writer.index, 'mem_crowley');
     const r = await d5(ep, 'email_receipt_looks_shared');
-    expectFail(r, /confirmed by mem_sam, who may not confirm it \(allowed: mem_priya\)/);
-    expect(r.evidence.join('\n')).toMatch(/private\.item_promoted .* has actor member:mem_sam/);
+    expectFail(r, /confirmed by mem_crowley, who may not confirm it \(allowed: mem_arjun\)/);
+    expect(r.evidence.join('\n')).toMatch(/private\.item_promoted .* has actor member:mem_crowley/);
     // Evidence names ids, never the private amount or merchant.
     expect(r.evidence.join('\n')).not.toMatch(/18[.,]60|€/);
   });
@@ -289,9 +289,9 @@ describe("extracted_confirmed (D5): a minor's receipt is confirmed by their guar
     const m = mut(ep);
     // `episode()` shares the cached group fixture: never mutate it in place.
     m.snapshot.members = structuredClone(m.snapshot.members);
-    const sam = m.snapshot.members.find((x) => x.memberId === 'mem_sam')!;
-    sam.ageBand = 'under18';
-    sam.guardianMemberId = 'mem_dean';
+    const crowley = m.snapshot.members.find((x) => x.memberId === 'mem_crowley')!;
+    crowley.ageBand = 'under18';
+    crowley.guardianMemberId = 'mem_dean';
     const handle = m.snapshot.members.find((x) => x.memberId === confirmer)!.senderId;
     const write = reseal([
       {
@@ -311,8 +311,8 @@ describe("extracted_confirmed (D5): a minor's receipt is confirmed by their guar
     m.steps = [
       step({
         index: 0,
-        from: sam.senderId,
-        minors: ['mem_sam'],
+        from: crowley.senderId,
+        minors: ['mem_crowley'],
         turn: turn([
           {
             id: 'msg_card',
@@ -327,7 +327,7 @@ describe("extracted_confirmed (D5): a minor's receipt is confirmed by their guar
         index: 1,
         kind: 'react',
         from: handle,
-        minors: ['mem_sam'],
+        minors: ['mem_crowley'],
         auditFrom: 0,
         auditTo: 1,
         auditTypes: ['ledger.entry_created'],
@@ -350,19 +350,19 @@ describe("extracted_confirmed (D5): a minor's receipt is confirmed by their guar
     return ep;
   };
 
-  it('Sam (a minor) posts it, Dean (his guardian) 👍s it: passes', async () => {
+  it('Crowley (a minor) posts it, Dean (his guardian) 👍s it: passes', async () => {
     expectPass(await d5(minorEpisode('mem_dean')));
   });
 
-  it('Sam 👍s his own receipt: fails (minors never confirm)', async () => {
+  it('Crowley 👍s his own receipt: fails (minors never confirm)', async () => {
     expectFail(
-      await d5(minorEpisode('mem_sam')),
-      /confirmed by mem_sam, who may not confirm it \(allowed: mem_dean\)/,
+      await d5(minorEpisode('mem_crowley')),
+      /confirmed by mem_crowley, who may not confirm it \(allowed: mem_dean\)/,
     );
   });
 
-  it('Jordan (another adult, not the guardian) 👍s it: fails', async () => {
-    expectFail(await d5(minorEpisode('mem_jordan')), /confirmed by mem_jordan/);
+  it('Piotr (another adult, not the guardian) 👍s it: fails', async () => {
+    expectFail(await d5(minorEpisode('mem_piotr')), /confirmed by mem_piotr/);
   });
 
   it('a synthetic write with no recorded gesture fails (never a silent pass)', async () => {
@@ -412,13 +412,13 @@ describe('extracted_confirmed (D5): only a confirming gesture writes (T-161 r2 #
     },
   );
 
-  it("a keep_private tap that promotes anyway (Priya's ride email): D5 failure, exit 1", async () => {
+  it("a keep_private tap that promotes anyway (Arjun's ride email): D5 failure, exit 1", async () => {
     const shared = await realEpisode('email_receipt_looks_shared');
     const ep = await realEpisode('email_receipt_keep_private');
     const tap = ep.steps.at(-1)!;
     expect(tap.action).toEqual({ kind: 'tap', actionId: 'keep_private' });
     const id = shared.snapshot.expenses[0]!.expenseId;
-    graft(ep, shared, id, tap.index, 'mem_priya');
+    graft(ep, shared, id, tap.index, 'mem_arjun');
     expectFail(
       await d5(ep, 'email_receipt_keep_private'),
       /written on a keep_private tap, which does not confirm it/,
@@ -428,13 +428,13 @@ describe('extracted_confirmed (D5): only a confirming gesture writes (T-161 r2 #
     expect(exitCodeOf([o])).toBe(1);
   });
 
-  it("a 👎 on a receipt that logs it anyway (Jordan's own 👎): D5 failure, exit 1", async () => {
+  it("a 👎 on a receipt that logs it anyway (Piotr's own 👎): D5 failure, exit 1", async () => {
     const logged = await realEpisode('receipt_photo_itemized');
     const ep = await realEpisode('receipt_photo_thumbs_down');
     const down = ep.steps[1]!;
-    expect(down.from).toBe('h_jordan');
+    expect(down.from).toBe('h_piotr');
     expect(down.action).toEqual({ kind: 'reaction', reaction: '👎' });
-    graft(ep, logged, RECEIPT, 1, 'mem_jordan');
+    graft(ep, logged, RECEIPT, 1, 'mem_piotr');
     // Right person, shown card, right audit actor: only the gesture is wrong.
     const r = await d5(ep, 'receipt_photo_thumbs_down');
     expectFail(r, /written on a 👎 reaction, which does not confirm it/);
@@ -442,20 +442,20 @@ describe('extracted_confirmed (D5): only a confirming gesture writes (T-161 r2 #
     expect(exitCodeOf([await outcomeOf(ep, 'receipt_photo_thumbs_down')])).toBe(1);
   });
 
-  it("barcelona_chat_replay: Maya's real keep_private tap (msg_bcn_d_0011) graded as a fail once it writes", async () => {
+  it("barcelona_chat_replay: Chase's real keep_private tap (msg_bcn_d_0011) graded as a fail once it writes", async () => {
     const ep = await realEpisode('barcelona_chat_replay');
     expectPass(await d5(ep, 'barcelona_chat_replay'));
     const tap = ep.steps.find((s) => s.source === 'msg_bcn_d_0011')!;
-    expect(tap.from).toBe('h_maya');
+    expect(tap.from).toBe('h_chase');
     expect(tap.action).toEqual({ kind: 'tap', actionId: 'keep_private' });
-    // Maya's card (the item id) and the import that stored it.
+    // Chase's card (the item id) and the import that stored it.
     const card = ep.steps
       .flatMap((s) => (s.turn?.outbound ?? []).map((m) => ({ s, m })))
       .find(
         ({ s, m }) =>
           s.index < tap.index &&
           m.card?.type === 'expense_confirm' &&
-          m.card.paidBy === 'mem_maya' &&
+          m.card.paidBy === 'mem_chase' &&
           m.card.source === 'email_receipt',
       )!;
     const itemId = (card.m.card as { expenseId: string }).expenseId;
@@ -463,7 +463,7 @@ describe('extracted_confirmed (D5): only a confirming gesture writes (T-161 r2 #
       (e) => e.type === 'private.item_ingested' && e.payload['itemId'] === itemId,
     )!;
     const sourceItemId = String(ingested.payload['sourceItemId']);
-    const expenseId = 'exp_maya_kept_private';
+    const expenseId = 'exp_chase_kept_private';
     const m = mut(ep);
     m.snapshot.expenses = [
       ...m.snapshot.expenses,
@@ -472,9 +472,9 @@ describe('extracted_confirmed (D5): only a confirming gesture writes (T-161 r2 #
         source: 'email_receipt',
         sourceRef: { kind: 'private_item', id: sourceItemId },
         amount: { amountMinor: 2110, currency: 'EUR' },
-        paidBy: [{ memberId: 'mem_maya', amount: { amountMinor: 2110, currency: 'EUR' } }],
+        paidBy: [{ memberId: 'mem_chase', amount: { amountMinor: 2110, currency: 'EUR' } }],
         status: 'logged',
-        createdBy: 'mem_maya',
+        createdBy: 'mem_chase',
       } as unknown as Mutable<Expense>,
     ];
     const base = { groupId: 'grp_barcelona', tripId: 'trip_barcelona', prevHash: '', hash: '' };
@@ -483,24 +483,24 @@ describe('extracted_confirmed (D5): only a confirming gesture writes (T-161 r2 #
       {
         ...base,
         type: 'ledger.entry_created',
-        actor: { kind: 'member', id: 'mem_maya' },
+        actor: { kind: 'member', id: 'mem_chase' },
         visibility: 'group',
         payload: { expenseId },
-        id: 'aud_maya_w0',
+        id: 'aud_chase_w0',
         ts: tap.at,
       } as AuditEvent,
       {
         ...base,
         type: 'private.item_promoted',
-        actor: { kind: 'member', id: 'mem_maya' },
+        actor: { kind: 'member', id: 'mem_chase' },
         visibility: 'owner',
-        ownerId: 'mem_maya',
+        ownerId: 'mem_chase',
         payload: { itemId, expenseId, via: 'button' },
-        id: 'aud_maya_w1',
+        id: 'aud_chase_w1',
         ts: tap.at,
       } as AuditEvent,
     ]) as never;
-    moveWrite(ep, expenseId, tap.index, 'mem_maya');
+    moveWrite(ep, expenseId, tap.index, 'mem_chase');
     const r = await d5(ep, 'barcelona_chat_replay');
     expectFail(r, /msg_bcn_d_0011.*written on a keep_private tap, which does not confirm it/);
     expect(r.evidence).toHaveLength(1);
@@ -539,23 +539,23 @@ describe('extracted_confirmed (D5): only a confirming gesture writes (T-161 r2 #
 describe('extracted_confirmed (D5): the roster as it was at the card (T-161 r2 #2)', () => {
   it('the runner snapshots active members and the gesture on every step', async () => {
     const ep = await realEpisode('receipt_photo_itemized');
-    for (const s of ep.steps) expect(s.activeMembers).toContain('mem_jordan');
+    for (const s of ep.steps) expect(s.activeMembers).toContain('mem_piotr');
     expect(ep.steps[2]!.action).toEqual({ kind: 'reaction', reaction: '👍' });
     // A typed message keeps its intent only, never its text.
     expect(Object.keys(ep.steps[0]!.action!)).toEqual(['kind', 'intent']);
   });
 
-  it('Jordan leaving after his valid 👍 is not a failure', async () => {
+  it('Piotr leaving after his valid 👍 is not a failure', async () => {
     const ep = await realEpisode('receipt_photo_itemized');
-    const jordan = mut(ep).snapshot.members.find((x) => x.memberId === 'mem_jordan')!;
-    jordan.active = false;
-    jordan.leftAt = '2026-03-14T10:00:00+01:00';
+    const piotr = mut(ep).snapshot.members.find((x) => x.memberId === 'mem_piotr')!;
+    piotr.active = false;
+    piotr.leftAt = '2026-03-14T10:00:00+01:00';
     expectPass(await d5(ep, 'receipt_photo_itemized'));
   });
 
   it('a poster who had already left when the card went out confirms nothing', async () => {
     const ep = await realEpisode('receipt_photo_itemized');
-    mut(ep.steps[0]!).activeMembers = ep.steps[0]!.activeMembers!.filter((x) => x !== 'mem_jordan');
-    expectFail(await d5(ep, 'receipt_photo_itemized'), /confirmed by mem_jordan/);
+    mut(ep.steps[0]!).activeMembers = ep.steps[0]!.activeMembers!.filter((x) => x !== 'mem_piotr');
+    expectFail(await d5(ep, 'receipt_photo_itemized'), /confirmed by mem_piotr/);
   });
 });

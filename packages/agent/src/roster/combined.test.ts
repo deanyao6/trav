@@ -31,7 +31,7 @@ import { handleRosterMessage } from './turn.js';
 const G = BARCELONA.groupId;
 const T = BARCELONA.tripId;
 const RAZZ = BARCELONA.razzmatazzActivityId;
-const ORDER = ['mem_dean', 'mem_henry', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam'];
+const ORDER = ['mem_dean', 'mem_henry', 'mem_chase', 'mem_piotr', 'mem_arjun', 'mem_crowley'];
 const NOT_HENRY = ORDER.filter((id) => id !== 'mem_henry');
 /** Words that would mean a reason leaked (SAFETY §2.8). */
 const REASON = /\b(?:sick|ill|hungover|unwell|fever|feel(?:s|ing)? (?:off|bad))\b/i;
@@ -90,7 +90,7 @@ function mark(
   });
 }
 
-function turn(stores: Stores, text: string, now: string, from = 'mem_sam') {
+function turn(stores: Stores, text: string, now: string, from = 'mem_crowley') {
   const members = stores.group.members.listByGroup(G);
   return handleRosterMessage({
     group: stores.group,
@@ -161,27 +161,29 @@ describe('parseCombinedRoster', () => {
   });
 
   it('other shapes: number words, "we\'re", first person, pairs, "everyone", place inside the headcount, tomorrow', () => {
-    expect(parseCombinedRoster("@trav we're five tonight, maya's out")).toMatchObject({
+    expect(parseCombinedRoster("@trav we're five tonight, chase's out")).toMatchObject({
       count: 5,
-      changes: [{ who: 'maya', status: 'out' }],
+      changes: [{ who: 'chase', status: 'out' }],
       when: 'tonight',
     });
     expect(parseCombinedRoster("trav, 4 of us, i'm out")).toMatchObject({
       count: 4,
       changes: [{ who: 'me', status: 'out' }],
     });
-    expect(parseCombinedRoster('@trav just the 4 of us, henry and maya are out')).toMatchObject({
+    expect(parseCombinedRoster('@trav just the 4 of us, henry and chase are out')).toMatchObject({
       count: 4,
       changes: [
         { who: 'henry', status: 'out' },
-        { who: 'maya', status: 'out' },
+        { who: 'chase', status: 'out' },
       ],
     });
     expect(parseCombinedRoster("@trav everyone's in, henry's back")).toEqual({
       all: true,
       changes: [{ who: 'henry', status: 'in' }],
     });
-    expect(parseCombinedRoster("@trav the 5 of us for apolo tomorrow, sam's out")).toMatchObject({
+    expect(
+      parseCombinedRoster("@trav the 5 of us for apolo tomorrow, crowley's out"),
+    ).toMatchObject({
       count: 5,
       hint: 'apolo',
       when: 'tomorrow',
@@ -251,14 +253,14 @@ describe('planParty', () => {
   it('a recorded "out" or "maybe" is never overridden by a headcount: one question instead', () => {
     const plan = planParty({
       members,
-      roster: roster(['mem_dean', 'mem_maya', 'mem_priya'], [], ['mem_jordan']),
+      roster: roster(['mem_dean', 'mem_chase', 'mem_arjun'], [], ['mem_piotr']),
       changes: [{ memberId: 'mem_henry', status: 'in' }],
       count: 6,
       all: true,
     });
     expect(plan).toEqual({
       kind: 'mismatch',
-      text: "you said 6, but i've only got 5: Dean, Henry, Maya, Priya, Sam. who else is in?",
+      text: "you said 6, but i've only got 5: Dean, Henry, Chase, Arjun, Crowley. who else is in?",
     });
   });
 
@@ -267,7 +269,7 @@ describe('planParty', () => {
       planParty({ members, roster: roster([]), changes: henryOut, count: 4, all: false }),
     ).toEqual({
       kind: 'mismatch',
-      text: "you said 4, but that's 5: Dean, Maya, Jordan, Priya, Sam. who else is out?",
+      text: "you said 4, but that's 5: Dean, Chase, Piotr, Arjun, Crowley. who else is out?",
     });
     expect(
       planParty({
@@ -288,12 +290,12 @@ describe('planParty', () => {
       changes: [{ memberId: 'mem_henry', status: 'in' }],
       count: 6,
       all: true,
-      noFill: new Set(['mem_sam']),
+      noFill: new Set(['mem_crowley']),
     });
     expect(plan).toEqual({
       kind: 'mismatch',
-      text: "that's 5 for this one: Dean, Henry, Maya, Jordan, Priya. Sam stays off this plan, it's not all-ages",
-      keptOff: ['mem_sam'],
+      text: "that's 5 for this one: Dean, Henry, Chase, Piotr, Arjun. Crowley stays off this plan, it's not all-ages",
+      keptOff: ['mem_crowley'],
     });
     expect(plan.kind === 'mismatch' && plan.text.includes('?')).toBe(false);
     expect(plan.kind === 'mismatch' && lint(plan.text)).toEqual([]);
@@ -397,7 +399,7 @@ describe('handleRosterMessage: combined sentences', () => {
       mem_henry: 'out',
     });
     expect(r?.text.split('\n')).toEqual([
-      'bars in el born tonight: 5 in · Dean, Maya, Jordan, Priya, Sam',
+      'bars in el born tonight: 5 in · Dean, Chase, Piotr, Arjun, Crowley',
       'out: Henry',
     ]);
     expect(r?.kind === 'party' && r.notice?.changes).toHaveLength(6);
@@ -428,7 +430,7 @@ describe('handleRosterMessage: combined sentences', () => {
       quantity: 6,
     });
     expect(r?.text).toBe(
-      'last night out (apolo) tonight: 6 in · Dean, Henry, Maya, Jordan, Priya, Sam',
+      'last night out (apolo) tonight: 6 in · Dean, Henry, Chase, Piotr, Arjun, Crowley',
     );
   });
 
@@ -445,7 +447,7 @@ describe('handleRosterMessage: combined sentences', () => {
     const r = turn(stores, "@trav it's the 4 of us tonight, henry's out", FRI_2334);
     expect(r).toMatchObject({ kind: 'clarify' });
     expect(r?.text).toBe(
-      "you said 4, but that's 5: Dean, Maya, Jordan, Priya, Sam. who else is out?",
+      "you said 4, but that's 5: Dean, Chase, Piotr, Arjun, Crowley. who else is out?",
     );
     expect(stores.group.trips.listAttendance(ELBORN.activityId)).toEqual([]);
     expect(stores.group.audit.listByGroup(G).length).toBe(before);
@@ -460,7 +462,7 @@ describe('handleRosterMessage: combined sentences', () => {
       text: 'nothing on the plan for tonight yet',
     });
     expect(turn(stores, "@trav it's the 5 of us tonight, ava's out", FRI_2334)).toBeUndefined();
-    expect(turn(stores, "@trav 5 of us, sam's out, henry", FRI_2334)).toBeUndefined();
+    expect(turn(stores, "@trav 5 of us, crowley's out, henry", FRI_2334)).toBeUndefined();
     expect(turn(stores, "@trav 5 of us, henry's out, henry's in", FRI_2334)).toBeUndefined();
     expect(stores.group.trips.listAttendance(ELBORN.activityId)).toEqual([]);
   });
@@ -479,7 +481,7 @@ describe('handleRosterMessage: combined sentences', () => {
         group: stores.group,
         trip: stores.group.trips.get(T)!,
         members,
-        me: members.find((m) => m.memberId === 'mem_sam')!,
+        me: members.find((m) => m.memberId === 'mem_crowley')!,
         text: "all 6, henry's back. razzmatazz",
         messageId: 'msg_c',
         now: MON_1702,
@@ -491,30 +493,30 @@ describe('handleRosterMessage: combined sentences', () => {
 
   it('a minor is never filled into an 18+ plan by a headcount', () => {
     const { stores, members } = world();
-    const sam = members.find((m) => m.memberId === 'mem_sam')!;
-    stores.group.members.upsert({ ...sam, birthDate: '2010-05-01', ageBand: 'under18' });
+    const crowley = members.find((m) => m.memberId === 'mem_crowley')!;
+    stores.group.members.upsert({ ...crowley, birthDate: '2010-05-01', ageBand: 'under18' });
     const r = turn(stores, "all 6, henry's back. razzmatazz", MON_1702, 'mem_dean');
     expect(r?.kind).toBe('clarify');
-    expect(statuses(stores, CLUB_D5.activityId)['mem_sam']).toBeUndefined();
+    expect(statuses(stores, CLUB_D5.activityId)['mem_crowley']).toBeUndefined();
   });
 
   describe('a minor named in on an 18+ plan (T-153)', () => {
     function minorWorld(): ReturnType<typeof world> {
       const w = world();
-      const sam = w.members.find((m) => m.memberId === 'mem_sam')!;
-      w.stores.group.members.upsert({ ...sam, birthDate: '2010-05-01', ageBand: 'under18' });
+      const crowley = w.members.find((m) => m.memberId === 'mem_crowley')!;
+      w.stores.group.members.upsert({ ...crowley, birthDate: '2010-05-01', ageBand: 'under18' });
       return { ...w, members: w.stores.group.members.listByGroup(G) };
     }
-    const ADULTS = ORDER.filter((id) => id !== 'mem_sam');
-    const LINE = "Sam stays off this plan, it's not all-ages";
+    const ADULTS = ORDER.filter((id) => id !== 'mem_crowley');
+    const LINE = "Crowley stays off this plan, it's not all-ages";
 
-    it('"5 of us, sam\'s in": the 5 adults are written, Sam is not, one line says Sam stays off', () => {
+    it('"5 of us, crowley\'s in": the 5 adults are written, Crowley is not, one line says Crowley stays off', () => {
       const { stores } = minorWorld();
-      const r = turn(stores, "@trav it's the 5 of us tonight, sam's in", MON_1702, 'mem_dean');
+      const r = turn(stores, "@trav it's the 5 of us tonight, crowley's in", MON_1702, 'mem_dean');
       expect(r?.kind).toBe('party');
       if (r?.kind !== 'party') return;
       expect(r.text.split('\n')).toEqual([
-        "the adults' plan tonight: 5 in · Dean, Henry, Maya, Jordan, Priya", // T-154: the 18+ plan is not named in a family group
+        "the adults' plan tonight: 5 in · Dean, Henry, Chase, Piotr, Arjun", // T-154: the 18+ plan is not named in a family group
         LINE,
       ]);
       expect(r.changes.map((c) => c.memberId)).toEqual(ADULTS);
@@ -531,79 +533,79 @@ describe('handleRosterMessage: combined sentences', () => {
     it('an adult and the minor named together: the adult is written, the minor stays off (and an earlier "out" stays)', () => {
       const { stores } = minorWorld();
       mark(stores, CLUB_D5.activityId, 'mem_henry', 'out');
-      mark(stores, CLUB_D5.activityId, 'mem_sam', 'out');
+      mark(stores, CLUB_D5.activityId, 'mem_crowley', 'out');
       const r = turn(
         stores,
-        "@trav it's the 5 of us tonight, henry and sam are in",
+        "@trav it's the 5 of us tonight, henry and crowley are in",
         MON_1702,
         'mem_dean',
       );
       expect(r?.kind).toBe('party');
       expect(r?.text.split('\n').at(-1)).toBe(LINE);
       if (r?.kind === 'party') {
-        expect(r.notice?.changes.some((c) => c.memberId === 'mem_sam')).toBe(false);
+        expect(r.notice?.changes.some((c) => c.memberId === 'mem_crowley')).toBe(false);
       }
       expect(statuses(stores, CLUB_D5.activityId)).toEqual({
         ...Object.fromEntries(ADULTS.map((id) => [id, 'in'])),
-        mem_sam: 'out',
+        mem_crowley: 'out',
       });
     });
 
-    it('"5 of us tonight, i\'m in" from the minor: Sam is not written in', () => {
+    it('"5 of us tonight, i\'m in" from the minor: Crowley is not written in', () => {
       const { stores } = minorWorld();
-      const r = turn(stores, "@trav 5 of us tonight, i'm in", MON_1702, 'mem_sam');
+      const r = turn(stores, "@trav 5 of us tonight, i'm in", MON_1702, 'mem_crowley');
       expect(r?.text.split('\n').at(-1)).toBe(LINE);
-      expect(statuses(stores, CLUB_D5.activityId)['mem_sam']).toBeUndefined();
+      expect(statuses(stores, CLUB_D5.activityId)['mem_crowley']).toBeUndefined();
     });
 
-    it('"all 6, sam\'s in": one question-free line naming Sam once, nothing written', () => {
+    it('"all 6, crowley\'s in": one question-free line naming Crowley once, nothing written', () => {
       const { stores } = minorWorld();
       const before = stores.group.audit.listByGroup(G).length;
-      const r = turn(stores, "@trav all 6, sam's in", MON_1702, 'mem_dean');
+      const r = turn(stores, "@trav all 6, crowley's in", MON_1702, 'mem_dean');
       expect(r?.kind).toBe('clarify');
       expect(r?.text).toBe(
-        "that's 5 for this one: Dean, Henry, Maya, Jordan, Priya. Sam stays off this plan, it's not all-ages",
+        "that's 5 for this one: Dean, Henry, Chase, Piotr, Arjun. Crowley stays off this plan, it's not all-ages",
       );
       expect(stores.group.trips.listAttendance(CLUB_D5.activityId)).toEqual([]);
       expect(stores.group.audit.listByGroup(G).length).toBe(before);
     });
 
-    it('"6 of us tonight, sam\'s in" with Sam already out: the no-question line, Sam named once', () => {
+    it('"6 of us tonight, crowley\'s in" with Crowley already out: the no-question line, Crowley named once', () => {
       const { stores } = minorWorld();
-      mark(stores, CLUB_D5.activityId, 'mem_sam', 'out');
-      const r = turn(stores, "@trav it's the 6 of us tonight, sam's in", MON_1702, 'mem_dean');
+      mark(stores, CLUB_D5.activityId, 'mem_crowley', 'out');
+      const r = turn(stores, "@trav it's the 6 of us tonight, crowley's in", MON_1702, 'mem_dean');
       expect(r?.kind).toBe('clarify');
-      expect(r?.text).toBe(`that's 5 for this one: Dean, Henry, Maya, Jordan, Priya. ${LINE}`);
+      expect(r?.text).toBe(`that's 5 for this one: Dean, Henry, Chase, Piotr, Arjun. ${LINE}`);
       expect(r?.text).not.toContain('?');
-      expect(statuses(stores, CLUB_D5.activityId)).toEqual({ mem_sam: 'out' });
+      expect(statuses(stores, CLUB_D5.activityId)).toEqual({ mem_crowley: 'out' });
     });
 
-    it('a different mismatch still says Sam stays off, once', () => {
+    it('a different mismatch still says Crowley stays off, once', () => {
       const { stores } = minorWorld();
-      mark(stores, CLUB_D5.activityId, 'mem_sam', 'out');
-      const r = turn(stores, "@trav it's the 8 of us tonight, sam's in", MON_1702, 'mem_dean');
+      mark(stores, CLUB_D5.activityId, 'mem_crowley', 'out');
+      const r = turn(stores, "@trav it's the 8 of us tonight, crowley's in", MON_1702, 'mem_dean');
       expect(r?.kind).toBe('clarify');
       const text = r?.text ?? '';
       expect(text.split('\n').at(-1)).toBe(LINE);
-      expect(text.match(/Sam stays off/g)).toHaveLength(1);
-      expect(statuses(stores, CLUB_D5.activityId)).toEqual({ mem_sam: 'out' });
+      expect(text.match(/Crowley stays off/g)).toHaveLength(1);
+      expect(statuses(stores, CLUB_D5.activityId)).toEqual({ mem_crowley: 'out' });
     });
 
-    it('a stale in row for Sam is set to out before the count, so "5 of us, sam\'s in" is the 5 adults', () => {
+    it('a stale in row for Crowley is set to out before the count, so "5 of us, crowley\'s in" is the 5 adults', () => {
       const { stores } = minorWorld();
-      mark(stores, CLUB_D5.activityId, 'mem_sam', 'in');
-      const r = turn(stores, "@trav it's the 5 of us tonight, sam's in", MON_1702, 'mem_dean');
+      mark(stores, CLUB_D5.activityId, 'mem_crowley', 'in');
+      const r = turn(stores, "@trav it's the 5 of us tonight, crowley's in", MON_1702, 'mem_dean');
       expect(r?.kind).toBe('party');
       if (r?.kind !== 'party') return;
       expect(r.text.split('\n')).toEqual([
-        "the adults' plan tonight: 5 in · Dean, Henry, Maya, Jordan, Priya", // T-154: the 18+ plan is not named in a family group
-        'out: Sam',
+        "the adults' plan tonight: 5 in · Dean, Henry, Chase, Piotr, Arjun", // T-154: the 18+ plan is not named in a family group
+        'out: Crowley',
         LINE,
       ]);
-      expect(r.notice?.changes).toContainEqual({ memberId: 'mem_sam', status: 'out' });
+      expect(r.notice?.changes).toContainEqual({ memberId: 'mem_crowley', status: 'out' });
       expect(statuses(stores, CLUB_D5.activityId)).toEqual({
         ...Object.fromEntries(ADULTS.map((id) => [id, 'in'])),
-        mem_sam: 'out',
+        mem_crowley: 'out',
       });
     });
 
@@ -614,9 +616,9 @@ describe('handleRosterMessage: combined sentences', () => {
         ageRestriction: null,
         contentTags: [],
       });
-      const r = turn(stores, "@trav all 6, sam's in", MON_1702, 'mem_dean');
+      const r = turn(stores, "@trav all 6, crowley's in", MON_1702, 'mem_dean');
       expect(r?.kind).toBe('party');
-      expect(statuses(stores, CLUB_D5.activityId)['mem_sam']).toBe('in');
+      expect(statuses(stores, CLUB_D5.activityId)['mem_crowley']).toBe('in');
       expect(r?.text).not.toContain('stays off');
     });
   });
@@ -641,14 +643,14 @@ describe('combined sentences through the loop (offline, no model)', () => {
   it('"@trav all 6, henry\'s back. razzmatazz": 6 in, one search, one message naming monday, no proposal', async () => {
     const h = monday();
     mark(h.runtime.stores, CLUB_D5.activityId, 'mem_henry', 'out');
-    const r = await h.say('h_sam', "@trav all 6, henry's back. razzmatazz");
+    const r = await h.say('h_crowley', "@trav all 6, henry's back. razzmatazz");
     expect(r.note).toBe('roster:party');
     expect(r.toolCalls).toEqual(['search_events']);
     expect(h.model.completions).toHaveLength(0);
     const out = messages(r);
     expect(out).toHaveLength(1);
     expect(out[0]!.text.split('\n')).toEqual([
-      'last night out (apolo) tonight: 6 in · Dean, Henry, Maya, Jordan, Priya, Sam',
+      'last night out (apolo) tonight: 6 in · Dean, Henry, Chase, Piotr, Arjun, Crowley',
       "nothing at Razzmatazz monday night, so nothing's booked",
     ]);
     expect(statuses(h.runtime.stores, CLUB_D5.activityId)).toEqual(
@@ -659,10 +661,10 @@ describe('combined sentences through the loop (offline, no model)', () => {
 
   it('the same line inside the reply window after a Trav question is addressed (msg_bcn_0164 is a reply)', async () => {
     const h = monday();
-    const ask = await h.say('h_sam', "@trav it's the 4 of us tonight, henry's out");
+    const ask = await h.say('h_crowley', "@trav it's the 4 of us tonight, henry's out");
     expect(ask.note).toBe('roster:clarify');
     h.clock.advanceMs(60_000);
-    const r = await h.say('h_sam', "all 6, henry's back. razzmatazz");
+    const r = await h.say('h_crowley', "all 6, henry's back. razzmatazz");
     expect(r.note).toBe('roster:party');
     expect(messages(r)[0]!.text).toContain('monday');
     expect(statuses(h.runtime.stores, CLUB_D5.activityId)).toEqual(
@@ -674,21 +676,21 @@ describe('combined sentences through the loop (offline, no model)', () => {
     const h = monday();
     for (const id of NOT_HENRY) mark(h.runtime.stores, CLUB_D5.activityId, id, 'in');
     mark(h.runtime.stores, CLUB_D5.activityId, 'mem_henry', 'out');
-    const ask = await h.say('h_sam', '@trav get us club tickets tonight');
+    const ask = await h.say('h_crowley', '@trav get us club tickets tonight');
     expect(ask.note).toBe('tool:propose_booking:clarify');
     const q = messages(ask);
     expect(q).toHaveLength(1);
     expect(q[0]!.text.split('\n')).toEqual([
       "i can't see a club i can book tonight",
       // Tonight's plan has Henry out (r1 #1, VOICE §4.11 A): the in list, then who's out.
-      "which club did you mean, and is it Dean, Maya, Jordan, Priya, Sam? Henry's out",
+      "which club did you mean, and is it Dean, Chase, Piotr, Arjun, Crowley? Henry's out",
     ]);
     expect(q[0]!.text.match(/\?/g)).toHaveLength(1);
     expect(lint(q[0]!.text)).toEqual([]);
     expect(h.tickets.holdCount()).toBe(0);
     expect(h.pending()).toEqual([]);
     h.clock.advanceMs(2 * 60_000);
-    const r = await h.say('h_sam', "all 6, henry's back. razzmatazz");
+    const r = await h.say('h_crowley', "all 6, henry's back. razzmatazz");
     expect(r.note).toBe('roster:party');
     expect(r.toolCalls).toEqual(['search_events']);
     expect(messages(r)[0]!.text).toContain('monday');
@@ -712,23 +714,25 @@ describe('combined sentences through the loop (offline, no model)', () => {
       ageRestriction: null,
     };
     h.runtime.stores.group.trips.upsertActivity(dinner);
-    mark(h.runtime.stores, dinner.activityId, 'mem_maya', 'out');
+    mark(h.runtime.stores, dinner.activityId, 'mem_chase', 'out');
     for (const id of NOT_HENRY) mark(h.runtime.stores, CLUB_D5.activityId, id, 'in');
     mark(h.runtime.stores, CLUB_D5.activityId, 'mem_henry', 'out');
-    const ask = await h.say('h_sam', '@trav get us club tickets tonight');
-    expect(messages(ask)[0]!.text).toContain("is it Dean, Maya, Jordan, Priya, Sam? Henry's out");
+    const ask = await h.say('h_crowley', '@trav get us club tickets tonight');
+    expect(messages(ask)[0]!.text).toContain(
+      "is it Dean, Chase, Piotr, Arjun, Crowley? Henry's out",
+    );
   });
 
   it('T-143 r1 #1: with nothing planned that night the question falls back to everyone; a plan nobody is in asks who', async () => {
     const none = harness();
     none.clock.advanceMs(Date.parse(MON_1702) - Date.parse(BARCELONA_NOW));
-    const all = await none.say('h_sam', '@trav get us club tickets tonight');
+    const all = await none.say('h_crowley', '@trav get us club tickets tonight');
     expect(messages(all)[0]!.text).toContain(
-      'which club did you mean, and is it Dean, Henry, Maya, Jordan, Priya, Sam?',
+      'which club did you mean, and is it Dean, Henry, Chase, Piotr, Arjun, Crowley?',
     );
     const empty = monday();
     for (const id of ORDER) mark(empty.runtime.stores, CLUB_D5.activityId, id, 'out');
-    const who = await empty.say('h_sam', '@trav get us club tickets tonight');
+    const who = await empty.say('h_crowley', '@trav get us club tickets tonight');
     expect(messages(who)[0]!.text).toBe(
       "i can't see a club i can book tonight\nwhich club did you mean, and who's in?",
     );
@@ -737,8 +741,8 @@ describe('combined sentences through the loop (offline, no model)', () => {
   it('T-143: in a family group the unnamed club ask lists no adults-only venue and holds nothing', async () => {
     const h = monday();
     const stores = h.runtime.stores;
-    const sam = stores.group.members.listByGroup(G).find((m) => m.memberId === 'mem_sam')!;
-    stores.group.members.upsert({ ...sam, birthDate: '2010-05-01', ageBand: 'under18' });
+    const crowley = stores.group.members.listByGroup(G).find((m) => m.memberId === 'mem_crowley')!;
+    stores.group.members.upsert({ ...crowley, birthDate: '2010-05-01', ageBand: 'under18' });
     const ask = await h.say('h_dean', '@trav get us club tickets tonight');
     const text = messages(ask)
       .map((m) => m.text)
@@ -748,27 +752,27 @@ describe('combined sentences through the loop (offline, no model)', () => {
     expect(h.pending()).toEqual([]);
   });
 
-  it('T-153: "5 of us tonight, henry and sam are in" with Sam under 18: Sam is not written, the line reaches the chat', async () => {
+  it('T-153: "5 of us tonight, henry and crowley are in" with Crowley under 18: Crowley is not written, the line reaches the chat', async () => {
     // Saturday: Razzmatazz (18+, alcohol) is the plan, everyone seeded in.
     const h = harness();
     const stores = h.runtime.stores;
-    const sam = stores.group.members.listByGroup(G).find((m) => m.memberId === 'mem_sam')!;
-    stores.group.members.upsert({ ...sam, birthDate: '2010-05-01', ageBand: 'under18' });
+    const crowley = stores.group.members.listByGroup(G).find((m) => m.memberId === 'mem_crowley')!;
+    stores.group.members.upsert({ ...crowley, birthDate: '2010-05-01', ageBand: 'under18' });
     mark(stores, RAZZ, 'mem_henry', 'out');
-    mark(stores, RAZZ, 'mem_sam', 'out');
-    const r = await h.say('h_dean', "@trav it's the 5 of us tonight, henry and sam are in");
+    mark(stores, RAZZ, 'mem_crowley', 'out');
+    const r = await h.say('h_dean', "@trav it's the 5 of us tonight, henry and crowley are in");
     expect(r.note).toBe('roster:party');
     expect(h.model.completions).toHaveLength(0);
     const texts = messages(r).map((m) => m.text);
     expect(texts[0]!.split('\n')).toEqual([
-      "the adults' plan tonight: 5 in · Dean, Henry, Maya, Jordan, Priya", // T-154
-      'out: Sam',
-      "Sam stays off this plan, it's not all-ages",
+      "the adults' plan tonight: 5 in · Dean, Henry, Chase, Piotr, Arjun", // T-154
+      'out: Crowley',
+      "Crowley stays off this plan, it's not all-ages",
     ]);
-    expect(statuses(stores, RAZZ)['mem_sam']).toBe('out');
+    expect(statuses(stores, RAZZ)['mem_crowley']).toBe('out');
     expect(statuses(stores, RAZZ)['mem_henry']).toBe('in');
     const changed = h.audit().filter((e) => e.type === 'roster.changed');
-    expect(JSON.stringify(changed)).not.toContain('mem_sam');
+    expect(JSON.stringify(changed)).not.toContain('mem_crowley');
   });
 
   it.each([
@@ -779,14 +783,16 @@ describe('combined sentences through the loop (offline, no model)', () => {
     async (was, _why) => {
       const h = harness();
       const stores = h.runtime.stores;
-      const sam = stores.group.members.listByGroup(G).find((m) => m.memberId === 'mem_sam')!;
-      stores.group.members.upsert({ ...sam, birthDate: '2010-05-01', ageBand: 'under18' });
-      mark(stores, RAZZ, 'mem_sam', was);
+      const crowley = stores.group.members
+        .listByGroup(G)
+        .find((m) => m.memberId === 'mem_crowley')!;
+      stores.group.members.upsert({ ...crowley, birthDate: '2010-05-01', ageBand: 'under18' });
+      mark(stores, RAZZ, 'mem_crowley', was);
       await h.say(
         'h_dean',
-        '@trav get razzmatazz tickets for me, henry, maya, jordan, priya and sam',
+        '@trav get razzmatazz tickets for me, henry, chase, piotr, arjun and crowley',
       );
-      expect(statuses(stores, RAZZ)['mem_sam']).toBe('out');
+      expect(statuses(stores, RAZZ)['mem_crowley']).toBe('out');
       expect(h.audit().some((e) => e.type === 'booking.completed')).toBe(false);
     },
   );
@@ -795,26 +801,26 @@ describe('combined sentences through the loop (offline, no model)', () => {
     // Monday: the 18+ club plan, nobody has answered yet.
     const h = monday();
     const stores = h.runtime.stores;
-    const sam = stores.group.members.listByGroup(G).find((m) => m.memberId === 'mem_sam')!;
-    stores.group.members.upsert({ ...sam, birthDate: '2010-05-01', ageBand: 'under18' });
+    const crowley = stores.group.members.listByGroup(G).find((m) => m.memberId === 'mem_crowley')!;
+    stores.group.members.upsert({ ...crowley, birthDate: '2010-05-01', ageBand: 'under18' });
     // Handler level: in a family group the outbound screen drops a line naming the club plan.
     const r = turn(stores, "@trav who's in tonight?", MON_1702, 'mem_dean');
     expect(r?.kind).toBe('roll_call');
     const text = r !== undefined && 'text' in r ? r.text : '';
     expect(text).toMatch(/haven't said: /);
-    expect(text).not.toMatch(/haven't said: .*Sam/);
+    expect(text).not.toMatch(/haven't said: .*Crowley/);
   });
 
   it('unaddressed and outside any window: silence, nothing written', async () => {
     const h = monday();
-    const r = await h.say('h_sam', "all 6, henry's back. razzmatazz");
+    const r = await h.say('h_crowley', "all 6, henry's back. razzmatazz");
     expect(r.silent).toBe(true);
     expect(h.runtime.stores.group.trips.listAttendance(CLUB_D5.activityId)).toEqual([]);
   });
 
   it('a place in the inventory that night is priced, and nothing is proposed or bought', async () => {
     const h = harness(); // saturday: Razzmatazz is the plan; Apolo is not
-    const r = await h.say('h_sam', "@trav all 6, henry's back. apolo");
+    const r = await h.say('h_crowley', "@trav all 6, henry's back. apolo");
     expect(r.note).toBe('roster:party');
     const lines = messages(r)[0]!.text.split('\n');
     expect(lines[1]).toMatch(
@@ -826,7 +832,10 @@ describe('combined sentences through the loop (offline, no model)', () => {
 
   it('"henry\'s out, food poisoning": no search, no roster write, the reason never appears in a reply or the audit', async () => {
     const h = monday();
-    const r = await h.say('h_sam', "@trav it's the 5 of us tonight, henry's out, food poisoning");
+    const r = await h.say(
+      'h_crowley',
+      "@trav it's the 5 of us tonight, henry's out, food poisoning",
+    );
     expect(r.note).not.toMatch(/^roster:/);
     expect(r.toolCalls).not.toContain('search_events');
     expect(h.runtime.stores.group.trips.listAttendance(CLUB_D5.activityId)).toEqual([]);

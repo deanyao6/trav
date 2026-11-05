@@ -83,8 +83,8 @@ describe('describeLine', () => {
       ),
     ).toBe('Dean: @trav get the 5 of us Razzmatazz tickets…');
     expect(
-      describeLine(line({ lane: 'direct', senderId: 'h_priya', text: 'photos on' }), BARCELONA),
-    ).toBe('Priya (dm): photos on');
+      describeLine(line({ lane: 'direct', senderId: 'h_arjun', text: 'photos on' }), BARCELONA),
+    ).toBe('Arjun (dm): photos on');
     expect(
       describeLine(line({ kind: 'reaction', reaction: '👍', cardRef: 'razz_proposal' }), BARCELONA),
     ).toBe('Dean 👍 on razz_proposal');
@@ -96,10 +96,10 @@ describe('describeLine', () => {
     ).toBe('clock → sun mar 15 · 10am · day 4');
     expect(
       describeLine(
-        line({ kind: 'system', senderId: null, event: 'card_sync', memberId: 'mem_sam' }),
+        line({ kind: 'system', senderId: null, event: 'card_sync', memberId: 'mem_crowley' }),
         BARCELONA,
       ),
-    ).toBe('card_sync for Sam');
+    ).toBe('card_sync for Crowley');
   });
 });
 
@@ -181,7 +181,7 @@ describe('findTargetCard', () => {
       }),
     ).toBeUndefined();
     expect(
-      findTargetCard(entries, { kind: 'reaction', cardRef: 'sam_uber_prompt' }),
+      findTargetCard(entries, { kind: 'reaction', cardRef: 'crowley_uber_prompt' }),
     ).toBeUndefined();
     expect(findTargetCard([], { kind: 'reaction', cardRef: 'razz_proposal' })).toBeUndefined();
   });
@@ -195,7 +195,7 @@ describe('findTargetCard', () => {
       card: { type: 'expense_confirm', source, status } as unknown as RichCard,
       actions: [],
     });
-    // Maya's cava chat expense and the settle card are on screen, but no read-it card.
+    // Chase's cava chat expense and the settle card are on screen, but no read-it card.
     const noReceipt = [proposal(1), expense(4, 'chat'), settle];
     expect(
       findTargetCard(noReceipt, { kind: 'reaction', cardRef: 'gatblau_receipt' }),
@@ -210,7 +210,7 @@ describe('findTargetCard', () => {
     ).toBe('m5');
     // ...and a looks-shared prompt never takes the receipt card's place, nor the reverse.
     expect(
-      findTargetCard(withReceipt, { kind: 'reaction', cardRef: 'sam_uber_prompt' })?.messageId,
+      findTargetCard(withReceipt, { kind: 'reaction', cardRef: 'crowley_uber_prompt' })?.messageId,
     ).toBe('m6');
     // An already-logged receipt card is no target for the next receipt's 👍.
     expect(
@@ -231,7 +231,7 @@ describe('withReplay (real runtime, opened on the seeded chat)', () => {
     expect(before.replay?.next).toBe('Dean: ok its official. BARCELONA mar 12-17 🇪🇸…');
 
     const v1 = await b.replay.step();
-    expect(v1).toMatchObject({ cursor: 1, next: 'Maya: AHHHH' });
+    expect(v1).toMatchObject({ cursor: 1, next: 'Chase: AHHHH' });
     const s1 = b.state();
     // The session restarted at the script's first moment.
     expect(s1.now).toBe(SCRIPT[0]!.ts);
@@ -271,10 +271,10 @@ describe('withReplay (real runtime, opened on the seeded chat)', () => {
     // The card syncs and emails were fed for the members who opted in, privately.
     const g = s.groups[0]!;
     expect(Object.values(g.intake).flat()).toEqual([]);
-    for (const id of ['mem_sam', 'mem_dean', 'mem_priya', 'mem_maya']) {
+    for (const id of ['mem_crowley', 'mem_dean', 'mem_arjun', 'mem_chase']) {
       expect(messages(g.dms[id]!).some((m) => m.card?.type === 'expense_confirm')).toBe(true);
     }
-    expect(messages(g.dms['mem_jordan']!).some((m) => m.card?.type === 'expense_confirm')).toBe(
+    expect(messages(g.dms['mem_piotr']!).some((m) => m.card?.type === 'expense_confirm')).toBe(
       false,
     );
     // Nothing left to run.

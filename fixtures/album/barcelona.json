@@ -22,7 +22,7 @@
       "photoId": "photo_bcn_002",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_priya",
+      "ownerMemberId": "mem_arjun",
       "mimeType": "image/jpeg",
       "width": 4032,
       "height": 3024,
@@ -37,7 +37,7 @@
       "photoId": "photo_bcn_003",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_jordan",
+      "ownerMemberId": "mem_piotr",
       "mimeType": "image/jpeg",
       "width": 3024,
       "height": 4032,
@@ -52,7 +52,7 @@
       "photoId": "photo_bcn_004",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_sam",
+      "ownerMemberId": "mem_crowley",
       "mimeType": "image/jpeg",
       "width": 4032,
       "height": 3024,
@@ -67,7 +67,7 @@
       "photoId": "photo_bcn_005",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_sam",
+      "ownerMemberId": "mem_crowley",
       "mimeType": "video/mp4",
       "width": 1920,
       "height": 1080,
@@ -97,7 +97,7 @@
       "photoId": "photo_bcn_007",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_jordan",
+      "ownerMemberId": "mem_piotr",
       "mimeType": "image/jpeg",
       "width": 4032,
       "height": 3024,
@@ -112,7 +112,7 @@
       "photoId": "photo_bcn_008",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_sam",
+      "ownerMemberId": "mem_crowley",
       "mimeType": "video/mp4",
       "width": 1920,
       "height": 1080,
@@ -127,7 +127,7 @@
       "photoId": "photo_bcn_009",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_jordan",
+      "ownerMemberId": "mem_piotr",
       "mimeType": "image/jpeg",
       "width": 4032,
       "height": 3024,
@@ -161,7 +161,7 @@
       "photoId": "photo_bcn_011",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_jordan",
+      "ownerMemberId": "mem_piotr",
       "mimeType": "image/jpeg",
       "width": 3024,
       "height": 4032,
@@ -176,7 +176,7 @@
       "photoId": "photo_bcn_012",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_priya",
+      "ownerMemberId": "mem_arjun",
       "mimeType": "video/mp4",
       "width": 1920,
       "height": 1080,
@@ -206,7 +206,7 @@
       "photoId": "photo_bcn_014",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_maya",
+      "ownerMemberId": "mem_chase",
       "mimeType": "video/mp4",
       "width": 1920,
       "height": 1080,
@@ -225,7 +225,7 @@
       "photoId": "photo_bcn_015",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_maya",
+      "ownerMemberId": "mem_chase",
       "mimeType": "image/jpeg",
       "width": 3024,
       "height": 4032,
@@ -244,7 +244,7 @@
       "photoId": "photo_bcn_016",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_priya",
+      "ownerMemberId": "mem_arjun",
       "mimeType": "image/jpeg",
       "width": 3024,
       "height": 4032,
@@ -259,7 +259,7 @@
       "photoId": "photo_bcn_017",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_jordan",
+      "ownerMemberId": "mem_piotr",
       "mimeType": "image/jpeg",
       "width": 4032,
       "height": 3024,
@@ -293,7 +293,7 @@
       "photoId": "photo_bcn_019",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_jordan",
+      "ownerMemberId": "mem_piotr",
       "mimeType": "video/mp4",
       "width": 1920,
       "height": 1080,
@@ -308,7 +308,7 @@
       "photoId": "photo_bcn_020",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_sam",
+      "ownerMemberId": "mem_crowley",
       "mimeType": "image/jpeg",
       "width": 3024,
       "height": 4032,
@@ -342,7 +342,7 @@
       "photoId": "photo_bcn_022",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_jordan",
+      "ownerMemberId": "mem_piotr",
       "mimeType": "image/jpeg",
       "width": 3024,
       "height": 4032,
@@ -391,7 +391,7 @@
       "photoId": "photo_bcn_025",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_maya",
+      "ownerMemberId": "mem_chase",
       "mimeType": "image/jpeg",
       "width": 4032,
       "height": 3024,
@@ -448,7 +448,7 @@
       "photoId": "photo_bcn_028",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_priya",
+      "ownerMemberId": "mem_arjun",
       "mimeType": "image/jpeg",
       "width": 4032,
       "height": 3024,
@@ -463,7 +463,7 @@
       "photoId": "photo_bcn_029",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_sam",
+      "ownerMemberId": "mem_crowley",
       "mimeType": "image/jpeg",
       "width": 3024,
       "height": 4032,
@@ -478,7 +478,7 @@
       "photoId": "photo_bcn_030",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_priya",
+      "ownerMemberId": "mem_arjun",
       "mimeType": "image/jpeg",
       "width": 3024,
       "height": 4032,
@@ -508,7 +508,7 @@
       "photoId": "photo_bcn_032",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_sam",
+      "ownerMemberId": "mem_crowley",
       "mimeType": "image/jpeg",
       "width": 4032,
       "height": 3024,
@@ -538,7 +538,7 @@
       "photoId": "photo_bcn_034",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_priya",
+      "ownerMemberId": "mem_arjun",
       "mimeType": "image/jpeg",
       "width": 3024,
       "height": 4032,
@@ -553,7 +553,7 @@
       "photoId": "photo_bcn_035",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_maya",
+      "ownerMemberId": "mem_chase",
       "mimeType": "image/jpeg",
       "width": 4032,
       "height": 3024,
@@ -572,7 +572,7 @@
       "photoId": "photo_bcn_036",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_priya",
+      "ownerMemberId": "mem_arjun",
       "mimeType": "image/jpeg",
       "width": 4032,
       "height": 3024,
@@ -587,7 +587,7 @@
       "photoId": "photo_bcn_037",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_priya",
+      "ownerMemberId": "mem_arjun",
       "mimeType": "image/jpeg",
       "width": 3024,
       "height": 4032,
@@ -621,7 +621,7 @@
       "photoId": "photo_bcn_039",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_sam",
+      "ownerMemberId": "mem_crowley",
       "mimeType": "image/jpeg",
       "width": 4032,
       "height": 3024,
@@ -636,7 +636,7 @@
       "photoId": "photo_bcn_040",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_priya",
+      "ownerMemberId": "mem_arjun",
       "mimeType": "video/mp4",
       "width": 1920,
       "height": 1080,
@@ -670,7 +670,7 @@
       "photoId": "photo_bcn_042",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_priya",
+      "ownerMemberId": "mem_arjun",
       "mimeType": "image/jpeg",
       "width": 4032,
       "height": 3024,
@@ -685,7 +685,7 @@
       "photoId": "photo_bcn_043",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_priya",
+      "ownerMemberId": "mem_arjun",
       "mimeType": "image/jpeg",
       "width": 4032,
       "height": 3024,
@@ -719,7 +719,7 @@
       "photoId": "photo_bcn_045",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_maya",
+      "ownerMemberId": "mem_chase",
       "mimeType": "image/png",
       "width": 1179,
       "height": 2556,
@@ -753,7 +753,7 @@
       "photoId": "photo_bcn_047",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_sam",
+      "ownerMemberId": "mem_crowley",
       "mimeType": "image/jpeg",
       "width": 4032,
       "height": 3024,
@@ -768,7 +768,7 @@
       "photoId": "photo_bcn_048",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_sam",
+      "ownerMemberId": "mem_crowley",
       "mimeType": "image/jpeg",
       "width": 4032,
       "height": 3024,
@@ -784,7 +784,7 @@
       "photoId": "photo_bcn_049",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_maya",
+      "ownerMemberId": "mem_chase",
       "mimeType": "image/jpeg",
       "width": 4032,
       "height": 3024,
@@ -833,7 +833,7 @@
       "photoId": "photo_bcn_052",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_jordan",
+      "ownerMemberId": "mem_piotr",
       "mimeType": "image/jpeg",
       "width": 4032,
       "height": 3024,
@@ -848,7 +848,7 @@
       "photoId": "photo_bcn_053",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_priya",
+      "ownerMemberId": "mem_arjun",
       "mimeType": "image/jpeg",
       "width": 4032,
       "height": 3024,
@@ -863,7 +863,7 @@
       "photoId": "photo_bcn_054",
       "groupId": "grp_barcelona",
       "tripId": "trip_barcelona",
-      "ownerMemberId": "mem_sam",
+      "ownerMemberId": "mem_crowley",
       "mimeType": "video/mp4",
       "width": 1920,
       "height": 1080,
@@ -879,9 +879,9 @@
     "photo_bcn_001": {
       "inPhoto": [
         "mem_henry",
-        "mem_maya",
-        "mem_priya",
-        "mem_sam"
+        "mem_chase",
+        "mem_arjun",
+        "mem_crowley"
       ],
       "placeName": "BCN airport T1",
       "activityId": "act_bcn_flights_out",
@@ -895,7 +895,7 @@
       "inPhoto": [
         "mem_dean",
         "mem_henry",
-        "mem_sam"
+        "mem_crowley"
       ],
       "placeName": "BCN airport T1",
       "activityId": "act_bcn_flights_out",
@@ -907,9 +907,9 @@
     "photo_bcn_003": {
       "inPhoto": [
         "mem_dean",
-        "mem_jordan",
-        "mem_priya",
-        "mem_sam"
+        "mem_piotr",
+        "mem_arjun",
+        "mem_crowley"
       ],
       "placeName": "Eixample apartment balcony",
       "activityId": "act_bcn_lodging",
@@ -920,9 +920,9 @@
     },
     "photo_bcn_004": {
       "inPhoto": [
-        "mem_maya",
-        "mem_priya",
-        "mem_sam"
+        "mem_chase",
+        "mem_arjun",
+        "mem_crowley"
       ],
       "placeName": "Eixample apartment balcony",
       "activityId": "act_bcn_lodging",
@@ -935,9 +935,9 @@
       "inPhoto": [
         "mem_dean",
         "mem_henry",
-        "mem_maya",
-        "mem_priya",
-        "mem_sam"
+        "mem_chase",
+        "mem_arjun",
+        "mem_crowley"
       ],
       "placeName": "Eixample apartment balcony",
       "activityId": "act_bcn_lodging",
@@ -950,9 +950,9 @@
     "photo_bcn_006": {
       "inPhoto": [
         "mem_henry",
-        "mem_maya",
-        "mem_priya",
-        "mem_sam"
+        "mem_chase",
+        "mem_arjun",
+        "mem_crowley"
       ],
       "placeName": "Bar La Pineda Fictícia, Gràcia",
       "activityId": "act_bcn_dinner_d1",
@@ -965,8 +965,8 @@
       "inPhoto": [
         "mem_dean",
         "mem_henry",
-        "mem_jordan",
-        "mem_priya"
+        "mem_piotr",
+        "mem_arjun"
       ],
       "placeName": "Bar La Pineda Fictícia, Gràcia",
       "activityId": "act_bcn_dinner_d1",
@@ -979,9 +979,9 @@
       "inPhoto": [
         "mem_dean",
         "mem_henry",
-        "mem_maya",
-        "mem_jordan",
-        "mem_sam"
+        "mem_chase",
+        "mem_piotr",
+        "mem_crowley"
       ],
       "placeName": "Bar La Pineda Fictícia, Gràcia",
       "activityId": "act_bcn_dinner_d1",
@@ -995,8 +995,8 @@
       "inPhoto": [
         "mem_dean",
         "mem_henry",
-        "mem_jordan",
-        "mem_priya"
+        "mem_piotr",
+        "mem_arjun"
       ],
       "placeName": "Park Güell",
       "activityId": "act_bcn_parkguell",
@@ -1008,9 +1008,9 @@
     "photo_bcn_010": {
       "inPhoto": [
         "mem_henry",
-        "mem_maya",
-        "mem_jordan",
-        "mem_sam"
+        "mem_chase",
+        "mem_piotr",
+        "mem_crowley"
       ],
       "placeName": "Park Güell",
       "activityId": "act_bcn_parkguell",
@@ -1023,7 +1023,7 @@
       "inPhoto": [
         "mem_dean",
         "mem_henry",
-        "mem_maya"
+        "mem_chase"
       ],
       "placeName": "Park Güell",
       "activityId": "act_bcn_parkguell",
@@ -1036,8 +1036,8 @@
       "inPhoto": [
         "mem_dean",
         "mem_henry",
-        "mem_maya",
-        "mem_jordan"
+        "mem_chase",
+        "mem_piotr"
       ],
       "placeName": "Park Güell",
       "activityId": "act_bcn_parkguell",
@@ -1051,9 +1051,9 @@
       "inPhoto": [
         "mem_dean",
         "mem_henry",
-        "mem_jordan",
-        "mem_priya",
-        "mem_sam"
+        "mem_piotr",
+        "mem_arjun",
+        "mem_crowley"
       ],
       "placeName": "Park Güell",
       "activityId": "act_bcn_parkguell",
@@ -1065,8 +1065,8 @@
     "photo_bcn_014": {
       "inPhoto": [
         "mem_dean",
-        "mem_maya",
-        "mem_sam"
+        "mem_chase",
+        "mem_crowley"
       ],
       "placeName": "Taverna del Gat Blau",
       "activityId": "act_bcn_dinner_d2",
@@ -1080,8 +1080,8 @@
       "inPhoto": [
         "mem_dean",
         "mem_henry",
-        "mem_maya",
-        "mem_sam"
+        "mem_chase",
+        "mem_crowley"
       ],
       "placeName": "Taverna del Gat Blau",
       "activityId": "act_bcn_dinner_d2",
@@ -1094,7 +1094,7 @@
       "inPhoto": [
         "mem_dean",
         "mem_henry",
-        "mem_priya"
+        "mem_arjun"
       ],
       "placeName": "Taverna del Gat Blau",
       "activityId": "act_bcn_dinner_d2",
@@ -1105,9 +1105,9 @@
     },
     "photo_bcn_017": {
       "inPhoto": [
-        "mem_maya",
-        "mem_priya",
-        "mem_sam"
+        "mem_chase",
+        "mem_arjun",
+        "mem_crowley"
       ],
       "placeName": "El Born",
       "activityId": "act_bcn_elborn_d2",
@@ -1118,9 +1118,9 @@
     },
     "photo_bcn_018": {
       "inPhoto": [
-        "mem_maya",
-        "mem_jordan",
-        "mem_priya"
+        "mem_chase",
+        "mem_piotr",
+        "mem_arjun"
       ],
       "placeName": "El Born",
       "activityId": "act_bcn_elborn_d2",
@@ -1131,8 +1131,8 @@
     },
     "photo_bcn_019": {
       "inPhoto": [
-        "mem_jordan",
-        "mem_priya"
+        "mem_piotr",
+        "mem_arjun"
       ],
       "placeName": "El Born",
       "activityId": "act_bcn_elborn_d2",
@@ -1144,9 +1144,9 @@
     },
     "photo_bcn_020": {
       "inPhoto": [
-        "mem_maya",
-        "mem_priya",
-        "mem_sam"
+        "mem_chase",
+        "mem_arjun",
+        "mem_crowley"
       ],
       "placeName": "El Born",
       "activityId": "act_bcn_elborn_d2",
@@ -1157,8 +1157,8 @@
     },
     "photo_bcn_021": {
       "inPhoto": [
-        "mem_maya",
-        "mem_sam"
+        "mem_chase",
+        "mem_crowley"
       ],
       "placeName": "Sagrada Família",
       "activityId": "act_bcn_sagrada",
@@ -1170,9 +1170,9 @@
     "photo_bcn_022": {
       "inPhoto": [
         "mem_henry",
-        "mem_maya",
-        "mem_jordan",
-        "mem_priya"
+        "mem_chase",
+        "mem_piotr",
+        "mem_arjun"
       ],
       "placeName": "Sagrada Família",
       "activityId": "act_bcn_sagrada",
@@ -1185,10 +1185,10 @@
       "inPhoto": [
         "mem_dean",
         "mem_henry",
-        "mem_maya",
-        "mem_jordan",
-        "mem_priya",
-        "mem_sam"
+        "mem_chase",
+        "mem_piotr",
+        "mem_arjun",
+        "mem_crowley"
       ],
       "placeName": "Sagrada Família",
       "activityId": "act_bcn_sagrada",
@@ -1201,9 +1201,9 @@
       "inPhoto": [
         "mem_dean",
         "mem_henry",
-        "mem_jordan",
-        "mem_priya",
-        "mem_sam"
+        "mem_piotr",
+        "mem_arjun",
+        "mem_crowley"
       ],
       "placeName": "Sagrada Família",
       "activityId": "act_bcn_sagrada",
@@ -1215,9 +1215,9 @@
     "photo_bcn_025": {
       "inPhoto": [
         "mem_dean",
-        "mem_maya",
-        "mem_jordan",
-        "mem_priya"
+        "mem_chase",
+        "mem_piotr",
+        "mem_arjun"
       ],
       "placeName": "Sagrada Família",
       "activityId": "act_bcn_sagrada",
@@ -1229,8 +1229,8 @@
     "photo_bcn_026": {
       "inPhoto": [
         "mem_dean",
-        "mem_maya",
-        "mem_sam"
+        "mem_chase",
+        "mem_crowley"
       ],
       "placeName": "Razzmatazz",
       "activityId": "act_bcn_razzmatazz",
@@ -1241,8 +1241,8 @@
     },
     "photo_bcn_027": {
       "inPhoto": [
-        "mem_priya",
-        "mem_sam"
+        "mem_arjun",
+        "mem_crowley"
       ],
       "placeName": "Razzmatazz",
       "activityId": "act_bcn_razzmatazz",
@@ -1254,9 +1254,9 @@
     "photo_bcn_028": {
       "inPhoto": [
         "mem_dean",
-        "mem_maya",
-        "mem_priya",
-        "mem_sam"
+        "mem_chase",
+        "mem_arjun",
+        "mem_crowley"
       ],
       "placeName": "Razzmatazz",
       "activityId": "act_bcn_razzmatazz",
@@ -1267,9 +1267,9 @@
     },
     "photo_bcn_029": {
       "inPhoto": [
-        "mem_maya",
-        "mem_priya",
-        "mem_sam"
+        "mem_chase",
+        "mem_arjun",
+        "mem_crowley"
       ],
       "placeName": "Razzmatazz",
       "activityId": "act_bcn_razzmatazz",
@@ -1280,10 +1280,10 @@
     },
     "photo_bcn_030": {
       "inPhoto": [
-        "mem_maya",
-        "mem_jordan",
-        "mem_priya",
-        "mem_sam"
+        "mem_chase",
+        "mem_piotr",
+        "mem_arjun",
+        "mem_crowley"
       ],
       "placeName": "Razzmatazz",
       "activityId": "act_bcn_razzmatazz",
@@ -1294,8 +1294,8 @@
     },
     "photo_bcn_031": {
       "inPhoto": [
-        "mem_priya",
-        "mem_sam"
+        "mem_arjun",
+        "mem_crowley"
       ],
       "placeName": "Spotify Camp Nou",
       "activityId": "act_bcn_barca",
@@ -1309,8 +1309,8 @@
       "inPhoto": [
         "mem_dean",
         "mem_henry",
-        "mem_jordan",
-        "mem_priya"
+        "mem_piotr",
+        "mem_arjun"
       ],
       "placeName": "Spotify Camp Nou",
       "activityId": "act_bcn_barca",
@@ -1323,7 +1323,7 @@
       "inPhoto": [
         "mem_dean",
         "mem_henry",
-        "mem_maya"
+        "mem_chase"
       ],
       "placeName": "Spotify Camp Nou",
       "activityId": "act_bcn_barca",
@@ -1335,8 +1335,8 @@
     "photo_bcn_034": {
       "inPhoto": [
         "mem_henry",
-        "mem_jordan",
-        "mem_priya"
+        "mem_piotr",
+        "mem_arjun"
       ],
       "placeName": "Spotify Camp Nou",
       "activityId": "act_bcn_barca",
@@ -1348,8 +1348,8 @@
     "photo_bcn_035": {
       "inPhoto": [
         "mem_dean",
-        "mem_maya",
-        "mem_priya"
+        "mem_chase",
+        "mem_arjun"
       ],
       "placeName": "Spotify Camp Nou",
       "activityId": "act_bcn_barca",
@@ -1360,9 +1360,9 @@
     },
     "photo_bcn_036": {
       "inPhoto": [
-        "mem_maya",
-        "mem_priya",
-        "mem_sam"
+        "mem_chase",
+        "mem_arjun",
+        "mem_crowley"
       ],
       "placeName": "Barceloneta beach",
       "activityId": "act_bcn_lunch_d5",
@@ -1374,9 +1374,9 @@
     "photo_bcn_037": {
       "inPhoto": [
         "mem_dean",
-        "mem_maya",
-        "mem_priya",
-        "mem_sam"
+        "mem_chase",
+        "mem_arjun",
+        "mem_crowley"
       ],
       "placeName": "Barceloneta beach",
       "activityId": "act_bcn_lunch_d5",
@@ -1388,7 +1388,7 @@
     "photo_bcn_038": {
       "inPhoto": [
         "mem_dean",
-        "mem_priya"
+        "mem_arjun"
       ],
       "placeName": "Barceloneta beach",
       "activityId": "act_bcn_lunch_d5",
@@ -1400,9 +1400,9 @@
     "photo_bcn_039": {
       "inPhoto": [
         "mem_dean",
-        "mem_maya",
-        "mem_jordan",
-        "mem_priya"
+        "mem_chase",
+        "mem_piotr",
+        "mem_arjun"
       ],
       "placeName": "Sala Apolo",
       "activityId": "act_bcn_club_d5",
@@ -1414,9 +1414,9 @@
     "photo_bcn_040": {
       "inPhoto": [
         "mem_henry",
-        "mem_maya",
-        "mem_priya",
-        "mem_sam"
+        "mem_chase",
+        "mem_arjun",
+        "mem_crowley"
       ],
       "placeName": "Sala Apolo",
       "activityId": "act_bcn_club_d5",
@@ -1441,7 +1441,7 @@
       "inPhoto": [
         "mem_dean",
         "mem_henry",
-        "mem_jordan"
+        "mem_piotr"
       ],
       "placeName": "Sala Apolo",
       "activityId": "act_bcn_club_d5",
@@ -1452,7 +1452,7 @@
     },
     "photo_bcn_043": {
       "inPhoto": [
-        "mem_jordan"
+        "mem_piotr"
       ],
       "placeName": "Eixample apartment lobby",
       "activityId": "act_bcn_flights_home",
@@ -1465,10 +1465,10 @@
       "inPhoto": [
         "mem_dean",
         "mem_henry",
-        "mem_maya",
-        "mem_jordan",
-        "mem_priya",
-        "mem_sam"
+        "mem_chase",
+        "mem_piotr",
+        "mem_arjun",
+        "mem_crowley"
       ],
       "placeName": "Bar La Pineda Fictícia, Gràcia",
       "activityId": "act_bcn_dinner_d1",
@@ -1500,8 +1500,8 @@
     },
     "photo_bcn_047": {
       "inPhoto": [
-        "mem_sam",
-        "mem_maya"
+        "mem_crowley",
+        "mem_chase"
       ],
       "placeName": "Razzmatazz",
       "activityId": "act_bcn_razzmatazz",
@@ -1514,10 +1514,10 @@
     "photo_bcn_048": {
       "inPhoto": [
         "mem_dean",
-        "mem_maya",
-        "mem_jordan",
-        "mem_priya",
-        "mem_sam"
+        "mem_chase",
+        "mem_piotr",
+        "mem_arjun",
+        "mem_crowley"
       ],
       "placeName": "Razzmatazz",
       "activityId": "act_bcn_razzmatazz",
@@ -1529,14 +1529,14 @@
     },
     "photo_bcn_049": {
       "inPhoto": [
-        "mem_jordan",
+        "mem_piotr",
         "mem_dean"
       ],
       "placeName": "Kebab Rambla 24h",
       "activityId": null,
       "isVideo": false,
       "includesMinor": false,
-      "note": "\"@trav drop that one\" from Jordan: hidden group-wide, must never reappear in a recap or Wrapped",
+      "note": "\"@trav drop that one\" from Piotr: hidden group-wide, must never reappear in a recap or Wrapped",
       "visibleWithFinalConsent": false,
       "highlightCandidate": false
     },
@@ -1569,36 +1569,36 @@
       "inPhoto": [
         "mem_dean",
         "mem_henry",
-        "mem_maya",
-        "mem_jordan",
-        "mem_priya",
-        "mem_sam"
+        "mem_chase",
+        "mem_piotr",
+        "mem_arjun",
+        "mem_crowley"
       ],
       "placeName": "Sagrada Família",
       "activityId": "act_bcn_sagrada",
       "isVideo": false,
       "includesMinor": false,
-      "note": "Jordan never opted in: excluded everywhere even though it is the best group shot",
+      "note": "Piotr never opted in: excluded everywhere even though it is the best group shot",
       "visibleWithFinalConsent": false,
       "highlightCandidate": false
     },
     "photo_bcn_053": {
       "inPhoto": [
-        "mem_priya",
-        "mem_maya"
+        "mem_arjun",
+        "mem_chase"
       ],
       "placeName": "Sagrada Família",
       "activityId": "act_bcn_sagrada",
       "isVideo": false,
       "includesMinor": false,
-      "note": "Priya revokes photos on 2026-03-16 12:00: visible in the 03-15 recap, gone from every later render incl. Wrapped",
+      "note": "Arjun revokes photos on 2026-03-16 12:00: visible in the 03-15 recap, gone from every later render incl. Wrapped",
       "visibleWithFinalConsent": false,
       "highlightCandidate": false
     },
     "photo_bcn_054": {
       "inPhoto": [
-        "mem_sam",
-        "mem_priya",
+        "mem_crowley",
+        "mem_arjun",
         "mem_dean"
       ],
       "placeName": "Barceloneta beach",
@@ -1618,22 +1618,22 @@
     },
     {
       "at": "2026-03-12T16:02:00+01:00",
-      "memberId": "mem_maya",
+      "memberId": "mem_chase",
       "photos": true
     },
     {
       "at": "2026-03-12T16:03:00+01:00",
-      "memberId": "mem_priya",
+      "memberId": "mem_arjun",
       "photos": true
     },
     {
       "at": "2026-03-12T16:05:00+01:00",
-      "memberId": "mem_sam",
+      "memberId": "mem_crowley",
       "photos": true
     },
     {
       "at": "2026-03-16T12:00:00+01:00",
-      "memberId": "mem_priya",
+      "memberId": "mem_arjun",
       "photos": false
     }
   ]

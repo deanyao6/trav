@@ -93,7 +93,7 @@ describe('lintVoice rules', () => {
 
   it('exclamation marks only allowed inside a quoted human phrase', () => {
     expect(rules('booked ✅ razzmatazz!')).toContain('exclamation');
-    expect(rules('Maya said "let\'s go!" so i booked it')).toEqual([]);
+    expect(rules('Chase said "let\'s go!" so i booked it')).toEqual([]);
     expect(rules("anyone can say 'trav, leave me out!' anytime")).toEqual([]);
   });
 
@@ -120,7 +120,7 @@ describe('lintVoice rules', () => {
     expect(rules('# tickets')).toContain('markdown');
     expect(rules('**booked** razzmatazz')).toContain('markdown');
     expect(rules('order `RZ-1`')).toContain('markdown');
-    expect(rules('tickets:\n- Dean\n- Maya')).toContain('markdown');
+    expect(rules('tickets:\n- Dean\n- Chase')).toContain('markdown');
     expect(rules('see [the card](http://x)')).toContain('markdown');
     expect(rules('that was *so* fast')).toContain('markdown');
     expect(rules('> quoted')).toContain('markdown');
@@ -133,7 +133,7 @@ describe('lintVoice rules', () => {
     expect(rules('got it. The tab is updated')).toContain('uppercase_start');
     expect(rules('QR codes are in your dms')).toEqual([]);
     expect(rules('EUR is the trip currency')).toEqual([]);
-    expect(rules('Dean paid. Maya owes €12')).toEqual([]);
+    expect(rules('Dean paid. Chase owes €12')).toEqual([]);
     expect(rules('€18 each. 👍 to book')).toEqual([]);
     expect(rules('@Dean has to ok it')).toEqual([]);
   });
@@ -166,7 +166,7 @@ describe('lintVoice rules', () => {
     expect(rules('got it, I booked it')).toContain('capital_i');
     expect(rules("got it, I'll book it")).toContain('capital_i');
     expect(rules('got it, i booked it')).toEqual([]);
-    expect(rules('Sam said "I paid" so logged')).toEqual([]);
+    expect(rules('Crowley said "I paid" so logged')).toEqual([]);
   });
 
   it('length per template', () => {
@@ -215,7 +215,7 @@ describe('lintVoice rules', () => {
     for (const bad of ['€-12', '€−12', 'eur 84', 'Eur84', '€12k', '$1.5m', '€ 12k']) {
       expect(rules(`dinner was ${bad} on Dean`)).toContain('raw_money');
     }
-    expect(rules('Maya → Dean -€12 after the refund')).toEqual([]);
+    expect(rules('Chase → Dean -€12 after the refund')).toEqual([]);
     expect(rules('the 12k run was free')).toEqual([]);
   });
 

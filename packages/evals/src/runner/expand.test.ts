@@ -21,7 +21,7 @@ function cardFixture(groupId: string, owner: string): InjectionFixture {
 describe('injection opt-in handle (T-090 round 2)', () => {
   it("reads the owner's senderId from the group fixture, not from the member id", () => {
     expect(ownerSenderId('grp_lisbon', 'mem_lis_dad')).toBe('h_dad');
-    expect(ownerSenderId('grp_barcelona', 'mem_maya')).toBe('h_maya');
+    expect(ownerSenderId('grp_barcelona', 'mem_chase')).toBe('h_chase');
   });
 
   it('the opt-in DM for a Lisbon card document comes from h_dad', () => {
@@ -31,8 +31,8 @@ describe('injection opt-in handle (T-090 round 2)', () => {
   });
 
   it('an owner who is not in the group fails loudly instead of guessing a handle', () => {
-    expect(() => ownerSenderId('grp_lisbon', 'mem_maya')).toThrow(/not a member of grp_lisbon/);
-    expect(() => ownerSenderId('grp_nowhere', 'mem_maya')).toThrow();
+    expect(() => ownerSenderId('grp_lisbon', 'mem_chase')).toThrow(/not a member of grp_lisbon/);
+    expect(() => ownerSenderId('grp_nowhere', 'mem_chase')).toThrow();
   });
 });
 
@@ -93,10 +93,10 @@ describe('lineExpect (T-077): every chat-line expectation is graded or listed as
       line({
         action: 'log_expense',
         expense: {
-          paidBy: 'mem_priya',
+          paidBy: 'mem_arjun',
           amount: { amountMinor: 3294, currency: 'EUR' },
           shares: [
-            { memberId: 'mem_priya', amount: { amountMinor: 1098, currency: 'EUR' } },
+            { memberId: 'mem_arjun', amount: { amountMinor: 1098, currency: 'EUR' } },
             { memberId: 'mem_dean', amount: { amountMinor: 0, currency: 'EUR' } },
           ],
         },
@@ -104,9 +104,9 @@ describe('lineExpect (T-077): every chat-line expectation is graded or listed as
       }),
     );
     expect(x?.expense).toEqual({
-      paidBy: 'mem_priya',
+      paidBy: 'mem_arjun',
       amountMinor: 3294,
-      shares: [{ memberId: 'mem_priya', amountMinor: 1098 }],
+      shares: [{ memberId: 'mem_arjun', amountMinor: 1098 }],
       toleranceMinor: 2,
     });
   });
@@ -115,9 +115,12 @@ describe('lineExpect (T-077): every chat-line expectation is graded or listed as
     expect(lineExpect(line({ action: 'silent', purchaseCount: 1 }))?.newPurchases).toBe(0);
     expect(
       lineExpect(
-        line({ action: 'booking_completed', booking: { purchaseCount: 1, dmsTo: ['mem_sam'] } }),
+        line({
+          action: 'booking_completed',
+          booking: { purchaseCount: 1, dmsTo: ['mem_crowley'] },
+        }),
       ),
-    ).toMatchObject({ newPurchases: 1, ticketsTo: ['mem_sam'] });
+    ).toMatchObject({ newPurchases: 1, ticketsTo: ['mem_crowley'] });
   });
 
   it('identity attempts become identity checks; an unknown key is listed, never passed', () => {
@@ -135,7 +138,7 @@ describe('lineExpect (T-077): every chat-line expectation is graded or listed as
       line({
         action: 'log_expense',
         expense: {
-          paidBy: 'mem_maya',
+          paidBy: 'mem_chase',
           amount: { amountMinor: 15600, currency: 'EUR' },
           description: 'Sagrada Família tickets',
           category: 'tickets',
@@ -161,7 +164,7 @@ describe('lineExpect (T-077): every chat-line expectation is graded or listed as
           ticketsPerHolder: 1,
           qrInGroup: false,
           ledgerWrites: 1,
-          paidBy: { kind: 'member', memberId: 'mem_priya' },
+          paidBy: { kind: 'member', memberId: 'mem_arjun' },
           ticketDeliveredTo: { mem_tci_lily: 'mem_tci_mom' },
           seatMap: 'A1-A5',
         },
@@ -171,7 +174,7 @@ describe('lineExpect (T-077): every chat-line expectation is graded or listed as
       ticketsPerHolder: 1,
       qrInGroup: false,
       ledgerWrites: 1,
-      paidBy: { kind: 'member', memberId: 'mem_priya' },
+      paidBy: { kind: 'member', memberId: 'mem_arjun' },
       ticketDeliveredTo: { mem_tci_lily: 'mem_tci_mom' },
     });
     expect(b?.ungraded).toEqual(['booking.seatMap']);
@@ -211,11 +214,11 @@ describe('lineExpect (T-077): every chat-line expectation is graded or listed as
       line({
         action: 'settle_up',
         expectedTransfers: [
-          { from: 'mem_maya', to: 'mem_dean', amount: { amountMinor: 1250, currency: 'EUR' } },
+          { from: 'mem_chase', to: 'mem_dean', amount: { amountMinor: 1250, currency: 'EUR' } },
         ],
       }),
     );
-    expect(t?.transfers).toEqual([{ from: 'mem_maya', to: 'mem_dean', amountMinor: 1250 }]);
+    expect(t?.transfers).toEqual([{ from: 'mem_chase', to: 'mem_dean', amountMinor: 1250 }]);
     // A transfer with no amount cannot be graded to the cent.
     expect(
       lineExpect(line({ action: 'settle_up', expectedTransfers: [{ from: 'a', to: 'b' }] }))
@@ -224,11 +227,13 @@ describe('lineExpect (T-077): every chat-line expectation is graded or listed as
     expect(lineExpect(line({ action: 'silent', nightOutFraming: false }))?.nightOutFraming).toBe(
       false,
     );
-    expect(lineExpect(line({ action: 'mark_paid', paidBy: 'mem_sam' }))?.markedPaidBy).toBe(
-      'mem_sam',
+    expect(lineExpect(line({ action: 'mark_paid', paidBy: 'mem_crowley' }))?.markedPaidBy).toBe(
+      'mem_crowley',
     );
     // A top-level paidBy anywhere else is not a mark-paid: listed, never passed.
-    expect(lineExpect(line({ action: 'reply', paidBy: 'mem_sam' }))?.ungraded).toEqual(['paidBy']);
+    expect(lineExpect(line({ action: 'reply', paidBy: 'mem_crowley' }))?.ungraded).toEqual([
+      'paidBy',
+    ]);
     expect(
       lineExpect(line({ action: 'reply', suggestionAudience: ['mem_lis_dean'] }))
         ?.suggestionAudience,
@@ -257,10 +262,10 @@ describe('system lines (T-078)', () => {
     const { steps, skipped } = expandSteps([{ do: 'replay', chat: 'barcelona', ids }]);
     expect(skipped).toEqual([]);
     expect(steps.map((s) => (s.do === 'import' ? [s.event, s.owner, s.fixture] : s.do))).toEqual([
-      ['email_arrived', 'mem_priya', 'fixtures/emails/em_bcn_priya_uber_0314.json'],
-      ['card_sync', 'mem_sam', 'fixtures/transactions/mem_sam.json'],
-      ['email_arrived', 'mem_maya', 'fixtures/emails/em_bcn_maya_uber_injection.json'],
-      ['card_sync', 'mem_jordan', 'fixtures/transactions/mem_jordan.json'],
+      ['email_arrived', 'mem_arjun', 'fixtures/emails/em_bcn_arjun_uber_0314.json'],
+      ['card_sync', 'mem_crowley', 'fixtures/transactions/mem_crowley.json'],
+      ['email_arrived', 'mem_chase', 'fixtures/emails/em_bcn_chase_uber_injection.json'],
+      ['card_sync', 'mem_piotr', 'fixtures/transactions/mem_piotr.json'],
       ['card_sync', 'mem_dean', 'fixtures/transactions/mem_dean.json'],
     ]);
   });

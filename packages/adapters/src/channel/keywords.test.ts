@@ -214,7 +214,7 @@ describe('pendingFromMessage', () => {
   it('returns undefined for messages without a card or without actions', () => {
     expect(pendingFromMessage(groupMsg('hi'))).toBeUndefined();
     expect(
-      pendingFromMessage(dmMsg('mem_sam', 'x', { card: privateExpenseCard() })),
+      pendingFromMessage(dmMsg('mem_crowley', 'x', { card: privateExpenseCard() })),
     ).toBeUndefined();
   });
 });

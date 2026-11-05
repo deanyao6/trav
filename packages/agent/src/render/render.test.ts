@@ -62,7 +62,7 @@ describe('booking_proposal (VOICE §4.1)', () => {
     expect(m.text).toBe(
       [
         'razzmatazz tonight, 5 tickets',
-        'Dean, Maya, Jordan, Priya, Sam (not Henry)',
+        'Dean, Chase, Piotr, Arjun, Crowley (not Henry)',
         '€18 each · €90 total · refundable until 10pm',
         "charged to Dean's card, split 5 ways on the tab",
         '👍 to book. price held for 15 min',
@@ -70,7 +70,13 @@ describe('booking_proposal (VOICE §4.1)', () => {
     );
     expect(m.to).toEqual({ kind: 'group' });
     expect(m.mentions).toBeUndefined();
-    expect(m.card.charged.map((c) => c.name)).toEqual(['Dean', 'Maya', 'Jordan', 'Priya', 'Sam']);
+    expect(m.card.charged.map((c) => c.name)).toEqual([
+      'Dean',
+      'Chase',
+      'Piotr',
+      'Arjun',
+      'Crowley',
+    ]);
     expect(m.card.excluded).toEqual([{ memberId: 'mem_henry', name: 'Henry', reason: 'sick' }]);
     expect(m.card.policy.ruleId).toBe('C1');
     // The policy (not the renderer) decides who may tap: C1 any_one = any adult member.
@@ -94,7 +100,7 @@ describe('booking_proposal (VOICE §4.1)', () => {
       payers: six.map((memberId) => ({ memberId, shareMinor: 7200 })),
       attendees: six,
       refundable: false,
-      requestedBy: 'mem_maya',
+      requestedBy: 'mem_chase',
       paidBy: { kind: 'member_card', memberId: 'mem_dean' },
       holdExpiresAt: '2026-03-12T21:55:00+01:00',
     });
@@ -113,7 +119,7 @@ describe('booking_proposal (VOICE §4.1)', () => {
     );
     const lines = m.text.split('\n');
     expect(lines[0]).toBe('barça vs sevilla, sun mar 15 9pm, 6 tickets');
-    expect(lines[1]).toBe('Dean, Henry, Maya, Jordan, Priya, Sam');
+    expect(lines[1]).toBe('Dean, Henry, Chase, Piotr, Arjun, Crowley');
     expect(lines[2]).toBe('€72 each · €432 total · non-refundable');
     // C3 escalates to each_payer: all six must tap, too many to @tag (VOICE §3.5).
     expect(lines[4]).toBe("that's over the €50/person cap, so all 6 of you have to ok it");
@@ -128,7 +134,7 @@ describe('booking_proposal (VOICE §4.1)', () => {
 
   it("someone else's card (C10, T-148): the card owner is named as the one who oks it", () => {
     const members = barcelonaMembers();
-    const proposal = razzmatazzProposal({ requestedBy: 'mem_maya' });
+    const proposal = razzmatazzProposal({ requestedBy: 'mem_chase' });
     const decision = decide(proposal, members, barcelonaGroup().spendingPolicy);
     expect(decision.reasons).toContain('card_not_requester');
     const m = renderBookingProposal(
@@ -145,11 +151,11 @@ describe('booking_proposal (VOICE §4.1)', () => {
   it('lead-only approvers on a non-refundable booking: the reason and the @tagged approvers', () => {
     const members = barcelonaMembers();
     const policy = { ...barcelonaGroup().spendingPolicy, approvers: ['mem_dean'] as const };
-    // Maya asks on her own card (on Dean's, C10 makes Dean the only approver).
+    // Chase asks on Chase's own card (on Dean's, C10 makes Dean the only approver).
     const proposal = razzmatazzProposal({
       refundable: false,
-      requestedBy: 'mem_maya',
-      paidBy: { kind: 'member_card', memberId: 'mem_maya' },
+      requestedBy: 'mem_chase',
+      paidBy: { kind: 'member_card', memberId: 'mem_chase' },
     });
     const decision = decide(proposal, members, { ...policy, approvers: ['mem_dean'] });
     const m = renderBookingProposal(
@@ -158,10 +164,10 @@ describe('booking_proposal (VOICE §4.1)', () => {
     );
     const lines = m.text.split('\n');
     expect(lines[2]).toBe('€18 each · €90 total · non-refundable');
-    expect(lines[4]).toBe("it's non-refundable, so @Dean or @Maya has to ok it");
-    expect(lines[5]).toBe('👍 from Dean or Maya to book. price held for 15 min');
-    expect(m.mentions).toEqual(['mem_dean', 'mem_maya']);
-    expect(m.actions?.[0]?.allowedMemberIds).toEqual(['mem_dean', 'mem_maya']);
+    expect(lines[4]).toBe("it's non-refundable, so @Dean or @Chase has to ok it");
+    expect(lines[5]).toBe('👍 from Dean or Chase to book. price held for 15 min');
+    expect(m.mentions).toEqual(['mem_dean', 'mem_chase']);
+    expect(m.actions?.[0]?.allowedMemberIds).toEqual(['mem_dean', 'mem_chase']);
     expectClean(m);
   });
 
@@ -171,9 +177,9 @@ describe('booking_proposal (VOICE §4.1)', () => {
       totalMinor: 12000,
       payers: [
         { memberId: 'mem_dean', shareMinor: 6000 },
-        { memberId: 'mem_maya', shareMinor: 6000 },
+        { memberId: 'mem_chase', shareMinor: 6000 },
       ],
-      attendees: ['mem_dean', 'mem_maya'],
+      attendees: ['mem_dean', 'mem_chase'],
     });
     const m = renderBookingProposal(
       {
@@ -184,11 +190,11 @@ describe('booking_proposal (VOICE §4.1)', () => {
       renderCtx(members),
     );
     expect(m.text.split('\n').slice(4)).toEqual([
-      "that's over the €50/person cap, so @Dean, @Maya each have to ok it",
+      "that's over the €50/person cap, so @Dean, @Chase each have to ok it",
       '👍 from each of you to book. price held for 15 min',
     ]);
-    expect(m.mentions).toEqual(['mem_dean', 'mem_maya']);
-    expect(m.text.split('\n')[1]).toBe('Dean, Maya (not Henry, Jordan, Priya, Sam)');
+    expect(m.mentions).toEqual(['mem_dean', 'mem_chase']);
+    expect(m.text.split('\n')[1]).toBe('Dean, Chase (not Henry, Piotr, Arjun, Crowley)');
     expectClean(m);
   });
 
@@ -229,7 +235,7 @@ describe('receipt (VOICE §4.2): from the audit log, never free text', () => {
         'booked ✅ razzmatazz, 5 tickets, €90',
         'order RZ-48213 · refundable until 10pm',
         'QR codes are in your dms, one each',
-        'tab: Maya, Jordan, Priya, Sam → Dean €18',
+        'tab: Chase, Piotr, Arjun, Crowley → Dean €18',
       ].join('\n'),
     );
     const completed = w.events.find((e) => e.type === 'booking.completed')!;
@@ -258,7 +264,7 @@ describe('receipt (VOICE §4.2): from the audit log, never free text', () => {
       { booking: w.booking, expense: w.expense, auditEvents: w.events },
       renderCtx(w.members, w.clock.now()),
     );
-    expect(m.text.split('\n')[3]).toBe('tab: Maya, Jordan, Priya, Sam → Dean €18');
+    expect(m.text.split('\n')[3]).toBe('tab: Chase, Piotr, Arjun, Crowley → Dean €18');
   });
 
   it.each([
@@ -309,9 +315,9 @@ describe('receipt (VOICE §4.2): from the audit log, never free text', () => {
 });
 
 describe('ticket (VOICE §4.3): DM only', () => {
-  it('renders Priya her own ticket, QR as image + card, never to the group', () => {
+  it("renders Arjun's own ticket to Arjun, QR as image + card, never to the group", () => {
     const m = renderTicket(
-      { artifact: ticketArtifact('mem_priya', 'tkt_rz_4'), headline: 'razzmatazz' },
+      { artifact: ticketArtifact('mem_arjun', 'tkt_rz_4'), headline: 'razzmatazz' },
       renderCtx(),
     );
     expect(m.text).toBe(
@@ -321,8 +327,8 @@ describe('ticket (VOICE §4.3): DM only', () => {
         "this one's yours only, don't forward it. everyone got their own",
       ].join('\n'),
     );
-    expect(m.to).toEqual({ kind: 'member', memberId: 'mem_priya' });
-    expect(m.card.deliveredTo).toBe('mem_priya');
+    expect(m.to).toEqual({ kind: 'member', memberId: 'mem_arjun' });
+    expect(m.card.deliveredTo).toBe('mem_arjun');
     expect(m.card.qr.payload).toBe('RZ-48213:tkt_rz_4:SECRET');
     expect(m.images?.[0]?.url).toBe('data:image/png;base64,QRtkt_rz_4');
     expect(m.text).not.toContain('SECRET');
@@ -349,7 +355,7 @@ describe('ticket (VOICE §4.3): DM only', () => {
     expect(m.text.split('\n')[0]).toBe("Lily's snorkel tour ticket for tonight 🎟️");
     expectClean(m, members);
     expect(() =>
-      renderTicket({ artifact: ticketArtifact('mem_priya', 't', 'mem_sam') }, renderCtx()),
+      renderTicket({ artifact: ticketArtifact('mem_arjun', 't', 'mem_crowley') }, renderCtx()),
     ).toThrow(/guardian/);
   });
 });
@@ -415,21 +421,21 @@ describe('expense_confirm logged (VOICE §4.4)', () => {
         expense: chatExpense({
           description: 'taxi',
           amount: eur(3200),
-          paidBy: [{ memberId: 'mem_maya', amount: eur(3200) }],
+          paidBy: [{ memberId: 'mem_chase', amount: eur(3200) }],
           split: {
             method: 'exact',
             amounts: [
-              { memberId: 'mem_maya', amount: eur(1200) },
-              { memberId: 'mem_sam', amount: eur(2000) },
+              { memberId: 'mem_chase', amount: eur(1200) },
+              { memberId: 'mem_crowley', amount: eur(2000) },
             ],
           },
-          createdBy: 'mem_maya',
+          createdBy: 'mem_chase',
         }),
       },
       renderCtx(),
     );
     expect(custom.text).toBe(
-      ['logged: €32 taxi on Maya · Sam €20 · Maya €12', '👎 to undo'].join('\n'),
+      ['logged: €32 taxi on Chase · Crowley €20 · Chase €12', '👎 to undo'].join('\n'),
     );
     expectClean(custom);
 
@@ -438,14 +444,14 @@ describe('expense_confirm logged (VOICE §4.4)', () => {
         expense: chatExpense({
           amount: eur(1000),
           paidBy: [{ memberId: 'mem_dean', amount: eur(1000) }],
-          split: { method: 'equal', participants: ['mem_dean', 'mem_maya', 'mem_sam'] },
+          split: { method: 'equal', participants: ['mem_dean', 'mem_chase', 'mem_crowley'] },
         }),
       },
       renderCtx(),
     );
     // An `equal` subset names who's out, like `exclude` does (VOICE §4.4 A).
     expect(odd.text.split('\n')[0]).toBe(
-      'logged: €10 dinner on Dean, 3 ways (not Henry, Jordan, Priya) → €3.33 each',
+      'logged: €10 dinner on Dean, 3 ways (not Henry, Piotr, Arjun) → €3.33 each',
     );
     expect(odd.card.split.participants.find((p) => p.memberId === 'mem_dean')?.share).toEqual(
       eur(334),
@@ -457,7 +463,7 @@ describe('expense_confirm logged (VOICE §4.4)', () => {
 function pending(over: Partial<PendingPrivateItem> = {}): PendingPrivateItem {
   return markPrivate({
     id: 'priv_uber',
-    ownerMemberId: 'mem_sam',
+    ownerMemberId: 'mem_crowley',
     groupId: GROUP_ID,
     tripId: TRIP_ID,
     createdAt: NOW,
@@ -481,7 +487,7 @@ describe('expense_confirm looks shared (VOICE §4.5): private DM to the owner', 
   it('single card charge', () => {
     const m = renderLooksShared(
       {
-        ownerMemberId: 'mem_sam',
+        ownerMemberId: 'mem_crowley',
         items: [
           {
             item: pending(),
@@ -498,9 +504,9 @@ describe('expense_confirm looks shared (VOICE §4.5): private DM to the owner', 
         'looks shared. 👍 to split with the 5 who went, 👎 to keep it off the tab',
       ].join('\n'),
     );
-    expect(m.to).toEqual({ kind: 'member', memberId: 'mem_sam' });
+    expect(m.to).toEqual({ kind: 'member', memberId: 'mem_crowley' });
     expect(m.card.visibility).toBe('private');
-    expect(m.card.paidBy).toBe('mem_sam');
+    expect(m.card.paidBy).toBe('mem_crowley');
     expect(m.actions?.map((a) => a.id)).toEqual(['confirm', 'keep_private']);
     expectClean(m);
   });
@@ -536,7 +542,7 @@ describe('expense_confirm looks shared (VOICE §4.5): private DM to the owner', 
       },
     ];
     const m = renderLooksShared(
-      { ownerMemberId: 'mem_sam', items },
+      { ownerMemberId: 'mem_crowley', items },
       renderCtx(barcelonaMembers(), '2026-03-13T20:00:00+01:00'),
     );
     expect(m.text).toBe(
@@ -582,10 +588,10 @@ describe('expense_confirm looks shared (VOICE §4.5): private DM to the owner', 
 const BAL = [
   { memberId: 'mem_dean', net: eur(6120) },
   { memberId: 'mem_henry', net: eur(0) },
-  { memberId: 'mem_maya', net: eur(-3160) },
-  { memberId: 'mem_jordan', net: eur(1200) },
-  { memberId: 'mem_priya', net: eur(-2280) },
-  { memberId: 'mem_sam', net: eur(-1880) },
+  { memberId: 'mem_chase', net: eur(-3160) },
+  { memberId: 'mem_piotr', net: eur(1200) },
+  { memberId: 'mem_arjun', net: eur(-2280) },
+  { memberId: 'mem_crowley', net: eur(-1880) },
 ];
 
 describe('settle_up (VOICE §4.6)', () => {
@@ -597,8 +603,8 @@ describe('settle_up (VOICE §4.6)', () => {
     expect(m.text).toBe(
       [
         'running tab, day 3',
-        'Dean is owed €61.20 · Jordan is owed €12',
-        'Maya owes €31.60 · Priya owes €22.80 · Sam owes €18.80',
+        'Dean is owed €61.20 · Piotr is owed €12',
+        'Chase owes €31.60 · Arjun owes €22.80 · Crowley owes €18.80',
         `no rush, i'll do one clean settle at the end. "@trav settle now" if you'd rather square up today`,
       ].join('\n'),
     );
@@ -667,7 +673,7 @@ const RECAP_BASE = {
     { label: 'Sagrada Família', startsAt: '2026-03-14T15:00:00+01:00', ticketsDelivered: true },
   ],
 };
-const ROAST = ['Jordan has paid for kebabs 3 nights running. the tab remembers'];
+const ROAST = ['Piotr has paid for kebabs 3 nights running. the tab remembers'];
 const RECAP_NOW = '2026-03-14T10:00:00+01:00';
 
 describe('recap (VOICE §4.7)', () => {
@@ -683,7 +689,7 @@ describe('recap (VOICE §4.7)', () => {
         'morning after, day 3 ☀️',
         'last night: razzmatazz (5 of you) €90 · ubers €47 · the 3am kebab place €62',
         '€199 total, €39.80 each',
-        'tab: Maya → Dean €31.60 is the big one, full list in the card',
+        'tab: Chase → Dean €31.60 is the big one, full list in the card',
         'today: Sagrada Família at 3pm, tickets in your dms',
       ].join('\n'),
     );
@@ -737,19 +743,19 @@ describe('recap (VOICE §4.7)', () => {
         ...RECAP_BASE,
         roastLines: ROAST,
         photos: [
-          { url: 'album://1', byMemberId: 'mem_priya', alt: 'sunset' },
-          { url: 'album://2', byMemberId: 'mem_sam', alt: 'club line' },
+          { url: 'album://1', byMemberId: 'mem_arjun', alt: 'sunset' },
+          { url: 'album://2', byMemberId: 'mem_crowley', alt: 'club line' },
         ],
       },
       renderCtx(barcelonaMembers(), RECAP_NOW),
       {
         group: barcelonaGroup({ roastMode: true }),
         trip: barcelonaTrip(),
-        consent: consentFor({ roast: ['mem_dean'], photos: ['mem_priya'] }),
+        consent: consentFor({ roast: ['mem_dean'], photos: ['mem_arjun'] }),
       },
     );
     expect(m.card.roastLines).toEqual([]);
-    expect(m.card.photos.map((p) => p.byMemberId)).toEqual(['mem_priya']);
+    expect(m.card.photos.map((p) => p.byMemberId)).toEqual(['mem_arjun']);
     expect(m.images?.map((i) => i.url)).toEqual(['album://1']);
   });
 });
@@ -765,13 +771,13 @@ describe('wrapped (VOICE §4.8)', () => {
           byCategory: [{ category: 'transport', amount: eur(41200) }],
         },
         stats: [
-          { value: '23', label: 'ubers, €412. Priya booked 11 of them' },
+          { value: '23', label: 'ubers, €412. Arjun booked 11 of them' },
           { value: '4', label: 'nights out · latest receipt 4:12am (kebab, obviously)' },
         ],
         awards: [
           {
             title: 'Uber Captain',
-            memberId: 'mem_priya',
+            memberId: 'mem_arjun',
             evidence: 'booked 11 of 23 ubers',
             basis: 'ledger',
           },
@@ -790,7 +796,7 @@ describe('wrapped (VOICE §4.8)', () => {
     const lines = m.text.split('\n');
     expect(lines[0]).toBe('barcelona wrapped 🎉');
     expect(lines[1]).toBe('6 days · 6 people · €2,340 · €390 each');
-    expect(m.text).toContain('awards 🏆 Uber Captain: Priya · Receipt Hoarder: Dean (14 photos)');
+    expect(m.text).toContain('awards 🏆 Uber Captain: Arjun · Receipt Hoarder: Dean (14 photos)');
     expect(lines.at(-1)).toMatch(/^final settle is in the card, \d transfers and you're done 💸$/);
     expect(m.card.shareable).toBe(true);
     expectClean(m);
@@ -969,21 +975,21 @@ describe('T-026 review round 2 (renderers)', () => {
         expense: chatExpense({
           description: 'taxi',
           amount: eur(2000),
-          paidBy: [{ memberId: 'mem_maya', amount: eur(2000) }],
-          split: { method: 'equal', participants: ['mem_maya', 'mem_sam'] },
-          createdBy: 'mem_maya',
+          paidBy: [{ memberId: 'mem_chase', amount: eur(2000) }],
+          split: { method: 'equal', participants: ['mem_chase', 'mem_crowley'] },
+          createdBy: 'mem_chase',
         }),
       },
       renderCtx(),
     );
     expect(pair.text.split('\n')[0]).toBe(
-      'logged: €20 taxi on Maya, 2 ways (Maya, Sam) → €10 each',
+      'logged: €20 taxi on Chase, 2 ways (Chase, Crowley) → €10 each',
     );
     expect(pair.card.split.excluded?.map((p) => p.name)).toEqual([
       'Dean',
       'Henry',
-      'Jordan',
-      'Priya',
+      'Piotr',
+      'Arjun',
     ]);
     expectClean(pair);
   });
@@ -992,26 +998,26 @@ describe('T-026 review round 2 (renderers)', () => {
     const members = barcelonaMembers();
     const policy = {
       ...barcelonaGroup().spendingPolicy,
-      approvers: ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya'],
+      approvers: ['mem_dean', 'mem_chase', 'mem_piotr', 'mem_arjun'],
     };
-    // T-104: the requester must be on the booking to approve, so Sam (attending) asks.
-    // On Sam's own card: on Dean's, C10 would make Dean the only approver.
+    // T-104: the requester must be on the booking to approve, so Crowley (attending) asks.
+    // On Crowley's own card: on Dean's, C10 would make Dean the only approver.
     const proposal = razzmatazzProposal({
       refundable: false,
-      requestedBy: 'mem_sam',
-      paidBy: { kind: 'member_card', memberId: 'mem_sam' },
+      requestedBy: 'mem_crowley',
+      paidBy: { kind: 'member_card', memberId: 'mem_crowley' },
     });
     const decision = decide(proposal, members, policy);
     expect(decision.approvalMode).toBe('any_one');
     expect(decision.requiredApprovers).toHaveLength(5);
-    expect(decision.requiredApprovers).toContain('mem_sam');
+    expect(decision.requiredApprovers).toContain('mem_crowley');
     const m = renderBookingProposal(
       { proposal, decision, item: { name: 'Razzmatazz', startsAt: '2026-03-13T00:00:00+01:00' } },
       renderCtx(members),
     );
     expect(m.text.split('\n').slice(4)).toEqual([
       "it's non-refundable",
-      '👍 from one of Dean, Maya, Jordan, Priya, Sam to book. price held for 15 min',
+      '👍 from one of Dean, Chase, Piotr, Arjun, Crowley to book. price held for 15 min',
     ]);
     expect(m.mentions).toBeUndefined(); // too many to @tag (VOICE §3.5)
     expectClean(m);
@@ -1024,7 +1030,7 @@ describe('T-026 review round 2 (renderers)', () => {
     awards: [],
     finalSettle: { currency: 'EUR', balances: BAL, totalSpent: eur(234000) },
   };
-  const WRAP_ROAST = 'Priya booked 11 of 23 ubers. the city has a metro';
+  const WRAP_ROAST = 'Arjun booked 11 of 23 ubers. the city has a metro';
 
   it('flaw 4: renderWrappedForSend gates roast lines once, returns them, and sets roast: true', () => {
     const r = renderWrappedForSend(
@@ -1033,7 +1039,7 @@ describe('T-026 review round 2 (renderers)', () => {
       {
         group: barcelonaGroup({ roastMode: true }),
         trip: barcelonaTrip(),
-        consent: consentFor({ roast: ['mem_priya', 'mem_henry'] }),
+        consent: consentFor({ roast: ['mem_arjun', 'mem_henry'] }),
       },
     );
     expect(r.roastLines).toEqual([WRAP_ROAST]); // trimmed as in the text; the body line is gated out
@@ -1097,7 +1103,7 @@ describe('T-026 review round 2 (renderers)', () => {
   });
 
   it('flaw 7: each lane violation is reported once (no dead or duplicate branch)', () => {
-    const t = renderTicket({ artifact: ticketArtifact('mem_priya', 'tkt') }, renderCtx());
+    const t = renderTicket({ artifact: ticketArtifact('mem_arjun', 'tkt') }, renderCtx());
     const inGroup: OutboundMessage = { ...t, to: { kind: 'group' } };
     const strings = cardInvariantViolations(inGroup, {
       group: barcelonaGroup(),
@@ -1112,15 +1118,15 @@ describe('T-026 review round 2 (renderers)', () => {
         cause: 'dm_only_card_in_group',
         violation: 'ticket card on the group lane',
         cardType: 'ticket',
-        ownerId: 'mem_priya',
+        ownerId: 'mem_arjun',
       },
     ]);
-    expect(laneViolations({ ...t, to: { kind: 'member', memberId: 'mem_sam' } })).toEqual([
+    expect(laneViolations({ ...t, to: { kind: 'member', memberId: 'mem_crowley' } })).toEqual([
       {
         cause: 'private_card_wrong_recipient',
         violation: 'ticket delivered to someone other than deliveredTo',
         cardType: 'ticket',
-        ownerId: 'mem_priya',
+        ownerId: 'mem_arjun',
       },
     ]);
     expect(laneViolations(t)).toEqual([]);

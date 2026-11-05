@@ -254,14 +254,14 @@ describe('formatMoney (VOICE §3.4)', () => {
   it('composes each / transfer / shares strings', () => {
     expect(formatEach(eur(1800))).toBe('€18 each');
     expect(formatEach(eur(1680))).toBe('€16.80 each');
-    expect(formatTransfer('Maya', 'Dean', eur(3160))).toBe('Maya → Dean €31.60');
+    expect(formatTransfer('Chase', 'Dean', eur(3160))).toBe('Chase → Dean €31.60');
     expect(
       formatShares([
         { name: 'Dean', amount: eur(4000) },
-        { name: 'Maya', amount: eur(2200) },
-        { name: 'Sam', amount: eur(2200) },
+        { name: 'Chase', amount: eur(2200) },
+        { name: 'Crowley', amount: eur(2200) },
       ]),
-    ).toBe('Dean €40 · Maya €22 · Sam €22');
+    ).toBe('Dean €40 · Chase €22 · Crowley €22');
   });
 
   it('refuses to format a float amount (never a path to a money string with fractions of a cent)', () => {

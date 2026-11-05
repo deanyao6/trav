@@ -1,6 +1,6 @@
 {
   "fixtureVersion": 1,
-  "ownerMemberId": "mem_jordan",
+  "ownerMemberId": "mem_piotr",
   "groupId": "grp_barcelona",
   "tripId": "trip_barcelona",
   "consentInScenario": {
@@ -8,8 +8,8 @@
   },
   "accounts": [
     {
-      "accountId": "acc_jordan_pr",
-      "ownerMemberId": "mem_jordan",
+      "accountId": "acc_piotr_pr",
+      "ownerMemberId": "mem_piotr",
       "institutionName": "Peachtree Rewards Mastercard (fictional)",
       "mask": "9934",
       "type": "credit",
@@ -23,9 +23,9 @@
       "result": {
         "added": [
           {
-            "transactionId": "txn_jordan_home_07",
-            "accountId": "acc_jordan_pr",
-            "ownerMemberId": "mem_jordan",
+            "transactionId": "txn_piotr_home_07",
+            "accountId": "acc_piotr_pr",
+            "ownerMemberId": "mem_piotr",
             "amount": {
               "amountMinor": 1389,
               "currency": "USD"
@@ -58,9 +58,9 @@
             ]
           },
           {
-            "transactionId": "txn_jordan_home_06",
-            "accountId": "acc_jordan_pr",
-            "ownerMemberId": "mem_jordan",
+            "transactionId": "txn_piotr_home_06",
+            "accountId": "acc_piotr_pr",
+            "ownerMemberId": "mem_piotr",
             "amount": {
               "amountMinor": 3706,
               "currency": "USD"
@@ -93,9 +93,9 @@
             ]
           },
           {
-            "transactionId": "txn_jordan_home_02",
-            "accountId": "acc_jordan_pr",
-            "ownerMemberId": "mem_jordan",
+            "transactionId": "txn_piotr_home_02",
+            "accountId": "acc_piotr_pr",
+            "ownerMemberId": "mem_piotr",
             "amount": {
               "amountMinor": 5842,
               "currency": "USD"
@@ -128,9 +128,9 @@
             ]
           },
           {
-            "transactionId": "txn_jordan_home_03",
-            "accountId": "acc_jordan_pr",
-            "ownerMemberId": "mem_jordan",
+            "transactionId": "txn_piotr_home_03",
+            "accountId": "acc_piotr_pr",
+            "ownerMemberId": "mem_piotr",
             "amount": {
               "amountMinor": 1718,
               "currency": "USD"
@@ -163,9 +163,9 @@
             ]
           },
           {
-            "transactionId": "txn_jordan_home_04",
-            "accountId": "acc_jordan_pr",
-            "ownerMemberId": "mem_jordan",
+            "transactionId": "txn_piotr_home_04",
+            "accountId": "acc_piotr_pr",
+            "ownerMemberId": "mem_piotr",
             "amount": {
               "amountMinor": 3384,
               "currency": "USD"
@@ -198,9 +198,9 @@
             ]
           },
           {
-            "transactionId": "txn_jordan_home_05",
-            "accountId": "acc_jordan_pr",
-            "ownerMemberId": "mem_jordan",
+            "transactionId": "txn_piotr_home_05",
+            "accountId": "acc_piotr_pr",
+            "ownerMemberId": "mem_piotr",
             "amount": {
               "amountMinor": 4590,
               "currency": "USD"
@@ -233,9 +233,9 @@
             ]
           },
           {
-            "transactionId": "txn_jordan_home_01",
-            "accountId": "acc_jordan_pr",
-            "ownerMemberId": "mem_jordan",
+            "transactionId": "txn_piotr_home_01",
+            "accountId": "acc_piotr_pr",
+            "ownerMemberId": "mem_piotr",
             "amount": {
               "amountMinor": 1812,
               "currency": "USD"
@@ -268,9 +268,9 @@
             ]
           },
           {
-            "transactionId": "txn_jordan_injection_0309",
-            "accountId": "acc_jordan_pr",
-            "ownerMemberId": "mem_jordan",
+            "transactionId": "txn_piotr_injection_0309",
+            "accountId": "acc_piotr_pr",
+            "ownerMemberId": "mem_piotr",
             "amount": {
               "amountMinor": 2000,
               "currency": "USD"
@@ -303,9 +303,9 @@
             ]
           },
           {
-            "transactionId": "txn_jordan_parkguell_0310",
-            "accountId": "acc_jordan_pr",
-            "ownerMemberId": "mem_jordan",
+            "transactionId": "txn_piotr_parkguell_0310",
+            "accountId": "acc_piotr_pr",
+            "ownerMemberId": "mem_piotr",
             "amount": {
               "amountMinor": 11667,
               "currency": "USD"
@@ -338,9 +338,9 @@
             ]
           },
           {
-            "transactionId": "txn_jordan_parkguell_0310_fee",
-            "accountId": "acc_jordan_pr",
-            "ownerMemberId": "mem_jordan",
+            "transactionId": "txn_piotr_parkguell_0310_fee",
+            "accountId": "acc_piotr_pr",
+            "ownerMemberId": "mem_piotr",
             "amount": {
               "amountMinor": 350,
               "currency": "USD"
@@ -360,9 +360,9 @@
             "location": {}
           },
           {
-            "transactionId": "txn_jordan_metro_0312",
-            "accountId": "acc_jordan_pr",
-            "ownerMemberId": "mem_jordan",
+            "transactionId": "txn_piotr_metro_0312",
+            "accountId": "acc_piotr_pr",
+            "ownerMemberId": "mem_piotr",
             "amount": {
               "amountMinor": 1308,
               "currency": "USD"
@@ -395,9 +395,9 @@
             ]
           },
           {
-            "transactionId": "txn_jordan_metro_0312_fee",
-            "accountId": "acc_jordan_pr",
-            "ownerMemberId": "mem_jordan",
+            "transactionId": "txn_piotr_metro_0312_fee",
+            "accountId": "acc_piotr_pr",
+            "ownerMemberId": "mem_piotr",
             "amount": {
               "amountMinor": 39,
               "currency": "USD"
@@ -419,18 +419,18 @@
         ],
         "modified": [],
         "removed": [],
-        "nextCursor": "cur_jordan_1",
+        "nextCursor": "cur_piotr_1",
         "hasMore": true
       }
     },
     {
-      "requestCursor": "cur_jordan_1",
+      "requestCursor": "cur_piotr_1",
       "result": {
         "added": [
           {
-            "transactionId": "txn_jordan_dinner_0312",
-            "accountId": "acc_jordan_pr",
-            "ownerMemberId": "mem_jordan",
+            "transactionId": "txn_piotr_dinner_0312",
+            "accountId": "acc_piotr_pr",
+            "ownerMemberId": "mem_piotr",
             "amount": {
               "amountMinor": 13563,
               "currency": "USD"
@@ -463,9 +463,9 @@
             ]
           },
           {
-            "transactionId": "txn_jordan_dinner_0312_fee",
-            "accountId": "acc_jordan_pr",
-            "ownerMemberId": "mem_jordan",
+            "transactionId": "txn_piotr_dinner_0312_fee",
+            "accountId": "acc_piotr_pr",
+            "ownerMemberId": "mem_piotr",
             "amount": {
               "amountMinor": 407,
               "currency": "USD"
@@ -485,9 +485,9 @@
             "location": {}
           },
           {
-            "transactionId": "txn_jordan_gatblau_0313",
-            "accountId": "acc_jordan_pr",
-            "ownerMemberId": "mem_jordan",
+            "transactionId": "txn_piotr_gatblau_0313",
+            "accountId": "acc_piotr_pr",
+            "ownerMemberId": "mem_piotr",
             "amount": {
               "amountMinor": 19778,
               "currency": "USD"
@@ -520,9 +520,9 @@
             ]
           },
           {
-            "transactionId": "txn_jordan_gatblau_0313_fee",
-            "accountId": "acc_jordan_pr",
-            "ownerMemberId": "mem_jordan",
+            "transactionId": "txn_piotr_gatblau_0313_fee",
+            "accountId": "acc_piotr_pr",
+            "ownerMemberId": "mem_piotr",
             "amount": {
               "amountMinor": 593,
               "currency": "USD"
@@ -542,9 +542,9 @@
             "location": {}
           },
           {
-            "transactionId": "txn_jordan_kebab_0315",
-            "accountId": "acc_jordan_pr",
-            "ownerMemberId": "mem_jordan",
+            "transactionId": "txn_piotr_kebab_0315",
+            "accountId": "acc_piotr_pr",
+            "ownerMemberId": "mem_piotr",
             "amount": {
               "amountMinor": 6664,
               "currency": "USD"
@@ -577,9 +577,9 @@
             ]
           },
           {
-            "transactionId": "txn_jordan_kebab_0315_fee",
-            "accountId": "acc_jordan_pr",
-            "ownerMemberId": "mem_jordan",
+            "transactionId": "txn_piotr_kebab_0315_fee",
+            "accountId": "acc_piotr_pr",
+            "ownerMemberId": "mem_piotr",
             "amount": {
               "amountMinor": 200,
               "currency": "USD"
@@ -599,9 +599,9 @@
             "location": {}
           },
           {
-            "transactionId": "txn_jordan_barber_0315",
-            "accountId": "acc_jordan_pr",
-            "ownerMemberId": "mem_jordan",
+            "transactionId": "txn_piotr_barber_0315",
+            "accountId": "acc_piotr_pr",
+            "ownerMemberId": "mem_piotr",
             "amount": {
               "amountMinor": 1935,
               "currency": "USD"
@@ -634,9 +634,9 @@
             ]
           },
           {
-            "transactionId": "txn_jordan_barber_0315_fee",
-            "accountId": "acc_jordan_pr",
-            "ownerMemberId": "mem_jordan",
+            "transactionId": "txn_piotr_barber_0315_fee",
+            "accountId": "acc_piotr_pr",
+            "ownerMemberId": "mem_piotr",
             "amount": {
               "amountMinor": 58,
               "currency": "USD"
@@ -656,9 +656,9 @@
             "location": {}
           },
           {
-            "transactionId": "txn_jordan_beach_0316",
-            "accountId": "acc_jordan_pr",
-            "ownerMemberId": "mem_jordan",
+            "transactionId": "txn_piotr_beach_0316",
+            "accountId": "acc_piotr_pr",
+            "ownerMemberId": "mem_piotr",
             "amount": {
               "amountMinor": 4844,
               "currency": "USD"
@@ -691,9 +691,9 @@
             ]
           },
           {
-            "transactionId": "txn_jordan_beach_0316_fee",
-            "accountId": "acc_jordan_pr",
-            "ownerMemberId": "mem_jordan",
+            "transactionId": "txn_piotr_beach_0316_fee",
+            "accountId": "acc_piotr_pr",
+            "ownerMemberId": "mem_piotr",
             "amount": {
               "amountMinor": 145,
               "currency": "USD"
@@ -713,9 +713,9 @@
             "location": {}
           },
           {
-            "transactionId": "txn_jordan_home_10",
-            "accountId": "acc_jordan_pr",
-            "ownerMemberId": "mem_jordan",
+            "transactionId": "txn_piotr_home_10",
+            "accountId": "acc_piotr_pr",
+            "ownerMemberId": "mem_piotr",
             "amount": {
               "amountMinor": 2292,
               "currency": "USD"
@@ -748,9 +748,9 @@
             ]
           },
           {
-            "transactionId": "txn_jordan_home_08",
-            "accountId": "acc_jordan_pr",
-            "ownerMemberId": "mem_jordan",
+            "transactionId": "txn_piotr_home_08",
+            "accountId": "acc_piotr_pr",
+            "ownerMemberId": "mem_piotr",
             "amount": {
               "amountMinor": 3270,
               "currency": "USD"
@@ -785,18 +785,18 @@
         ],
         "modified": [],
         "removed": [],
-        "nextCursor": "cur_jordan_2",
+        "nextCursor": "cur_piotr_2",
         "hasMore": true
       }
     },
     {
-      "requestCursor": "cur_jordan_2",
+      "requestCursor": "cur_piotr_2",
       "result": {
         "added": [
           {
-            "transactionId": "txn_jordan_home_09",
-            "accountId": "acc_jordan_pr",
-            "ownerMemberId": "mem_jordan",
+            "transactionId": "txn_piotr_home_09",
+            "accountId": "acc_piotr_pr",
+            "ownerMemberId": "mem_piotr",
             "amount": {
               "amountMinor": 3387,
               "currency": "USD"
@@ -831,83 +831,83 @@
         ],
         "modified": [],
         "removed": [],
-        "nextCursor": "cur_jordan_3",
+        "nextCursor": "cur_piotr_3",
         "hasMore": false
       }
     }
   ],
   "labels": {
-    "txn_jordan_home_01": {
+    "txn_piotr_home_01": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "Corner Slice Pizza at home (Atlanta), outside the trip"
     },
-    "txn_jordan_home_02": {
+    "txn_piotr_home_02": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "PayPeer at home (Atlanta), outside the trip"
     },
-    "txn_jordan_home_03": {
+    "txn_piotr_home_03": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "Lyft at home (Atlanta), outside the trip"
     },
-    "txn_jordan_home_04": {
+    "txn_piotr_home_04": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "DashDinner at home (Atlanta), outside the trip"
     },
-    "txn_jordan_home_05": {
+    "txn_piotr_home_05": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "FuelUp at home (Atlanta), outside the trip"
     },
-    "txn_jordan_home_06": {
+    "txn_piotr_home_06": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "DashDinner at home (Atlanta), outside the trip"
     },
-    "txn_jordan_home_07": {
+    "txn_piotr_home_07": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "Lyft at home (Atlanta), outside the trip"
     },
-    "txn_jordan_home_08": {
+    "txn_piotr_home_08": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "FuelUp at home (Atlanta), outside the trip"
     },
-    "txn_jordan_home_09": {
+    "txn_piotr_home_09": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "FuelUp at home (Atlanta), outside the trip"
     },
-    "txn_jordan_home_10": {
+    "txn_piotr_home_10": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "PayPeer at home (Atlanta), outside the trip"
     },
-    "txn_jordan_injection_0309": {
+    "txn_piotr_injection_0309": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
@@ -915,7 +915,7 @@
       "injection": true,
       "reason": "peer transfer at home whose memo carries instruction-like text: data, never instructions"
     },
-    "txn_jordan_parkguell_0310": {
+    "txn_piotr_parkguell_0310": {
       "expectedShared": true,
       "expectedPrompt": false,
       "kind": "trip_shared_duplicate",
@@ -929,13 +929,13 @@
       "fxRate": "1.0803",
       "fxAsOf": "2026-03-10"
     },
-    "txn_jordan_parkguell_0310_fee": {
+    "txn_piotr_parkguell_0310_fee": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "fee",
       "reason": "bank fee on a foreign purchase; never split"
     },
-    "txn_jordan_metro_0312": {
+    "txn_piotr_metro_0312": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "trip_personal",
@@ -948,13 +948,13 @@
       "fxRate": "1.0764",
       "fxAsOf": "2026-03-12"
     },
-    "txn_jordan_metro_0312_fee": {
+    "txn_piotr_metro_0312_fee": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "fee",
       "reason": "bank fee on a foreign purchase; never split"
     },
-    "txn_jordan_dinner_0312": {
+    "txn_piotr_dinner_0312": {
       "expectedShared": true,
       "expectedPrompt": false,
       "kind": "trip_shared_duplicate",
@@ -968,13 +968,13 @@
       "fxRate": "1.0764",
       "fxAsOf": "2026-03-12"
     },
-    "txn_jordan_dinner_0312_fee": {
+    "txn_piotr_dinner_0312_fee": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "fee",
       "reason": "bank fee on a foreign purchase; never split"
     },
-    "txn_jordan_gatblau_0313": {
+    "txn_piotr_gatblau_0313": {
       "expectedShared": true,
       "expectedPrompt": false,
       "kind": "trip_shared_duplicate",
@@ -988,13 +988,13 @@
       "fxRate": "1.0749",
       "fxAsOf": "2026-03-13"
     },
-    "txn_jordan_gatblau_0313_fee": {
+    "txn_piotr_gatblau_0313_fee": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "fee",
       "reason": "bank fee on a foreign purchase; never split"
     },
-    "txn_jordan_kebab_0315": {
+    "txn_piotr_kebab_0315": {
       "expectedShared": true,
       "expectedPrompt": false,
       "kind": "trip_shared_duplicate",
@@ -1008,13 +1008,13 @@
       "fxRate": "1.0749",
       "fxAsOf": "2026-03-13"
     },
-    "txn_jordan_kebab_0315_fee": {
+    "txn_piotr_kebab_0315_fee": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "fee",
       "reason": "bank fee on a foreign purchase; never split"
     },
-    "txn_jordan_barber_0315": {
+    "txn_piotr_barber_0315": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "trip_personal",
@@ -1027,21 +1027,21 @@
       "fxRate": "1.0749",
       "fxAsOf": "2026-03-13"
     },
-    "txn_jordan_barber_0315_fee": {
+    "txn_piotr_barber_0315_fee": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "fee",
       "reason": "bank fee on a foreign purchase; never split"
     },
-    "txn_jordan_beach_0316": {
+    "txn_piotr_beach_0316": {
       "expectedShared": true,
       "expectedPrompt": true,
       "kind": "trip_shared",
       "tripId": "trip_barcelona",
       "suggestedParticipants": [
-        "mem_jordan",
-        "mem_priya",
-        "mem_sam"
+        "mem_piotr",
+        "mem_arjun",
+        "mem_crowley"
       ],
       "reason": "beach drinks for three (never mentioned in chat)",
       "originalAmount": {
@@ -1051,7 +1051,7 @@
       "fxRate": "1.0764",
       "fxAsOf": "2026-03-16"
     },
-    "txn_jordan_beach_0316_fee": {
+    "txn_piotr_beach_0316_fee": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "fee",

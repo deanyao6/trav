@@ -31,7 +31,7 @@ import {
   BARCELONA_CTX,
   BARCELONA_MEMBERS,
   HENRY,
-  MAYA,
+  CHASE,
   eur,
   expectTravError,
   expense,
@@ -451,7 +451,7 @@ describe('tripLedger: split trips', () => {
       expense({ amount: eur(8401) }),
       expense({
         amount: eur(12000),
-        paidBy: [{ memberId: MAYA, amount: eur(12000) }],
+        paidBy: [{ memberId: CHASE, amount: eur(12000) }],
         split: { method: 'exclude', excluded: [HENRY] },
       }),
       expense({ amount: eur(333), status: 'undone' }),

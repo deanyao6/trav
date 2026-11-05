@@ -26,8 +26,8 @@ import type {
 
 const DEAN = 'mem_bcn000001';
 const DEAN_SENDER = 'sim:dean';
-const MAYA = 'mem_bcn000002';
-const MAYA_SENDER = 'sim:maya';
+const CHASE = 'mem_bcn000002';
+const CHASE_SENDER = 'sim:chase';
 
 const cardTx: CardTransaction = markPrivate({
   id: 'priv_bcn000001',
@@ -124,16 +124,19 @@ function expectCode(fn: () => unknown, code: TravError['code']): void {
 
 describe('promote(): owner check', () => {
   it('throws not_owner when the sender is not the owner, even if memberId claims to be', () => {
-    expectCode(() => promote(cardTx, { ...confirmation, senderId: MAYA_SENDER }, ctx), 'not_owner');
+    expectCode(
+      () => promote(cardTx, { ...confirmation, senderId: CHASE_SENDER }, ctx),
+      'not_owner',
+    );
   });
 
   it('throws not_owner when the confirmation names another member', () => {
-    expectCode(() => promote(cardTx, { ...confirmation, memberId: MAYA }, ctx), 'not_owner');
+    expectCode(() => promote(cardTx, { ...confirmation, memberId: CHASE }, ctx), 'not_owner');
   });
 
   it('throws not_owner when ctx.ownerSenderId does not match (display names never matter)', () => {
     expectCode(
-      () => promote(cardTx, confirmation, { ...ctx, ownerSenderId: MAYA_SENDER }),
+      () => promote(cardTx, confirmation, { ...ctx, ownerSenderId: CHASE_SENDER }),
       'not_owner',
     );
   });
@@ -188,12 +191,12 @@ describe('promote(): card transaction', () => {
       cardTx,
       {
         ...confirmation,
-        split: { method: 'equal', participants: [DEAN, MAYA] },
+        split: { method: 'equal', participants: [DEAN, CHASE] },
         merchantDisplayOverride: 'Uber back from Razzmatazz',
       },
       ctx,
     );
-    expect(out.split).toEqual({ method: 'equal', participants: [DEAN, MAYA] });
+    expect(out.split).toEqual({ method: 'equal', participants: [DEAN, CHASE] });
     expect(out.description).toBe('Uber back from Razzmatazz');
     expect(out.merchantDisplay).toBe('Uber back from Razzmatazz');
     const blank = promote(cardTx, { ...confirmation, merchantDisplayOverride: '   ' }, ctx);
@@ -311,7 +314,7 @@ describe('promote(): group scope, itemized splits, conversion sanity', () => {
   it('passes an itemized confirmation split through unchanged', () => {
     const split = {
       method: 'itemized' as const,
-      participants: [DEAN, MAYA],
+      participants: [DEAN, CHASE],
       lineItems: [
         {
           lineId: 'l1',

@@ -199,7 +199,7 @@ export function describeLine(line: ReplayLine, group: SimGroup): string {
 }
 
 /**
- * Which cards a `cardRef` names (`razz_proposal`, `sam_uber_prompt`,
+ * Which cards a `cardRef` names (`razz_proposal`, `crowley_uber_prompt`,
  * `dean_digest`, `final_settle`, `gatblau_receipt`). A `…_receipt` ref is a
  * receipt photo's "read it" card only (T-083): never another expense card.
  */

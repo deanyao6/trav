@@ -35,7 +35,7 @@ function ticket(owner: string): TicketCard {
 
 function expense(
   visibility: 'group' | 'private',
-  paidBy = 'mem_sam',
+  paidBy = 'mem_crowley',
   digest?: ExpenseConfirmCard[],
 ): ExpenseConfirmCard {
   return {
@@ -89,9 +89,9 @@ describe('group thread payload never contains a private card', () => {
   it('drops ticket and private expense_confirm cards that reached the group lane', () => {
     const entries = [
       msg({ text: 'hello' }),
-      msg({ card: ticket('mem_priya') }),
+      msg({ card: ticket('mem_arjun') }),
       msg({ card: expense('private') }),
-      msg({ card: expense('group', 'mem_sam', [expense('private', 'mem_maya')]) }),
+      msg({ card: expense('group', 'mem_crowley', [expense('private', 'mem_chase')]) }),
       msg({ card: expense('group') }),
     ];
     const thread = buildGroupThread(BARCELONA, view(entries), AT);
@@ -105,7 +105,7 @@ describe('group thread payload never contains a private card', () => {
   it('drops DM-lane entries and other conversations even if the transcript source mixes them', () => {
     const entries = [
       msg({ text: 'group line' }),
-      msg({ lane: 'dm', conversationId: 'dm:h_priya', text: 'a private line' }),
+      msg({ lane: 'dm', conversationId: 'dm:h_arjun', text: 'a private line' }),
       msg({ conversationId: 'conv_lisbon', text: 'lisbon line' }),
     ];
     const thread = buildGroupThread(BARCELONA, view(entries), AT);
@@ -227,54 +227,54 @@ describe('a proposal card ends when Trav quote-replies it with a terminal line (
 });
 
 describe('DM threads only show cards addressed to that member', () => {
-  it("keeps Priya's own ticket and drops a ticket for someone else", () => {
-    const priya = BARCELONA.members.find((m) => m.memberId === 'mem_priya')!;
+  it("keeps Arjun's own ticket and drops a ticket for someone else", () => {
+    const arjun = BARCELONA.members.find((m) => m.memberId === 'mem_arjun')!;
     const dm = [
       msg({
         lane: 'dm',
-        conversationId: 'dm:h_priya',
-        dmHandle: 'h_priya',
-        card: ticket('mem_priya'),
+        conversationId: 'dm:h_arjun',
+        dmHandle: 'h_arjun',
+        card: ticket('mem_arjun'),
       }),
       msg({
         lane: 'dm',
-        conversationId: 'dm:h_priya',
-        dmHandle: 'h_priya',
-        card: ticket('mem_sam'),
+        conversationId: 'dm:h_arjun',
+        dmHandle: 'h_arjun',
+        card: ticket('mem_crowley'),
       }),
       msg({
         lane: 'dm',
-        conversationId: 'dm:h_priya',
-        dmHandle: 'h_priya',
-        card: expense('private', 'mem_maya'),
+        conversationId: 'dm:h_arjun',
+        dmHandle: 'h_arjun',
+        card: expense('private', 'mem_chase'),
       }),
     ];
-    const thread = buildDmThread(BARCELONA, priya, view([], { h_priya: dm }), AT);
+    const thread = buildDmThread(BARCELONA, arjun, view([], { h_arjun: dm }), AT);
     expect(thread).toHaveLength(1);
     expect(thread[0]!.kind === 'message' && thread[0]!.card?.type).toBe('ticket');
   });
 
   it('cardVisibleTo: private expense only to its payer, ticket only to deliveredTo', () => {
-    expect(cardVisibleTo(expense('private', 'mem_sam'), 'mem_sam')).toBe(true);
-    expect(cardVisibleTo(expense('private', 'mem_sam'), 'mem_dean')).toBe(false);
+    expect(cardVisibleTo(expense('private', 'mem_crowley'), 'mem_crowley')).toBe(true);
+    expect(cardVisibleTo(expense('private', 'mem_crowley'), 'mem_dean')).toBe(false);
     expect(cardVisibleTo(ticket('mem_dean'), 'mem_dean')).toBe(true);
     expect(cardVisibleTo(ticket('mem_dean'), 'mem_henry')).toBe(false);
   });
 
   it('drops outbound DMs that belong to another group', () => {
-    const priya = BARCELONA.members.find((m) => m.memberId === 'mem_priya')!;
+    const arjun = BARCELONA.members.find((m) => m.memberId === 'mem_arjun')!;
     const other = msg({
       lane: 'dm',
-      conversationId: 'dm:h_priya',
+      conversationId: 'dm:h_arjun',
       text: 'from another trip',
       outbound: {
         id: 'o1',
         groupId: 'grp_other',
-        to: { kind: 'member', memberId: 'mem_priya' },
+        to: { kind: 'member', memberId: 'mem_arjun' },
         text: 'x',
       },
     });
-    expect(buildDmThread(BARCELONA, priya, view([], { h_priya: [other] }), AT)).toEqual([]);
+    expect(buildDmThread(BARCELONA, arjun, view([], { h_arjun: [other] }), AT)).toEqual([]);
   });
 });
 
@@ -283,13 +283,13 @@ describe('reactions and empty groups', () => {
     expect(
       summarizeReactions([
         { handle: 'h_dean', reaction: '👍', removed: false },
-        { handle: 'h_maya', reaction: '👍', removed: false },
+        { handle: 'h_chase', reaction: '👍', removed: false },
         { handle: 'h_dean', reaction: '👍', removed: true },
-        { handle: 'h_sam', reaction: '❤️', removed: false },
+        { handle: 'h_crowley', reaction: '❤️', removed: false },
       ]),
     ).toEqual([
-      { reaction: '👍', count: 1, by: ['h_maya'] },
-      { reaction: '❤️', count: 1, by: ['h_sam'] },
+      { reaction: '👍', count: 1, by: ['h_chase'] },
+      { reaction: '❤️', count: 1, by: ['h_crowley'] },
     ]);
     expect(summarizeReactions(undefined)).toEqual([]);
   });

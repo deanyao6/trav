@@ -1,6 +1,6 @@
 {
   "fixtureVersion": 1,
-  "ownerMemberId": "mem_maya",
+  "ownerMemberId": "mem_chase",
   "groupId": "grp_barcelona",
   "tripId": "trip_barcelona",
   "consentInScenario": {
@@ -8,8 +8,8 @@
   },
   "accounts": [
     {
-      "accountId": "acc_maya_gg",
-      "ownerMemberId": "mem_maya",
+      "accountId": "acc_chase_gg",
+      "ownerMemberId": "mem_chase",
       "institutionName": "Golden Gate Card (fictional)",
       "mask": "3056",
       "type": "credit",
@@ -23,9 +23,9 @@
       "result": {
         "added": [
           {
-            "transactionId": "txn_maya_home_02",
-            "accountId": "acc_maya_gg",
-            "ownerMemberId": "mem_maya",
+            "transactionId": "txn_chase_home_02",
+            "accountId": "acc_chase_gg",
+            "ownerMemberId": "mem_chase",
             "amount": {
               "amountMinor": 2797,
               "currency": "USD"
@@ -58,9 +58,9 @@
             ]
           },
           {
-            "transactionId": "txn_maya_home_07",
-            "accountId": "acc_maya_gg",
-            "ownerMemberId": "mem_maya",
+            "transactionId": "txn_chase_home_07",
+            "accountId": "acc_chase_gg",
+            "ownerMemberId": "mem_chase",
             "amount": {
               "amountMinor": 1199,
               "currency": "USD"
@@ -93,9 +93,9 @@
             ]
           },
           {
-            "transactionId": "txn_maya_home_05",
-            "accountId": "acc_maya_gg",
-            "ownerMemberId": "mem_maya",
+            "transactionId": "txn_chase_home_05",
+            "accountId": "acc_chase_gg",
+            "ownerMemberId": "mem_chase",
             "amount": {
               "amountMinor": 1907,
               "currency": "USD"
@@ -128,9 +128,9 @@
             ]
           },
           {
-            "transactionId": "txn_maya_home_06",
-            "accountId": "acc_maya_gg",
-            "ownerMemberId": "mem_maya",
+            "transactionId": "txn_chase_home_06",
+            "accountId": "acc_chase_gg",
+            "ownerMemberId": "mem_chase",
             "amount": {
               "amountMinor": 6218,
               "currency": "USD"
@@ -163,9 +163,9 @@
             ]
           },
           {
-            "transactionId": "txn_maya_home_03",
-            "accountId": "acc_maya_gg",
-            "ownerMemberId": "mem_maya",
+            "transactionId": "txn_chase_home_03",
+            "accountId": "acc_chase_gg",
+            "ownerMemberId": "mem_chase",
             "amount": {
               "amountMinor": 1199,
               "currency": "USD"
@@ -198,9 +198,9 @@
             ]
           },
           {
-            "transactionId": "txn_maya_home_04",
-            "accountId": "acc_maya_gg",
-            "ownerMemberId": "mem_maya",
+            "transactionId": "txn_chase_home_04",
+            "accountId": "acc_chase_gg",
+            "ownerMemberId": "mem_chase",
             "amount": {
               "amountMinor": 1888,
               "currency": "USD"
@@ -233,9 +233,9 @@
             ]
           },
           {
-            "transactionId": "txn_maya_home_01",
-            "accountId": "acc_maya_gg",
-            "ownerMemberId": "mem_maya",
+            "transactionId": "txn_chase_home_01",
+            "accountId": "acc_chase_gg",
+            "ownerMemberId": "mem_chase",
             "amount": {
               "amountMinor": 2900,
               "currency": "USD"
@@ -268,9 +268,9 @@
             ]
           },
           {
-            "transactionId": "txn_maya_sagrada_0310",
-            "accountId": "acc_maya_gg",
-            "ownerMemberId": "mem_maya",
+            "transactionId": "txn_chase_sagrada_0310",
+            "accountId": "acc_chase_gg",
+            "ownerMemberId": "mem_chase",
             "amount": {
               "amountMinor": 15600,
               "currency": "EUR"
@@ -303,9 +303,9 @@
             ]
           },
           {
-            "transactionId": "txn_maya_cava_0313",
-            "accountId": "acc_maya_gg",
-            "ownerMemberId": "mem_maya",
+            "transactionId": "txn_chase_cava_0313",
+            "accountId": "acc_chase_gg",
+            "ownerMemberId": "mem_chase",
             "amount": {
               "amountMinor": 3000,
               "currency": "EUR"
@@ -338,9 +338,9 @@
             ]
           },
           {
-            "transactionId": "txn_maya_clothes_0315",
-            "accountId": "acc_maya_gg",
-            "ownerMemberId": "mem_maya",
+            "transactionId": "txn_chase_clothes_0315",
+            "accountId": "acc_chase_gg",
+            "ownerMemberId": "mem_chase",
             "amount": {
               "amountMinor": 5900,
               "currency": "EUR"
@@ -373,9 +373,9 @@
             ]
           },
           {
-            "transactionId": "txn_maya_uber_0315",
-            "accountId": "acc_maya_gg",
-            "ownerMemberId": "mem_maya",
+            "transactionId": "txn_chase_uber_0315",
+            "accountId": "acc_chase_gg",
+            "ownerMemberId": "mem_chase",
             "amount": {
               "amountMinor": 2110,
               "currency": "EUR"
@@ -408,9 +408,9 @@
             ]
           },
           {
-            "transactionId": "txn_maya_lunch_0316_p",
-            "accountId": "acc_maya_gg",
-            "ownerMemberId": "mem_maya",
+            "transactionId": "txn_chase_lunch_0316_p",
+            "accountId": "acc_chase_gg",
+            "ownerMemberId": "mem_chase",
             "amount": {
               "amountMinor": 9900,
               "currency": "EUR"
@@ -445,18 +445,18 @@
         ],
         "modified": [],
         "removed": [],
-        "nextCursor": "cur_maya_1",
+        "nextCursor": "cur_chase_1",
         "hasMore": true
       }
     },
     {
-      "requestCursor": "cur_maya_1",
+      "requestCursor": "cur_chase_1",
       "result": {
         "added": [
           {
-            "transactionId": "txn_maya_taxi_0317",
-            "accountId": "acc_maya_gg",
-            "ownerMemberId": "mem_maya",
+            "transactionId": "txn_chase_taxi_0317",
+            "accountId": "acc_chase_gg",
+            "ownerMemberId": "mem_chase",
             "amount": {
               "amountMinor": 3900,
               "currency": "EUR"
@@ -489,9 +489,9 @@
             ]
           },
           {
-            "transactionId": "txn_maya_lunch_0316",
-            "accountId": "acc_maya_gg",
-            "ownerMemberId": "mem_maya",
+            "transactionId": "txn_chase_lunch_0316",
+            "accountId": "acc_chase_gg",
+            "ownerMemberId": "mem_chase",
             "amount": {
               "amountMinor": 10890,
               "currency": "EUR"
@@ -504,7 +504,7 @@
             "merchantEntityId": "ent_xiringuito_mar_blava",
             "rawName": "XIRINGUITO MAR BLAVA",
             "pending": false,
-            "pendingTransactionId": "txn_maya_lunch_0316_p",
+            "pendingTransactionId": "txn_chase_lunch_0316_p",
             "paymentChannel": "in store",
             "personalFinanceCategory": {
               "primary": "FOOD_AND_DRINK",
@@ -525,9 +525,9 @@
             ]
           },
           {
-            "transactionId": "txn_maya_home_08",
-            "accountId": "acc_maya_gg",
-            "ownerMemberId": "mem_maya",
+            "transactionId": "txn_chase_home_08",
+            "accountId": "acc_chase_gg",
+            "ownerMemberId": "mem_chase",
             "amount": {
               "amountMinor": 1199,
               "currency": "USD"
@@ -560,9 +560,9 @@
             ]
           },
           {
-            "transactionId": "txn_maya_home_10",
-            "accountId": "acc_maya_gg",
-            "ownerMemberId": "mem_maya",
+            "transactionId": "txn_chase_home_10",
+            "accountId": "acc_chase_gg",
+            "ownerMemberId": "mem_chase",
             "amount": {
               "amountMinor": 5063,
               "currency": "USD"
@@ -595,9 +595,9 @@
             ]
           },
           {
-            "transactionId": "txn_maya_home_09",
-            "accountId": "acc_maya_gg",
-            "ownerMemberId": "mem_maya",
+            "transactionId": "txn_chase_home_09",
+            "accountId": "acc_chase_gg",
+            "ownerMemberId": "mem_chase",
             "amount": {
               "amountMinor": 5147,
               "currency": "USD"
@@ -633,87 +633,87 @@
         "modified": [],
         "removed": [
           {
-            "transactionId": "txn_maya_lunch_0316_p",
-            "accountId": "acc_maya_gg"
+            "transactionId": "txn_chase_lunch_0316_p",
+            "accountId": "acc_chase_gg"
           }
         ],
-        "nextCursor": "cur_maya_2",
+        "nextCursor": "cur_chase_2",
         "hasMore": false
       }
     }
   ],
   "labels": {
-    "txn_maya_home_01": {
+    "txn_chase_home_01": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "PulseFit at home (San Francisco), outside the trip"
     },
-    "txn_maya_home_02": {
+    "txn_chase_home_02": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "CampusBooks at home (San Francisco), outside the trip"
     },
-    "txn_maya_home_03": {
+    "txn_chase_home_03": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "Streamly at home (San Francisco), outside the trip"
     },
-    "txn_maya_home_04": {
+    "txn_chase_home_04": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "Lyft at home (San Francisco), outside the trip"
     },
-    "txn_maya_home_05": {
+    "txn_chase_home_05": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "DashDinner at home (San Francisco), outside the trip"
     },
-    "txn_maya_home_06": {
+    "txn_chase_home_06": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "CampusBooks at home (San Francisco), outside the trip"
     },
-    "txn_maya_home_07": {
+    "txn_chase_home_07": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "Streamly at home (San Francisco), outside the trip"
     },
-    "txn_maya_home_08": {
+    "txn_chase_home_08": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "Streamly at home (Los Angeles), outside the trip"
     },
-    "txn_maya_home_09": {
+    "txn_chase_home_09": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "CampusBooks at home (Los Angeles), outside the trip"
     },
-    "txn_maya_home_10": {
+    "txn_chase_home_10": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "CampusBooks at home (Los Angeles), outside the trip"
     },
-    "txn_maya_sagrada_0310": {
+    "txn_chase_sagrada_0310": {
       "expectedShared": true,
       "expectedPrompt": false,
       "kind": "trav_booking_charge",
@@ -721,41 +721,41 @@
       "duplicateOf": "booking: off_bcn_sagrada_1500",
       "reason": "charged by a Trav booking; already on the ledger via the booking expense"
     },
-    "txn_maya_cava_0313": {
+    "txn_chase_cava_0313": {
       "expectedShared": true,
       "expectedPrompt": false,
       "kind": "trip_shared_duplicate",
       "tripId": "trip_barcelona",
-      "duplicateOf": "chat: \"@trav log 30 for the cava\" + \"euros, me priya and jordan\"",
+      "duplicateOf": "chat: \"@trav log 30 for the cava\" + \"euros, me arjun and piotr\"",
       "reason": "already logged from chat"
     },
-    "txn_maya_clothes_0315": {
+    "txn_chase_clothes_0315": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "trip_personal",
       "tripId": "trip_barcelona",
       "reason": "clothes"
     },
-    "txn_maya_uber_0315": {
+    "txn_chase_uber_0315": {
       "expectedShared": true,
       "expectedPrompt": true,
       "kind": "trip_shared",
       "tripId": "trip_barcelona",
       "suggestedParticipants": [
-        "mem_maya",
-        "mem_priya",
+        "mem_chase",
+        "mem_arjun",
         "mem_henry"
       ],
-      "reason": "ride to the match with 3 riders; same ride as em_bcn_maya_uber_injection; Maya keeps it private in the chat replay",
-      "sameAs": "em_bcn_maya_uber_injection"
+      "reason": "ride to the match with 3 riders; same ride as em_bcn_chase_uber_injection; Chase keeps it private in the chat replay",
+      "sameAs": "em_bcn_chase_uber_injection"
     },
-    "txn_maya_lunch_0316_p": {
+    "txn_chase_lunch_0316_p": {
       "expectedShared": null,
       "expectedPrompt": false,
       "kind": "pending",
-      "supersededBy": "txn_maya_lunch_0316"
+      "supersededBy": "txn_chase_lunch_0316"
     },
-    "txn_maya_lunch_0316": {
+    "txn_chase_lunch_0316": {
       "expectedShared": true,
       "expectedPrompt": false,
       "kind": "trip_shared_duplicate",
@@ -763,17 +763,17 @@
       "duplicateOf": "receipt: fixtures/receipts/rcpt_bcn_lunch_service.json",
       "reason": "pending €99.00 (pre-service) posted as €108.90; already logged from the receipt photo"
     },
-    "txn_maya_taxi_0317": {
+    "txn_chase_taxi_0317": {
       "expectedShared": true,
       "expectedPrompt": true,
       "kind": "trip_shared",
       "tripId": "trip_barcelona",
       "suggestedParticipants": [
-        "mem_maya",
-        "mem_priya",
-        "mem_jordan"
+        "mem_chase",
+        "mem_arjun",
+        "mem_piotr"
       ],
-      "reason": "early taxi to the airport with Priya and Jordan (never mentioned in chat)"
+      "reason": "early taxi to the airport with Arjun and Piotr (never mentioned in chat)"
     }
   },
   "summary": {

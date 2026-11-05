@@ -123,7 +123,7 @@ describe('T-095: each chat opens on its own trip, with its own clock', () => {
     });
     expect(messages(after, LISBON.groupId).at(-1)?.at).toBe(LIS_OPEN);
     const bcn = await api(b, 'POST', '/api/messages', {
-      from: 'h_maya',
+      from: 'h_chase',
       text: 'pregame soon',
       groupId: BARCELONA.groupId,
     });
@@ -258,14 +258,14 @@ describe('T-095: each chat opens on its own trip, with its own clock', () => {
     expect(seen.map((s) => s.who)).toEqual(['h_lis_dean']);
     const bcn = b.inject({
       type: 'message',
-      from: 'h_sam',
+      from: 'h_crowley',
       text: 'razz?',
       groupId: BARCELONA.groupId,
     });
     release();
     await Promise.all([lis, bcn]);
     const lisTurn = seen.find((s) => s.who === 'h_lis_dean')!;
-    const bcnTurn = seen.find((s) => s.who === 'h_sam')!;
+    const bcnTurn = seen.find((s) => s.who === 'h_crowley')!;
     expect(lisTurn).toMatchObject({ at: LIS_OPEN, start: LIS_OPEN, end: LIS_OPEN });
     expect(bcnTurn).toMatchObject({ at: BCN_OPEN, start: BCN_OPEN, end: BCN_OPEN });
   });

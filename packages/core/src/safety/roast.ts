@@ -172,7 +172,7 @@ function personTargeting(noun: string): string[] {
  * before matching so "asleep at the wheel of this trip" (VOICE §7.3 group
  * indecision) is not a sleep/body roast. No "looks shared" carve-out: the
  * recap's pending-items line that needed one is gone (T-099), and a bare
- * "looks shared" would also blank "Sam's looks shared the spotlight".
+ * "looks shared" would also blank "Crowley's looks shared the spotlight".
  */
 export const ROAST_IDIOMS: readonly string[] = ['asleep at the wheel', 'face value'];
 

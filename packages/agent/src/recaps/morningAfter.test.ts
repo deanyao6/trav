@@ -300,7 +300,7 @@ describe('the Razzmatazz morning (sun 15 mar, day 4)', () => {
       "morning after, day 4 ☀️
       last night: dinner (5 of you, not Henry) €84 · Razzmatazz tickets €90 · late-night kebabs €62 · +2 more
       €287.40 total, under the €500 day budget
-      tab: Sam → Dean €448.27 is the big one, full list in the card
+      tab: Crowley → Dean €448.27 is the big one, full list in the card
       today: Barça vs Sevilla at 9pm"
     `);
     const card = asRecap(r.message.card);
@@ -364,8 +364,8 @@ describe('the Razzmatazz morning (sun 15 mar, day 4)', () => {
         category: 'transport' as const,
         lowConfidence: false,
       }) as PendingPrivateItem;
-    w.stores.private.putPendingItem('mem_priya', item('mem_priya', 'priv_a', 1977, 'Cabify'));
-    w.stores.private.putPendingItem('mem_maya', item('mem_maya', 'priv_b', 4321, 'FreeNow'));
+    w.stores.private.putPendingItem('mem_arjun', item('mem_arjun', 'priv_a', 1977, 'Cabify'));
+    w.stores.private.putPendingItem('mem_chase', item('mem_chase', 'priv_b', 4321, 'FreeNow'));
     const r = await recapOn('2026-03-15', w);
     if (r.kind !== 'ok') throw new Error(r.kind);
     expect(r.message.text).not.toMatch(/looks? shared|waiting on a tap|in dms|pending/i);
@@ -417,9 +417,9 @@ describe('the Razzmatazz morning (sun 15 mar, day 4)', () => {
 
   it('roast mode on with a minor in the group: family mode, no roast, no night framing', async () => {
     const w = barcelonaAt(TRUTH.recapAt, { roast: true });
-    const sam = w.stores.group.members.get('mem_sam')!;
+    const crowley = w.stores.group.members.get('mem_crowley')!;
     w.stores.group.members.upsert({
-      ...sam,
+      ...crowley,
       birthDate: '2010-01-01',
       ageBand: 'under18',
       guardianMemberId: 'mem_dean',
@@ -434,14 +434,14 @@ describe('the Razzmatazz morning (sun 15 mar, day 4)', () => {
 
   it('a guardian-less minor with money: the guardian question in the group, never a broken card', async () => {
     const w = barcelonaAt(TRUTH.recapAt);
-    const sam = w.stores.group.members.get('mem_sam')!;
-    w.stores.group.members.upsert({ ...sam, birthDate: '2010-01-01', ageBand: 'under18' });
+    const crowley = w.stores.group.members.get('mem_crowley')!;
+    w.stores.group.members.upsert({ ...crowley, birthDate: '2010-01-01', ageBand: 'under18' });
     const r = await recapOn('2026-03-15', w);
     expect(r.kind).toBe('needs_guardian');
     if (r.kind !== 'needs_guardian') return;
     expect(r.message.to).toEqual({ kind: 'group' });
     expect(r.message.card).toBeUndefined();
-    expect(r.message.text).toMatch(/Sam/);
+    expect(r.message.text).toMatch(/Crowley/);
   });
 
   it('a dropped photo never comes back: not in this recap, not in Wrapped', async () => {
@@ -702,7 +702,7 @@ describe('the scheduled Morning After on the simulated clock', () => {
     );
     writeExpenses(w.stores, late, BCN.members);
     w.h.clock.set('2026-03-15T00:40:00+01:00');
-    await w.h.say('h_maya', 'where are you guys, by the bar?');
+    await w.h.say('h_chase', 'where are you guys, by the bar?');
     w.h.clock.set('2026-03-15T10:00:00+01:00');
     const turns = await w.h.runtime.drain();
     const turn = turns.find((t) => t.note.startsWith('scheduled:morning_after'))!;
@@ -786,7 +786,7 @@ describe('"@trav drop that one"', () => {
     '"%s" quoting the recap is still a photo drop, not a cancel',
     async (text) => {
       const { w, msg } = await postedRecap();
-      const turn = await w.h.say('h_sam', text, { replyToMessageId: msg.id });
+      const turn = await w.h.say('h_crowley', text, { replyToMessageId: msg.id });
       expect(turn.note).toMatch(/^drop_photo:/);
     },
   );
@@ -795,14 +795,14 @@ describe('"@trav drop that one"', () => {
     '"%s" quoting the recap is never the cancel line (it was never a photo drop either)',
     async (text) => {
       const { w, msg } = await postedRecap();
-      const turn = await w.h.say('h_sam', text, { replyToMessageId: msg.id });
+      const turn = await w.h.say('h_crowley', text, { replyToMessageId: msg.id });
       expect(turn.note).not.toBe('cancel:quoted_not_a_proposal');
     },
   );
 
   it('with several photos it asks which, then "photo 2" drops exactly that one, audited, for good', async () => {
     const { w, msg } = await postedRecap();
-    const which = await w.h.say('h_jordan', '@trav drop that one');
+    const which = await w.h.say('h_piotr', '@trav drop that one');
     expect(which.note).toBe('drop_photo:which');
     expect((which.outbound[0] as { text: string }).text).toMatch(/^which one\?/);
     expect(w.stores.group.groups.get(BARCELONA.groupId)!.settings.droppedPhotoIds ?? []).toEqual(
@@ -810,7 +810,7 @@ describe('"@trav drop that one"', () => {
     );
 
     const victim = msg.card.photos[1]!.photoId!;
-    const done = await w.h.say('h_jordan', '@trav drop photo 2');
+    const done = await w.h.say('h_piotr', '@trav drop photo 2');
     expect(done.note).toBe('drop_photo:dropped');
     expect((done.outbound[0] as { text: string }).text).toBe(
       "dropped it. it won't come back in a recap or the wrapped",
@@ -822,7 +822,7 @@ describe('"@trav drop that one"', () => {
       .audit()
       .find((e) => e.type === 'settings.changed' && e.payload['photoId'] === victim)!;
     expect(row).toMatchObject({
-      actor: { kind: 'member', id: 'mem_jordan' },
+      actor: { kind: 'member', id: 'mem_piotr' },
       visibility: 'group',
       payload: { setting: 'droppedPhotoIds', albumHidden: true },
     });
@@ -845,13 +845,13 @@ describe('"@trav drop that one"', () => {
     expect(wrapped.facts.photos.map((p) => p.photoId)).not.toContain(victim);
 
     // Dropping it twice is a no-op with one line.
-    const twice = await w.h.say('h_maya', '@trav drop photo 2', { replyToMessageId: msg.id });
+    const twice = await w.h.say('h_chase', '@trav drop photo 2', { replyToMessageId: msg.id });
     expect(twice.note).toBe('drop_photo:already');
   });
 
   it('a reply on the recap counts as addressed; "that one" with one photo left on a reply still asks if several', async () => {
     const { w, msg } = await postedRecap();
-    const r = await w.h.say('h_sam', 'drop the last one', { replyToMessageId: msg.id });
+    const r = await w.h.say('h_crowley', 'drop the last one', { replyToMessageId: msg.id });
     expect(r.note).toBe('drop_photo:dropped');
     expect(w.stores.group.groups.get(BARCELONA.groupId)!.settings.droppedPhotoIds).toEqual([
       msg.card.photos[msg.card.photos.length - 1]!.photoId,
@@ -885,7 +885,7 @@ describe('T-015 review round 1', () => {
     id: string,
     description: string,
     category: Expense['category'],
-    by: MemberId = 'mem_priya',
+    by: MemberId = 'mem_arjun',
   ): Expense {
     return {
       expenseId: id,
@@ -936,7 +936,7 @@ describe('T-015 review round 1', () => {
         if (category === 'other') expect(roast).not.toMatch(/paid for/);
         else
           expect(r.roastLines).toContain(
-            `Priya paid for ${{ food: 'food', drinks: 'a round', transport: 'a ride', tickets: 'tickets' }[category]} at 3:40am. the tab remembers`,
+            `Arjun paid for ${{ food: 'food', drinks: 'a round', transport: 'a ride', tickets: 'tickets' }[category]} at 3:40am. the tab remembers`,
           );
       }
     }
@@ -958,8 +958,8 @@ describe('T-015 review round 1', () => {
       '@trav shouldnt remove the first one',
       '@trav should we drop that one?',
       '@trav why would you drop photo 2',
-      "@trav Sam wants to drop that one, don't",
-      '@trav maya said to drop photo 2',
+      "@trav Crowley wants to drop that one, don't",
+      '@trav chase said to drop photo 2',
     ])
       expect(parseDropPhoto(t), t).toBeUndefined();
     // A drop is permanent, so any negation in the message means no (r2 #1).
@@ -968,12 +968,12 @@ describe('T-015 review round 1', () => {
     const w = barcelonaAt(AT);
     const job = morningAfterJobFor(w.stores.group.trips.get(BARCELONA.tripId)!, '2026-03-15');
     const posted = (await w.h.runtime.agent.runScheduled(job)).outbound[0] as { id: string };
-    const reply = await w.h.say('h_jordan', "don't drop the first one", {
+    const reply = await w.h.say('h_piotr', "don't drop the first one", {
       replyToMessageId: posted.id,
     });
     expect(reply.note).not.toMatch(/^drop_photo/);
     for (const t of ['please don’t delete this pic, i love it', '@trav do NOT drop that one']) {
-      const r = await w.h.say('h_maya', t);
+      const r = await w.h.say('h_chase', t);
       expect(r.note, t).not.toMatch(/^drop_photo/);
     }
     expect(w.stores.group.groups.get(BARCELONA.groupId)!.settings.droppedPhotoIds ?? []).toEqual(
@@ -1037,7 +1037,7 @@ describe('T-015 review round 1', () => {
       groupId: BARCELONA.groupId,
       tripId: BARCELONA.tripId,
       type: 'ledger.entry_deleted',
-      actor: { kind: 'member', id: 'mem_sam' },
+      actor: { kind: 'member', id: 'mem_crowley' },
       visibility: 'group',
       payload: { expenseId: 'exp_bcn_014', after: { status: 'undone' } },
     });
@@ -1119,7 +1119,7 @@ describe('T-015 review round 1', () => {
     });
 
   it('SAFETY §2.8: a roast line the gates drop is audited as roast.suppressed, cause only', async () => {
-    const w = barcelonaAt(AT, { roast: true, roastConsent: (id) => id !== 'mem_sam' });
+    const w = barcelonaAt(AT, { roast: true, roastConsent: (id) => id !== 'mem_crowley' });
     const job = morningAfterJobFor(w.stores.group.trips.get(BARCELONA.tripId)!, '2026-03-15');
     const turn = await w.h.runtime.agent.runScheduled(job);
     const rows = w.h
@@ -1127,13 +1127,13 @@ describe('T-015 review round 1', () => {
       .filter((e) => e.type === 'roast.suppressed' && turn.auditEventIds.includes(e.id));
     expect(rows.length).toBeGreaterThan(0);
     expect(rows[0]!.payload).toMatchObject({ cause: 'member_opted_out' });
-    expect(JSON.stringify(rows.map((x) => x.payload))).not.toMatch(/Sam|tab remembers/);
+    expect(JSON.stringify(rows.map((x) => x.payload))).not.toMatch(/Crowley|tab remembers/);
   });
 
   it('review r2 #2: a line naming a member who left is audited as target_inactive', async () => {
     const w = barcelonaAt(AT, { roast: true, roastConsent: () => true });
-    const sam = w.stores.group.members.get('mem_sam')!;
-    w.stores.group.members.upsert({ ...sam, leftAt: '2026-03-14T12:00:00+01:00' });
+    const crowley = w.stores.group.members.get('mem_crowley')!;
+    w.stores.group.members.upsert({ ...crowley, leftAt: '2026-03-14T12:00:00+01:00' });
     const job = morningAfterJobFor(w.stores.group.trips.get(BARCELONA.tripId)!, '2026-03-15');
     const turn = await w.h.runtime.agent.runScheduled(job);
     const causes = w.h
@@ -1182,7 +1182,7 @@ describe('T-138: a blocked or unseparable roast line never drops the whole Morni
 
   it('a pending private item leaves the roast-marked recap untouched: no count, no DM nudge (clk_bcn_2026031510, T-099)', async () => {
     const w = barcelonaAt(AT, { roast: true });
-    w.stores.private.putPendingItem('mem_sam', pendingItem('mem_sam'));
+    w.stores.private.putPendingItem('mem_crowley', pendingItem('mem_crowley'));
     const job = morningAfterJobFor(w.stores.group.trips.get(BARCELONA.tripId)!, '2026-03-15');
     const turn = await w.h.runtime.agent.runScheduled(job);
     expect(turn.note).toBe('scheduled:morning_after:full');

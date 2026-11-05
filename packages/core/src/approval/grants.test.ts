@@ -171,7 +171,7 @@ describe('applyApproval: identity is the channel senderId', () => {
   });
 
   it('a member outside requiredApprovers is not_required_approver', () => {
-    const named = evaluate(razzmatazz(), policy({ approvers: ['mem_sam'] }), context());
+    const named = evaluate(razzmatazz(), policy({ approvers: ['mem_crowley'] }), context());
     const g = createGrant(named, 'aud_eval', ids(), NOW);
     const r = applyApproval(g, named, signature('mem_ava'), members, NOW, ageBandDeps);
     expect(r).toMatchObject({ kind: 'ignored', cause: 'not_required_approver' });
@@ -226,21 +226,28 @@ describe('applyApproval: identity is the channel senderId', () => {
       NOW,
       ageBandDeps,
     );
-    const r = applyApproval(first.grant, decision, signature('mem_sam'), members, NOW, ageBandDeps);
+    const r = applyApproval(
+      first.grant,
+      decision,
+      signature('mem_crowley'),
+      members,
+      NOW,
+      ageBandDeps,
+    );
     expect(r).toMatchObject({ kind: 'ignored', cause: 'not_pending' });
   });
 
   it('rejected / invalidated grants accept nobody', () => {
     const rejected = rejectGrant(grant(), signature('mem_dean'));
     expect(
-      applyApproval(rejected, decision, signature('mem_sam'), members, NOW, ageBandDeps),
+      applyApproval(rejected, decision, signature('mem_crowley'), members, NOW, ageBandDeps),
     ).toMatchObject({
       kind: 'ignored',
       cause: 'not_pending',
     });
     const invalidated = invalidateGrant(grant(), 'price_changed');
     expect(
-      applyApproval(invalidated, decision, signature('mem_sam'), members, NOW, ageBandDeps),
+      applyApproval(invalidated, decision, signature('mem_crowley'), members, NOW, ageBandDeps),
     ).toMatchObject({
       kind: 'ignored',
       cause: 'not_pending',
@@ -258,15 +265,15 @@ describe('applyApproval: identity is the channel senderId', () => {
     const r = applyApproval(
       grant(),
       decision,
-      signature('mem_sam', { via: 'reaction', messageId: 'msg_thumbs' }),
+      signature('mem_crowley', { via: 'reaction', messageId: 'msg_thumbs' }),
       members,
       NOW,
       ageBandDeps,
     );
     expect(r.grant.grantedBy).toEqual([
       {
-        memberId: 'mem_sam',
-        senderId: 'sim:sam',
+        memberId: 'mem_crowley',
+        senderId: 'sim:crowley',
         via: 'reaction',
         messageId: 'msg_thumbs',
         at: NOW,
@@ -280,7 +287,7 @@ describe('applyApproval: each_payer completion', () => {
     const decision = eachPayer();
     expect(decision.requiredApprovers).toEqual([...FIVE]);
     let g = createGrant(decision, 'aud_eval', ids(), NOW);
-    for (const id of ['mem_leo', 'mem_dean', 'mem_ava', 'mem_maya']) {
+    for (const id of ['mem_leo', 'mem_dean', 'mem_ava', 'mem_chase']) {
       const r = applyApproval(g, decision, signature(id), members, NOW, ageBandDeps);
       expect(r.kind).toBe('accepted');
       g = r.grant;
@@ -291,7 +298,7 @@ describe('applyApproval: each_payer completion', () => {
       valid: false,
       reason: 'incomplete',
     });
-    const last = applyApproval(g, decision, signature('mem_sam'), members, NOW, ageBandDeps);
+    const last = applyApproval(g, decision, signature('mem_crowley'), members, NOW, ageBandDeps);
     expect(last.kind).toBe('accepted');
     expect(last.grant.complete).toBe(true);
     expect(last.grant.status).toBe('complete');
@@ -523,7 +530,10 @@ describe('invalidation on price / payer / policy / member change', () => {
   it('reordering set-valued policy fields is not a policy change; changing their members is', () => {
     const named = evaluate(
       razzmatazz(),
-      policy({ approvers: ['mem_sam', 'mem_dean'], alwaysEachPayerKinds: ['lodging', 'flight'] }),
+      policy({
+        approvers: ['mem_crowley', 'mem_dean'],
+        alwaysEachPayerKinds: ['lodging', 'flight'],
+      }),
       context(),
     );
     const withPolicy = (p: Parameters<typeof policy>[0]) => ({
@@ -534,28 +544,28 @@ describe('invalidation on price / payer / policy / member change', () => {
     expect(
       detectGrantInvalidation(
         withPolicy({
-          approvers: ['mem_dean', 'mem_sam'],
+          approvers: ['mem_dean', 'mem_crowley'],
           alwaysEachPayerKinds: ['flight', 'lodging'],
         }),
       ),
     ).toBeNull();
     expect(
       samePolicy(
-        policy({ approvers: ['mem_sam', 'mem_dean'] }),
-        policy({ approvers: ['mem_dean', 'mem_sam'] }),
+        policy({ approvers: ['mem_crowley', 'mem_dean'] }),
+        policy({ approvers: ['mem_dean', 'mem_crowley'] }),
       ),
     ).toBe(true);
     expect(
       detectGrantInvalidation(
         withPolicy({
-          approvers: ['mem_dean', 'mem_sam', 'mem_ava'],
+          approvers: ['mem_dean', 'mem_crowley', 'mem_ava'],
           alwaysEachPayerKinds: ['lodging', 'flight'],
         }),
       ),
     ).toBe('policy_changed');
     expect(
       detectGrantInvalidation(
-        withPolicy({ approvers: ['mem_sam', 'mem_dean'], alwaysEachPayerKinds: ['flight'] }),
+        withPolicy({ approvers: ['mem_crowley', 'mem_dean'], alwaysEachPayerKinds: ['flight'] }),
       ),
     ).toBe('policy_changed');
     expect(

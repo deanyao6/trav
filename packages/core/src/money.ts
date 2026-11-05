@@ -358,12 +358,12 @@ export function formatEach(m: Money): string {
   return `${formatMoney(m)} each`;
 }
 
-/** `Maya → Dean €31.60` (debtor first; VOICE §3.4). Names are display names. */
+/** `Chase → Dean €31.60` (debtor first; VOICE §3.4). Names are display names. */
 export function formatTransfer(fromName: string, toName: string, m: Money): string {
   return `${fromName} → ${toName} ${formatMoney(m)}`;
 }
 
-/** `Dean €40 · Maya €22 · Sam €22` (unequal shares; VOICE §3.4). */
+/** `Dean €40 · Chase €22 · Crowley €22` (unequal shares; VOICE §3.4). */
 export function formatShares(
   shares: readonly { readonly name: string; readonly amount: Money }[],
 ): string {

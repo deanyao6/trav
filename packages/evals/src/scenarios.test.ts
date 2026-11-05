@@ -60,7 +60,7 @@ describe('validateScenario', () => {
     ],
     [
       'unknown consent flag',
-      { ...base, setup: { consent: { mem_sam: { photo: true } } } },
+      { ...base, setup: { consent: { mem_crowley: { photo: true } } } },
       /unknown key "photo"/,
     ],
     ['unknown tickets key', { ...base, expect: { tickets: { to: [], nTo: [] } } }, /nTo/],
@@ -71,7 +71,7 @@ describe('validateScenario', () => {
     ['tap without actionId', withStep({ do: 'tap', from: 'h_dean', target: 'x' }), /"actionId"/],
     [
       'intake without text',
-      withStep({ do: 'intake', owner: 'mem_sam', source: 'email_receipt', itemId: 'i' }),
+      withStep({ do: 'intake', owner: 'mem_crowley', source: 'email_receipt', itemId: 'i' }),
       /"text"/,
     ],
     [
@@ -150,12 +150,12 @@ describe('validateScenario', () => {
     ],
     [
       'import with a bad event',
-      withStep({ do: 'import', event: 'sms', owner: 'mem_sam', fixture: 'f' }),
+      withStep({ do: 'import', event: 'sms', owner: 'mem_crowley', fixture: 'f' }),
       /sms/,
     ],
     [
       'import without fixture',
-      withStep({ do: 'import', event: 'card_sync', owner: 'mem_sam' }),
+      withStep({ do: 'import', event: 'card_sync', owner: 'mem_crowley' }),
       /"fixture"/,
     ],
   ];

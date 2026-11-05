@@ -254,22 +254,22 @@ describe('Wrapped awards on the Barcelona fixture (T-016)', () => {
     const r = computeAwards(bcnInput({ optedOut: ['mem_dean'] }));
     expect(r.awards.map((a) => a.memberId)).not.toContain('mem_dean');
     for (const s of r.standings) expect(s.stats.map((x) => x.memberId)).not.toContain('mem_dean');
-    expect(r.awards.find((a) => a.id === 'mvp_spender')?.memberId).toBe('mem_jordan');
+    expect(r.awards.find((a) => a.id === 'mvp_spender')?.memberId).toBe('mem_piotr');
     // Nobody else asked Trav for a booking, so The Planner simply isn't given.
     expect(r.awards.find((a) => a.id === 'planner')).toBeUndefined();
   });
 
   it('members who left, and guests, get nothing', () => {
     const members = BCN.members.map((m) =>
-      m.memberId === 'mem_jordan'
+      m.memberId === 'mem_piotr'
         ? { ...m, active: false, leftAt: '2026-03-17T09:00:00+01:00' }
-        : m.memberId === 'mem_priya'
+        : m.memberId === 'mem_arjun'
           ? { ...m, role: 'guest' as const }
           : m,
     );
     const r = computeAwards(bcnInput({ members }));
-    expect(r.awards.map((a) => a.memberId)).not.toContain('mem_jordan');
-    expect(r.awards.map((a) => a.memberId)).not.toContain('mem_priya');
+    expect(r.awards.map((a) => a.memberId)).not.toContain('mem_piotr');
+    expect(r.awards.map((a) => a.memberId)).not.toContain('mem_arjun');
   });
 
   it('empty trip: no awards, no throw', () => {

@@ -10,7 +10,7 @@ const base: IdempotencyInput = {
   provider: 'mock-tickets',
   itemRef: 'evt_razzmatazz_0314',
   eventDate: '2026-03-14',
-  payerIds: ['mem_dean', 'mem_sam', 'mem_ava', 'mem_maya', 'mem_leo'],
+  payerIds: ['mem_dean', 'mem_crowley', 'mem_ava', 'mem_chase', 'mem_leo'],
   totalMinor: 9000,
   currency: 'EUR',
 };
@@ -26,7 +26,7 @@ describe('deriveIdempotencyKey', () => {
           'mock-tickets',
           'evt_razzmatazz_0314',
           '2026-03-14',
-          'mem_ava,mem_dean,mem_leo,mem_maya,mem_sam',
+          'mem_ava,mem_chase,mem_crowley,mem_dean,mem_leo',
           '9000',
           'EUR',
         ].join('|'),

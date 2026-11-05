@@ -1,6 +1,6 @@
 {
   "fixtureVersion": 1,
-  "ownerMemberId": "mem_sam",
+  "ownerMemberId": "mem_crowley",
   "groupId": "grp_barcelona",
   "tripId": "trip_barcelona",
   "consentInScenario": {
@@ -9,8 +9,8 @@
   },
   "accounts": [
     {
-      "accountId": "acc_sam_cc",
-      "ownerMemberId": "mem_sam",
+      "accountId": "acc_crowley_cc",
+      "ownerMemberId": "mem_crowley",
       "institutionName": "Coral Credit Union Visa (fictional)",
       "mask": "4821",
       "type": "credit",
@@ -24,9 +24,9 @@
       "result": {
         "added": [
           {
-            "transactionId": "txn_sam_home_08",
-            "accountId": "acc_sam_cc",
-            "ownerMemberId": "mem_sam",
+            "transactionId": "txn_crowley_home_08",
+            "accountId": "acc_crowley_cc",
+            "ownerMemberId": "mem_crowley",
             "amount": {
               "amountMinor": 2205,
               "currency": "USD"
@@ -59,9 +59,9 @@
             ]
           },
           {
-            "transactionId": "txn_sam_home_07",
-            "accountId": "acc_sam_cc",
-            "ownerMemberId": "mem_sam",
+            "transactionId": "txn_crowley_home_07",
+            "accountId": "acc_crowley_cc",
+            "ownerMemberId": "mem_crowley",
             "amount": {
               "amountMinor": 6677,
               "currency": "USD"
@@ -94,9 +94,9 @@
             ]
           },
           {
-            "transactionId": "txn_sam_home_05",
-            "accountId": "acc_sam_cc",
-            "ownerMemberId": "mem_sam",
+            "transactionId": "txn_crowley_home_05",
+            "accountId": "acc_crowley_cc",
+            "ownerMemberId": "mem_crowley",
             "amount": {
               "amountMinor": 640,
               "currency": "USD"
@@ -129,9 +129,9 @@
             ]
           },
           {
-            "transactionId": "txn_sam_home_03",
-            "accountId": "acc_sam_cc",
-            "ownerMemberId": "mem_sam",
+            "transactionId": "txn_crowley_home_03",
+            "accountId": "acc_crowley_cc",
+            "ownerMemberId": "mem_crowley",
             "amount": {
               "amountMinor": 601,
               "currency": "USD"
@@ -164,9 +164,9 @@
             ]
           },
           {
-            "transactionId": "txn_sam_home_06",
-            "accountId": "acc_sam_cc",
-            "ownerMemberId": "mem_sam",
+            "transactionId": "txn_crowley_home_06",
+            "accountId": "acc_crowley_cc",
+            "ownerMemberId": "mem_crowley",
             "amount": {
               "amountMinor": 2900,
               "currency": "USD"
@@ -199,9 +199,9 @@
             ]
           },
           {
-            "transactionId": "txn_sam_home_04",
-            "accountId": "acc_sam_cc",
-            "ownerMemberId": "mem_sam",
+            "transactionId": "txn_crowley_home_04",
+            "accountId": "acc_crowley_cc",
+            "ownerMemberId": "mem_crowley",
             "amount": {
               "amountMinor": 1594,
               "currency": "USD"
@@ -234,9 +234,9 @@
             ]
           },
           {
-            "transactionId": "txn_sam_home_01",
-            "accountId": "acc_sam_cc",
-            "ownerMemberId": "mem_sam",
+            "transactionId": "txn_crowley_home_01",
+            "accountId": "acc_crowley_cc",
+            "ownerMemberId": "mem_crowley",
             "amount": {
               "amountMinor": 1199,
               "currency": "USD"
@@ -269,9 +269,9 @@
             ]
           },
           {
-            "transactionId": "txn_sam_home_02",
-            "accountId": "acc_sam_cc",
-            "ownerMemberId": "mem_sam",
+            "transactionId": "txn_crowley_home_02",
+            "accountId": "acc_crowley_cc",
+            "ownerMemberId": "mem_crowley",
             "amount": {
               "amountMinor": 1996,
               "currency": "USD"
@@ -304,9 +304,9 @@
             ]
           },
           {
-            "transactionId": "txn_sam_uber_0313",
-            "accountId": "acc_sam_cc",
-            "ownerMemberId": "mem_sam",
+            "transactionId": "txn_crowley_uber_0313",
+            "accountId": "acc_crowley_cc",
+            "ownerMemberId": "mem_crowley",
             "amount": {
               "amountMinor": 980,
               "currency": "EUR"
@@ -339,9 +339,9 @@
             ]
           },
           {
-            "transactionId": "txn_sam_sunglasses_0314",
-            "accountId": "acc_sam_cc",
-            "ownerMemberId": "mem_sam",
+            "transactionId": "txn_crowley_sunglasses_0314",
+            "accountId": "acc_crowley_cc",
+            "ownerMemberId": "mem_crowley",
             "amount": {
               "amountMinor": 3500,
               "currency": "EUR"
@@ -374,9 +374,9 @@
             ]
           },
           {
-            "transactionId": "txn_sam_waters_0315",
-            "accountId": "acc_sam_cc",
-            "ownerMemberId": "mem_sam",
+            "transactionId": "txn_crowley_waters_0315",
+            "accountId": "acc_crowley_cc",
+            "ownerMemberId": "mem_crowley",
             "amount": {
               "amountMinor": 2800,
               "currency": "EUR"
@@ -409,9 +409,9 @@
             ]
           },
           {
-            "transactionId": "txn_sam_uber_0315_p",
-            "accountId": "acc_sam_cc",
-            "ownerMemberId": "mem_sam",
+            "transactionId": "txn_crowley_uber_0315_p",
+            "accountId": "acc_crowley_cc",
+            "ownerMemberId": "mem_crowley",
             "amount": {
               "amountMinor": 1980,
               "currency": "EUR"
@@ -446,18 +446,18 @@
         ],
         "modified": [],
         "removed": [],
-        "nextCursor": "cur_sam_1",
+        "nextCursor": "cur_crowley_1",
         "hasMore": true
       }
     },
     {
-      "requestCursor": "cur_sam_1",
+      "requestCursor": "cur_crowley_1",
       "result": {
         "added": [
           {
-            "transactionId": "txn_sam_uber_0315",
-            "accountId": "acc_sam_cc",
-            "ownerMemberId": "mem_sam",
+            "transactionId": "txn_crowley_uber_0315",
+            "accountId": "acc_crowley_cc",
+            "ownerMemberId": "mem_crowley",
             "amount": {
               "amountMinor": 2340,
               "currency": "EUR"
@@ -470,7 +470,7 @@
             "merchantEntityId": "ent_uber",
             "rawName": "UBER *TRIP HELP.RIDES.EXAMPLE.TEST",
             "pending": false,
-            "pendingTransactionId": "txn_sam_uber_0315_p",
+            "pendingTransactionId": "txn_crowley_uber_0315_p",
             "paymentChannel": "online",
             "personalFinanceCategory": {
               "primary": "TRANSPORTATION",
@@ -491,9 +491,9 @@
             ]
           },
           {
-            "transactionId": "txn_sam_pizza_0316",
-            "accountId": "acc_sam_cc",
-            "ownerMemberId": "mem_sam",
+            "transactionId": "txn_crowley_pizza_0316",
+            "accountId": "acc_crowley_cc",
+            "ownerMemberId": "mem_crowley",
             "amount": {
               "amountMinor": 1840,
               "currency": "EUR"
@@ -526,9 +526,9 @@
             ]
           },
           {
-            "transactionId": "txn_sam_sunglasses_refund_0316",
-            "accountId": "acc_sam_cc",
-            "ownerMemberId": "mem_sam",
+            "transactionId": "txn_crowley_sunglasses_refund_0316",
+            "accountId": "acc_crowley_cc",
+            "ownerMemberId": "mem_crowley",
             "amount": {
               "amountMinor": 3500,
               "currency": "EUR"
@@ -561,9 +561,9 @@
             ]
           },
           {
-            "transactionId": "txn_sam_apolo_0316",
-            "accountId": "acc_sam_cc",
-            "ownerMemberId": "mem_sam",
+            "transactionId": "txn_crowley_apolo_0316",
+            "accountId": "acc_crowley_cc",
+            "ownerMemberId": "mem_crowley",
             "amount": {
               "amountMinor": 9000,
               "currency": "EUR"
@@ -596,9 +596,9 @@
             ]
           },
           {
-            "transactionId": "txn_sam_home_09",
-            "accountId": "acc_sam_cc",
-            "ownerMemberId": "mem_sam",
+            "transactionId": "txn_crowley_home_09",
+            "accountId": "acc_crowley_cc",
+            "ownerMemberId": "mem_crowley",
             "amount": {
               "amountMinor": 2900,
               "currency": "USD"
@@ -631,9 +631,9 @@
             ]
           },
           {
-            "transactionId": "txn_sam_home_10",
-            "accountId": "acc_sam_cc",
-            "ownerMemberId": "mem_sam",
+            "transactionId": "txn_crowley_home_10",
+            "accountId": "acc_crowley_cc",
+            "ownerMemberId": "mem_crowley",
             "amount": {
               "amountMinor": 4083,
               "currency": "USD"
@@ -666,9 +666,9 @@
             ]
           },
           {
-            "transactionId": "txn_sam_home_11",
-            "accountId": "acc_sam_cc",
-            "ownerMemberId": "mem_sam",
+            "transactionId": "txn_crowley_home_11",
+            "accountId": "acc_crowley_cc",
+            "ownerMemberId": "mem_crowley",
             "amount": {
               "amountMinor": 2891,
               "currency": "USD"
@@ -704,108 +704,108 @@
         "modified": [],
         "removed": [
           {
-            "transactionId": "txn_sam_uber_0315_p",
-            "accountId": "acc_sam_cc"
+            "transactionId": "txn_crowley_uber_0315_p",
+            "accountId": "acc_crowley_cc"
           }
         ],
-        "nextCursor": "cur_sam_2",
+        "nextCursor": "cur_crowley_2",
         "hasMore": false
       }
     }
   ],
   "labels": {
-    "txn_sam_home_01": {
+    "txn_crowley_home_01": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "Streamly at home (Miami), outside the trip"
     },
-    "txn_sam_home_02": {
+    "txn_crowley_home_02": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "Lyft at home (Miami), outside the trip"
     },
-    "txn_sam_home_03": {
+    "txn_crowley_home_03": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "Bean Theory Coffee at home (Miami), outside the trip"
     },
-    "txn_sam_home_04": {
+    "txn_crowley_home_04": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "Corner Slice Pizza at home (Miami), outside the trip"
     },
-    "txn_sam_home_05": {
+    "txn_crowley_home_05": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "Bean Theory Coffee at home (Miami), outside the trip"
     },
-    "txn_sam_home_06": {
+    "txn_crowley_home_06": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "PulseFit at home (Miami), outside the trip"
     },
-    "txn_sam_home_07": {
+    "txn_crowley_home_07": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "CampusBooks at home (Miami), outside the trip"
     },
-    "txn_sam_home_08": {
+    "txn_crowley_home_08": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "Corner Slice Pizza at home (Miami), outside the trip"
     },
-    "txn_sam_home_09": {
+    "txn_crowley_home_09": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "PulseFit at home (Austin), outside the trip"
     },
-    "txn_sam_home_10": {
+    "txn_crowley_home_10": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "FuelUp at home (Austin), outside the trip"
     },
-    "txn_sam_home_11": {
+    "txn_crowley_home_11": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "DashDinner at home (Austin), outside the trip"
     },
-    "txn_sam_uber_0313": {
+    "txn_crowley_uber_0313": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "trip_personal",
       "tripId": "trip_barcelona",
       "reason": "solo afternoon ride; never roast material (VOICE §7.4 private data)"
     },
-    "txn_sam_sunglasses_0314": {
+    "txn_crowley_sunglasses_0314": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "trip_personal",
       "tripId": "trip_barcelona",
       "reason": "sunglasses"
     },
-    "txn_sam_waters_0315": {
+    "txn_crowley_waters_0315": {
       "expectedShared": true,
       "expectedPrompt": false,
       "kind": "trip_shared_duplicate",
@@ -813,42 +813,42 @@
       "duplicateOf": "chat: \"@trav 2 waters in here were €28…\"",
       "reason": "already logged from chat"
     },
-    "txn_sam_uber_0315_p": {
+    "txn_crowley_uber_0315_p": {
       "expectedShared": null,
       "expectedPrompt": false,
       "kind": "pending",
-      "supersededBy": "txn_sam_uber_0315"
+      "supersededBy": "txn_crowley_uber_0315"
     },
-    "txn_sam_uber_0315": {
+    "txn_crowley_uber_0315": {
       "expectedShared": true,
       "expectedPrompt": true,
       "kind": "trip_shared",
       "tripId": "trip_barcelona",
       "suggestedParticipants": [
         "mem_dean",
-        "mem_maya",
-        "mem_jordan",
-        "mem_priya",
-        "mem_sam"
+        "mem_chase",
+        "mem_piotr",
+        "mem_arjun",
+        "mem_crowley"
       ],
       "reason": "ride back from Razzmatazz at 2:14am (VOICE §4.5 A); pending €19.80 posted as €23.40"
     },
-    "txn_sam_pizza_0316": {
+    "txn_crowley_pizza_0316": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "trip_personal",
       "tripId": "trip_barcelona",
       "reason": "late-night pizza alone; classifier may say unsure, ground truth is personal"
     },
-    "txn_sam_sunglasses_refund_0316": {
+    "txn_crowley_sunglasses_refund_0316": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "refund",
       "tripId": "trip_barcelona",
-      "refundOf": "txn_sam_sunglasses_0314",
+      "refundOf": "txn_crowley_sunglasses_0314",
       "reason": "refund (credit) of a personal purchase"
     },
-    "txn_sam_apolo_0316": {
+    "txn_crowley_apolo_0316": {
       "expectedShared": true,
       "expectedPrompt": false,
       "kind": "trav_booking_charge",

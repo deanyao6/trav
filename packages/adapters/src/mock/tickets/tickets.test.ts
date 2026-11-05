@@ -292,10 +292,10 @@ describe('mock tickets: purchase (the Razzmatazz moment)', () => {
     expect(order.tickets.map((t) => t.holderMemberId)).toEqual(FIVE.map((h) => h.memberId));
     expect(order.tickets.map((t) => t.holderName)).toEqual([
       'Dean',
-      'Maya',
-      'Jordan',
-      'Priya',
-      'Sam',
+      'Chase',
+      'Piotr',
+      'Arjun',
+      'Crowley',
     ]);
     expect(new Set(order.tickets.map((t) => t.ticketId)).size).toBe(5);
     expect(new Set(order.tickets.map((t) => t.barcode.payload)).size).toBe(5);
@@ -550,8 +550,8 @@ describe('mock tickets: purchase rejections (counter stays 0)', () => {
       FIVE.slice(0, 4),
       [...FIVE, { memberId: 'mem_henry', name: 'Henry' }],
       [...FIVE.slice(0, 4), FIVE[0]],
-      [...FIVE.slice(0, 4), { memberId: 'mem_sam', name: ' ' }],
-      [...FIVE.slice(0, 4), { memberId: '', name: 'Sam' }],
+      [...FIVE.slice(0, 4), { memberId: 'mem_crowley', name: ' ' }],
+      [...FIVE.slice(0, 4), { memberId: '', name: 'Crowley' }],
       'everyone',
     ];
     for (const holders of bad) {
@@ -672,27 +672,34 @@ describe('mock tickets: refunds', () => {
 
   it('partial then full refund before the deadline; refunded tickets stop being served', async () => {
     const { tickets, order } = await bought();
-    const sam = order.tickets[4];
-    if (!sam) throw new Error('no ticket');
+    const crowley = order.tickets[4];
+    if (!crowley) throw new Error('no ticket');
     const before = tickets.availableFor(GA);
     const partial = unwrap(
-      await tickets.refund(order.orderId, [sam.ticketId], refundProof(), 'r1'),
+      await tickets.refund(order.orderId, [crowley.ticketId], refundProof(), 'r1'),
     );
     expect(partial.status).toBe('partially_refunded');
     expect(partial.refundAmount).toEqual(eur(1800));
     expect(partial.refundedAmount).toEqual(eur(1800));
     expect(tickets.availableFor(GA)).toBe(before + 1);
-    expect(errorCode(await tickets.getTicketForHolder(order.orderId, 'mem_sam'))).toBe('not_found');
+    expect(errorCode(await tickets.getTicketForHolder(order.orderId, 'mem_crowley'))).toBe(
+      'not_found',
+    );
     unwrap(await tickets.getTicketForHolder(order.orderId, 'mem_dean'));
     // idempotent
     expect(
-      unwrap(await tickets.refund(order.orderId, [sam.ticketId], refundProof(), 'r1')),
+      unwrap(await tickets.refund(order.orderId, [crowley.ticketId], refundProof(), 'r1')),
     ).toEqual(partial);
     expect(tickets.refundCount()).toBe(1);
     // already refunded under a new key
     expect(
       errorCode(
-        await tickets.refund(order.orderId, [sam.ticketId], refundProof(1800, 'grant_r2'), 'r2'),
+        await tickets.refund(
+          order.orderId,
+          [crowley.ticketId],
+          refundProof(1800, 'grant_r2'),
+          'r2',
+        ),
       ),
     ).toBe('invalid_request');
     const rest = order.tickets.slice(0, 4).map((t) => t.ticketId);
@@ -777,22 +784,24 @@ describe('mock tickets: refunds', () => {
   it('refunded tickets are marked refunded in the order and never handed out for DM', async () => {
     const { tickets, order } = await bought();
     expect(order.tickets.every((t) => t.status === 'issued')).toBe(true);
-    const sam = order.tickets[4];
-    if (!sam) throw new Error('no ticket');
-    const after = unwrap(await tickets.refund(order.orderId, [sam.ticketId], refundProof(), 'r1'));
+    const crowley = order.tickets[4];
+    if (!crowley) throw new Error('no ticket');
+    const after = unwrap(
+      await tickets.refund(order.orderId, [crowley.ticketId], refundProof(), 'r1'),
+    );
     expect(after.tickets.map((t) => [t.holderMemberId, t.status])).toEqual([
       ['mem_dean', 'issued'],
-      ['mem_maya', 'issued'],
-      ['mem_jordan', 'issued'],
-      ['mem_priya', 'issued'],
-      ['mem_sam', 'refunded'],
+      ['mem_chase', 'issued'],
+      ['mem_piotr', 'issued'],
+      ['mem_arjun', 'issued'],
+      ['mem_crowley', 'refunded'],
     ]);
     // getOrder is the same order minus this refund's own `refundAmount`.
     expect(unwrap(await tickets.getOrder(order.orderId))).toEqual({
       ...after,
       refundAmount: undefined,
     });
-    // The executor DMs only what getTicketForHolder returns: Sam gets nothing.
+    // The executor DMs only what getTicketForHolder returns: Crowley gets nothing.
     const dmable = [];
     for (const h of FIVE) {
       const r = await tickets.getTicketForHolder(order.orderId, h.memberId);
@@ -800,14 +809,14 @@ describe('mock tickets: refunds', () => {
     }
     expect(dmable.map((t) => t.holderMemberId)).toEqual([
       'mem_dean',
-      'mem_maya',
-      'mem_jordan',
-      'mem_priya',
+      'mem_chase',
+      'mem_piotr',
+      'mem_arjun',
     ]);
     expect(dmable.every((t) => t.status === 'issued')).toBe(true);
-    // A purchase replay after the refund serves the current order, not a stale "issued" Sam.
+    // A purchase replay after the refund serves the current order, not a stale "issued" Crowley.
     const replay = unwrap(await tickets.purchase(request(await holdFive(tickets))));
-    expect(replay.tickets.find((t) => t.holderMemberId === 'mem_sam')?.status).toBe('refunded');
+    expect(replay.tickets.find((t) => t.holderMemberId === 'mem_crowley')?.status).toBe('refunded');
   });
 
   it('refuses a refund approved in another group, refunding nothing', async () => {

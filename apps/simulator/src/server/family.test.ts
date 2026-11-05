@@ -150,7 +150,7 @@ describe('seeding moves the clock forward only (T-021)', () => {
     const lines: Record<string, { from: string; text: string }> = {
       grp_lisbon: { from: 'h_lis_dean', text: 'booked the fado place for thursday' },
       grp_turks_caicos: { from: 'h_tci_mom', text: 'sunscreen on everyone' },
-      grp_barcelona: { from: 'h_maya', text: 'omw' },
+      grp_barcelona: { from: 'h_chase', text: 'omw' },
     };
     for (const [groupId, l] of Object.entries(lines)) {
       await backend.inject({ type: 'message', from: l.from, text: l.text, groupId });

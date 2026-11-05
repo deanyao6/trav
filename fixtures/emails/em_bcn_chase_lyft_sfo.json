@@ -2,10 +2,10 @@
   "fixtureVersion": 1,
   "groupId": "grp_barcelona",
   "tripId": "trip_barcelona",
-  "forwardingAddress": "maya.k7f3@in.trav.example.test",
+  "forwardingAddress": "chase.k7f3@in.trav.example.test",
   "email": {
-    "emailId": "em_bcn_maya_lyft_sfo",
-    "ownerMemberId": "mem_maya",
+    "emailId": "em_bcn_chase_lyft_sfo",
+    "ownerMemberId": "mem_chase",
     "from": "Lyft Ride Receipts <rides@lyft-mail.example.test>",
     "subject": "Fwd: Your ride to SFO on Wednesday",
     "receivedAt": "2026-03-12T16:20:00+01:00",

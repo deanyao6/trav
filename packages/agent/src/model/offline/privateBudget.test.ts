@@ -363,7 +363,7 @@ describe("Henry's budget DM end to end (msg_bcn_d_0002)", () => {
     const before = h.runtime.groupMemory.recall(G).length;
     await h.dm('h_henry', 'remember my budget is roughly sixty, maybe 70 on a good day');
     expect(h.runtime.memberMemory.recall('mem_henry', G)).toEqual([]);
-    await h.say('h_sam', '@trav remember henry lost his job so keep it cheap');
+    await h.say('h_crowley', '@trav remember henry lost his job so keep it cheap');
     expect(h.runtime.groupMemory.recall(G)).toHaveLength(before);
   });
 
@@ -428,17 +428,17 @@ describe("Henry's budget DM end to end (msg_bcn_d_0002)", () => {
 
   it('a money-trouble "remember" is never stored, in the group or a DM, and says so', async () => {
     const h = harness();
-    const g = await h.say('h_sam', '@trav remember jordan is broke');
+    const g = await h.say('h_crowley', '@trav remember piotr is broke');
     expect(messages(g)[0]?.text).toBe(MONEY_MEMORY_TEXT);
-    const d = await h.dm('h_sam', 'remember money has been kinda tight');
+    const d = await h.dm('h_crowley', 'remember money has been kinda tight');
     expect(messages(d)[0]?.text).toBe(MONEY_MEMORY_TEXT);
     expect(h.runtime.groupMemory.recall(G).some((f) => /broke/.test(f.text))).toBe(false);
-    expect(h.runtime.memberMemory.recall('mem_sam', G)).toEqual([]);
+    expect(h.runtime.memberMemory.recall('mem_crowley', G)).toEqual([]);
   });
 
   it('a non-money "broke" is remembered as usual, not answered with the money line (r1 #5)', async () => {
     const h = harness();
-    const g = await h.say('h_sam', '@trav remember dean broke the record at bowling');
+    const g = await h.say('h_crowley', '@trav remember dean broke the record at bowling');
     expect(messages(g)[0]?.text).not.toBe(MONEY_MEMORY_TEXT);
     expect(h.runtime.groupMemory.recall(G).map((f) => f.text)).toContain(
       'dean broke the record at bowling',
@@ -447,10 +447,14 @@ describe("Henry's budget DM end to end (msg_bcn_d_0002)", () => {
 
   it('a minor gets no private budget note', async () => {
     const h = harness();
-    const sam = h.runtime.stores.group.members.get('mem_sam')!;
-    h.runtime.stores.group.members.upsert({ ...sam, birthDate: '2012-02-01', ageBand: 'under18' });
-    const turn = await h.dm('h_sam', 'keep my share under 40 a day');
+    const crowley = h.runtime.stores.group.members.get('mem_crowley')!;
+    h.runtime.stores.group.members.upsert({
+      ...crowley,
+      birthDate: '2012-02-01',
+      ageBand: 'under18',
+    });
+    const turn = await h.dm('h_crowley', 'keep my share under 40 a day');
     expect(messages(turn)[0]?.text).toBe("i don't keep private notes for anyone under 18");
-    expect(h.runtime.memberMemory.recall('mem_sam', G)).toEqual([]);
+    expect(h.runtime.memberMemory.recall('mem_crowley', G)).toEqual([]);
   });
 });

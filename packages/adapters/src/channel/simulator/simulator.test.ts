@@ -61,11 +61,11 @@ describe('simulator channel: outbound', () => {
 
   it('refuses to reuse a message id for a different thread', async () => {
     const { sim } = setup();
-    const msg = dmMsg('mem_priya', 'hi');
-    await sim.sendDirect('h_priya', msg);
-    const res = await sim.sendDirect('h_sam', {
+    const msg = dmMsg('mem_arjun', 'hi');
+    await sim.sendDirect('h_arjun', msg);
+    const res = await sim.sendDirect('h_crowley', {
       ...msg,
-      to: { kind: 'member', memberId: 'mem_sam' },
+      to: { kind: 'member', memberId: 'mem_crowley' },
     });
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error.code).toBe('duplicate');
@@ -75,7 +75,7 @@ describe('simulator channel: outbound', () => {
     const { sim } = setup();
     const res = await sim.sendGroup(
       BCN_CONVERSATION,
-      groupMsg('your ticket', { card: ticketCard('mem_priya') }),
+      groupMsg('your ticket', { card: ticketCard('mem_arjun') }),
     );
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error.code).toBe('invalid_request');
@@ -105,7 +105,7 @@ describe('simulator channel: outbound', () => {
 
   it('sendGroup refuses a message addressed to a member, and unknown conversations', async () => {
     const { sim } = setup();
-    const toMember = await sim.sendGroup(BCN_CONVERSATION, dmMsg('mem_priya', 'psst'));
+    const toMember = await sim.sendGroup(BCN_CONVERSATION, dmMsg('mem_arjun', 'psst'));
     expect(!toMember.ok && toMember.error.code).toBe('invalid_request');
     const unknown = await sim.sendGroup('conv_nope', groupMsg('hi'));
     expect(!unknown.ok && unknown.error.code).toBe('not_found');
@@ -115,15 +115,15 @@ describe('simulator channel: outbound', () => {
   it('sendDirect delivers a ticket to its owner on the DM lane only', async () => {
     const { sim } = setup();
     const res = await sim.sendDirect(
-      'h_priya',
-      dmMsg('mem_priya', 'your ticket', { card: ticketCard('mem_priya') }),
+      'h_arjun',
+      dmMsg('mem_arjun', 'your ticket', { card: ticketCard('mem_arjun') }),
     );
     expect(res.ok).toBe(true);
-    expect(sim.dmTranscript('h_priya')).toHaveLength(1);
-    expect(sim.dmTranscript('h_priya')[0]).toMatchObject({
+    expect(sim.dmTranscript('h_arjun')).toHaveLength(1);
+    expect(sim.dmTranscript('h_arjun')[0]).toMatchObject({
       lane: 'dm',
-      conversationId: dmConversationId('h_priya'),
-      dmName: 'Priya',
+      conversationId: dmConversationId('h_arjun'),
+      dmName: 'Arjun',
     });
     expect(sim.groupTranscript()).toHaveLength(0);
     expect(sim.dmTranscript('h_henry')).toHaveLength(0);
@@ -131,15 +131,15 @@ describe('simulator channel: outbound', () => {
 
   it('sendDirect refuses group-addressed messages, wrong handles and misaddressed tickets', async () => {
     const { sim } = setup();
-    const groupAddressed = await sim.sendDirect('h_priya', groupMsg('hi'));
+    const groupAddressed = await sim.sendDirect('h_arjun', groupMsg('hi'));
     expect(!groupAddressed.ok && groupAddressed.error.code).toBe('invalid_request');
-    // handle belongs to Priya but the message is for Sam
-    const wrongHandle = await sim.sendDirect('h_priya', dmMsg('mem_sam', 'hi'));
+    // handle belongs to Arjun but the message is for Crowley
+    const wrongHandle = await sim.sendDirect('h_arjun', dmMsg('mem_crowley', 'hi'));
     expect(!wrongHandle.ok && wrongHandle.error.code).toBe('invalid_request');
-    // ticket owned by Sam addressed to Priya
+    // ticket owned by Crowley addressed to Arjun
     const wrongTicket = await sim.sendDirect(
-      'h_priya',
-      dmMsg('mem_priya', 'ticket', { card: ticketCard('mem_sam') }),
+      'h_arjun',
+      dmMsg('mem_arjun', 'ticket', { card: ticketCard('mem_crowley') }),
     );
     expect(!wrongTicket.ok && wrongTicket.error.code).toBe('invalid_request');
     const unknown = await sim.sendDirect('h_ghost', dmMsg('mem_ghost', 'hi'));
@@ -149,38 +149,38 @@ describe('simulator channel: outbound', () => {
 
   it('sendDirect refuses a private expense card (or digest item) owned by another member', async () => {
     const { sim } = setup();
-    // privateExpenseCard is Sam's uber; sending it to Priya leaks Sam's card data
+    // privateExpenseCard is Crowley's uber; sending it to Arjun leaks Crowley's card data
     const foreign = await sim.sendDirect(
-      'h_priya',
-      dmMsg('mem_priya', 'uber?', { card: privateExpenseCard() }),
+      'h_arjun',
+      dmMsg('mem_arjun', 'uber?', { card: privateExpenseCard() }),
     );
     expect(!foreign.ok && foreign.error.code).toBe('invalid_request');
-    const priyaDigest = {
+    const arjunDigest = {
       ...privateExpenseCard('digest'),
-      paidBy: 'mem_priya',
+      paidBy: 'mem_arjun',
       digestItems: [
-        { ...privateExpenseCard('mine'), paidBy: 'mem_priya' },
-        privateExpenseCard('sams'),
+        { ...privateExpenseCard('mine'), paidBy: 'mem_arjun' },
+        privateExpenseCard('crowleys'),
       ],
     };
     const digest = await sim.sendDirect(
-      'h_priya',
-      dmMsg('mem_priya', 'digest', { card: priyaDigest }),
+      'h_arjun',
+      dmMsg('mem_arjun', 'digest', { card: arjunDigest }),
     );
     expect(!digest.ok && digest.error.code).toBe('invalid_request');
     expect(sim.transcript()).toHaveLength(0);
     // the owner gets it
     const own = await sim.sendDirect(
-      'h_sam',
-      dmMsg('mem_sam', 'uber?', { card: privateExpenseCard() }),
+      'h_crowley',
+      dmMsg('mem_crowley', 'uber?', { card: privateExpenseCard() }),
     );
     expect(own.ok).toBe(true);
     const ownDigest = await sim.sendDirect(
-      'h_priya',
-      dmMsg('mem_priya', 'digest', {
+      'h_arjun',
+      dmMsg('mem_arjun', 'digest', {
         card: {
-          ...priyaDigest,
-          digestItems: [{ ...privateExpenseCard('mine'), paidBy: 'mem_priya' }],
+          ...arjunDigest,
+          digestItems: [{ ...privateExpenseCard('mine'), paidBy: 'mem_arjun' }],
         },
       }),
     );
@@ -209,7 +209,7 @@ describe('simulator channel: outbound', () => {
 
   it('sendDirect returns not_supported when the channel cannot DM', async () => {
     const { sim } = setup({ privateDm: false });
-    const res = await sim.sendDirect('h_priya', dmMsg('mem_priya', 'hi'));
+    const res = await sim.sendDirect('h_arjun', dmMsg('mem_arjun', 'hi'));
     expect(!res.ok && res.error.code).toBe('not_supported');
   });
 
@@ -227,7 +227,7 @@ describe('simulator channel: outbound', () => {
 
   it('react records Trav tapbacks on existing messages, not_found otherwise', async () => {
     const { sim } = setup();
-    const inbound = await sim.injectMessage({ from: 'h_maya', text: 'thanks trav' });
+    const inbound = await sim.injectMessage({ from: 'h_chase', text: 'thanks trav' });
     const ok = await sim.react(BCN_CONVERSATION, {
       id: 'msg_r1',
       groupId: 'grp_barcelona',
@@ -258,10 +258,10 @@ describe('simulator channel: outbound', () => {
     const res = await sim.listParticipants(BCN_CONVERSATION);
     expect(res.ok && res.value.map((p) => p.handle)).toEqual([
       'h_dean',
-      'h_maya',
-      'h_jordan',
-      'h_priya',
-      'h_sam',
+      'h_chase',
+      'h_piotr',
+      'h_arjun',
+      'h_crowley',
       'h_henry',
       'trav',
     ]);
@@ -293,10 +293,10 @@ describe('simulator channel: inbound injection', () => {
 
   it('delivers DM-lane messages on the sender DM conversation', async () => {
     const { sim, events } = setup();
-    await sim.injectMessage({ from: 'h_sam', text: 'yes share it', lane: 'dm' });
-    expect(events[0]).toMatchObject({ lane: 'dm', conversationId: 'dm:h_sam' });
+    await sim.injectMessage({ from: 'h_crowley', text: 'yes share it', lane: 'dm' });
+    expect(events[0]).toMatchObject({ lane: 'dm', conversationId: 'dm:h_crowley' });
     expect(sim.groupTranscript()).toHaveLength(0);
-    expect(sim.dmTranscript('h_sam')).toHaveLength(1);
+    expect(sim.dmTranscript('h_crowley')).toHaveLength(1);
   });
 
   it('allows duplicate delivery of the same messageId (caller dedupes)', async () => {
@@ -361,7 +361,7 @@ describe('simulator channel: inbound injection', () => {
     const msg = groupMsg('two options', { card: optionsCard() });
     await sim.sendGroup(BCN_CONVERSATION, msg);
     const ev = await sim.injectButtonTap({
-      from: 'h_maya',
+      from: 'h_chase',
       cardMessageId: msg.id,
       actionId: 'pick',
       value: 'opt_pg',
@@ -371,20 +371,20 @@ describe('simulator channel: inbound injection', () => {
 
   it('a member cannot tap or react to another member DM card', async () => {
     const { sim } = setup();
-    const msg = dmMsg('mem_sam', 'uber?', {
+    const msg = dmMsg('mem_crowley', 'uber?', {
       card: { ...privateExpenseCard(), visibility: 'private' },
       actions: [],
     });
-    await sim.sendDirect('h_sam', msg);
+    await sim.sendDirect('h_crowley', msg);
     await expect(
-      sim.injectReaction({ from: 'h_maya', targetMessageId: msg.id, reaction: '👍' }),
+      sim.injectReaction({ from: 'h_chase', targetMessageId: msg.id, reaction: '👍' }),
     ).rejects.toThrow(/another member/);
     const own = await sim.injectReaction({
-      from: 'h_sam',
+      from: 'h_crowley',
       targetMessageId: msg.id,
       reaction: '👍',
     });
-    expect(own).toMatchObject({ lane: 'dm', conversationId: 'dm:h_sam' });
+    expect(own).toMatchObject({ lane: 'dm', conversationId: 'dm:h_crowley' });
   });
 
   it('button taps are impossible on a button-less channel', async () => {
@@ -424,12 +424,12 @@ describe('simulator channel: lanes', () => {
     const { sim } = setup();
     await sim.injectMessage({ from: 'h_dean', text: '@trav get the 5 of us Razzmatazz tickets' });
     await sim.sendGroup(BCN_CONVERSATION, groupMsg('booked', { card: receiptCard() }));
-    for (const m of ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam']) {
+    for (const m of ['mem_dean', 'mem_chase', 'mem_piotr', 'mem_arjun', 'mem_crowley']) {
       const handle = `h_${m.slice(4)}`;
       const res = await sim.sendDirect(handle, dmMsg(m, 'your ticket', { card: ticketCard(m) }));
       expect(res.ok).toBe(true);
     }
-    await sim.injectMessage({ from: 'h_sam', text: 'share it', lane: 'dm' });
+    await sim.injectMessage({ from: 'h_crowley', text: 'share it', lane: 'dm' });
 
     const group = sim.groupTranscript();
     expect(group).toHaveLength(2);
@@ -437,7 +437,7 @@ describe('simulator channel: lanes', () => {
     expect(JSON.stringify(group)).not.toContain('"ticket"');
     expect(JSON.stringify(group)).not.toContain('qr');
     expect(sim.dmTranscript('h_henry')).toHaveLength(0);
-    expect(sim.dmTranscript('h_sam')).toHaveLength(2);
+    expect(sim.dmTranscript('h_crowley')).toHaveLength(2);
     expect(sim.transcript()).toHaveLength(8);
   });
 });

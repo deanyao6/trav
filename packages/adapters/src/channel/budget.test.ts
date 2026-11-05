@@ -172,12 +172,12 @@ describe('withMessageBudget: never limited', () => {
     await channel.sendGroup(BCN_CONVERSATION, proactive('b'));
     for (let i = 0; i < 5; i++) {
       const res = await channel.sendDirect(
-        'h_sam',
-        dmMsg('mem_sam', `digest ${i}`, { proactive: true }),
+        'h_crowley',
+        dmMsg('mem_crowley', `digest ${i}`, { proactive: true }),
       );
       expect(res.ok).toBe(true);
     }
-    expect(sim.dmTranscript('h_sam')).toHaveLength(5);
+    expect(sim.dmTranscript('h_crowley')).toHaveLength(5);
     expect(events).toEqual([]);
   });
 
@@ -236,11 +236,11 @@ describe('withMessageBudget: never limited', () => {
     for (const extra of [{ urgent: true }, { proactive: true }, {}]) {
       const res = await channel.sendGroup(
         BCN_CONVERSATION,
-        groupMsg('ticket', { card: ticketCard('mem_priya'), ...extra }),
+        groupMsg('ticket', { card: ticketCard('mem_arjun'), ...extra }),
       );
       expect(!res.ok && res.error.code).toBe('invalid_request');
     }
-    const misaddressed = await channel.sendGroup(BCN_CONVERSATION, dmMsg('mem_priya', 'psst'));
+    const misaddressed = await channel.sendGroup(BCN_CONVERSATION, dmMsg('mem_arjun', 'psst'));
     expect(!misaddressed.ok && misaddressed.error.code).toBe('invalid_request');
     expect(sim.transcript()).toHaveLength(0);
     expect(events).toEqual([]);
@@ -253,7 +253,7 @@ describe('withMessageBudget: never limited', () => {
     await channel.sendGroup(BCN_CONVERSATION, proactive('b'));
     const res = await channel.sendGroup(
       BCN_CONVERSATION,
-      groupMsg('ticket', { card: ticketCard('mem_priya'), proactive: true }),
+      groupMsg('ticket', { card: ticketCard('mem_arjun'), proactive: true }),
     );
     expect(!res.ok && res.error.code).toBe('invalid_request');
     expect(events).toEqual([]);
@@ -306,8 +306,8 @@ describe('withMessageBudget: line cap', () => {
 
   it('DMs are not subject to the group line cap', async () => {
     const { channel, sim } = setup();
-    const msg = dmMsg('mem_sam', lines(8));
-    await channel.sendDirect('h_sam', msg);
+    const msg = dmMsg('mem_crowley', lines(8));
+    await channel.sendDirect('h_crowley', msg);
     expect(sim.sentMessage(msg.id)!.renderedAsCard).toBe(false);
   });
 
@@ -343,7 +343,7 @@ describe('withMessageBudget: pass-through', () => {
     channel.onEvent((e) => {
       seen.push(e.type);
     });
-    const ev = await sim.injectMessage({ from: 'h_maya', text: 'thanks trav' });
+    const ev = await sim.injectMessage({ from: 'h_chase', text: 'thanks trav' });
     expect(seen).toEqual(['message']);
     const r = await channel.react(BCN_CONVERSATION, {
       id: 'msg_heart',

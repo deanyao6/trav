@@ -31,10 +31,10 @@ export const BARCELONA: SimGroup = {
   members: members('grp_barcelona', [
     ['mem_dean', 'Dean', 'h_dean'],
     ['mem_henry', 'Henry', 'h_henry'],
-    ['mem_maya', 'Maya', 'h_maya'],
-    ['mem_jordan', 'Jordan', 'h_jordan'],
-    ['mem_priya', 'Priya', 'h_priya'],
-    ['mem_sam', 'Sam', 'h_sam'],
+    ['mem_chase', 'Chase', 'h_chase'],
+    ['mem_piotr', 'Piotr', 'h_piotr'],
+    ['mem_arjun', 'Arjun', 'h_arjun'],
+    ['mem_crowley', 'Crowley', 'h_crowley'],
   ]),
   hints: [{ from: 'h_dean', text: RAZZMATAZZ_ASK }],
 };

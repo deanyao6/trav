@@ -7,10 +7,10 @@
   "imageFile": "fixtures/receipts/rcpt_bcn_lunch_service.png",
   "imageMimeType": "image/png",
   "imageSha256": "d2ab2b2221a6c05b4221a8ad0e4e35efad65fa6474f9bdeb630a0b388340c3b3",
-  "postedBy": "mem_maya",
+  "postedBy": "mem_chase",
   "postedInGroup": true,
-  "chatText": "@trav lunch, i paid. Sam's paying his own, he only had water",
-  "claimText": "dean and i split the paella, priya had the burrata, the cava was the 3 of us",
+  "chatText": "@trav lunch, i paid. Crowley's paying his own, he only had water",
+  "claimText": "dean and i split the paella, arjun had the burrata, the cava was the 3 of us",
   "ocrText": "XIRINGUITO MAR BLAVA\nPasseig Maritim 21, Barceloneta\nBarcelona\n16/03/2026   13:47   TAULA 12\n----------------------------------\n1 PAELLA MARINERA (2 PAX)    44,00\n1 BURRATA                    16,00\n1 BOTTLE OF CAVA             30,00\n----------------------------------\nSUBTOTAL                     90,00\nSERVICE 10%                   9,00\nIVA 10%                       9,90\nTOTAL                     108,90 €\nCARD                        108,90\nSERVEI NO INCLOS EN PREUS",
   "parsed": {
     "source": "restaurant",
@@ -71,7 +71,7 @@
       },
       "claimedBy": [
         "mem_dean",
-        "mem_maya"
+        "mem_chase"
       ],
       "kind": "item"
     },
@@ -83,7 +83,7 @@
         "currency": "EUR"
       },
       "claimedBy": [
-        "mem_priya"
+        "mem_arjun"
       ],
       "kind": "item"
     },
@@ -96,8 +96,8 @@
       },
       "claimedBy": [
         "mem_dean",
-        "mem_maya",
-        "mem_priya"
+        "mem_chase",
+        "mem_arjun"
       ],
       "kind": "item"
     },
@@ -122,13 +122,13 @@
       "kind": "tax"
     }
   ],
-  "payer": "mem_maya",
+  "payer": "mem_chase",
   "split": {
     "method": "itemized",
     "participants": [
       "mem_dean",
-      "mem_maya",
-      "mem_priya"
+      "mem_chase",
+      "mem_arjun"
     ],
     "lineItems": [
       {
@@ -140,7 +140,7 @@
         },
         "claimedBy": [
           "mem_dean",
-          "mem_maya"
+          "mem_chase"
         ],
         "kind": "item"
       },
@@ -152,7 +152,7 @@
           "currency": "EUR"
         },
         "claimedBy": [
-          "mem_priya"
+          "mem_arjun"
         ],
         "kind": "item"
       },
@@ -165,8 +165,8 @@
         },
         "claimedBy": [
           "mem_dean",
-          "mem_maya",
-          "mem_priya"
+          "mem_chase",
+          "mem_arjun"
         ],
         "kind": "item"
       },
@@ -201,14 +201,14 @@
       }
     },
     {
-      "memberId": "mem_maya",
+      "memberId": "mem_chase",
       "amount": {
         "amountMinor": 3872,
         "currency": "EUR"
       }
     },
     {
-      "memberId": "mem_priya",
+      "memberId": "mem_arjun",
       "amount": {
         "amountMinor": 3146,
         "currency": "EUR"
@@ -223,6 +223,6 @@
     "unreadable": false,
     "familyTab": false,
     "rounding": "per line: equal among claimants (payer absorbs the remainder); tax/tip/service/fee pro-rata to item subtotals (README \"Rounding\")",
-    "notes": "Sam was at the table (free water) but is excluded. Service 10% and IVA 10% are allocated pro-rata to item subtotals: Dean €38.72, Maya €38.72, Priya €31.46."
+    "notes": "Crowley was at the table (free water) but is excluded. Service 10% and IVA 10% are allocated pro-rata to item subtotals: Dean €38.72, Chase €38.72, Arjun €31.46."
   }
 }

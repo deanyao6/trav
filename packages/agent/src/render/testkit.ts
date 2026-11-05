@@ -1,7 +1,7 @@
 /**
  * Synthetic fixtures for renderer and send-path tests (not exported from the
  * package index). The Barcelona flagship: six adults (VOICE §0 order: Dean,
- * Henry, Maya, Jordan, Priya, Sam), Henry out sick, five Razzmatazz tickets at
+ * Henry, Chase, Piotr, Arjun, Crowley), Henry out sick, five Razzmatazz tickets at
  * €18 on Dean's card. The audit trail is written through the real in-memory
  * AuditRepository (hash chain and private-key checks included) and the
  * decision comes from the real `approval.evaluate`.
@@ -59,14 +59,14 @@ export function barcelonaMembers(): Member[] {
   return [
     adult('mem_dean', 'Dean', { role: 'lead' }),
     adult('mem_henry', 'Henry'),
-    adult('mem_maya', 'Maya'),
-    adult('mem_jordan', 'Jordan'),
-    adult('mem_priya', 'Priya'),
-    adult('mem_sam', 'Sam'),
+    adult('mem_chase', 'Chase'),
+    adult('mem_piotr', 'Piotr'),
+    adult('mem_arjun', 'Arjun'),
+    adult('mem_crowley', 'Crowley'),
   ];
 }
 
-export const FIVE = ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam'] as const;
+export const FIVE = ['mem_dean', 'mem_chase', 'mem_piotr', 'mem_arjun', 'mem_crowley'] as const;
 
 export function barcelonaGroup(settings: Partial<Group['settings']> = {}): Group {
   return {

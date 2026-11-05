@@ -3,9 +3,9 @@
  * §2.4). Group lane, `expense_confirm` with `status: 'pending'`: what Trav
  * read off the photo and the split it would log, waiting on the poster's 👍.
  *
- *   read it: Taverna del Gat Blau, €184 on Jordan
- *   drinks (€58) split 5 ways without Priya, food 6 ways
- *   Priya €21 · everyone else €32.60
+ *   read it: Taverna del Gat Blau, €184 on Piotr
+ *   drinks (€58) split 5 ways without Arjun, food 6 ways
+ *   Arjun €21 · everyone else €32.60
  *   👍 to log it, or send fixes ("the wine was mine")
  *
  * Nothing is on the ledger until that 👍 (SAFETY §2.4 "structured results are
@@ -37,7 +37,7 @@ export interface ReceiptReadInput {
   /** The provisional expense the 👍 would log (`status: 'logged'` shape, not yet stored). */
   readonly expense: Expense;
   readonly splitContext: ledger.SplitContext;
-  /** Members the poster's words left out (for "(not Sam)"). */
+  /** Members the poster's words left out (for "(not Crowley)"). */
   readonly excluded: readonly MemberId[];
   readonly lowConfidence: boolean;
   /** True once the words said anything about lines; otherwise Trav asks "who had what?". */
@@ -68,7 +68,7 @@ function sameSet(a: readonly MemberId[], b: readonly MemberId[]): boolean {
   return a.length === b.length && a.every((x) => b.includes(x));
 }
 
-/** "drinks (€58) split 5 ways without Priya, food 6 ways, service + tax by share". */
+/** "drinks (€58) split 5 ways without Arjun, food 6 ways, service + tax by share". */
 function summaryLine(
   lines: readonly LineItem[],
   participants: readonly MemberId[],

@@ -22,10 +22,10 @@ import type {
 } from './types.js';
 
 export const DEAN: MemberId = 'mem_dean';
-export const MAYA: MemberId = 'mem_maya';
-export const JORDAN: MemberId = 'mem_jordan';
-export const PRIYA: MemberId = 'mem_priya';
-export const SAM: MemberId = 'mem_sam';
+export const CHASE: MemberId = 'mem_chase';
+export const PIOTR: MemberId = 'mem_piotr';
+export const ARJUN: MemberId = 'mem_arjun';
+export const CROWLEY: MemberId = 'mem_crowley';
 export const HENRY: MemberId = 'mem_henry';
 
 export interface ChoiceSpec {
@@ -132,10 +132,10 @@ export function inputOf(spec: {
 
 export const BARCELONA_MEMBERS: readonly MemberTravel[] = [
   { memberId: DEAN, name: 'Dean', origin: 'BOS', returnTo: 'JFK' },
-  { memberId: MAYA, name: 'Maya', origin: 'SFO', returnTo: 'LAX' },
-  { memberId: JORDAN, name: 'Jordan', origin: 'ORD', returnTo: 'DEN' },
-  { memberId: PRIYA, name: 'Priya', origin: 'ATL', returnTo: 'MIA' },
-  { memberId: SAM, name: 'Sam', origin: 'DEN', returnTo: 'SEA' },
+  { memberId: CHASE, name: 'Chase', origin: 'SFO', returnTo: 'LAX' },
+  { memberId: PIOTR, name: 'Piotr', origin: 'ORD', returnTo: 'DEN' },
+  { memberId: ARJUN, name: 'Arjun', origin: 'ATL', returnTo: 'MIA' },
+  { memberId: CROWLEY, name: 'Crowley', origin: 'DEN', returnTo: 'SEA' },
   { memberId: HENRY, name: 'Henry', origin: 'IAD', returnTo: 'BOS' },
 ];
 
@@ -146,10 +146,10 @@ const bcnOut = (hhmm: string): IsoDateTime => `2026-03-16T${hhmm}:00+01:00`;
 type Home = { to: string; offset: string };
 const HOME: Readonly<Record<MemberId, Home>> = {
   [DEAN]: { to: 'JFK', offset: '-04:00' },
-  [MAYA]: { to: 'LAX', offset: '-07:00' },
-  [JORDAN]: { to: 'DEN', offset: '-06:00' },
-  [PRIYA]: { to: 'MIA', offset: '-04:00' },
-  [SAM]: { to: 'SEA', offset: '-07:00' },
+  [CHASE]: { to: 'LAX', offset: '-07:00' },
+  [PIOTR]: { to: 'DEN', offset: '-06:00' },
+  [ARJUN]: { to: 'MIA', offset: '-04:00' },
+  [CROWLEY]: { to: 'SEA', offset: '-07:00' },
   [HENRY]: { to: 'BOS', offset: '-04:00' },
 };
 
@@ -170,10 +170,10 @@ function ret(
 
 const ORIGIN: Readonly<Record<MemberId, string>> = {
   [DEAN]: 'BOS',
-  [MAYA]: 'SFO',
-  [JORDAN]: 'ORD',
-  [PRIYA]: 'ATL',
-  [SAM]: 'DEN',
+  [CHASE]: 'SFO',
+  [PIOTR]: 'ORD',
+  [ARJUN]: 'ATL',
+  [CROWLEY]: 'DEN',
   [HENRY]: 'IAD',
 };
 
@@ -215,55 +215,55 @@ export const BARCELONA_CHOICES: readonly FlightChoice[] = [
     refundable: true,
     ret: ret(DEAN, '11:45', '16:30', 70),
   }),
-  // Maya, SFO → BCN, home to LAX
-  offer(MAYA, 'sfo-1', 498, '22:15', { layover: 210, ret: ret(MAYA, '06:30', '14:50', 180) }),
-  offer(MAYA, 'sfo-2', 538, '10:15', {
+  // Chase, SFO → BCN, home to LAX
+  offer(CHASE, 'sfo-1', 498, '22:15', { layover: 210, ret: ret(CHASE, '06:30', '14:50', 180) }),
+  offer(CHASE, 'sfo-2', 538, '10:15', {
     layover: 75,
     refundable: true,
-    ret: ret(MAYA, '12:15', '19:10', 80),
+    ret: ret(CHASE, '12:15', '19:10', 80),
   }),
-  offer(MAYA, 'sfo-3', 610, '09:55', {
+  offer(CHASE, 'sfo-3', 610, '09:55', {
     layover: 50,
     refundable: true,
-    ret: ret(MAYA, '12:40', '19:30', 60),
+    ret: ret(CHASE, '12:40', '19:30', 60),
   }),
-  offer(MAYA, 'sfo-4', 575, '17:40', {
+  offer(CHASE, 'sfo-4', 575, '17:40', {
     layover: 140,
     refundable: true,
-    ret: ret(MAYA, '18:20', '23:55', 90),
+    ret: ret(CHASE, '18:20', '23:55', 90),
   }),
-  // Jordan, ORD → BCN, home to DEN
-  offer(JORDAN, 'ord-1', 395, '07:30', { ret: ret(JORDAN, '19:00', '23:40', 95) }),
-  offer(JORDAN, 'ord-2', 430, '10:30', {
+  // Piotr, ORD → BCN, home to DEN
+  offer(PIOTR, 'ord-1', 395, '07:30', { ret: ret(PIOTR, '19:00', '23:40', 95) }),
+  offer(PIOTR, 'ord-2', 430, '10:30', {
     layover: 80,
     refundable: true,
-    ret: ret(JORDAN, '12:20', '18:05', 85),
+    ret: ret(PIOTR, '12:20', '18:05', 85),
   }),
-  offer(JORDAN, 'ord-3', 470, '09:15', {
+  offer(PIOTR, 'ord-3', 470, '09:15', {
     refundable: true,
-    ret: ret(JORDAN, '11:30', '17:10', 60),
+    ret: ret(PIOTR, '11:30', '17:10', 60),
   }),
-  // Priya, ATL → BCN, home to MIA
-  offer(PRIYA, 'atl-1', 405, '18:05', { layover: 260, ret: ret(PRIYA, '06:00', '13:30', 150) }),
-  offer(PRIYA, 'atl-2', 445, '10:45', {
+  // Arjun, ATL → BCN, home to MIA
+  offer(ARJUN, 'atl-1', 405, '18:05', { layover: 260, ret: ret(ARJUN, '06:00', '13:30', 150) }),
+  offer(ARJUN, 'atl-2', 445, '10:45', {
     layover: 70,
     refundable: true,
-    ret: ret(PRIYA, '12:10', '17:45', 75),
+    ret: ret(ARJUN, '12:10', '17:45', 75),
   }),
-  offer(PRIYA, 'atl-3', 480, '09:30', { refundable: true, ret: ret(PRIYA, '12:50', '18:20', 50) }),
-  offer(PRIYA, 'atl-4', 440, '13:10', { layover: 120, ret: ret(PRIYA, '15:30', '21:40', 130) }),
-  offer(PRIYA, 'atl-5', 505, '10:00', { refundable: true, ret: ret(PRIYA, '11:50', '17:15') }),
-  // Sam, DEN → BCN, home to SEA
-  offer(SAM, 'den-1', 420, '21:50', { layover: 185, ret: ret(SAM, '07:00', '15:10', 200) }),
-  offer(SAM, 'den-2', 465, '11:00', {
+  offer(ARJUN, 'atl-3', 480, '09:30', { refundable: true, ret: ret(ARJUN, '12:50', '18:20', 50) }),
+  offer(ARJUN, 'atl-4', 440, '13:10', { layover: 120, ret: ret(ARJUN, '15:30', '21:40', 130) }),
+  offer(ARJUN, 'atl-5', 505, '10:00', { refundable: true, ret: ret(ARJUN, '11:50', '17:15') }),
+  // Crowley, DEN → BCN, home to SEA
+  offer(CROWLEY, 'den-1', 420, '21:50', { layover: 185, ret: ret(CROWLEY, '07:00', '15:10', 200) }),
+  offer(CROWLEY, 'den-2', 465, '11:00', {
     layover: 90,
     refundable: true,
-    ret: ret(SAM, '12:35', '19:20', 95),
+    ret: ret(CROWLEY, '12:35', '19:20', 95),
   }),
-  offer(SAM, 'den-3', 510, '09:50', {
+  offer(CROWLEY, 'den-3', 510, '09:50', {
     layover: 55,
     refundable: true,
-    ret: ret(SAM, '12:00', '18:40', 60),
+    ret: ret(CROWLEY, '12:00', '18:40', 60),
   }),
   // Henry, IAD → BCN, home to BOS
   offer(HENRY, 'iad-1', 372, '07:15', { ret: ret(HENRY, '07:30', '10:40') }),

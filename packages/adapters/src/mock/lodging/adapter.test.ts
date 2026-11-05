@@ -15,7 +15,7 @@ import { loadLodgingInventory, parseLodgingInventory } from './inventory.js';
 const PLANNING = '2026-02-20T20:30:00+01:00';
 const EIXAMPLE_FLEX = 'rate_bcn_eixample_3br_flex';
 const EIXAMPLE_DEADLINE = '2026-03-07T23:59:00+01:00';
-const SIX = ['mem_dean', 'mem_henry', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam'];
+const SIX = ['mem_dean', 'mem_henry', 'mem_chase', 'mem_piotr', 'mem_arjun', 'mem_crowley'];
 
 const eur = (amountMinor: number): Money => money(amountMinor, 'EUR');
 
@@ -719,7 +719,9 @@ describe('mock lodging: review fixes', () => {
     const { lodging } = setup();
     const first = await bookEixample(lodging);
     const otherLead = await lodging.book(
-      bookReq({ leadGuest: { memberId: 'mem_maya', givenName: 'Maya', familyName: 'Fictional' } }),
+      bookReq({
+        leadGuest: { memberId: 'mem_chase', givenName: 'Chase', familyName: 'Fictional' },
+      }),
     );
     expect(errorCode(otherLead)).toBe('duplicate');
     const renamed = await lodging.book(

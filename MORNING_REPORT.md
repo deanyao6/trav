@@ -19,7 +19,7 @@ The full walkthrough transcript is in `docs/DEMO_TRANSCRIPT.md`; it's regenerate
 
 **The Razzmatazz moment** runs through the real runtime: "@trav get the 5 of us Razzmatazz tickets, Henry's sick" → one proposal naming the 5 → ApprovalPolicy → 👍 → mock purchase → receipt in the group → 5 different QR codes, each sent by DM (none to Henry) → €90 split among exactly those 5. The audit order is policy.evaluated → approval.granted → booking.attempted → booking.completed → ledger.written. A double 👍 buys once.
 
-New since session 12: the stay is booked in chat (€1,380, €230 each, all 6 👍; Jordan's "i'll approve for him" counts for nothing), the Uber email splits among the 4 riders, and a 👍 on the settle-up card ticks the payer's transfer off. One step is still honestly labelled as not in chat yet:
+New since session 12: the stay is booked in chat (€1,380, €230 each, all 6 👍; Piotr's "i'll approve for him" counts for nothing), the Uber email splits among the 4 riders, and a 👍 on the settle-up card ticks the payer's transfer off. One step is still honestly labelled as not in chat yet:
 - Flights: Trav says it can't book group flights in chat yet, and the demo runs the real optimizer directly (T-074).
 
 **Not verified in a browser:** the sandbox blocks local port binding, so `pnpm sim` was exercised only through its in-process backend. To click through it yourself, run `TRAV_OFFLINE=1 pnpm sim` outside the sandbox, or set `sandbox.network.allowLocalBinding: true`.
@@ -112,7 +112,7 @@ $0. `.trav/spend.json` doesn't exist, because no live model call has been made. 
 2. **Flights in chat (T-074):** worth building next, since it's the last labelled gap in the flagship demo and the biggest eval drag.
 3. **Who confirms a settle-up payment:** T-141 lets the payer's own 👍 or [Paid] tap reduce what's owed (D-034); T-037's acceptance says only the payee's confirmation should. A mistaken 👍 can't be undone in chat yet.
 4. **Budget DMs: note or cap (T-157):** Henry is told his €80 a day is "just a note, not a hard cap", but the over-cap booking rules read member caps that only the eval seed writes. Decide which it is.
-5. **Who pays when the message says "on Jordan's card":** "i paid €84 on Jordan's card" records Jordan as the payer without asking them. Options: keep that, use the sender, or DM Jordan to confirm.
+5. **Who pays when the message says "on Piotr's card":** "i paid €84 on Piotr's card" records Piotr as the payer without asking them. Options: keep that, use the sender, or DM Piotr to confirm.
 6. **Lodging with first names only (D-037):** whole-home rentals now book without a family name (hotels and hostels still refuse). Real bookings need private traveler profiles.
 7. **Riders inferred from the group thread (T-135):** keep reading members' own "heading back" lines, or always ask the owner on a rider-count mismatch?
 

@@ -12,10 +12,10 @@ import {
   BARCELONA_MEMBERS,
   DEAN,
   HENRY,
-  JORDAN,
-  MAYA,
-  PRIYA,
-  SAM,
+  PIOTR,
+  CHASE,
+  ARJUN,
+  CROWLEY,
   eur,
   expectTravError,
   expense,
@@ -40,10 +40,10 @@ describe('equal', () => {
 
   it('hands remainder cents to the payer first, then member order', () => {
     const shares = computeShares(
-      expense({ amount: eur(10000), paidBy: [{ memberId: SAM, amount: eur(10000) }] }),
+      expense({ amount: eur(10000), paidBy: [{ memberId: CROWLEY, amount: eur(10000) }] }),
       BARCELONA_CTX,
     );
-    // 10000 / 6 = 1666 r4 → Sam (payer), then Dean, Maya, Henry.
+    // 10000 / 6 = 1666 r4 → Crowley (payer), then Dean, Chase, Henry.
     expect(minors(shares)).toEqual([1667, 1667, 1667, 1667, 1666, 1666]);
     expect(total(shares)).toBe(10000);
   });
@@ -53,11 +53,11 @@ describe('equal', () => {
       expense({
         amount: eur(1000),
         paidBy: [{ memberId: DEAN, amount: eur(1000) }],
-        split: { method: 'equal', participants: [HENRY, SAM, MAYA] },
+        split: { method: 'equal', participants: [HENRY, CROWLEY, CHASE] },
       }),
       BARCELONA_CTX,
     );
-    expect(ids(shares)).toEqual([MAYA, SAM, HENRY]);
+    expect(ids(shares)).toEqual([CHASE, CROWLEY, HENRY]);
     expect(minors(shares)).toEqual([334, 333, 333]);
   });
 
@@ -91,28 +91,28 @@ describe('exclude', () => {
       expense({ split: { method: 'exclude', excluded: [HENRY] } }),
       BARCELONA_CTX,
     );
-    expect(ids(shares)).toEqual([DEAN, MAYA, SAM, JORDAN, PRIYA]);
+    expect(ids(shares)).toEqual([DEAN, CHASE, CROWLEY, PIOTR, ARJUN]);
     expect(minors(shares)).toEqual([1680, 1680, 1680, 1680, 1680]);
   });
 
   it('uses the activity roster as the universe and tolerates excluding an absent member', () => {
     const razzmatazz: SplitContext = {
       memberOrder: BARCELONA_MEMBERS,
-      participantsUniverse: [DEAN, MAYA, SAM, JORDAN, PRIYA], // Henry's out tonight
+      participantsUniverse: [DEAN, CHASE, CROWLEY, PIOTR, ARJUN], // Henry's out tonight
     };
     // Henry is already absent; excluding him again is harmless.
     const five = computeShares(
       expense({ amount: eur(10001), split: { method: 'exclude', excluded: [HENRY] } }),
       razzmatazz,
     );
-    expect(ids(five)).toEqual([DEAN, MAYA, SAM, JORDAN, PRIYA]);
+    expect(ids(five)).toEqual([DEAN, CHASE, CROWLEY, PIOTR, ARJUN]);
     expect(minors(five)).toEqual([2001, 2000, 2000, 2000, 2000]);
-    // Exclude Priya from the roster of five → 4 ways.
+    // Exclude Arjun from the roster of five → 4 ways.
     const four = computeShares(
-      expense({ amount: eur(10000), split: { method: 'exclude', excluded: [PRIYA] } }),
+      expense({ amount: eur(10000), split: { method: 'exclude', excluded: [ARJUN] } }),
       razzmatazz,
     );
-    expect(ids(four)).toEqual([DEAN, MAYA, SAM, JORDAN]);
+    expect(ids(four)).toEqual([DEAN, CHASE, CROWLEY, PIOTR]);
     expect(minors(four)).toEqual([2500, 2500, 2500, 2500]);
   });
 
@@ -134,27 +134,27 @@ describe('exclude', () => {
 });
 
 describe('weighted', () => {
-  it('VOICE §4.4 B: €32 taxi on Maya, Sam 20 / Maya 12', () => {
+  it('VOICE §4.4 B: €32 taxi on Chase, Crowley 20 / Chase 12', () => {
     const shares = computeShares(
       expense({
         amount: eur(3200),
-        paidBy: [{ memberId: MAYA, amount: eur(3200) }],
+        paidBy: [{ memberId: CHASE, amount: eur(3200) }],
         split: {
           method: 'weighted',
           weights: [
-            { memberId: SAM, weight: 20 },
-            { memberId: MAYA, weight: 12 },
+            { memberId: CROWLEY, weight: 20 },
+            { memberId: CHASE, weight: 12 },
           ],
         },
       }),
       BARCELONA_CTX,
     );
-    expect(ids(shares)).toEqual([MAYA, SAM]);
+    expect(ids(shares)).toEqual([CHASE, CROWLEY]);
     expect(minors(shares)).toEqual([1200, 2000]);
   });
 
   it('policy: largest fractional remainder wins, even over the payer', () => {
-    // 1:2 on €10 → 333.3 / 666.7 → Maya's larger fraction wins even though Dean paid.
+    // 1:2 on €10 → 333.3 / 666.7 → Chase's larger fraction wins even though Dean paid.
     const unequal = computeShares(
       expense({
         amount: eur(1000),
@@ -162,7 +162,7 @@ describe('weighted', () => {
           method: 'weighted',
           weights: [
             { memberId: DEAN, weight: 1 },
-            { memberId: MAYA, weight: 2 },
+            { memberId: CHASE, weight: 2 },
           ],
         },
       }),
@@ -172,22 +172,22 @@ describe('weighted', () => {
   });
 
   it('policy: an exact tie in fractional remainders goes to the payer', () => {
-    // 1.5 : 1.5 on €10.01 is a tie → the payer (Sam) gets the cent.
+    // 1.5 : 1.5 on €10.01 is a tie → the payer (Crowley) gets the cent.
     const tie = computeShares(
       expense({
         amount: eur(1001),
-        paidBy: [{ memberId: SAM, amount: eur(1001) }],
+        paidBy: [{ memberId: CROWLEY, amount: eur(1001) }],
         split: {
           method: 'weighted',
           weights: [
             { memberId: DEAN, weight: 1.5 },
-            { memberId: SAM, weight: 1.5 },
+            { memberId: CROWLEY, weight: 1.5 },
           ],
         },
       }),
       BARCELONA_CTX,
     );
-    expect(ids(tie)).toEqual([DEAN, SAM]);
+    expect(ids(tie)).toEqual([DEAN, CROWLEY]);
     expect(minors(tie)).toEqual([500, 501]);
   });
 
@@ -224,18 +224,18 @@ describe('exact', () => {
     const shares = computeShares(
       expense({
         amount: eur(3200),
-        paidBy: [{ memberId: MAYA, amount: eur(3200) }],
+        paidBy: [{ memberId: CHASE, amount: eur(3200) }],
         split: {
           method: 'exact',
           amounts: [
-            { memberId: SAM, amount: eur(2000) },
-            { memberId: MAYA, amount: eur(1200) },
+            { memberId: CROWLEY, amount: eur(2000) },
+            { memberId: CHASE, amount: eur(1200) },
           ],
         },
       }),
       BARCELONA_CTX,
     );
-    expect(ids(shares)).toEqual([MAYA, SAM]);
+    expect(ids(shares)).toEqual([CHASE, CROWLEY]);
     expect(minors(shares)).toEqual([1200, 2000]);
   });
 
@@ -246,14 +246,14 @@ describe('exact', () => {
         method: 'exact',
         amounts: [
           { memberId: DEAN, amount: eur(0) },
-          { memberId: MAYA, amount: eur(5000) },
+          { memberId: CHASE, amount: eur(5000) },
         ],
       },
     });
     expect(minors(computeShares(e, BARCELONA_CTX))).toEqual([0, 5000]);
     const owes = buildLedgerEntries(e, BARCELONA_CTX).filter((x) => x.kind === 'owes');
     expect(owes).toHaveLength(1);
-    expect(owes[0]?.memberId).toBe(MAYA);
+    expect(owes[0]?.memberId).toBe(CHASE);
   });
 
   it('rejects amounts that do not sum to the total, with the gap in details', () => {
@@ -265,8 +265,8 @@ describe('exact', () => {
             split: {
               method: 'exact',
               amounts: [
-                { memberId: SAM, amount: eur(2000) },
-                { memberId: MAYA, amount: eur(1100) },
+                { memberId: CROWLEY, amount: eur(2000) },
+                { memberId: CHASE, amount: eur(1100) },
               ],
             },
           }),
@@ -286,8 +286,8 @@ describe('exact', () => {
             split: {
               method: 'exact',
               amounts: [
-                { memberId: SAM, amount: eur(1500) },
-                { memberId: MAYA, amount: eur(-500) },
+                { memberId: CROWLEY, amount: eur(1500) },
+                { memberId: CHASE, amount: eur(-500) },
               ],
             },
           }),
@@ -300,7 +300,10 @@ describe('exact', () => {
         validateExpense(
           expense({
             amount: eur(1000),
-            split: { method: 'exact', amounts: [{ memberId: SAM, amount: money(1000, 'USD') }] },
+            split: {
+              method: 'exact',
+              amounts: [{ memberId: CROWLEY, amount: money(1000, 'USD') }],
+            },
           }),
           BARCELONA_CTX,
         ),
@@ -310,14 +313,14 @@ describe('exact', () => {
 });
 
 describe('itemized', () => {
-  it('VOICE §4.4 C: Bar del Pla €184 on Jordan, Priya did not drink', () => {
+  it('VOICE §4.4 C: Bar del Pla €184 on Piotr, Arjun did not drink', () => {
     const shares = computeShares(
       expense({
         amount: eur(18400),
-        paidBy: [{ memberId: JORDAN, amount: eur(18400) }],
+        paidBy: [{ memberId: PIOTR, amount: eur(18400) }],
         split: itemized(BARCELONA_MEMBERS, [
           line('food', 12600),
-          line('drinks', 5800, [DEAN, MAYA, SAM, HENRY, JORDAN]),
+          line('drinks', 5800, [DEAN, CHASE, CROWLEY, HENRY, PIOTR]),
         ]),
       }),
       BARCELONA_CTX,
@@ -332,11 +335,11 @@ describe('itemized', () => {
       expense({
         amount: eur(7800),
         split: itemized(
-          [DEAN, MAYA, SAM, HENRY],
+          [DEAN, CHASE, CROWLEY, HENRY],
           [
             line('steak', 3000, [DEAN]),
-            line('pasta', 2000, [MAYA]),
-            line('salad', 1000, [SAM, HENRY]),
+            line('pasta', 2000, [CHASE]),
+            line('salad', 1000, [CROWLEY, HENRY]),
             line('tax', 600, [], 'tax'),
             line('tip', 1200, [], 'tip'),
           ],
@@ -344,20 +347,20 @@ describe('itemized', () => {
       }),
       BARCELONA_CTX,
     );
-    expect(ids(shares)).toEqual([DEAN, MAYA, SAM, HENRY]);
+    expect(ids(shares)).toEqual([DEAN, CHASE, CROWLEY, HENRY]);
     // subtotals 3000 / 2000 / 500 / 500 → tax 300/200/50/50, tip 600/400/100/100
     expect(minors(shares)).toEqual([3900, 2600, 650, 650]);
   });
 
   it('policy: pro-rata cent goes to the largest fractional remainder, not the payer', () => {
-    // Dean €4 + Maya €6, €0.01 tax pro-rata → Dean 0.4¢ / Maya 0.6¢ → Maya gets it, Dean paid.
+    // Dean €4 + Chase €6, €0.01 tax pro-rata → Dean 0.4¢ / Chase 0.6¢ → Chase gets it, Dean paid.
     const shares = computeShares(
       expense({
         amount: eur(1001),
         paidBy: [{ memberId: DEAN, amount: eur(1001) }],
         split: itemized(
-          [DEAN, MAYA],
-          [line('a', 400, [DEAN]), line('b', 600, [MAYA]), line('tax', 1, [], 'tax')],
+          [DEAN, CHASE],
+          [line('a', 400, [DEAN]), line('b', 600, [CHASE]), line('tax', 1, [], 'tax')],
         ),
       }),
       BARCELONA_CTX,
@@ -369,13 +372,13 @@ describe('itemized', () => {
     const shares = computeShares(
       expense({
         amount: eur(3100),
-        paidBy: [{ memberId: MAYA, amount: eur(3100) }],
+        paidBy: [{ memberId: CHASE, amount: eur(3100) }],
         split: itemized(
-          [DEAN, MAYA, SAM],
+          [DEAN, CHASE, CROWLEY],
           [
             line('a', 1000, [DEAN]),
-            line('b', 1000, [MAYA]),
-            line('c', 1000, [SAM]),
+            line('b', 1000, [CHASE]),
+            line('c', 1000, [CROWLEY]),
             line('service', 100, [], 'service'),
           ],
         ),
@@ -383,11 +386,11 @@ describe('itemized', () => {
       BARCELONA_CTX,
     );
     expect(minors(shares)).toEqual([1033, 1034, 1033]);
-    // A shared line with an odd cent: neither claimant paid → member order (Sam before Henry).
+    // A shared line with an odd cent: neither claimant paid → member order (Crowley before Henry).
     const odd = computeShares(
       expense({
         amount: eur(1001),
-        split: itemized([SAM, HENRY], [line('salad', 1001, [SAM, HENRY])]),
+        split: itemized([CROWLEY, HENRY], [line('salad', 1001, [CROWLEY, HENRY])]),
       }),
       BARCELONA_CTX,
     );
@@ -395,7 +398,7 @@ describe('itemized', () => {
   });
 
   it('T-011 case: 3 items, 4 people, one excluded; a claim by the excluded person is rejected', () => {
-    const present = [DEAN, MAYA, SAM]; // Henry excluded
+    const present = [DEAN, CHASE, CROWLEY]; // Henry excluded
     const shares = computeShares(
       expense({
         amount: eur(6000),
@@ -424,10 +427,10 @@ describe('itemized', () => {
         expense({
           amount: eur(3600),
           split: itemized(
-            [DEAN, MAYA],
+            [DEAN, CHASE],
             [
               line('a', 1000, [DEAN]),
-              line('b', 3000, [MAYA]),
+              line('b', 3000, [CHASE]),
               line('promo', stored, [], 'discount'),
             ],
           ),
@@ -439,15 +442,15 @@ describe('itemized', () => {
   });
 
   it("a claimed discount larger than the claimant's items yields a negative share", () => {
-    // Dean €10 dish, Maya €30 dish, Dean's €15 voucher → Dean is owed €5, Maya owes €30.
+    // Dean €10 dish, Chase €30 dish, Dean's €15 voucher → Dean is owed €5, Chase owes €30.
     const shares = computeShares(
       expense({
         amount: eur(2500),
         split: itemized(
-          [DEAN, MAYA],
+          [DEAN, CHASE],
           [
             line('a', 1000, [DEAN]),
-            line('b', 3000, [MAYA]),
+            line('b', 3000, [CHASE]),
             line('voucher', 1500, [DEAN], 'discount'),
           ],
         ),
@@ -462,7 +465,7 @@ describe('itemized', () => {
     const equalFallback = computeShares(
       expense({
         amount: eur(900),
-        split: itemized([DEAN, MAYA, SAM], [line('cover', 900, [], 'service')]),
+        split: itemized([DEAN, CHASE, CROWLEY], [line('cover', 900, [], 'service')]),
       }),
       BARCELONA_CTX,
     );
@@ -471,8 +474,8 @@ describe('itemized', () => {
       expense({
         amount: eur(2500),
         split: itemized(
-          [DEAN, MAYA],
-          [line('a', 1000, [DEAN]), line('b', 1000, [MAYA]), line('fee', 500, [MAYA], 'fee')],
+          [DEAN, CHASE],
+          [line('a', 1000, [DEAN]), line('b', 1000, [CHASE]), line('fee', 500, [CHASE], 'fee')],
         ),
       }),
       BARCELONA_CTX,
@@ -484,7 +487,7 @@ describe('itemized', () => {
     const shares = computeShares(
       expense({
         amount: eur(2000),
-        split: itemized([DEAN, MAYA, PRIYA], [line('a', 1000, [DEAN]), line('b', 1000, [MAYA])]),
+        split: itemized([DEAN, CHASE, ARJUN], [line('a', 1000, [DEAN]), line('b', 1000, [CHASE])]),
       }),
       BARCELONA_CTX,
     );
@@ -492,18 +495,18 @@ describe('itemized', () => {
     const entries = buildLedgerEntries(
       expense({
         amount: eur(2000),
-        split: itemized([DEAN, MAYA, PRIYA], [line('a', 1000, [DEAN]), line('b', 1000, [MAYA])]),
+        split: itemized([DEAN, CHASE, ARJUN], [line('a', 1000, [DEAN]), line('b', 1000, [CHASE])]),
       }),
       BARCELONA_CTX,
     );
-    expect(entries.map((e) => e.memberId)).toEqual([DEAN, DEAN, MAYA]);
+    expect(entries.map((e) => e.memberId)).toEqual([DEAN, DEAN, CHASE]);
   });
 
   it('rejects lines that do not sum, duplicate lineIds, negative items and empty participants', () => {
     const err = expectTravError(
       () =>
         validateExpense(
-          expense({ amount: eur(1000), split: itemized([DEAN, MAYA], [line('a', 900)]) }),
+          expense({ amount: eur(1000), split: itemized([DEAN, CHASE], [line('a', 900)]) }),
           BARCELONA_CTX,
         ),
       'invalid_argument',
@@ -514,7 +517,7 @@ describe('itemized', () => {
         validateExpense(
           expense({
             amount: eur(1000),
-            split: itemized([DEAN, MAYA], [line('a', 500), line('a', 500)]),
+            split: itemized([DEAN, CHASE], [line('a', 500), line('a', 500)]),
           }),
           BARCELONA_CTX,
         ),
@@ -525,7 +528,7 @@ describe('itemized', () => {
         validateExpense(
           expense({
             amount: eur(1000),
-            split: itemized([DEAN, MAYA], [line('a', 1500), line('b', -500)]),
+            split: itemized([DEAN, CHASE], [line('a', 1500), line('b', -500)]),
           }),
           BARCELONA_CTX,
         ),
@@ -543,14 +546,14 @@ describe('multiple payers', () => {
     const e = expense({
       paidBy: [
         { memberId: DEAN, amount: eur(5000) },
-        { memberId: MAYA, amount: eur(3400) },
+        { memberId: CHASE, amount: eur(3400) },
       ],
     });
     expect(minors(computeShares(e, BARCELONA_CTX))).toEqual([1400, 1400, 1400, 1400, 1400, 1400]);
     const paid = buildLedgerEntries(e, BARCELONA_CTX).filter((x) => x.kind === 'paid');
     expect(paid.map((p) => [p.memberId, p.amount.amountMinor])).toEqual([
       [DEAN, 5000],
-      [MAYA, 3400],
+      [CHASE, 3400],
     ]);
   });
 
@@ -560,12 +563,12 @@ describe('multiple payers', () => {
         amount: eur(10000),
         paidBy: [
           { memberId: DEAN, amount: eur(4000) },
-          { memberId: PRIYA, amount: eur(6000) },
+          { memberId: ARJUN, amount: eur(6000) },
         ],
       }),
       BARCELONA_CTX,
     );
-    // r4 → Priya (6000), Dean (4000), then Maya, Sam.
+    // r4 → Arjun (6000), Dean (4000), then Chase, Crowley.
     expect(minors(shares)).toEqual([1667, 1667, 1667, 1666, 1666, 1667]);
   });
 
@@ -574,7 +577,7 @@ describe('multiple payers', () => {
       {
         paidBy: [
           { memberId: DEAN, amount: eur(5000) },
-          { memberId: MAYA, amount: eur(3000) },
+          { memberId: CHASE, amount: eur(3000) },
         ],
       },
       {
@@ -586,7 +589,7 @@ describe('multiple payers', () => {
       {
         paidBy: [
           { memberId: DEAN, amount: eur(8400) },
-          { memberId: MAYA, amount: eur(0) },
+          { memberId: CHASE, amount: eur(0) },
         ],
       },
       { paidBy: [{ memberId: 'mem_ghost', amount: eur(8400) }] },
@@ -624,7 +627,7 @@ describe('validateExpense / buildLedgerEntries', () => {
       () =>
         validateExpense(expense(), {
           memberOrder: [DEAN],
-          participantsUniverse: [DEAN, MAYA],
+          participantsUniverse: [DEAN, CHASE],
         }),
       'invalid_argument',
     );

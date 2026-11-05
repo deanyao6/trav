@@ -228,7 +228,7 @@ function barcelonaWorld(opts: { roast?: boolean; optOut?: MemberId[] } = {}) {
   }
   // A cancelled booking never counts for The Planner.
   addBooking(stores, trip, {
-    requestedBy: 'mem_sam',
+    requestedBy: 'mem_crowley',
     description: 'VIP table',
     status: 'cancelled',
   });
@@ -256,13 +256,13 @@ describe('Wrapped composer on the Barcelona world (T-016)', () => {
       expect(a!.trace.length, truth.award).toBeGreaterThan(0);
     }
     expect(built.facts.awards.find((a) => a.title === 'Most Fronted')?.memberId).toBe('mem_dean');
-    // The Planner: the 4 Dean asked for; Sam's cancelled VIP table is not a booking.
+    // The Planner: the 4 Dean asked for; Crowley's cancelled VIP table is not a booking.
     const planner = built.facts.awards.find((a) => a.id === 'planner')!;
     expect(planner.value).toBe(4);
     expect(
       built.facts.standings
         .find((s) => s.id === 'planner')!
-        .stats.find((s) => s.memberId === 'mem_sam')!.value,
+        .stats.find((s) => s.memberId === 'mem_crowley')!.value,
     ).toBe(0);
     // The card carries the same awards with their basis; the text names three.
     expect(built.input.awards.map((a) => a.basis)).toEqual(
@@ -283,7 +283,7 @@ describe('Wrapped composer on the Barcelona world (T-016)', () => {
       3 rides, €74
       3 nights on the tab · latest receipt 2:14am
       €184 on the biggest meal (dinner at Taverna del Gat Blau)
-      awards 🏆 MVP Spender: Dean (€2,065.20) · Uber Captain: Sam (1 ride) · Night Owl: Priya
+      awards 🏆 MVP Spender: Dean (€2,065.20) · Uber Captain: Crowley (1 ride) · Night Owl: Arjun
       final settle is in the card, 5 transfers and you're done 💸
       6 photos in the card, from everyone who shared
       next trip? add trav to the new group chat, i'll take it from there"
@@ -318,7 +318,7 @@ describe('Wrapped composer on the Barcelona world (T-016)', () => {
       expect(JSON.stringify(m).toLowerCase()).not.toContain(bad.toLowerCase());
   });
 
-  it('photos: opt-in owners only (Priya revoked), all highlight candidates, never more than 6', async () => {
+  it('photos: opt-in owners only (Arjun revoked), all highlight candidates, never more than 6', async () => {
     const { deps } = barcelonaWorld();
     const r = await composeWrapped(deps, BARCELONA.groupId, BARCELONA.tripId);
     if (r.kind !== 'ok') throw new Error(r.kind);
@@ -336,7 +336,7 @@ describe('Wrapped composer on the Barcelona world (T-016)', () => {
         .map((s) => s.memberId)
         .filter((id) => (photographer.stats.find((x) => x.memberId === id)?.value ?? 0) > 0)
         .sort(),
-    ).toEqual(['mem_dean', 'mem_maya', 'mem_sam']);
+    ).toEqual(['mem_chase', 'mem_crowley', 'mem_dean']);
   });
 
   it('no album: no photos, no Photographer, still a Wrapped', async () => {
@@ -526,7 +526,7 @@ describe('the scheduled Wrapped job', () => {
             description,
             amount: { amountMinor: 99_000 + i, currency: 'EUR' },
             paidBy: [
-              { memberId: 'mem_maya', amount: { amountMinor: 99_000 + i, currency: 'EUR' } },
+              { memberId: 'mem_chase', amount: { amountMinor: 99_000 + i, currency: 'EUR' } },
             ],
             split: { method: 'exclude', excluded: [] },
           },
@@ -564,8 +564,8 @@ describe('opt-out via request_settings_change (awardsOptOut, self only)', () => 
     const ctx = {
       groupId: BARCELONA.groupId,
       tripId: BARCELONA.tripId,
-      senderMemberId: 'mem_sam',
-      senderId: 'h_sam',
+      senderMemberId: 'mem_crowley',
+      senderId: 'h_crowley',
       lane: 'group' as const,
       now: h.clock.now(),
       clock: h.clock,
@@ -576,7 +576,7 @@ describe('opt-out via request_settings_change (awardsOptOut, self only)', () => 
     const r1 = await requestSettingsChangeTool.handler(input, ctx);
     expect(r1).toMatchObject({ kind: 'changed', text: "you're out of the awards" });
     expect(h.runtime.stores.group.groups.get(BARCELONA.groupId)!.settings.awardsOptOut).toEqual([
-      'mem_sam',
+      'mem_crowley',
     ]);
     expect(h.auditTypes()).toContain('settings.changed');
     expect((await requestSettingsChangeTool.handler(input, ctx)).kind).toBe('unchanged');

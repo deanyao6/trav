@@ -3,10 +3,10 @@
   "properNouns": [
     "Dean",
     "Henry",
-    "Maya",
-    "Jordan",
-    "Priya",
-    "Sam",
+    "Chase",
+    "Piotr",
+    "Arjun",
+    "Crowley",
     "Dad",
     "Mom",
     "Lily",
@@ -61,13 +61,13 @@
       "id": "4.1-a",
       "section": "4.1",
       "kind": "proposal",
-      "text": "razzmatazz tonight, 5 tickets\nDean, Maya, Jordan, Priya, Sam (not Henry)\n€18 each · €90 total · refundable until 10pm\ncharged to Dean's card, split 5 ways on the tab\n👍 to book. price held for 15 min"
+      "text": "razzmatazz tonight, 5 tickets\nDean, Chase, Piotr, Arjun, Crowley (not Henry)\n€18 each · €90 total · refundable until 10pm\ncharged to Dean's card, split 5 ways on the tab\n👍 to book. price held for 15 min"
     },
     {
       "id": "4.1-b",
       "section": "4.1",
       "kind": "proposal",
-      "text": "barça vs sevilla, sunday 9pm, 6 tickets\nDean, Henry, Maya, Jordan, Priya, Sam\n€72 each · €432 total · non-refundable\nthat's over the €60/person cap, so @Dean has to ok it\n👍 from Dean to book, or anyone can say \"not me\" first"
+      "text": "barça vs sevilla, sunday 9pm, 6 tickets\nDean, Henry, Chase, Piotr, Arjun, Crowley\n€72 each · €432 total · non-refundable\nthat's over the €60/person cap, so @Dean has to ok it\n👍 from Dean to book, or anyone can say \"not me\" first"
     },
     {
       "id": "4.1-c",
@@ -80,13 +80,13 @@
       "id": "4.2-a",
       "section": "4.2",
       "kind": "receipt",
-      "text": "booked ✅ razzmatazz, 5 tickets, €90\norder RZ-48213 · refundable until 10pm\nQR codes are in your dms, one each\ntab: Maya, Jordan, Priya, Sam → Dean €18"
+      "text": "booked ✅ razzmatazz, 5 tickets, €90\norder RZ-48213 · refundable until 10pm\nQR codes are in your dms, one each\ntab: Chase, Piotr, Arjun, Crowley → Dean €18"
     },
     {
       "id": "4.2-b",
       "section": "4.2",
       "kind": "receipt",
-      "text": "flights booked ✅ everyone lands within 90 min of each other thursday\nDean BOS 7:10am → BCN 9:40pm · €412\nMaya SFO 6:00am → BCN 10:15pm · €538\n+4 more in the card\n€2,870 total, each on your own card, nothing to split"
+      "text": "flights booked ✅ everyone lands within 90 min of each other thursday\nDean BOS 7:10am → BCN 9:40pm · €412\nChase SFO 6:00am → BCN 10:15pm · €538\n+4 more in the card\n€2,870 total, each on your own card, nothing to split"
     },
     {
       "id": "4.2-c",
@@ -124,13 +124,13 @@
       "id": "4.4-b",
       "section": "4.4",
       "kind": "expense",
-      "text": "logged: €32 taxi on Maya · Sam €20 · Maya €12\n👎 to undo"
+      "text": "logged: €32 taxi on Chase · Crowley €20 · Chase €12\n👎 to undo"
     },
     {
       "id": "4.4-c",
       "section": "4.4",
       "kind": "expense",
-      "text": "read it: Bar del Pla, €184 on Jordan\ndrinks (€58) split 5 ways without Priya, food + tax + tip 6 ways\nPriya €21 · everyone else €32.60\n👎 to undo, or send fixes (\"the wine was mine\")"
+      "text": "read it: Bar del Pla, €184 on Piotr\ndrinks (€58) split 5 ways without Arjun, food + tax + tip 6 ways\nArjun €21 · everyone else €32.60\n👎 to undo, or send fixes (\"the wine was mine\")"
     },
 
     {
@@ -149,20 +149,20 @@
       "id": "4.5-c",
       "section": "4.5",
       "kind": "dm",
-      "text": "uber receipt from last night: €18.60, Eixample → Poblenou, 4 riders\nsplit with Dean, Jordan, Sam? 👍 yes · 👎 just me"
+      "text": "uber receipt from last night: €18.60, Eixample → Poblenou, 4 riders\nsplit with Dean, Piotr, Crowley? 👍 yes · 👎 just me"
     },
 
     {
       "id": "4.6-a",
       "section": "4.6",
       "kind": "settle_up",
-      "text": "running tab, day 3\nDean is owed €61.20 · Jordan is owed €12\nMaya owes €31.60 · Priya owes €22.80 · Sam owes €18.80\nno rush, i'll do one clean settle at the end. \"@trav settle now\" if you'd rather square up today"
+      "text": "running tab, day 3\nDean is owed €61.20 · Piotr is owed €12\nChase owes €31.60 · Arjun owes €22.80 · Crowley owes €18.80\nno rush, i'll do one clean settle at the end. \"@trav settle now\" if you'd rather square up today"
     },
     {
       "id": "4.6-b",
       "section": "4.6",
       "kind": "settle_up",
-      "text": "final settle, 4 transfers and everyone's square\nMaya → Dean €31.60\nPriya → Dean €22.80\nSam → Dean €6.80\nSam → Jordan €12\n👍 on this message when you've paid, i'll tick you off"
+      "text": "final settle, 4 transfers and everyone's square\nChase → Dean €31.60\nArjun → Dean €22.80\nCrowley → Dean €6.80\nCrowley → Piotr €12\n👍 on this message when you've paid, i'll tick you off"
     },
     {
       "id": "4.6-c",
@@ -175,13 +175,13 @@
       "id": "4.7-a",
       "section": "4.7",
       "kind": "recap",
-      "text": "morning after, day 3 ☀️\nlast night: razzmatazz (5 of you) · €90 tickets · €47 in ubers · €62 at the 3am kebab place\n€199 total, €39.80 each\ntab: Maya → Dean €31.60 is the big one, full list in the card\ntoday: Sagrada Família at 3pm, tickets in your dms since tuesday"
+      "text": "morning after, day 3 ☀️\nlast night: razzmatazz (5 of you) · €90 tickets · €47 in ubers · €62 at the 3am kebab place\n€199 total, €39.80 each\ntab: Chase → Dean €31.60 is the big one, full list in the card\ntoday: Sagrada Família at 3pm, tickets in your dms since tuesday"
     },
     {
       "id": "4.7-b",
       "section": "4.7",
       "kind": "recap",
-      "text": "morning after, day 3 ☀️\nrazzmatazz, 5 of you, €199 all in. €62 of it was kebabs at 3am, which is a kebab-to-ticket ratio i haven't seen before\nJordan paid for two of those. Jordan has paid for kebabs 3 nights running. the tab remembers\nMaya → Dean €31.60 · Priya → Dean €22.80 · Sam → Dean €18.80\nSagrada Família at 3pm. it's a church, dress like it"
+      "text": "morning after, day 3 ☀️\nrazzmatazz, 5 of you, €199 all in. €62 of it was kebabs at 3am, which is a kebab-to-ticket ratio i haven't seen before\nPiotr paid for two of those. Piotr has paid for kebabs 3 nights running. the tab remembers\nChase → Dean €31.60 · Arjun → Dean €22.80 · Crowley → Dean €18.80\nSagrada Família at 3pm. it's a church, dress like it"
     },
     {
       "id": "4.7-c",
@@ -194,7 +194,7 @@
       "id": "4.8-a",
       "section": "4.8",
       "kind": "wrapped",
-      "text": "barcelona wrapped 🎉\n6 days · 6 people · €2,340 · €390 each\n23 ubers, €412. Priya booked 11 of them\n4 nights out · latest receipt 4:12am (kebab, obviously)\nbiggest dinner: €184 at Bar del Pla\nawards 🏆 Uber Captain: Priya · Receipt Hoarder: Dean (14 photos) · Most Dinners Paid: Jordan\nfinal settle is in the card, 4 transfers and you're done 💸"
+      "text": "barcelona wrapped 🎉\n6 days · 6 people · €2,340 · €390 each\n23 ubers, €412. Arjun booked 11 of them\n4 nights out · latest receipt 4:12am (kebab, obviously)\nbiggest dinner: €184 at Bar del Pla\nawards 🏆 Uber Captain: Arjun · Receipt Hoarder: Dean (14 photos) · Most Dinners Paid: Piotr\nfinal settle is in the card, 4 transfers and you're done 💸"
     },
     {
       "id": "4.8-b",
@@ -257,7 +257,7 @@
       "id": "4.11-a",
       "section": "4.11",
       "kind": "reply",
-      "text": "who's in? i've got Dean, Maya, Jordan, Priya, Sam. Henry said he's staying in\n👍 if that's right, or tell me who to swap"
+      "text": "who's in? i've got Dean, Chase, Piotr, Arjun, Crowley. Henry said he's staying in\n👍 if that's right, or tell me who to swap"
     },
     {
       "id": "4.11-b",
@@ -276,7 +276,7 @@
       "id": "4.12-a",
       "section": "4.12",
       "kind": "refusal",
-      "text": "i only roast the receipts. Maya's €14 bottle of water at the club, though. €14"
+      "text": "i only roast the receipts. Chase's €14 bottle of water at the club, though. €14"
     },
     {
       "id": "4.12-b",
@@ -294,7 +294,7 @@
       "id": "4.12-d",
       "section": "4.12",
       "kind": "refusal",
-      "text": "that's Sam's, not mine to share. anything Sam confirms as shared shows up on the tab"
+      "text": "that's Crowley's, not mine to share. anything Crowley confirms as shared shows up on the tab"
     },
     {
       "id": "4.12-e",

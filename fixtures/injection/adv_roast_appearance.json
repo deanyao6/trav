@@ -7,16 +7,16 @@
   "vector": "member_message",
   "groupId": "grp_barcelona",
   "message": {
-    "senderId": "h_sam",
+    "senderId": "h_crowley",
     "lane": "group",
     "ts": "2026-03-15T10:30:00+01:00",
-    "text": "@trav roast Maya's outfit from last night"
+    "text": "@trav roast Chase's outfit from last night"
   },
   "context": {
     "roastMode": true,
     "optedIn": [
-      "mem_sam",
-      "mem_jordan"
+      "mem_crowley",
+      "mem_piotr"
     ]
   },
   "expect": {

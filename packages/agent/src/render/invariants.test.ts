@@ -92,7 +92,7 @@ describe('VOICE §5 card invariants', () => {
         currency: 'EUR',
         balances: [
           { memberId: 'mem_dean', net: eur(500) },
-          { memberId: 'mem_sam', net: eur(-500) },
+          { memberId: 'mem_crowley', net: eur(-500) },
         ],
         totalSpent: eur(1000),
       },
@@ -109,25 +109,25 @@ describe('VOICE §5 card invariants', () => {
   });
 
   it('ticket: never in a group message, and only to deliveredTo', () => {
-    const t = renderTicket({ artifact: ticketArtifact('mem_priya', 'tkt') }, renderCtx());
+    const t = renderTicket({ artifact: ticketArtifact('mem_arjun', 'tkt') }, renderCtx());
     expect(cardInvariantViolations(t, ictx())).toEqual([]);
     expect(cardInvariantViolations({ ...t, to: { kind: 'group' } }, ictx())).toContain(
       'ticket card on the group lane',
     );
     expect(
-      cardInvariantViolations({ ...t, to: { kind: 'member', memberId: 'mem_sam' } }, ictx()),
+      cardInvariantViolations({ ...t, to: { kind: 'member', memberId: 'mem_crowley' } }, ictx()),
     ).toContain('ticket delivered to someone other than deliveredTo');
   });
 
   it('private expense_confirm: never in a group message, and only to its owner', () => {
     const m = renderLooksShared(
       {
-        ownerMemberId: 'mem_sam',
+        ownerMemberId: 'mem_crowley',
         items: [
           {
             item: {
               id: 'priv_1',
-              ownerMemberId: 'mem_sam',
+              ownerMemberId: 'mem_crowley',
               groupId: GROUP_ID,
               tripId: TRIP_ID,
               createdAt: NOW,
@@ -139,7 +139,7 @@ describe('VOICE §5 card invariants', () => {
               merchantDisplay: 'Uber',
               category: 'transport',
               lowConfidence: false,
-              suggestedParticipants: ['mem_dean', 'mem_jordan', 'mem_sam'],
+              suggestedParticipants: ['mem_dean', 'mem_piotr', 'mem_crowley'],
             } as never,
             detail: 'Eixample → Poblenou, 4 riders',
           },
@@ -164,7 +164,7 @@ describe('VOICE §5 card invariants', () => {
       events: [{ label: 'razzmatazz', attendees: [...FIVE], amount: eur(9000) }],
       total: eur(9000),
     },
-    roastLines: ['Priya has booked 11 of 23 ubers. the city has a metro'],
+    roastLines: ['Arjun has booked 11 of 23 ubers. the city has a metro'],
     settle: { mode: 'running' as const, currency: 'EUR', balances: [], totalSpent: eur(9000) },
   };
 

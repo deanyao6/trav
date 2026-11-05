@@ -25,7 +25,7 @@ describe('pnpm demo:barcelona (T-021)', () => {
     const chat = result.transcript.split('## Transcript')[1]?.split('## Checks')[0] ?? '';
     const notHuman = chat
       .split('\n')
-      .filter((l) => !/\*\*(Dean|Henry|Maya|Jordan|Priya|Sam)\*\*:/.test(l));
+      .filter((l) => !/\*\*(Dean|Henry|Chase|Piotr|Arjun|Crowley)\*\*:/.test(l));
     expect(chat).toContain("Henry's sick");
     expect(notHuman.filter((l) => /sick/i.test(l))).toEqual([]);
 
@@ -63,14 +63,16 @@ describe('pnpm demo:barcelona (T-021)', () => {
     expect(step6.find((c) => /4 riders at €4\.65 each/.test(c.name))?.ok).toBe(true);
     expect(step6.some((c) => /^KNOWN GAP/.test(c.name))).toBe(false);
     expect(result.notes.some((n) => /T-075/.test(n))).toBe(false);
-    // Priya's DM lines ("- 🔒 dm → Priya · **trav**: ...") and their continuations.
+    // Arjun's DM lines ("- 🔒 dm → Arjun · **trav**: ...") and their continuations.
     const step6Text = chat.split('\n### ').find((s) => s.startsWith('6.')) ?? '';
     expect(step6Text).toMatch(/El Born → Eixample, 4 riders/);
-    expect(step6Text).toMatch(/split with Dean, Jordan,? (?:and )?Sam\?/);
+    expect(step6Text).toMatch(/split with Dean, Piotr,? (?:and )?Crowley\?/);
     expect(result.notes.some((n) => /\[Paid\]/.test(n) && /T-141/.test(n))).toBe(true);
-    // Step 10 (T-141): Maya's 👍 on the final settle card ticks her row, audited.
+    // Step 10 (T-141): Chase's 👍 on the final settle card ticks Chase's row, audited.
     const step10 = result.checks.filter((c) => c.step.startsWith('10.'));
-    expect(step10.find((c) => /Maya's 👍 ticks her transfer paid/.test(c.name))?.ok).toBe(true);
+    expect(step10.find((c) => /Chase's 👍 ticks Chase's transfer paid/.test(c.name))?.ok).toBe(
+      true,
+    );
     expect(step10.find((c) => /marking paid is audited/.test(c.name))?.ok).toBe(true);
   }, 60_000);
 

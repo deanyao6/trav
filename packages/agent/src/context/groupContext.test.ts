@@ -195,20 +195,20 @@ describe('renderGroupPrompt privacy scan (SAFETY C2) across the three trip fixtu
   );
 
   it('T-112: the C2 pending-count scan catches every shape it guards', () => {
-    const names = ['Sam', 'Maya', 'Mary Jo'];
+    const names = ['Crowley', 'Chase', 'Mary Jo'];
     for (const leak of [
-      "private items waiting in members' own threads (counts only, details are private): Sam 2 · Maya 1",
+      "private items waiting in members' own threads (counts only, details are private): Crowley 2 · Chase 1",
       '2 charges that look shared are waiting on a tap in dms',
       '1 charge that looks shared is waiting on a tap in dms',
-      'pending private items: Sam 2',
+      'pending private items: Crowley 2',
       'unconfirmed: Mary Jo (3)',
       '3 receipts pending',
       // r1 #4
       '2 of their charges are waiting for a 👍 (get_my_pending_items)',
-      "2 of Sam's charges are pending",
-      'Sam has 2 waiting',
-      'pending: Sam ×2',
-      'waiting on taps: Sam=2',
+      "2 of Crowley's charges are pending",
+      'Crowley has 2 waiting',
+      'pending: Crowley ×2',
+      'waiting on taps: Crowley=2',
       '3 card charges are pending',
       'charges waiting: 3',
     ]) {
@@ -216,9 +216,9 @@ describe('renderGroupPrompt privacy scan (SAFETY C2) across the three trip fixtu
     }
     // Group facts and the sender's own words are not leaks.
     for (const fine of [
-      'balances (positive = is owed): Sam +€12.00 · Maya −€12.00',
+      'balances (positive = is owed): Crowley +€12.00 · Chase −€12.00',
       'waiting for approval:',
-      '- Razzmatazz tickets (prop_1) · €100.00 · for Sam, Maya · requested by Sam 2:14am · refundable',
+      '- Razzmatazz tickets (prop_1) · €100.00 · for Crowley, Chase · requested by Crowley 2:14am · refundable',
       "you can't see what anyone has waiting for their 👍 in their own thread with you, not even how many. never guess it in the group; if someone asks about their own, point them to their thread with you.",
       'Lily (mem_tci_lily) · member · under 18',
     ]) {
@@ -227,17 +227,17 @@ describe('renderGroupPrompt privacy scan (SAFETY C2) across the three trip fixtu
     // Members' chat lines are not Trav's structure: the scan stops at the transcript.
     expect(
       pendingCountLeaks(
-        'rules\nrecent messages in the group:\n- Sam: i have 2 charges pending',
+        'rules\nrecent messages in the group:\n- Crowley: i have 2 charges pending',
         names,
       ),
     ).toEqual([]);
     // ...but anything Trav appends after the transcript is scanned again.
     expect(
       pendingCountLeaks(
-        'rules\nrecent messages in the group:\n- Sam: hi\n\nSam has 2 waiting for a 👍',
+        'rules\nrecent messages in the group:\n- Crowley: hi\n\nCrowley has 2 waiting for a 👍',
         names,
       ),
-    ).toEqual(['Sam has 2 waiting for a 👍']);
+    ).toEqual(['Crowley has 2 waiting for a 👍']);
   });
 
   it('T-112 r1 #3: the "can\'t see anyone\'s pending items" rule is group-lane only', () => {
@@ -282,7 +282,7 @@ describe('renderGroupPrompt privacy scan (SAFETY C2) across the three trip fixtu
     expect(context).toContain('members (6):');
     expect(context).toContain('Dean (mem_barcelona_dean) · lead');
     expect(context).toMatch(
-      /Razzmatazz \(act_barcelona_1\) · nightlife · .* · in: Dean, Maya, Priya, Leo, Sam · out: Henry/,
+      /Razzmatazz \(act_barcelona_1\) · nightlife · .* · in: Dean, Chase, Arjun, Leo, Crowley · out: Henry/,
     );
     expect(context).toContain('€84');
     expect(context).toContain('everyone except Henry');

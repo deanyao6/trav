@@ -110,11 +110,11 @@ const M = (memberId: string, displayName: string): Member => ({
   joinedAt: '2026-01-01T00:00:00Z',
 });
 const DEAN = M('dean', 'Dean');
-const SAM = M('sam', 'Sam');
-const MAYA = M('maya', 'Maya');
+const CROWLEY = M('crowley', 'Crowley');
+const CHASE = M('chase', 'Chase');
 const LILY_NO_GUARDIAN: Member = { ...M('lily', 'Lily'), ageBand: 'under18' };
 const LILY: Member = { ...LILY_NO_GUARDIAN, guardianMemberId: 'dean' };
-const ALL = [DEAN, SAM, MAYA, LILY];
+const ALL = [DEAN, CROWLEY, CHASE, LILY];
 
 function result(over: Partial<BalancesResult> = {}): BalancesResult {
   return {
@@ -131,8 +131,8 @@ function result(over: Partial<BalancesResult> = {}): BalancesResult {
 
 describe('myPositionText', () => {
   const transfers = [
-    { from: 'dean', to: 'sam', amountMinor: 390, text: 'Dean → Sam €3.90' },
-    { from: 'maya', to: 'sam', amountMinor: 1200, text: 'Maya → Sam €12' },
+    { from: 'dean', to: 'crowley', amountMinor: 390, text: 'Dean → Crowley €3.90' },
+    { from: 'chase', to: 'crowley', amountMinor: 1200, text: 'Chase → Crowley €12' },
   ];
 
   it("a debtor sees only their own transfer, first, and never anyone else's", () => {
@@ -142,40 +142,40 @@ describe('myPositionText', () => {
       members: ALL,
       meIsMinor: false,
     });
-    expect(text).toBe('you owe Sam €3.90\n€23.40 on the tab so far');
-    expect(text).not.toContain('Maya');
+    expect(text).toBe('you owe Crowley €3.90\n€23.40 on the tab so far');
+    expect(text).not.toContain('Chase');
   });
 
   it('a creditor sees who owes them, summed', () => {
     const text = myPositionText({
       balances: result({ transfers }),
-      me: SAM,
+      me: CROWLEY,
       members: ALL,
       meIsMinor: false,
     });
-    expect(text.split('\n')[0]).toBe("you're owed €15.90: Dean €3.90 · Maya €12");
+    expect(text.split('\n')[0]).toBe("you're owed €15.90: Dean €3.90 · Chase €12");
   });
 
   it('several debts are summed, one line', () => {
     const text = myPositionText({
       balances: result({
         transfers: [
-          { from: 'maya', to: 'sam', amountMinor: 390, text: '' },
-          { from: 'maya', to: 'dean', amountMinor: 1680, text: '' },
+          { from: 'chase', to: 'crowley', amountMinor: 390, text: '' },
+          { from: 'chase', to: 'dean', amountMinor: 1680, text: '' },
         ],
       }),
-      me: MAYA,
+      me: CHASE,
       members: ALL,
       meIsMinor: false,
     });
-    expect(text.split('\n')[0]).toBe('you owe €20.70: Sam €3.90 · Dean €16.80');
+    expect(text.split('\n')[0]).toBe('you owe €20.70: Crowley €3.90 · Dean €16.80');
   });
 
   it('square when no transfer names the asker, including an empty tab', () => {
     expect(
       myPositionText({
         balances: result({ totalSpentMinor: 0, text: '' }),
-        me: MAYA,
+        me: CHASE,
         members: ALL,
         meIsMinor: false,
       }),
@@ -185,14 +185,14 @@ describe('myPositionText', () => {
   it("a guardian is told the minor's share is in theirs", () => {
     const text = myPositionText({
       balances: result({
-        transfers: [{ from: 'dean', to: 'sam', amountMinor: 780, text: '' }],
+        transfers: [{ from: 'dean', to: 'crowley', amountMinor: 780, text: '' }],
         folded: [{ minor: 'lily', name: 'Lily', guardian: 'dean', guardianName: 'Dean' }],
       }),
       me: DEAN,
       members: ALL,
       meIsMinor: false,
     });
-    expect(text).toBe("you owe Sam €7.80\n€23.40 on the tab so far\nLily's share is in yours");
+    expect(text).toBe("you owe Crowley €7.80\n€23.40 on the tab so far\nLily's share is in yours");
   });
 
   it('a minor is never a debtor (VOICE §8), split or family tab', () => {
@@ -237,26 +237,26 @@ describe('myPositionText', () => {
 
   it('a guardian-less minor in a DM: a personal line, not the group question (r2 #2)', () => {
     const q = result({
-      needsGuardian: { minors: ['lily'], askMemberIds: ['dean', 'sam'] },
-      text: "quick one before i settle up, Dean and Sam: who's covering Lily?",
+      needsGuardian: { minors: ['lily'], askMemberIds: ['dean', 'crowley'] },
+      text: "quick one before i settle up, Dean and Crowley: who's covering Lily?",
     });
     expect(
-      myPositionText({ balances: q, me: MAYA, members: ALL, meIsMinor: false, lane: 'dm' }),
-    ).toBe("can't split yet, Dean or Sam has to say who's covering Lily");
+      myPositionText({ balances: q, me: CHASE, members: ALL, meIsMinor: false, lane: 'dm' }),
+    ).toBe("can't split yet, Dean or Crowley has to say who's covering Lily");
     const none = result({ needsGuardian: { minors: ['lily'], askMemberIds: [] } });
     expect(
-      myPositionText({ balances: none, me: MAYA, members: ALL, meIsMinor: false, lane: 'dm' }),
+      myPositionText({ balances: none, me: CHASE, members: ALL, meIsMinor: false, lane: 'dm' }),
     ).toBe("can't split yet, someone has to say who's covering Lily");
   });
 });
 
 // ---------- Barcelona, end to end (T-091) ----------
 
-/** Dean's €84 dinner without Henry, then Sam's €23.40 uber for all six. */
+/** Dean's €84 dinner without Henry, then Crowley's €23.40 uber for all six. */
 async function withTab(h: Harness): Promise<void> {
   const dinner = await h.say('h_dean', '@trav I paid €84 for dinner, split w everyone but Henry');
   expect(dinner.note).not.toMatch(/model/);
-  const uber = await h.say('h_sam', '@trav I paid €23.40 for the uber, split with everyone');
+  const uber = await h.say('h_crowley', '@trav I paid €23.40 for the uber, split with everyone');
   expect(uber.note).not.toMatch(/model/);
 }
 
@@ -288,12 +288,12 @@ describe('balance asks route deterministically for every member (T-091)', () => 
   });
 
   it.each([
-    ['h_maya', '@trav settle up', 'balances:settle_up'],
-    ['h_jordan', '@trav who owes who', 'balances:settle_up'],
+    ['h_chase', '@trav settle up', 'balances:settle_up'],
+    ['h_piotr', '@trav who owes who', 'balances:settle_up'],
     ['h_dean', '@trav who owes who', 'balances:settle_up'],
-    ['h_priya', '@trav what do i owe', 'balances:mine'],
+    ['h_arjun', '@trav what do i owe', 'balances:mine'],
     ['h_henry', "@trav who's paid for what so far", 'balances:tab'],
-    ['h_sam', '@trav how much have we spent so far', 'balances:tab'],
+    ['h_crowley', '@trav how much have we spent so far', 'balances:tab'],
   ])('%s: %s routes to get_balances', async (from, text, note) => {
     const h = harness();
     await withTab(h);
@@ -318,34 +318,34 @@ describe('balance asks route deterministically for every member (T-091)', () => 
     expect(card?.totalSpent).toEqual(money(10740, 'EUR'));
     const lines = msg.text.split('\n');
     expect(lines[0]).toBe('running tab, €107.40 so far');
-    expect(lines[1]).toBe('Dean is owed €63.30 · Sam is owed €2.70');
-    expect(lines[2]).toBe('Henry owes €3.90 · Maya owes €20.70 · Jordan owes €20.70');
-    expect(lines[3]).toBe('Priya owes €20.70');
+    expect(lines[1]).toBe('Dean is owed €63.30 · Crowley is owed €2.70');
+    expect(lines[2]).toBe('Henry owes €3.90 · Chase owes €20.70 · Piotr owes €20.70');
+    expect(lines[3]).toBe('Arjun owes €20.70');
     expect(card?.balances.reduce((s, b) => s + b.net.amountMinor, 0)).toBe(0);
     expect(msg.text).not.toMatch(/vegetarian|80 a day/);
   });
 
   it('an empty tab is said plainly, with the total', async () => {
     const h = harness();
-    const msg = only(await h.say('h_jordan', '@trav how much have we spent so far'));
+    const msg = only(await h.say('h_piotr', '@trav how much have we spent so far'));
     expect(msg.text).toBe('€0 on the tab so far. nobody owes anybody. rare. enjoy it');
   });
 
   it('an unaddressed "settle up" is chat, not an ask', async () => {
     const h = harness();
-    const turn = await h.say('h_maya', 'we should settle up later');
+    const turn = await h.say('h_chase', 'we should settle up later');
     expect(turn.silent).toBe(true);
     expect(turn.toolCalls).toEqual([]);
   });
 
   it('"how much does the club cost" still goes to the model', async () => {
     const h = harness();
-    const turn = await h.say('h_maya', '@trav how much does the club cost');
+    const turn = await h.say('h_chase', '@trav how much does the club cost');
     expect(turn.note).not.toMatch(/^balances:/);
     expect(h.model.completions.length).toBeGreaterThan(0);
   });
 
-  it.each(['h_jordan', 'h_priya', 'h_henry', 'h_dean', 'h_maya', 'h_sam'])(
+  it.each(['h_piotr', 'h_arjun', 'h_henry', 'h_dean', 'h_chase', 'h_crowley'])(
     'DM "how much do i owe" from %s answers their own position, privately',
     async (handle) => {
       const h = harness();
@@ -371,7 +371,7 @@ describe('balance asks route deterministically for every member (T-091)', () => 
       expect(msg.text).not.toContain(' → ');
       if (net < 0) {
         for (const other of BARCELONA.members) {
-          if (other.memberId === me.memberId || other.name === 'Dean' || other.name === 'Sam')
+          if (other.memberId === me.memberId || other.name === 'Dean' || other.name === 'Crowley')
             continue;
           expect(msg.text, other.name).not.toContain(other.name);
         }
@@ -382,15 +382,15 @@ describe('balance asks route deterministically for every member (T-091)', () => 
   it('a DM "who owes who" is still personal, and points at the group list', async () => {
     const h = harness();
     await withTab(h);
-    const turn = await h.dm('h_jordan', 'who owes who');
+    const turn = await h.dm('h_piotr', 'who owes who');
     const msg = only(turn);
     expect(turn.note).toBe('balances:mine');
-    expect(msg.to).toEqual({ kind: 'member', memberId: 'mem_jordan' });
+    expect(msg.to).toEqual({ kind: 'member', memberId: 'mem_piotr' });
     expect(msg.card).toBeUndefined();
     const lines = msg.text.split('\n');
     expect(lines[0]).toMatch(/^you owe /);
     expect(lines.at(-1)).toBe(GROUP_LIST_HINT_TEXT);
-    for (const other of ['Maya', 'Priya', 'Henry']) expect(msg.text).not.toContain(other);
+    for (const other of ['Chase', 'Arjun', 'Henry']) expect(msg.text).not.toContain(other);
   });
 });
 
@@ -529,7 +529,7 @@ describe('balance asks next to a booking go to the model, not the ledger', () =>
   ])('%s while the Razzmatazz proposal is open', async (text) => {
     const h = harness();
     await withProposal(h);
-    const turn = await h.say('h_maya', text);
+    const turn = await h.say('h_chase', text);
     expect(turn.note ?? '').not.toMatch(/^balances:/);
     for (const m of messages(turn)) {
       expect(m.text).not.toContain('€16.80');
@@ -541,7 +541,7 @@ describe('balance asks next to a booking go to the model, not the ledger', () =>
     const h = harness();
     const card = await withProposal(h);
     h.clock.advanceMs(REPLY_WINDOW_MS + 1000);
-    const turn = await h.say('h_maya', "@trav what's my balance", {
+    const turn = await h.say('h_chase', "@trav what's my balance", {
       replyToMessageId: card.id,
     });
     expect(turn.note ?? '').not.toMatch(/^balances:/);
@@ -551,7 +551,7 @@ describe('balance asks next to a booking go to the model, not the ledger', () =>
     const h = harness();
     await withProposal(h);
     h.clock.advanceMs(REPLY_WINDOW_MS + 1000);
-    const turn = await h.say('h_maya', '@trav how much do i owe');
+    const turn = await h.say('h_chase', '@trav how much do i owe');
     expect(turn.note).toBe('balances:mine');
   });
 });
@@ -587,7 +587,7 @@ describe('T-085: "who\'s paid for what so far" matches the ledger checkpoints', 
         ledger.buildLedgerEntries(e, ledger.contextFor(order)),
       );
     }
-    const turn = await h.say('h_priya', "@trav who's paid for what so far");
+    const turn = await h.say('h_arjun', "@trav who's paid for what so far");
     expect(turn.note).toBe('balances:tab');
     const msg = only(turn);
     const card = msg.card?.type === 'settle_up' ? msg.card : undefined;
@@ -623,18 +623,18 @@ describe('a DM get_balances from the model renders the personal line', () => {
     };
   }
 
-  it('"how much do i owe sam" in a DM: own transfers only, no group list', async () => {
+  it('"how much do i owe crowley" in a DM: own transfers only, no group list', async () => {
     const h = harness({ model: balancesThenSilent() });
     await withTab(h);
-    const turn = await h.dm('h_jordan', 'how much do i owe sam');
+    const turn = await h.dm('h_piotr', 'how much do i owe crowley');
     expect(turn.toolCalls).toEqual(['get_balances']);
     expect(turn.note).toBe('tool:get_balances:mine');
     const msg = only(turn);
-    expect(msg.to).toEqual({ kind: 'member', memberId: 'mem_jordan' });
+    expect(msg.to).toEqual({ kind: 'member', memberId: 'mem_piotr' });
     expect(msg.card).toBeUndefined();
     expect(msg.text.split('\n')[0]).toMatch(/^you owe /);
     expect(msg.text).not.toContain(' → ');
-    for (const other of ['Maya', 'Priya', 'Henry']) expect(msg.text).not.toContain(other);
+    for (const other of ['Chase', 'Arjun', 'Henry']) expect(msg.text).not.toContain(other);
     expect(msg.text.split('\n').at(-1)).toBe(GROUP_LIST_HINT_TEXT);
   });
 });

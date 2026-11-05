@@ -251,7 +251,7 @@ describe('offline client', () => {
       scripts: createScriptStore([]),
       fallbacks: [],
     });
-    const secret = 'Thanks for riding, Maya. Card ending 4242.';
+    const secret = 'Thanks for riding, Chase. Card ending 4242.';
     await client.complete({
       ...chatReq(wrapUntrusted(secret, 'email_receipt', 'e1'), []),
       systemPromptId: 'email_extract_v1',

@@ -4,7 +4,7 @@
   "title": "grocery run with one personal item",
   "groupId": "grp_barcelona",
   "tripId": "trip_barcelona",
-  "postedBy": "mem_priya",
+  "postedBy": "mem_arjun",
   "postedInGroup": false,
   "ocrText": "SUPERMERCAT FICTICI\nCarrer d'Arago 240, Barcelona\n12/03/2026   17:31\n----------------------------------\n6 AIGUA 1,5L                  3,30\n1 CAFE MOLT                   5,95\n2 LLET                        2,30\n1 PA DE PAGES                 2,10\n12 OUS                        2,85\n1 PERNIL                      6,90\n1 FORMATGE                    4,95\n1 FRUITA                      5,10\n1 CAVA BRUT                   6,95\n1 PATATES XIPS                3,40\n1 BARRETES PROTEINA           3,60\n----------------------------------\nTOTAL                      47,40 €\nIVA INCLOS (4%/10%/21%)\nCARD                         47,40\nGRACIES PER LA VISITA",
   "parsed": {
@@ -221,21 +221,21 @@
         "currency": "EUR"
       },
       "claimedBy": [
-        "mem_sam"
+        "mem_crowley"
       ],
       "kind": "item"
     }
   ],
-  "payer": "mem_priya",
+  "payer": "mem_arjun",
   "split": {
     "method": "itemized",
     "participants": [
       "mem_dean",
       "mem_henry",
-      "mem_maya",
-      "mem_jordan",
-      "mem_priya",
-      "mem_sam"
+      "mem_chase",
+      "mem_piotr",
+      "mem_arjun",
+      "mem_crowley"
     ],
     "lineItems": [
       {
@@ -346,7 +346,7 @@
           "currency": "EUR"
         },
         "claimedBy": [
-          "mem_sam"
+          "mem_crowley"
         ],
         "kind": "item"
       }
@@ -368,28 +368,28 @@
       }
     },
     {
-      "memberId": "mem_maya",
+      "memberId": "mem_chase",
       "amount": {
         "amountMinor": 730,
         "currency": "EUR"
       }
     },
     {
-      "memberId": "mem_jordan",
+      "memberId": "mem_piotr",
       "amount": {
         "amountMinor": 730,
         "currency": "EUR"
       }
     },
     {
-      "memberId": "mem_priya",
+      "memberId": "mem_arjun",
       "amount": {
         "amountMinor": 730,
         "currency": "EUR"
       }
     },
     {
-      "memberId": "mem_sam",
+      "memberId": "mem_crowley",
       "amount": {
         "amountMinor": 1090,
         "currency": "EUR"
@@ -404,6 +404,6 @@
     "unreadable": false,
     "familyTab": false,
     "rounding": "per line: equal among claimants (payer absorbs the remainder); tax/tip/service/fee pro-rata to item subtotals (README \"Rounding\")",
-    "notes": "the chat logs this as an equal 6-way split (Priya said \"everyone\"); if itemized from the receipt, Sam alone pays for his protein bars and per-line rounding remainders go to Priya (the payer); see expectedShares"
+    "notes": "the chat logs this as an equal 6-way split (Arjun said \"everyone\"); if itemized from the receipt, Crowley alone pays for his protein bars and per-line rounding remainders go to Arjun (the payer); see expectedShares"
   }
 }

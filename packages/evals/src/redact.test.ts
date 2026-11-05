@@ -5,8 +5,8 @@ import type { Episode } from './types.js';
 
 describe('redact', () => {
   it('removes secrets case-insensitively, longest first', () => {
-    expect(redact('Sam is Allergic to Shellfish', ['allergic to shellfish', 'shellfish'])).toBe(
-      `Sam is ${REDACTED}`,
+    expect(redact('Crowley is Allergic to Shellfish', ['allergic to shellfish', 'shellfish'])).toBe(
+      `Crowley is ${REDACTED}`,
     );
   });
 

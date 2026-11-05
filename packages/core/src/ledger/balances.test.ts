@@ -8,8 +8,8 @@ import {
   BARCELONA_MEMBERS,
   DEAN,
   HENRY,
-  MAYA,
-  SAM,
+  CHASE,
+  CROWLEY,
   eur,
   expectTravError,
   expense,
@@ -34,19 +34,19 @@ const entry = (
 describe('computeBalances', () => {
   it('lists every member in order, zeros included, and nets paid minus owes', () => {
     const balances = computeBalances(
-      [entry(DEAN, 'paid', 3000), entry(DEAN, 'owes', 1000), entry(MAYA, 'owes', 2000)],
+      [entry(DEAN, 'paid', 3000), entry(DEAN, 'owes', 1000), entry(CHASE, 'owes', 2000)],
       'EUR',
-      [DEAN, MAYA, SAM],
+      [DEAN, CHASE, CROWLEY],
     );
     expect(balances).toEqual([
       { memberId: DEAN, net: eur(2000) },
-      { memberId: MAYA, net: eur(-2000) },
-      { memberId: SAM, net: eur(0) },
+      { memberId: CHASE, net: eur(-2000) },
+      { memberId: CROWLEY, net: eur(0) },
     ]);
   });
 
   it('is all zeros with no entries', () => {
-    expect(computeBalances([], 'EUR', [DEAN, MAYA]).map((b) => b.net.amountMinor)).toEqual([0, 0]);
+    expect(computeBalances([], 'EUR', [DEAN, CHASE]).map((b) => b.net.amountMinor)).toEqual([0, 0]);
   });
 
   it('rejects unknown members, foreign currencies, an empty or duplicated member order', () => {
@@ -63,7 +63,7 @@ describe('computeBalances', () => {
   });
 
   it('does not throw on a partial ledger (settle enforces Σ = 0)', () => {
-    const balances = computeBalances([entry(DEAN, 'paid', 500)], 'EUR', [DEAN, MAYA]);
+    const balances = computeBalances([entry(DEAN, 'paid', 500)], 'EUR', [DEAN, CHASE]);
     expect(balances[0]?.net.amountMinor).toBe(500);
   });
 });
@@ -80,7 +80,7 @@ describe('buildLedger', () => {
     const undone = expense({ amount: eur(99900), status: 'undone' });
     const entries = buildLedger([live, undone], (x) =>
       x.expenseId === live.expenseId
-        ? { memberOrder: BARCELONA_MEMBERS, participantsUniverse: [DEAN, MAYA, SAM] }
+        ? { memberOrder: BARCELONA_MEMBERS, participantsUniverse: [DEAN, CHASE, CROWLEY] }
         : BARCELONA_CTX,
     );
     expect(entries.every((x) => x.expenseId === live.expenseId)).toBe(true);

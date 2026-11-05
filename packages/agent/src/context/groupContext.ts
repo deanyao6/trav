@@ -484,7 +484,7 @@ const PEND = String.raw`(?:looks? shared|waiting|pending|unconfirmed|unshared)`;
 
 /**
  * Count phrasings for private items: "private items waiting …", "2 charges
- * that look shared", "3 card charges are pending", "2 of Sam's charges are
+ * that look shared", "3 card charges are pending", "2 of Crowley's charges are
  * pending", "2 of their charges are waiting for a 👍", "charges waiting: 3".
  */
 const PENDING_COUNT_PHRASES: readonly RegExp[] = [
@@ -506,7 +506,7 @@ const PENDING_COUNT_PHRASES: readonly RegExp[] = [
  * messages in the group:" (members' own words, each "- name: text") are
  * skipped, and scanning resumes at the first line after them.
  * `memberNames` adds the per-member shapes on a line with a pending word:
- * "Sam 2 · Maya 1", "Sam (2)", "pending: Sam ×2", "Sam=2", "Sam has 2 waiting".
+ * "Crowley 2 · Chase 1", "Crowley (2)", "pending: Crowley ×2", "Crowley=2", "Crowley has 2 waiting".
  */
 export function pendingCountLeaks(prompt: string, memberNames: readonly string[] = []): string[] {
   const perMember = memberNames

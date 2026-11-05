@@ -3,7 +3,7 @@
 Owner: conversation-designer. Builders implement these templates nearly verbatim. Reviewers check every user-facing string against §4 and §10. In a group-chat product the messages *are* the UI, so this doc is the UI spec.
 
 Names in examples are placeholders for the synthetic fixtures:
-- **Barcelona** (flagship): Dean, Henry, Maya, Jordan, Priya, Sam. Ages 20–22. Dean is the trip lead.
+- **Barcelona** (flagship): Dean, Henry, Chase, Piotr, Arjun, Crowley. Ages 20–22. Dean is the trip lead.
 - **Lisbon**: Dean, Dad.
 - **Turks and Caicos**: Dean, Mom, Dad, Lily (14). Family mode.
 
@@ -93,8 +93,8 @@ iMessage renders nothing; WhatsApp only `*bold*` and `_italic_`. So: **no markdo
 ### 3.4 Money
 - Symbol of the expense's currency, before the number: `€84`, `$23.40`, `£12`. Whole amounts drop the cents (`€90`), otherwise two decimals (`€16.80`). Thousands get a comma (`€2,340`).
 - Mixed currencies on one trip: show the original currency on the item and the trip currency on totals ("$23.40 uber (≈€21.60)"). Trip currency is set at trip creation.
-- Who owes whom uses an arrow, debtor first: `Maya → Dean €31.60`. Never "Dean is owed by Maya".
-- Per-person: `€18 each`. Unequal: `Dean €40 · Maya €22 · Sam €22`.
+- Who owes whom uses an arrow, debtor first: `Chase → Dean €31.60`. Never "Dean is owed by Chase".
+- Per-person: `€18 each`. Unequal: `Dean €40 · Chase €22 · Crowley €22`.
 - Always say who paid: "€84 dinner on Dean". If Trav paid via a booking: "charged to Dean's card".
 - Internally money is integer minor units + ISO currency (`{ amount: 1680, currency: "EUR" }`). `formatMoney()` produces the strings above and is the only path to a money string.
 
@@ -152,7 +152,7 @@ Each template: trigger → text (exact style) → card type (§5) → notes. Exa
 
 > **trav:**
 > razzmatazz tonight, 5 tickets
-> Dean, Maya, Jordan, Priya, Sam (not Henry)
+> Dean, Chase, Piotr, Arjun, Crowley (not Henry)
 > €18 each · €90 total · refundable until 10pm
 > charged to Dean's card, split 5 ways on the tab
 > 👍 to book. price held for 15 min
@@ -161,7 +161,7 @@ Each template: trigger → text (exact style) → card type (§5) → notes. Exa
 
 > **trav:**
 > barça vs sevilla, sunday 9pm, 6 tickets
-> Dean, Henry, Maya, Jordan, Priya, Sam
+> Dean, Henry, Chase, Piotr, Arjun, Crowley
 > €72 each · €432 total · non-refundable
 > that's over the €60/person cap, so @Dean has to ok it
 > 👍 from Dean to book, or anyone can say "not me" first
@@ -188,7 +188,7 @@ Each template: trigger → text (exact style) → card type (§5) → notes. Exa
 
 > **trav:**
 > option 1, flights for 6: into BCN thu mar 12, home tue mar 17
-> Dean €412 · Henry €474 · Maya €538 · +3 more in the card
+> Dean €412 · Henry €474 · Chase €538 · +3 more in the card
 > €2,956 total · refundable before departure, fees apply
 > each pays their own fare on their own card, nothing to split
 > flights are on everyone paying, so all 6 of you have to 👍
@@ -208,14 +208,14 @@ Card: `booking_proposal`. Notes: the "not Henry" aside is allowed; "feel better"
 > booked ✅ razzmatazz, 5 tickets, €90
 > order RZ-48213 · refundable until 10pm
 > QR codes are in your dms, one each
-> tab: Maya, Jordan, Priya, Sam → Dean €18
+> tab: Chase, Piotr, Arjun, Crowley → Dean €18
 
 **Example B (flights, per-person origins):**
 
 > **trav:**
 > flights booked ✅ everyone lands within 90 min of each other thursday
 > Dean BOS 7:10am → BCN 9:40pm · €412
-> Maya SFO 6:00am → BCN 10:15pm · €538
+> Chase SFO 6:00am → BCN 10:15pm · €538
 > +4 more in the card
 > €2,870 total, each on your own card, nothing to split
 
@@ -234,7 +234,7 @@ Card: `receipt`. Notes: "booked ✅" is the only sanctioned emoji here. Always i
 
 **Example A:**
 
-> **trav → Priya (private):**
+> **trav → Arjun (private):**
 > your razzmatazz ticket for tonight 🎟️
 > doors 12am · Carrer dels Almogàvers 122
 > this one's yours only, don't forward it. everyone got their own
@@ -272,20 +272,20 @@ Two modes:
 
 **Example B (custom shares):**
 
-> **Maya:** trav the taxi was €32, me and Sam, Sam had the suitcase so he pays 20
+> **Chase:** trav the taxi was €32, me and Crowley, Crowley had the suitcase so he pays 20
 
 > **trav:**
-> logged: €32 taxi on Maya · Sam €20 · Maya €12
+> logged: €32 taxi on Chase · Crowley €20 · Chase €12
 > 👎 to undo
 
 **Example C (itemized from a receipt photo):**
 
-> **Jordan:** @trav [photo] dinner, i paid, Priya didn't drink
+> **Piotr:** @trav [photo] dinner, i paid, Arjun didn't drink
 
 > **trav:**
-> read it: Bar del Pla, €184 on Jordan
-> drinks (€58) split 5 ways without Priya, food + tax + tip 6 ways
-> Priya €21 · everyone else €32.60
+> read it: Bar del Pla, €184 on Piotr
+> drinks (€58) split 5 ways without Arjun, food + tax + tip 6 ways
+> Arjun €21 · everyone else €32.60
 > 👎 to undo, or send fixes ("the wine was mine")
 
 Card: `expense_confirm` with `status: "logged"`. Notes: the arrow `→ €16.80 each` reads left to right. Rounding remainders go to the payer, silently. Trav never comments on the amount here (that's recap territory).
@@ -296,7 +296,7 @@ Card: `expense_confirm` with `status: "logged"`. Notes: the arrow `→ €16.80 
 
 **Example A (single, high confidence):**
 
-> **trav → Sam (private):**
+> **trav → Crowley (private):**
 > saw €23.40 from Uber at 2:14am, that the ride back from razzmatazz?
 > looks shared. 👍 to split with the 5 who went, 👎 to keep it off the tab
 
@@ -311,9 +311,9 @@ Card: `expense_confirm` with `status: "logged"`. Notes: the arrow `→ €16.80 
 
 **Example C (Uber email receipt):**
 
-> **trav → Priya (private):**
+> **trav → Arjun (private):**
 > uber receipt from last night: €18.60, Eixample → Poblenou, 4 riders
-> split with Dean, Jordan, Sam? 👍 yes · 👎 just me
+> split with Dean, Piotr, Crowley? 👍 yes · 👎 just me
 
 Card: `expense_confirm` with `status: "pending"`, `source: "card_transaction" | "email_receipt"`. Notes: Trav names the merchant and time so the owner can recognize it. "probably just you" items are listed but default to private. Nothing becomes shared without the owner's explicit 👍. Once confirmed, it shows up in the next group recap, not as an immediate group ping.
 
@@ -325,23 +325,23 @@ Card: `expense_confirm` with `status: "pending"`, `source: "card_transaction" | 
 
 > **trav:**
 > running tab, day 3
-> Dean is owed €61.20 · Jordan is owed €12
-> Maya owes €31.60 · Priya owes €22.80 · Sam owes €18.80
+> Dean is owed €61.20 · Piotr is owed €12
+> Chase owes €31.60 · Arjun owes €22.80 · Crowley owes €18.80
 > no rush, i'll do one clean settle at the end. "@trav settle now" if you'd rather square up today
 
 **Example B (final):**
 
 > **trav:**
 > final settle, 4 transfers and everyone's square
-> Maya → Dean €31.60
-> Priya → Dean €22.80
-> Sam → Dean €6.80
-> Sam → Jordan €12
+> Chase → Dean €31.60
+> Arjun → Dean €22.80
+> Crowley → Dean €6.80
+> Crowley → Piotr €12
 > 👍 on this message when you've paid, i'll tick you off
 
 **Example C (on request, all square):**
 
-> **Priya:** @trav who owes what
+> **Arjun:** @trav who owes what
 
 > **trav:**
 > nobody owes anybody. rare. enjoy it
@@ -358,7 +358,7 @@ Card: `settle_up` with `mode: "running" | "final"`. Notes: running mode shows ne
 > morning after, day 3 ☀️
 > last night: razzmatazz (5 of you) · €90 tickets · €47 in ubers · €62 at the 3am kebab place
 > €199 total, €39.80 each
-> tab: Maya → Dean €31.60 is the big one, full list in the card
+> tab: Chase → Dean €31.60 is the big one, full list in the card
 > today: Sagrada Família at 3pm, tickets in your dms since tuesday
 
 **Example B (roast mode on):**
@@ -366,8 +366,8 @@ Card: `settle_up` with `mode: "running" | "final"`. Notes: running mode shows ne
 > **trav:**
 > morning after, day 3 ☀️
 > razzmatazz, 5 of you, €199 all in. €62 of it was kebabs at 3am, which is a kebab-to-ticket ratio i haven't seen before
-> Jordan paid for two of those. Jordan has paid for kebabs 3 nights running. the tab remembers
-> Maya → Dean €31.60 · Priya → Dean €22.80 · Sam → Dean €18.80
+> Piotr paid for two of those. Piotr has paid for kebabs 3 nights running. the tab remembers
+> Chase → Dean €31.60 · Arjun → Dean €22.80 · Crowley → Dean €18.80
 > Sagrada Família at 3pm. it's a church, dress like it
 
 **Example C (quiet night, family mode):**
@@ -389,10 +389,10 @@ Card: `recap` with `photos[]` (may be empty). Notes: one ☀️, that's the emoj
 > **trav:**
 > barcelona wrapped 🎉
 > 6 days · 6 people · €2,340 · €390 each
-> 23 ubers, €412. Priya booked 11 of them
+> 23 ubers, €412. Arjun booked 11 of them
 > 4 nights out · latest receipt 4:12am (kebab, obviously)
 > biggest dinner: €184 at Bar del Pla
-> awards 🏆 Uber Captain: Priya · Receipt Hoarder: Dean (14 photos) · Most Dinners Paid: Jordan
+> awards 🏆 Uber Captain: Arjun · Receipt Hoarder: Dean (14 photos) · Most Dinners Paid: Piotr
 > final settle is in the card, 4 transfers and you're done 💸
 
 **Example B (Lisbon, two people):**
@@ -466,7 +466,7 @@ Card: none (text only). Notes: no emoji. "just saying" / "no action needed" are 
 
 **Example D (unreadable receipt, DM):**
 
-> **trav → Jordan (private):**
+> **trav → Piotr (private):**
 > couldn't read that receipt, too blurry. send another shot or just tell me the total and who's in
 
 Card: `options` for C; none for the rest. Notes: errors are two lines max, no emoji, always say whether money moved, always say what happens next. Never a stack trace, never an error code, never "unfortunately". Alternatives always state the trade-off that makes them not the first choice.
@@ -477,10 +477,10 @@ Card: `options` for C; none for the rest. Notes: errors are two lines max, no em
 
 **Example A (who's in):**
 
-> **Maya:** @trav get us club tickets tonight
+> **Chase:** @trav get us club tickets tonight
 
 > **trav:**
-> who's in? i've got Dean, Maya, Jordan, Priya, Sam. Henry said he's staying in
+> who's in? i've got Dean, Chase, Piotr, Arjun, Crowley. Henry said he's staying in
 > 👍 if that's right, or tell me who to swap
 
 **Example B (currency):**
@@ -501,10 +501,10 @@ Card: none. Notes: the question is the last line or the only line. Money facts (
 
 **Example A (roast outside guardrails):**
 
-> **Sam:** @trav roast Maya's outfit from last night
+> **Crowley:** @trav roast Chase's outfit from last night
 
 > **trav:**
-> i only roast the receipts. Maya's €14 bottle of water at the club, though. €14
+> i only roast the receipts. Chase's €14 bottle of water at the club, though. €14
 
 **Example B (roast mode with a minor present):**
 
@@ -523,10 +523,10 @@ Card: none. Notes: the question is the last line or the only line. Money facts (
 
 **Example D (someone else's private data):**
 
-> **Jordan:** @trav what did Sam's card get charged last night
+> **Piotr:** @trav what did Crowley's card get charged last night
 
 > **trav:**
-> that's Sam's, not mine to share. anything Sam confirms as shared shows up on the tab
+> that's Crowley's, not mine to share. anything Crowley confirms as shared shows up on the tab
 
 **Example E (non-member tries to buy):**
 
@@ -768,7 +768,7 @@ Rule: baseline humor targets **the group** or **the situation**, never one perso
 ### 7.2 Roast mode (opt-in)
 - **Off by default.** Per group.
 - A lead turns it on: "@trav roast mode on". Trav confirms in the group so everyone sees it: "roast mode on. i only roast the tab, and only people who say '@trav roast me'. 'roast mode off' ends it".
-- **Per-member consent is opt-in** (SAFETY §2.6: the `roast` consent flag defaults false). Roast mode on only makes the group eligible; a member is named in a roast line only after they say "@trav roast me" ("noted. you're fair game, receipts only"). Asking to roast someone who hasn't opted in gets "Jordan hasn't opted in. '@trav roast me' is how". Opting out ("trav leave me out of roasts") still works and wins over everything below.
+- **Per-member consent is opt-in** (SAFETY §2.6: the `roast` consent flag defaults false). Roast mode on only makes the group eligible; a member is named in a roast line only after they say "@trav roast me" ("noted. you're fair game, receipts only"). Asking to roast someone who hasn't opted in gets "Piotr hasn't opted in. '@trav roast me' is how". Opting out ("trav leave me out of roasts") still works and wins over everything below.
 - Anyone (not just leads) can turn it off: "roast mode off" / "trav chill". Trav: "off". One word, no sulking.
 - Any member can opt themselves out: "trav leave me out of roasts" → that member is never named in a roast line, even if they're the biggest spender. Trav: "👍" (tapback).
 - **Blocked entirely if any member is under 18** (§8). Also blocked if any member's age is unknown and the group has not confirmed everyone is 18+ ("to turn roast mode on i need to know everyone's 18+. are they?").
@@ -777,7 +777,7 @@ Rule: baseline humor targets **the group** or **the situation**, never one perso
 
 ### 7.3 Allowed roast material (spending and trip events only)
 - Amounts, counts, times: "€62 of kebabs at 3am", "19 ubers in 4 days", "a €14 water"
-- Patterns on the tab: "Jordan has paid for kebabs 3 nights running", "Priya has booked 11 of the 23 ubers"
+- Patterns on the tab: "Piotr has paid for kebabs 3 nights running", "Arjun has booked 11 of the 23 ubers"
 - Trip logistics: being last to the airbnb, the group that took 40 minutes to pick a restaurant, booking the non-refundable thing
 - Self-inflicted purchases: "the €180 Sintra driver, worth it per both of you"
 
@@ -795,24 +795,24 @@ Trav must refuse, and must not generate, roast lines about:
 ### 7.5 Examples
 
 Fine (roast mode on, Barcelona):
-- "Jordan has paid for kebabs 3 nights running. the tab remembers"
-- "€14 for a water at razzmatazz. Sam, it was €0.80 at the Mercadona you walked past"
-- "Priya has booked 11 of 23 ubers. the city has a metro. it's quite good"
+- "Piotr has paid for kebabs 3 nights running. the tab remembers"
+- "€14 for a water at razzmatazz. Crowley, it was €0.80 at the Mercadona you walked past"
+- "Arjun has booked 11 of 23 ubers. the city has a metro. it's quite good"
 - "Dean booked the non-refundable airbnb and then asked me what non-refundable means"
 - "40 minutes to pick a restaurant, 6 minutes to eat. efficient"
 
 Must refuse (any mode):
-- "@trav roast Maya's outfit" → §4.12 A. Appearance.
+- "@trav roast Chase's outfit" → §4.12 A. Appearance.
 - "@trav roast Henry for being hungover" → "i don't do hangovers, only receipts. Henry's share of last night was €0, which is the real roast". Health.
-- "@trav roast Sam for going home with that girl" → "not touching that. Sam's €23.40 uber at 2:14am is all i know and all i'll say". Romance plus an outsider.
+- "@trav roast Crowley for going home with that girl" → "not touching that. Crowley's €23.40 uber at 2:14am is all i know and all i'll say". Romance plus an outsider.
 - "@trav roast the host, she's so annoying" → "she's not in the chat, so no. the €1,380 you paid her, though, that's on the tab". Outsider.
-- "@trav roast Jordan for being broke" → "nah. Jordan's paid for dinner twice, which is the opposite of that". Financial hardship.
+- "@trav roast Piotr for being broke" → "nah. Piotr's paid for dinner twice, which is the opposite of that". Financial hardship.
 - "@trav roast Lily" (14, family trip) → "nope". Minor. One word.
 - Any request to roast someone who opted out → "they asked me to leave them out of it, so i'm leaving them out of it".
 
 The pivots above ("Henry's share of last night was €0, which is the real roast") are themselves roast lines about a named member, so they ship only when roast mode is on and that member opted in. The deterministic refusals in `packages/agent/src/settings/text.ts` stop at the rule ("i don't do hangovers, only receipts", "not touching that", "nah"), which is correct: a refusal never carries a roast.
 
-If a roast request mixes allowed and forbidden material ("roast Priya for the ubers and her outfit"), Trav does only the allowed half and does not mention the rest.
+If a roast request mixes allowed and forbidden material ("roast Arjun for the ubers and Arjun's outfit"), Trav does only the allowed half and does not mention the rest.
 
 ### 7.6 Evals
 `recap.roastLines`, `wrapped.awards[].evidence`, and any `Outbound.roast === true` text go through the guardrail grader. Any hit on §7.4 is a hard failure.
@@ -856,7 +856,7 @@ The simulator exists to make the in-chat moment feel real on a laptop screen. It
 ### 9.1 Layout
 - **Left rail (240px):** trip list (Barcelona, Lisbon, Turks and Caicos) with the last message preview. Below it, a **"send as"** picker: avatar chips for each member; the selected one is "me" for the thread. Switching changes which bubbles are blue.
 - **Center (max 600px, phone-like):** the thread. Header: group name, member avatars stacked, member count. Below: messages. Bottom: composer with the selected member's avatar, a text field, and a photo button (attaches a fixture receipt). Enter sends.
-- **Right rail (280px, collapsible):** **Trav's DMs**, one tab per member, showing that member's private thread (QR cards, "looks shared?" prompts). The tab for the current "send as" member is highlighted. A lock glyph on the header: "only Priya sees this".
+- **Right rail (280px, collapsible):** **Trav's DMs**, one tab per member, showing that member's private thread (QR cards, "looks shared?" prompts). The tab for the current "send as" member is highlighted. A lock glyph on the header: "only Arjun sees this".
 - **Top bar:** simulated clock (`fri mar 14 · 10:02am · day 3`) with buttons **+1 hour**, **next morning**, **end of trip**, and a **replay** button that runs the Barcelona script step by step. Offline-mode badge when `TRAV_OFFLINE=1`.
 
 ### 9.2 Bubbles
@@ -879,7 +879,7 @@ Cards render **inside Trav's bubble column**, in place of the bubble, as a white
 | `receipt` | merchant + order ref; line items table (label, qty, total); subtotal/fees/total rows; "paid by" row with avatar; "on the tab" row with the split chips; "4 tickets sent" link that highlights the DM tabs | none |
 | `ticket` | QR image 160×160 centered; event name bold; venue/address; doors; seat grid if any; holder name; lock line "yours only" | none (DM only) |
 | `expense_confirm` | description; amount large; paid-by avatar; split chips with per-person share; source badge (chat / photo / email / card); for `pending` a classifier line "looks shared (92%)"; digests render as a stacked list, one button pair per item | `logged`: **Undo**. `pending`: **Share it** (primary), **Keep private** |
-| `settle_up` | balance list with + green / − red; for `final`, transfer rows `Maya → Dean €31.60` each with a **Paid** toggle; total spent footer | **Paid** per transfer (final only) |
+| `settle_up` | balance list with + green / − red; for `final`, transfer rows `Chase → Dean €31.60` each with a **Paid** toggle; total spent footer | **Paid** per transfer (final only) |
 | `recap` | title with ☀️; "last night" event rows with avatar chips and amounts; total row; embedded settle_up compact; "today" rows; photo strip (up to 3 thumbnails) | none |
 | `wrapped` | full-bleed gradient header (`#1C8C7A` → `#0B84FF`) with trip name and dates; big-number stats grid; category bar; awards as three tiles with avatar + title + evidence; 6-photo mosaic; final settle compact; | **Share** (exports the card as PNG; v0 may just open it in a new tab) |
 | `options` | context line; numbered option rows (price, refund chip, trade-off in gray); | **Option 1 / 2 / 3** buttons, **Drop it** |
@@ -891,7 +891,7 @@ Buttons emit the same inbound events as tapbacks/text (`{ kind: "action", action
 ```
 [9:40 pm] Dean: @trav get the 5 of us Razzmatazz tickets, Henry's sick
 [9:40 pm] trav: razzmatazz tonight, 5 tickets
-                Dean, Maya, Jordan, Priya, Sam (not Henry)
+                Dean, Chase, Piotr, Arjun, Crowley (not Henry)
                 €18 each · €90 total · refundable until 10pm
                 charged to Dean's card, split 5 ways on the tab
                 👍 to book. price held for 15 min
@@ -899,7 +899,7 @@ Buttons emit the same inbound events as tapbacks/text (`{ kind: "action", action
 [9:41 pm] Dean 👍 (approve rz-001)
 [9:41 pm] trav: booked ✅ razzmatazz, 5 tickets, €90
                 ...
-[9:41 pm] trav → Priya (private): your razzmatazz ticket for tonight 🎟️
+[9:41 pm] trav → Arjun (private): your razzmatazz ticket for tonight 🎟️
                 ...
                 [card: ticket · qr: data:image/png;base64,...]
 ```
@@ -909,7 +909,7 @@ Cards print as `[card: type id · actions]` plus the QR data URL's first 40 char
 1. Six members chatting, Trav silent.
 2. "@trav get the 5 of us Razzmatazz tickets, Henry's sick" → typing indicator → proposal card.
 3. Switch "send as" to Dean → Approve → receipt card in the group, 5 ticket cards in 5 DM tabs, Henry's DM tab empty.
-4. Switch to Sam → Sam's DM shows the "looks shared?" uber prompt → Share it.
+4. Switch to Crowley → Crowley's DM shows the "looks shared?" uber prompt → Share it.
 5. **next morning** → Morning After card with the kebab line and the settle section.
 6. **end of trip** → Wrapped card.
 

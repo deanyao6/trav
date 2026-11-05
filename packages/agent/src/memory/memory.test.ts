@@ -133,7 +133,7 @@ describe('member memory (PrivateStore)', () => {
     expect(w.member.recall('mem_dean', GROUP).map((x) => x.text)).toEqual([
       'allergic to shellfish',
     ]);
-    expect(w.member.recall('mem_maya', GROUP)).toEqual([]);
+    expect(w.member.recall('mem_chase', GROUP)).toEqual([]);
     expect(w.member.recall('mem_dean', 'grp_other')).toEqual([]);
     expect(() =>
       w.member.remember('mem_dean', GROUP, {

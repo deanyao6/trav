@@ -6,7 +6,7 @@
  *
  * Fails toward "not a confirmation": any no-word anywhere makes a typed
  * message a decline, except where it takes a named member out of a "who
- * rode" answer ("me dean sam, no maya", "nah just dean and sam"): that is
+ * rode" answer ("me dean crowley, no chase", "nah just dean and crowley"): that is
  * still the owner's names answer.
  */
 import type { StepAction, TypedIntent } from '../types.js';
@@ -34,7 +34,7 @@ export function typedIntent(text: string, names: readonly string[]): TypedIntent
     .join('|');
   const nameRe = (flags: string): RegExp =>
     new RegExp(`(?<![\\p{L}\\p{N}])(?:${alt})(?![\\p{L}\\p{N}])`, flags);
-  // A no-word right before a member's name ("no maya", "minus henry") takes
+  // A no-word right before a member's name ("no chase", "minus henry") takes
   // them out of the split; a leading "nah, just …" heads a names list.
   const rest =
     alt.length === 0

@@ -78,7 +78,7 @@ describe('renderers reproduce the VOICE §4 examples verbatim', () => {
   });
 
   it('4.3 A ticket', () => {
-    const m = renderTicket({ artifact: ticketArtifact('mem_priya', 'tkt_4') }, renderCtx());
+    const m = renderTicket({ artifact: ticketArtifact('mem_arjun', 'tkt_4') }, renderCtx());
     expect(m.text).toBe(example('4.3-a'));
   });
 
@@ -104,12 +104,12 @@ describe('renderers reproduce the VOICE §4 examples verbatim', () => {
       ...base,
       description: 'taxi',
       amount: eur(3200),
-      paidBy: [{ memberId: 'mem_maya', amount: eur(3200) }],
+      paidBy: [{ memberId: 'mem_chase', amount: eur(3200) }],
       split: {
         method: 'exact',
         amounts: [
-          { memberId: 'mem_maya', amount: eur(1200) },
-          { memberId: 'mem_sam', amount: eur(2000) },
+          { memberId: 'mem_chase', amount: eur(1200) },
+          { memberId: 'mem_crowley', amount: eur(2000) },
         ],
       },
     };
@@ -119,7 +119,7 @@ describe('renderers reproduce the VOICE §4 examples verbatim', () => {
   it('4.5 A looks shared', () => {
     const item = markPrivate({
       id: 'priv_uber',
-      ownerMemberId: 'mem_sam',
+      ownerMemberId: 'mem_crowley',
       groupId: GROUP_ID,
       tripId: TRIP_ID,
       createdAt: NOW,
@@ -135,7 +135,7 @@ describe('renderers reproduce the VOICE §4 examples verbatim', () => {
     }) as PendingPrivateItem;
     const m = renderLooksShared(
       {
-        ownerMemberId: 'mem_sam',
+        ownerMemberId: 'mem_crowley',
         items: [
           { item, guess: 'that the ride back from razzmatazz?', splitWithLabel: 'the 5 who went' },
         ],
@@ -148,10 +148,10 @@ describe('renderers reproduce the VOICE §4 examples verbatim', () => {
   const BAL = [
     { memberId: 'mem_dean', net: eur(6120) },
     { memberId: 'mem_henry', net: eur(0) },
-    { memberId: 'mem_maya', net: eur(-3160) },
-    { memberId: 'mem_jordan', net: eur(1200) },
-    { memberId: 'mem_priya', net: eur(-2280) },
-    { memberId: 'mem_sam', net: eur(-1880) },
+    { memberId: 'mem_chase', net: eur(-3160) },
+    { memberId: 'mem_piotr', net: eur(1200) },
+    { memberId: 'mem_arjun', net: eur(-2280) },
+    { memberId: 'mem_crowley', net: eur(-1880) },
   ];
 
   it('4.6 A running, B final (with the settlement transfers), C all square', () => {
@@ -169,10 +169,10 @@ describe('renderers reproduce the VOICE §4 examples verbatim', () => {
           balances: BAL,
           totalSpent: eur(1),
           transfers: [
-            { from: 'mem_maya', to: 'mem_dean', amount: eur(3160) },
-            { from: 'mem_priya', to: 'mem_dean', amount: eur(2280) },
-            { from: 'mem_sam', to: 'mem_dean', amount: eur(680) },
-            { from: 'mem_sam', to: 'mem_jordan', amount: eur(1200) },
+            { from: 'mem_chase', to: 'mem_dean', amount: eur(3160) },
+            { from: 'mem_arjun', to: 'mem_dean', amount: eur(2280) },
+            { from: 'mem_crowley', to: 'mem_dean', amount: eur(680) },
+            { from: 'mem_crowley', to: 'mem_piotr', amount: eur(1200) },
           ],
         },
         renderCtx(),

@@ -20,8 +20,8 @@
           "modelSource": "script",
           "note": "tool:propose_booking:proposal",
           "proposal": {
-            "attendees": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"],
-            "payers": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"],
+            "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
             "excluded": ["mem_henry"],
             "totalMinor": 9000,
             "status": "pending"
@@ -48,7 +48,7 @@
       {
         "do": "say",
         "at": "2026-03-14T21:40:00+01:00",
-        "from": "h_maya",
+        "from": "h_chase",
         "text": "@trav get the 4 of us Razzmatazz tickets",
         "expect": {
           "note": "tool:propose_booking:clarify",
@@ -60,7 +60,7 @@
   },
   {
     "id": "razzmatazz_paraphrase_variants",
-    "title": "the flagship ask in other words (\"need … entry for dean maya jordan sam and me\", \"pick up … passes minus henry\", \"sort … for 5 of us? not henry, <reason>\") ⇒ the same 5 at €90, Henry never named in, no reason repeated",
+    "title": "the flagship ask in other words (\"need … entry for dean chase piotr crowley and me\", \"pick up … passes minus henry\", \"sort … for 5 of us? not henry, <reason>\") ⇒ the same 5 at €90, Henry never named in, no reason repeated",
     "tags": ["booking", "voice", "regression"],
     "expect": { "maxPurchases": 0 },
     "steps": [
@@ -68,14 +68,14 @@
         "do": "say",
         "at": "2026-03-14T21:40:00+01:00",
         "id": "need",
-        "from": "h_priya",
-        "text": "@trav we need razzmatazz entry tonight for dean maya jordan sam and me",
+        "from": "h_arjun",
+        "text": "@trav we need razzmatazz entry tonight for dean chase piotr crowley and me",
         "expect": {
           "toolCalls": ["propose_booking"],
           "note": "tool:propose_booking:proposal",
           "proposal": {
-            "attendees": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"],
-            "payers": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"],
+            "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
             "excluded": ["mem_henry"],
             "totalMinor": 9000,
             "status": "pending"
@@ -88,7 +88,7 @@
       {
         "do": "react",
         "at": "2026-03-14T21:41:00+01:00",
-        "from": "h_priya",
+        "from": "h_arjun",
         "target": "need",
         "reaction": "👎",
         "expect": { "purchases": 0 }
@@ -97,14 +97,14 @@
         "do": "say",
         "id": "pickup",
         "at": "2026-03-14T21:42:00+01:00",
-        "from": "h_jordan",
+        "from": "h_piotr",
         "text": "@trav pick up razzmatazz passes for us tonight minus henry",
         "expect": {
           "toolCalls": ["propose_booking"],
           "note": "tool:propose_booking:proposal",
           "proposal": {
-            "attendees": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"],
-            "payers": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"],
+            "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
             "excluded": ["mem_henry"],
             "totalMinor": 9000,
             "status": "pending"
@@ -117,7 +117,7 @@
       {
         "do": "react",
         "at": "2026-03-14T21:43:00+01:00",
-        "from": "h_jordan",
+        "from": "h_piotr",
         "target": "pickup",
         "reaction": "👎",
         "expect": { "purchases": 0 }
@@ -126,14 +126,14 @@
         "do": "say",
         "at": "2026-03-14T21:44:00+01:00",
         "id": "sort",
-        "from": "h_sam",
+        "from": "h_crowley",
         "text": "@trav can you sort razzmatazz for 5 of us tonight? not henry, he is feeling rough",
         "expect": {
           "toolCalls": ["propose_booking"],
           "note": "tool:propose_booking:proposal",
           "proposal": {
-            "attendees": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"],
-            "payers": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"],
+            "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
             "excluded": ["mem_henry"],
             "totalMinor": 9000,
             "status": "pending"
@@ -146,7 +146,7 @@
       {
         "do": "react",
         "at": "2026-03-14T21:45:00+01:00",
-        "from": "h_sam",
+        "from": "h_crowley",
         "target": "sort",
         "reaction": "👎",
         "expect": { "purchases": 0 }
@@ -155,14 +155,14 @@
         "do": "say",
         "at": "2026-03-14T21:46:00+01:00",
         "from": "h_dean",
-        "text": "@trav get razz tickets for maya and sam, henry is sick",
+        "text": "@trav get razz tickets for chase and crowley, henry is sick",
         "expect": {
           "toolCalls": ["propose_booking"],
           "note": "tool:propose_booking:proposal",
           "proposal": {
-            "attendees": ["mem_maya", "mem_sam"],
-            "payers": ["mem_maya", "mem_sam"],
-            "excluded": ["mem_dean", "mem_henry", "mem_jordan", "mem_priya"],
+            "attendees": ["mem_chase", "mem_crowley"],
+            "payers": ["mem_chase", "mem_crowley"],
+            "excluded": ["mem_dean", "mem_henry", "mem_piotr", "mem_arjun"],
             "totalMinor": 3600,
             "status": "pending"
           },
@@ -173,28 +173,28 @@
       {
         "do": "say",
         "at": "2026-03-14T21:47:00+01:00",
-        "from": "h_jordan",
+        "from": "h_piotr",
         "text": "@trav we need razz passes printed",
         "expect": { "toolCalls": [], "purchases": 0 }
       },
       {
         "do": "say",
         "at": "2026-03-14T21:48:00+01:00",
-        "from": "h_priya",
-        "text": "@trav need razz passes from sam, he has them",
+        "from": "h_arjun",
+        "text": "@trav need razz passes from crowley, he has them",
         "expect": { "toolCalls": [], "purchases": 0 }
       },
       {
         "do": "say",
         "at": "2026-03-14T21:49:00+01:00",
-        "from": "h_maya",
+        "from": "h_chase",
         "text": "@trav we need razz tickets lol jk",
         "expect": { "toolCalls": [], "purchases": 0 }
       },
       {
         "do": "say",
         "at": "2026-03-14T21:50:00+01:00",
-        "from": "h_jordan",
+        "from": "h_piotr",
         "text": "@trav we want razz tickets but henry wants apolo",
         "expect": { "toolCalls": [], "purchases": 0 }
       }
@@ -209,7 +209,7 @@
       "maxPurchases": 1,
       "auditOrder": ["policy.evaluated", "approval.granted", "booking.completed", "ledger.written"],
       "tickets": {
-        "to": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"],
+        "to": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
         "notTo": ["mem_henry"]
       }
     },
@@ -222,8 +222,8 @@
         "text": "@trav get the 5 of us Razzmatazz tickets, Henry's sick",
         "expect": {
           "proposal": {
-            "attendees": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"],
-            "payers": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"],
+            "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
+            "payers": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
             "excluded": ["mem_henry"],
             "totalMinor": 9000
           }
@@ -239,16 +239,16 @@
           "note": "approval:handled",
           "purchases": 1,
           "audit": ["approval.granted", "booking.attempted", "booking.completed", "ledger.written"],
-          "mustContain": ["booked ✅", "razzmatazz", "€90", "Maya, Jordan, Priya, Sam → Dean €18"],
+          "mustContain": ["booked ✅", "razzmatazz", "€90", "Chase, Piotr, Arjun, Crowley → Dean €18"],
           "expense": {
             "paidBy": "mem_dean",
             "amountMinor": 9000,
             "shares": [
               { "memberId": "mem_dean", "amountMinor": 1800 },
-              { "memberId": "mem_maya", "amountMinor": 1800 },
-              { "memberId": "mem_jordan", "amountMinor": 1800 },
-              { "memberId": "mem_priya", "amountMinor": 1800 },
-              { "memberId": "mem_sam", "amountMinor": 1800 }
+              { "memberId": "mem_chase", "amountMinor": 1800 },
+              { "memberId": "mem_piotr", "amountMinor": 1800 },
+              { "memberId": "mem_arjun", "amountMinor": 1800 },
+              { "memberId": "mem_crowley", "amountMinor": 1800 }
             ]
           }
         }
@@ -262,7 +262,7 @@
       },
       {
         "do": "tap",
-        "from": "h_maya",
+        "from": "h_chase",
         "target": "razz",
         "actionId": "approve",
         "expect": { "purchases": 1 }

@@ -12,7 +12,7 @@
  * `fixtures/expenses/text.json` hold one labeled example of each):
  *
  * Statement. A message is an expense statement when it carries a payment cue
- * ("i paid", "Jordan got", "covered", "put/add/log", "split", "venmo me",
+ * ("i paid", "Piotr got", "covered", "put/add/log", "split", "venmo me",
  * "owe(s)", "on me", "on my card"), or a weak cue ("was", "were", "came to",
  * "cost") next to an amount. Questions ("how much was dinner?", "who paid?")
  * and booking requests ("get the 5 of us tickets") are not statements.
@@ -39,7 +39,7 @@
  * the amount in the trip currency (never a guessed rate).
  *
  * Payer. "i paid / i got / on me / on my card / venmo me / X owes me" ⇒ the
- * sender; "Jordan paid / got / covered" ⇒ Jordan; "i owe Dean €20 for X" ⇒
+ * sender; "Piotr paid / got / covered" ⇒ Piotr; "i owe Dean €20 for X" ⇒
  * Dean paid €20 and the sender owes all of it. Otherwise the sender (the one
  * stating it). A payer who is not on the trip is a missing fact.
  *
@@ -48,14 +48,14 @@
  *    whole roster) ⇒ equal over every active member
  *  - "everyone but/except Henry", "everyone except me" ⇒ exclude
  *  - a name is in the split only inside a list: "for/with/between/among/just/
- *    only X", a run with "me"/"i" ("me and Sam", "jordan and i"), or a clause
- *    that is nothing but names (", me priya and sam"). "with/between X" puts
+ *    only X", a run with "me"/"i" ("me and Crowley", "piotr and i"), or a clause
+ *    that is nothing but names (", me arjun and crowley"). "with/between X" puts
  *    the payer in too. Fixed-share and weight owners are in.
  *  - a name next to an absence cue ("henry wasn't there", "not henry",
- *    "henry's out", "maya skipped it", "without henry") is left out: everyone
+ *    "henry's out", "chase skipped it", "without henry") is left out: everyone
  *    but them. "everyone else" means everyone but those named out (with
  *    nobody named out it is a question, unless fixed shares make it clear).
- *  - any other name ("dinner at maya's place", "henry already paid me his
+ *  - any other name ("dinner at chase's place", "henry already paid me his
  *    part") is a question: a stray name is never a guess at who pays.
  *  - "evenly"/"equally" say how, not who: everyone only when nobody is listed
  *  - "the 4 of us" / "4 ways" below the roster size ⇒ the names given, or an
@@ -66,11 +66,11 @@
  *  - "the girls", "the guys", "some of us", "them" ⇒ a question
  *  - nothing said ⇒ a question, except on a family tab (one pot, VOICE §8)
  *    or a one-member group
- * Custom shares: "Sam pays 20", "Dean owes 40, Maya 30, rest is mine", "he
+ * Custom shares: "Crowley pays 20", "Dean owes 40, Chase 30, rest is mine", "he
  * pays 10" (the member named just before), "they pay 15 each" ⇒ exact, the
  * rest split evenly over everyone else in (remainders to the payer, as in core
- * `ledger.computeShares`); "priya pays double" / "weighted: dean 1 maya 1 sam
- * 2" ⇒ weighted; "dinner was €90: i had the steak (€30), maya and priya split
+ * `ledger.computeShares`); "arjun pays double" / "weighted: dean 1 chase 1 crowley
+ * 2" ⇒ weighted; "dinner was €90: i had the steak (€30), chase and arjun split
  * the paella (€40), wine €20 for the three of us" ⇒ itemized.
  *
  * Several expenses. "84 for dinner and 20 for the cab" ⇒ two drafts, one per
@@ -177,9 +177,9 @@ export interface ExpenseDraft {
   /** A word that points away from the trip currency ("venmo"), so a bare number's currency is asked. */
   readonly currencyDoubt?: string;
   readonly participants?: ParticipantSpec;
-  /** Exact shares stated for some members ("Sam pays 20"). */
+  /** Exact shares stated for some members ("Crowley pays 20"). */
   readonly fixed: readonly { readonly memberId: MemberId; readonly decimal: string }[];
-  /** Weights other than 1 ("priya pays double"). */
+  /** Weights other than 1 ("arjun pays double"). */
   readonly weights: readonly { readonly memberId: MemberId; readonly weight: number }[];
   /** "rest is mine": the payer is in and takes what the fixed shares leave. */
   readonly restToPayer: boolean;
@@ -295,7 +295,7 @@ function categoryOf(description: string | undefined, text: string): ExpenseCateg
   return fromDesc !== 'other' ? fromDesc : categoryFor(text);
 }
 
-/** A noun the no-amount form may follow ("i paid for dinner", "Jordan got the taxi"). */
+/** A noun the no-amount form may follow ("i paid for dinner", "Piotr got the taxi"). */
 function isSpendNoun(text: string): boolean {
   return categoryFor(text) !== 'other' || /\b(laundr\w*|tab|bill|round)\b/.test(text);
 }
@@ -545,7 +545,7 @@ function resolvePronoun(scan: Scan, pronoun: string, at: number): MemberId[] | u
   return [hits[hits.length - 1]!.memberId];
 }
 
-/** Subject words right before a verb ending at `at`: "sam and henry", "he", "dean". */
+/** Subject words right before a verb ending at `at`: "crowley and henry", "he", "dean". */
 function subjectBefore(scan: Scan, at: number): MemberId[] | undefined {
   const before = scan.low.slice(0, at);
   const two = /([a-z']+)\s+(?:and|&)\s+([a-z']+)(?:\s+(?:both|each|all))?\s*$/.exec(before);
@@ -601,7 +601,7 @@ function assignRoles(scan: Scan): Roles {
     if (/^\s*each\b/i.test(after)) t.each = true;
   }
 
-  // weights: "dean 1 maya 1 sam 2" (only with a weights word) and "priya pays double"
+  // weights: "dean 1 chase 1 crowley 2" (only with a weights word) and "arjun pays double"
   if (weightsCtx) {
     for (const t of amounts) {
       if (t.explicit || t.role !== 'total') continue;
@@ -630,7 +630,7 @@ function assignRoles(scan: Scan): Roles {
 
   // "i owe dean €20 for the tickets": Dean paid, all of it is the sender's.
   const oweTo = /\bi\s+owe\s+([a-z']+)\s+(?:you\s+)?$/;
-  // "sam owes me 20": the sender paid; Sam's share.
+  // "crowley owes me 20": the sender paid; Crowley's share.
   for (const t of amounts) {
     if (t.role !== 'total') continue;
     const before = low.slice(0, t.start);
@@ -658,7 +658,7 @@ function assignRoles(scan: Scan): Roles {
         payer ??= { kind: 'member', memberId: ctx.senderMemberId };
       continue;
     }
-    // "Dean owes 40, Maya 30": a name right before a bare amount is that member's share.
+    // "Dean owes 40, Chase 30": a name right before a bare amount is that member's share.
     if (!t.explicit || /,\s*[a-z']+\s+$/.test(before)) {
       const who = /(?:^|[\s,])([a-z']+)\s+$/.exec(before)?.[1];
       const id = who === undefined ? undefined : memberByWord(who, ctx.members);
@@ -671,7 +671,7 @@ function assignRoles(scan: Scan): Roles {
       }
     }
   }
-  // "sam owes me 20" with nothing else: that IS the expense.
+  // "crowley owes me 20" with nothing else: that IS the expense.
   const totals = amounts.filter((t) => t.role === 'total');
   if (totals.length === 0) {
     const shares = amounts.filter((t) => t.role === 'share');
@@ -811,10 +811,10 @@ const LIST_LEAD =
 const WITH_LEAD = /\b(?:with|between|among|amongst)\s+(?:the\s+)?$/;
 
 /**
- * Groups the people a span names into runs ("me, maya and sam", "jordan and
- * i", "henry") and classifies each (T-010 r1 #1, #4). Payers ("Jordan got")
+ * Groups the people a span names into runs ("me, chase and crowley", "piotr and
+ * i", "henry") and classifies each (T-010 r1 #1, #4). Payers ("Piotr got")
  * and creditors ("i owe Dean") are not people in the split and are skipped.
- * "i" counts only inside a run of two or more ("jordan and i").
+ * "i" counts only inside a run of two or more ("piotr and i").
  */
 function personRuns(scan: Scan, span: [number, number]): PersonRun[] {
   const { ctx } = scan;
@@ -835,18 +835,18 @@ function personRuns(scan: Scan, span: [number, number]): PersonRun[] {
     const last = groups[groups.length - 1];
     const prev = last?.[last.length - 1];
     const gap = low.slice(prev?.end ?? 0, t.start);
-    // "me maya and sam, henry wasn't there": past a comma, a name whose own
+    // "me chase and crowley, henry wasn't there": past a comma, a name whose own
     // clause says they were out starts a new run instead of joining the list.
     const ownClause = low.slice(t.end).split(/[,;.:()]|\sbut\s/)[0] ?? '';
     const absentAfterComma =
       /,/.test(gap) && (ABSENCE_CUE.test(ownClause) || /n't\b/.test(ownClause));
-    // "with maya, henry's paying next time": past a comma, a name joins the
+    // "with chase, henry's paying next time": past a comma, a name joins the
     // list only when its own clause is more names ("and i", "too"), never a
     // clause of its own (T-010 r2 #1).
     const clauseAfterComma = /,/.test(gap) && !onlyNames(ownClause, ctx.members);
     if (
       prev !== undefined &&
-      !last!.some((x) => x.id === t.id) && // "me and sam, sam wasn't there": a new clause
+      !last!.some((x) => x.id === t.id) && // "me and crowley, crowley wasn't there": a new clause
       !absentAfterComma &&
       !clauseAfterComma &&
       /^\s*(?:,\s*(?:and\s+)?|and|&|\+|)\s*$/.test(gap)
@@ -862,7 +862,7 @@ function personRuns(scan: Scan, span: [number, number]): PersonRun[] {
     if (names.length === 0 && (selves.length === 0 || selves.some((t) => t.word === 'i'))) continue;
     const start = g[0]!.start;
     const end = g[g.length - 1]!.end;
-    // "i" right before a payment verb ("jordan and i paid") is a payer, handled elsewhere
+    // "i" right before a payment verb ("piotr and i paid") is a payer, handled elsewhere
     const before = low.slice(0, start);
     const after = low.slice(end);
     const clauseStart = Math.max(
@@ -874,7 +874,7 @@ function personRuns(scan: Scan, span: [number, number]): PersonRun[] {
     const runText = low.slice(start, end);
     const trimmed = clause.trim().replace(/^(?:and|just|only|plus|so)\s+/, '');
     const clauseOnly = trimmed.replace(/\s+(?:too|as well|also)$/, '') === runText.trim();
-    // "maya too": adds to the payer, never the whole list (T-010 r2 #2)
+    // "chase too": adds to the payer, never the whole list (T-010 r2 #2)
     const adds = clauseOnly && /\s(?:too|as well|also)$/.test(trimmed);
     const ids = uniq(g.map((t) => t.id));
     const hasSelf = selves.length > 0;
@@ -1236,7 +1236,7 @@ function itemized(scan: Scan, total: AmountTok): ExpenseDraft['lineItems'] | 'un
 
 /** Parses one message. `text` is the sender's own words (quoted lines already removed). */
 /**
- * "…on Jordan's card", ", it went on Dean's card": whose card the money went
+ * "…on Piotr's card", ", it went on Dean's card": whose card the money went
  * on. That member's money paid for it, so they are the payer; the phrase is
  * not a "who's in" name. Only a member's card counts ("on my card" is the
  * sender's and handled by the cues; "on Alex's card" is left alone).
@@ -1270,7 +1270,7 @@ export function parseExpenseText(text: string, ctx: ExpenseTextContext): Expense
   if (CARD_DOUBT.test(`${before} ${card[0]} ${after}`)) return parseExpenseTextInner(rest, ctx);
   const parsed = parseExpenseTextInner(rest, ctx);
   if (parsed.kind !== 'drafts') return parsed;
-  // Several expenses, or a stated payer who isn't the card owner ("Jordan paid
+  // Several expenses, or a stated payer who isn't the card owner ("Piotr paid
   // €84 on Dean's card"): ambiguous, so ask instead of guessing.
   if (parsed.drafts.length > 1) return { kind: 'unsure', reason: 'card_owner_multi' };
   const stated = parsed.drafts[0]!.payer;
@@ -1298,7 +1298,7 @@ function parseExpenseTextInner(text: string, ctx: ExpenseTextContext): ExpenseTe
 
   const strong = STRONG_CUE.test(noParens);
   const weak = WEAK_CUE.test(noParens) && amounts.length > 0;
-  // "€18.50 ice cream for me and priya": the message leads with an amount and says who it's for.
+  // "€18.50 ice cream for me and arjun": the message leads with an amount and says who it's for.
   const forWhom =
     amounts.length > 0 &&
     amounts[0]!.start <= 30 &&
@@ -1323,7 +1323,7 @@ function parseExpenseTextInner(text: string, ctx: ExpenseTextContext): ExpenseTe
     return { kind: 'none' };
   }
   if (amounts.length === 0) {
-    // "i paid for dinner" / "Jordan got the taxi": a statement with the amount missing.
+    // "i paid for dinner" / "Piotr got the taxi": a statement with the amount missing.
     const m =
       /\b(?:paid for|covered|got|grabbed|bought|picked up)\s+(?:the |a |an |everyone |us |our )?([a-z][a-z' ]{1,30})/.exec(
         low,
@@ -1412,7 +1412,7 @@ function parseExpenseTextInner(text: string, ctx: ExpenseTextContext): ExpenseTe
     return { kind: 'unsure', reason: 'owed_for_something_else' };
   }
 
-  // "me and sam paid €30": two payers in one clause is past these rules.
+  // "me and crowley paid €30": two payers in one clause is past these rules.
   for (const m of low.matchAll(
     /\b([a-z']+)\s+(?:and|&)\s+([a-z']+)\s+(?:both\s+)?(?:paid|covered|fronted|bought|split the bill)\b/g,
   )) {
@@ -1433,7 +1433,7 @@ function parseExpenseTextInner(text: string, ctx: ExpenseTextContext): ExpenseTe
       };
     }
   }
-  // "i owe dean €20" / "sam owes me 20": the one share is the whole expense.
+  // "i owe dean €20" / "crowley owes me 20": the one share is the whole expense.
   if (totals.length === 0 && roles.oweTotal && shares.length === 1) {
     const s = shares[0]!;
     const payer = roles.payer ?? { kind: 'member' as const, memberId: ctx.senderMemberId };
@@ -1993,7 +1993,7 @@ function questionFor(
 
 /**
  * Fills what a question asked for from the sender's reply ("84", "euros",
- * "€55", "me maya and sam", "everyone"). `undefined` when the reply answers
+ * "€55", "me chase and crowley", "everyone"). `undefined` when the reply answers
  * none of it (it is then treated as a new message).
  */
 export function mergeAnswer(

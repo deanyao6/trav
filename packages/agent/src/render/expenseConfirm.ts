@@ -78,7 +78,7 @@ export function modeShare(shares: readonly Money[]): Money | undefined {
   return best;
 }
 
-/** `Sam €20 · Maya €12`, or `Priya €21 · everyone else €32.60` when one amount covers most people. */
+/** `Crowley €20 · Chase €12`, or `Arjun €21 · everyone else €32.60` when one amount covers most people. */
 export function unequalShares(participants: readonly Participant[], payer: MemberId): string {
   const ordered = [
     ...participants.filter((p) => p.memberId !== payer),

@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { isConfirmGesture, typedIntent } from './intent.js';
 
-const NAMES = ['Dean', 'Henry', 'Maya', 'Jordan', 'Priya', 'Sam'];
+const NAMES = ['Dean', 'Henry', 'Chase', 'Piotr', 'Arjun', 'Crowley'];
 
 describe('typedIntent', () => {
   it.each([
@@ -22,20 +22,20 @@ describe('typedIntent', () => {
     ['👎', 'decline'],
     // fails toward "not a confirmation": a no-word anywhere wins
     ['yes no wait', 'decline'],
-    ['me, dean, sam and jordan', 'riders'],
-    ['Priya and Sam', 'riders'],
+    ['me, dean, crowley and piotr', 'riders'],
+    ['Arjun and Crowley', 'riders'],
     // a no-word that takes a named member out is still a names answer (T-161 final review)
-    ['me dean jordan sam, no maya', 'riders'],
+    ['me dean piotr crowley, no chase', 'riders'],
     ['everyone, no henry', 'riders'],
     ['all of us no henry', 'riders'],
-    ['no jordan', 'riders'],
-    ['nah just dean and sam', 'riders'],
-    ['everyone except henry, no maya', 'riders'],
+    ['no piotr', 'riders'],
+    ['nah just dean and crowley', 'riders'],
+    ['everyone except henry, no chase', 'riders'],
     // ...but a bare no-word still declines, even next to a yes or a name
     ['yes, no tip', 'decline'],
     ['no, keep it', 'decline'],
-    ["sam didn't ride", 'decline'],
-    ['no maya, keep it private', 'decline'],
+    ["crowley didn't ride", 'decline'],
+    ['no chase, keep it private', 'decline'],
     ['lol', 'other'],
     ['good', 'other'],
     ['', 'other'],

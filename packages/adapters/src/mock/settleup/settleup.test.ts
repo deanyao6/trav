@@ -59,7 +59,7 @@ describe('mock settle-up: payout handles and links', () => {
       { memberId: 'mem_dean', method: 'venmo', handle: '@dean-2' },
       { memberId: 'mem_dean', method: 'revolut', handle: 'deany' },
     ]);
-    expect(value(await settle.getPayoutHandles('mem_maya'))).toEqual([]);
+    expect(value(await settle.getPayoutHandles('mem_chase'))).toEqual([]);
   });
 
   it('refuses account numbers, IBANs, phone numbers, unknown methods', async () => {
@@ -202,7 +202,7 @@ describe('mock settle-up: createRequest', () => {
   it('lists requests per trip in creation order', async () => {
     const { settle } = setup();
     const a = await pending(settle);
-    const b = await pending(settle, { fromMemberId: 'mem_maya', idempotencyKey: 'k2' });
+    const b = await pending(settle, { fromMemberId: 'mem_chase', idempotencyKey: 'k2' });
     await pending(settle, { tripId: 'trip_lisbon', idempotencyKey: 'k3' });
     const listed = value(await settle.listForTrip('trip_barcelona'));
     expect(listed.map((r) => r.requestId)).toEqual([a.requestId, b.requestId]);
@@ -237,11 +237,11 @@ describe('mock settle-up: state machine', () => {
     const { settle } = setup();
     const req = await pending(settle);
     expect(errorCode(await settle.markPaid(req.requestId, 'mem_dean'))).toBe('invalid_request');
-    expect(errorCode(await settle.markPaid(req.requestId, 'mem_maya'))).toBe('invalid_request');
+    expect(errorCode(await settle.markPaid(req.requestId, 'mem_chase'))).toBe('invalid_request');
     expect(errorCode(await settle.confirmReceived(req.requestId, 'mem_henry'))).toBe(
       'invalid_request',
     );
-    expect(errorCode(await settle.dispute(req.requestId, 'mem_maya', 'not mine'))).toBe(
+    expect(errorCode(await settle.dispute(req.requestId, 'mem_chase', 'not mine'))).toBe(
       'invalid_request',
     );
     expect(value(await settle.listForTrip('trip_barcelona'))[0]?.status).toBe('pending');
@@ -391,7 +391,7 @@ describe('mock settle-up: review fixes', () => {
     ]) {
       expect([handle, handleProblem(handle)]).toEqual([handle, expect.stringMatching(/number/)]);
     }
-    for (const handle of ['@henry-b', 'dean.y2026', 'maya_99', 'sam-123-456']) {
+    for (const handle of ['@henry-b', 'dean.y2026', 'chase_99', 'crowley-123-456']) {
       expect([handle, handleProblem(handle)]).toEqual([handle, undefined]);
     }
   });

@@ -51,7 +51,7 @@ describe('runScenario', () => {
       scenario({
         steps: [
           { do: 'patch_member', memberId: 'mem_nobody', patch: {} },
-          { do: 'say', at: '2026-03-14T21:40:00+01:00', from: 'h_maya', text: 'dinner at 9?' },
+          { do: 'say', at: '2026-03-14T21:40:00+01:00', from: 'h_chase', text: 'dinner at 9?' },
         ],
       }),
       { mode: 'offline' },
@@ -158,21 +158,23 @@ describe('runScenario', () => {
     );
     expect(ep.skippedLines).toEqual([]);
     const at = (id: string) => ep.steps.find((x) => x.source === id)!;
-    const sam = at('sys_bcn_0155');
-    expect(sam.lane).toBe('dm');
-    expect(sam.turn?.imported?.status).toBe('imported');
-    expect(sam.turn?.outbound.length).toBeGreaterThan(0);
+    const crowley = at('sys_bcn_0155');
+    expect(crowley.lane).toBe('dm');
+    expect(crowley.turn?.imported?.status).toBe('imported');
+    expect(crowley.turn?.outbound.length).toBeGreaterThan(0);
     expect(
-      sam.turn?.outbound.every((m) => m.to.kind === 'member' && m.to.memberId === 'mem_sam'),
+      crowley.turn?.outbound.every(
+        (m) => m.to.kind === 'member' && m.to.memberId === 'mem_crowley',
+      ),
     ).toBe(true);
-    // Jordan never opted in: nothing read, stored or sent.
-    const jordan = at('sys_bcn_0191');
-    expect(jordan.turn?.imported).toEqual({ status: 'consent_off', stored: 0, prompted: 0 });
-    expect(jordan.turn?.outbound).toEqual([]);
-    const priya = at('sys_bcn_0113');
-    expect(priya.turn?.imported?.status).toBe('imported');
+    // Piotr never opted in: nothing read, stored or sent.
+    const piotr = at('sys_bcn_0191');
+    expect(piotr.turn?.imported).toEqual({ status: 'consent_off', stored: 0, prompted: 0 });
+    expect(piotr.turn?.outbound).toEqual([]);
+    const arjun = at('sys_bcn_0113');
+    expect(arjun.turn?.imported?.status).toBe('imported');
     expect(
-      priya.turn?.outbound.every((m) => m.to.kind === 'member' && m.to.memberId === 'mem_priya'),
+      arjun.turn?.outbound.every((m) => m.to.kind === 'member' && m.to.memberId === 'mem_arjun'),
     ).toBe(true);
     // Nothing reached the group, and the sunglasses / card digits never did.
     const group = ep.transcript.filter((t) => t.lane === 'group' && t.direction === 'outbound');
@@ -200,7 +202,7 @@ describe('runScenario', () => {
           {
             do: 'say',
             lane: 'dm',
-            from: 'h_sam',
+            from: 'h_crowley',
             text: 'my card ending 4821 is maxed',
             at: '2026-03-14T21:40:00+01:00',
           },
@@ -208,7 +210,7 @@ describe('runScenario', () => {
       }),
       { mode: 'offline' },
     );
-    expect(ep.steps[0]?.label).toBe('h_sam (dm): [private message]');
+    expect(ep.steps[0]?.label).toBe('h_crowley (dm): [private message]');
     expect(JSON.stringify(ep.steps.map((s) => s.label))).not.toContain('4821');
   });
 });

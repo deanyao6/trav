@@ -366,25 +366,25 @@ describe('"who\'s in for the?" is a plain roll call (T-154 r1 #3)', () => {
 });
 
 describe('Barcelona with a minor: the 18+ plan is not named on roster lines (T-154)', () => {
-  it("with Sam under 18 the roll call says the adults' plan; with no minor it says razzmatazz", async () => {
+  it("with Crowley under 18 the roll call says the adults' plan; with no minor it says razzmatazz", async () => {
     const plain = harness();
     const before = await plain.say('h_dean', "@trav who's in tonight?");
     expect(texts(before)[0]).toBe(
-      'razzmatazz tonight: 6 in · Dean, Henry, Maya, Jordan, Priya, Sam',
+      'razzmatazz tonight: 6 in · Dean, Henry, Chase, Piotr, Arjun, Crowley',
     );
 
     const h = harness();
     const stores = h.runtime.stores;
-    const sam = stores.group.members
+    const crowley = stores.group.members
       .listByGroup(BARCELONA.groupId)
-      .find((m) => m.memberId === 'mem_sam')!;
-    stores.group.members.upsert({ ...sam, birthDate: '2010-05-01', ageBand: 'under18' });
+      .find((m) => m.memberId === 'mem_crowley')!;
+    stores.group.members.upsert({ ...crowley, birthDate: '2010-05-01', ageBand: 'under18' });
     // A restricted word in the plan's own name: before T-154 the line was dropped.
     const razz = stores.group.trips.getActivity(BARCELONA.razzmatazzActivityId)!;
     stores.group.trips.upsertActivity({ ...razz, name: 'Razzmatazz club night' });
     stores.group.trips.setAttendance({
       activityId: razz.activityId,
-      memberId: 'mem_sam',
+      memberId: 'mem_crowley',
       status: 'out',
       updatedAt: BARCELONA_NOW,
       sourceMessageId: 'msg_seed',
@@ -394,8 +394,8 @@ describe('Barcelona with a minor: the 18+ plan is not named on roster lines (T-1
     expect(turn.note).toBe('roster:roll_call');
     const [line] = texts(turn);
     expect(line!.split('\n')).toEqual([
-      "the adults' plan tonight: 5 in · Dean, Henry, Maya, Jordan, Priya",
-      'out: Sam',
+      "the adults' plan tonight: 5 in · Dean, Henry, Chase, Piotr, Arjun",
+      'out: Crowley',
     ]);
     expect(line).not.toMatch(/razz/i);
     expect(safety.isRestrictedText(line!)).toBe(false);

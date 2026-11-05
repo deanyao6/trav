@@ -38,7 +38,7 @@ Severity (1–5): how much pain, how often, how much money. Fit (1–5): how dir
 **How Trav does it better**
 - **Capture, don't ask for entry.** Expenses come from chat text, receipt photos, email, and card imports (T-010 to T-013). There is never a cap on entries.
 - **A "loose ends" sweep before any settle-up.** The daily settle-up is never final. On the last day, Trav posts one message: "Before I close the books: 3 things look unlogged" (the owner's pending private items are counted only, never shown to the group, plus bookings without a split). Settle-up closes after a **48-hour late-expense window** (a setting).
-- **Delta settle, not re-settle.** An expense added after the close produces only the *incremental* transfers ("Adding Maya's €40 taxi changes one thing: Leo → Maya €8"). It never produces a new full transfer list.
+- **Delta settle, not re-settle.** An expense added after the close produces only the *incremental* transfers ("Adding Chase's €40 taxi changes one thing: Leo → Chase €8"). It never produces a new full transfer list.
 - **Reconciliation proof.** `@trav show the math` shows every member's paid, owed, and net from the ledger, and the totals sum to zero (this builds on M-04 and M-06).
 
 ## 2. Who's in or out (attendance-aware splits and drop-outs)
@@ -93,7 +93,7 @@ Severity (1–5): how much pain, how often, how much money. Fit (1–5): how dir
 **Size:** medium-high for Trav's first market (study-abroad weekends are named in MOTIVATION.md).
 
 **How Trav does it better**
-- **Rail-aware settle-up.** Each member sets how they get paid (Venmo, Revolut, Wise, PayPal, Bizum, cash) privately with Trav. Each settle-up line shows a rail both people can use ("Leo → Maya €31 via Revolut"). Where none is shared, Trav says so and suggests cash or a common app. In v0 these are mock deep links; no money moves.
+- **Rail-aware settle-up.** Each member sets how they get paid (Venmo, Revolut, Wise, PayPal, Bizum, cash) privately with Trav. Each settle-up line shows a rail both people can use ("Leo → Chase €31 via Revolut"). Where none is shared, Trav says so and suggests cash or a common app. In v0 these are mock deep links; no money moves.
 - The FX rate is locked at expense time and shown on request (M-05).
 
 ## 6. The group chat is noisy and decisions stall

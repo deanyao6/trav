@@ -40,7 +40,7 @@ const G2 = 'grp_lisbon';
 const TRIP = 'trip_bcn';
 const TRIP2 = 'trip_bcn_next';
 const DEAN = 'mem_dean';
-const MAYA = 'mem_maya';
+const CHASE = 'mem_chase';
 const HENRY = 'mem_henry';
 
 // ---------- builders ----------
@@ -116,7 +116,7 @@ function makeExpense(expenseId: string, over: Partial<Expense> = {}): Expense {
     category: 'food',
     amount: { amountMinor: 8400, currency: 'EUR' },
     paidBy: [{ memberId: DEAN, amount: { amountMinor: 8400, currency: 'EUR' } }],
-    split: { method: 'equal', participants: [DEAN, MAYA] },
+    split: { method: 'equal', participants: [DEAN, CHASE] },
     source: 'chat',
     sourceRef: { kind: 'message', id: `msg_${expenseId}` },
     occurredAt: T0,
@@ -141,7 +141,7 @@ function entriesFor(e: Expense): LedgerEntry[] {
     {
       expenseId: e.expenseId,
       tripId: e.tripId,
-      memberId: MAYA,
+      memberId: CHASE,
       kind: 'owes',
       amount: { amountMinor: -half, currency: 'EUR' },
     },
@@ -162,7 +162,7 @@ function makeProposal(proposalId: string, over: Partial<BookingProposal> = {}): 
     quotedAt: T0,
     quoteRef: 'q_1',
     payers: [{ memberId: DEAN, shareMinor: 12500 }],
-    attendees: [DEAN, MAYA],
+    attendees: [DEAN, CHASE],
     paidBy: { kind: 'member_card', memberId: DEAN },
     refundable: true,
     eventDate: '2026-03-14',
@@ -192,7 +192,7 @@ function makeBooking(bookingId: string, over: Partial<Booking> = {}): Booking {
     totalMinor: 12500,
     currency: 'EUR',
     payers: [{ memberId: DEAN, shareMinor: 12500 }],
-    attendees: [DEAN, MAYA],
+    attendees: [DEAN, CHASE],
     paidBy: { kind: 'member_card', memberId: DEAN },
     refundable: true,
     idempotencyKey: `key_${bookingId}`,
@@ -211,7 +211,7 @@ function makeDecision(proposalId: string): PolicyDecision {
     reasons: ['default_confirm'],
     ruleIds: ['C1'],
     approvalMode: 'any_one',
-    requiredApprovers: [DEAN, MAYA],
+    requiredApprovers: [DEAN, CHASE],
     expiresAt: '2026-03-14T21:55:00+01:00',
     existingBookingId: null,
     policySnapshot: defaultSpendingPolicy(G, 'EUR'),
@@ -366,10 +366,10 @@ function makePayment(paymentId: string, over: Partial<SettlementPayment> = {}): 
     paymentId,
     groupId: G,
     tripId: TRIP,
-    from: MAYA,
+    from: CHASE,
     to: DEAN,
     amount: { amountMinor: 26294, currency: 'EUR' },
-    markedBy: MAYA,
+    markedBy: CHASE,
     markedAt: T0,
     via: 'reaction',
     cardMessageId: `msg_card_${paymentId}`,
@@ -462,23 +462,23 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
     // ---------- members ----------
     describe('members', () => {
       it('upserts, reads by sender id, lists in join order, filters active', () => {
-        stores.group.members.upsert(makeMember(MAYA, { joinedAt: '2026-03-01T10:00:00+01:00' }));
+        stores.group.members.upsert(makeMember(CHASE, { joinedAt: '2026-03-01T10:00:00+01:00' }));
         stores.group.members.upsert(makeMember(DEAN, { joinedAt: '2026-02-01T10:00:00+01:00' }));
         stores.group.members.upsert(
           makeMember(HENRY, { joinedAt: '2026-03-02T10:00:00+01:00', active: false }),
         );
         expect(stores.group.members.listByGroup(G).map((m) => m.memberId)).toEqual([
           DEAN,
-          MAYA,
+          CHASE,
           HENRY,
         ]);
         expect(
           stores.group.members.listByGroup(G, { activeOnly: true }).map((m) => m.memberId),
-        ).toEqual([DEAN, MAYA]);
-        expect(stores.group.members.getBySenderId(G, `sender_${MAYA}`)?.memberId).toBe(MAYA);
-        expect(stores.group.members.getBySenderId(G2, `sender_${MAYA}`)).toBeUndefined();
-        stores.group.members.upsert(makeMember(MAYA, { displayName: 'Maya R' }));
-        expect(stores.group.members.get(MAYA)?.displayName).toBe('Maya R');
+        ).toEqual([DEAN, CHASE]);
+        expect(stores.group.members.getBySenderId(G, `sender_${CHASE}`)?.memberId).toBe(CHASE);
+        expect(stores.group.members.getBySenderId(G2, `sender_${CHASE}`)).toBeUndefined();
+        stores.group.members.upsert(makeMember(CHASE, { displayName: 'Chase R' }));
+        expect(stores.group.members.get(CHASE)?.displayName).toBe('Chase R');
         expect(stores.group.members.listByGroup(G2)).toEqual([]);
       });
 
@@ -650,7 +650,7 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
           tripCurrency: 'EUR',
           ownerSenderId: `sender_${DEAN}`,
           now: T0,
-          defaultSplit: { method: 'equal' as const, participants: [DEAN, MAYA] },
+          defaultSplit: { method: 'equal' as const, participants: [DEAN, CHASE] },
         });
         const first = promote(card, confirmation, ctx('exp_p1'));
         stores.group.expenses.create(first, []);
@@ -1015,7 +1015,7 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
 
       it('refuses a self-payment and a non-positive or fractional amount', () => {
         expectTravError(
-          () => stores.group.settlements.record(makePayment('pay_1', { to: MAYA })),
+          () => stores.group.settlements.record(makePayment('pay_1', { to: CHASE })),
           'invalid_argument',
         );
         for (const [i, amountMinor] of [0, -5, 1.5].entries()) {
@@ -1086,18 +1086,18 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         stores.private.putConsent(DEAN, { ...defaultConsent(DEAN, G, T0), photos: true });
 
         expect(stores.private.getCardTransaction(DEAN, 'priv_c1')?.last4).toBe('4242');
-        expect(stores.private.getCardTransaction(MAYA, 'priv_c1')).toBeUndefined();
-        expect(stores.private.getCardTransactionByProviderId(MAYA, 'ptx_priv_c1')).toBeUndefined();
-        expect(stores.private.listCardTransactions(MAYA, G)).toEqual([]);
-        expect(stores.private.getEmailReceipt(MAYA, 'priv_e1')).toBeUndefined();
-        expect(stores.private.listEmailReceipts(MAYA, G)).toEqual([]);
-        expect(stores.private.getReceiptScan(MAYA, 'priv_s1')).toBeUndefined();
-        expect(stores.private.getPendingItem(MAYA, 'priv_p1')).toBeUndefined();
-        expect(stores.private.listPendingItems(MAYA, G)).toEqual([]);
-        expect(stores.private.listMemberMemory(MAYA, G)).toEqual([]);
-        expect(stores.private.listTickets(MAYA, 'bk_1')).toEqual([]);
-        expect(stores.private.getPrefs(MAYA)).toBeUndefined();
-        expect(stores.private.getConsent(MAYA, G)).toBeUndefined();
+        expect(stores.private.getCardTransaction(CHASE, 'priv_c1')).toBeUndefined();
+        expect(stores.private.getCardTransactionByProviderId(CHASE, 'ptx_priv_c1')).toBeUndefined();
+        expect(stores.private.listCardTransactions(CHASE, G)).toEqual([]);
+        expect(stores.private.getEmailReceipt(CHASE, 'priv_e1')).toBeUndefined();
+        expect(stores.private.listEmailReceipts(CHASE, G)).toEqual([]);
+        expect(stores.private.getReceiptScan(CHASE, 'priv_s1')).toBeUndefined();
+        expect(stores.private.getPendingItem(CHASE, 'priv_p1')).toBeUndefined();
+        expect(stores.private.listPendingItems(CHASE, G)).toEqual([]);
+        expect(stores.private.listMemberMemory(CHASE, G)).toEqual([]);
+        expect(stores.private.listTickets(CHASE, 'bk_1')).toEqual([]);
+        expect(stores.private.getPrefs(CHASE)).toBeUndefined();
+        expect(stores.private.getConsent(CHASE, G)).toBeUndefined();
 
         expect(stores.private.getEmailReceipt(DEAN, 'priv_e1')?.bodyText).toBe('total 18.40 eur');
         expect(stores.private.getReceiptScan(DEAN, 'priv_s1')?.ocrText).toBe('TOTAL 84.00');
@@ -1112,32 +1112,32 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
 
       it("writes refuse rows naming another owner and refuse to overwrite another owner's row", () => {
         expectTravError(
-          () => stores.private.putCardTransaction(MAYA, makeCard('priv_c1', DEAN)),
+          () => stores.private.putCardTransaction(CHASE, makeCard('priv_c1', DEAN)),
           'not_owner',
         );
         expectTravError(
-          () => stores.private.putEmailReceipt(MAYA, makeEmail('priv_e1', DEAN)),
+          () => stores.private.putEmailReceipt(CHASE, makeEmail('priv_e1', DEAN)),
           'not_owner',
         );
         expectTravError(
-          () => stores.private.putReceiptScan(MAYA, makeScan('priv_s1', DEAN)),
+          () => stores.private.putReceiptScan(CHASE, makeScan('priv_s1', DEAN)),
           'not_owner',
         );
         expectTravError(
-          () => stores.private.putPendingItem(MAYA, makePending('priv_p1', DEAN)),
+          () => stores.private.putPendingItem(CHASE, makePending('priv_p1', DEAN)),
           'not_owner',
         );
         expectTravError(
-          () => stores.private.putMemberMemory(MAYA, makeMemberFact('mf_1', DEAN)),
+          () => stores.private.putMemberMemory(CHASE, makeMemberFact('mf_1', DEAN)),
           'not_owner',
         );
         expectTravError(
-          () => stores.private.putTicket(MAYA, makeTicket('priv_t1', DEAN)),
+          () => stores.private.putTicket(CHASE, makeTicket('priv_t1', DEAN)),
           'not_owner',
         );
         expectTravError(
           () =>
-            stores.private.putPrefs(MAYA, {
+            stores.private.putPrefs(CHASE, {
               memberId: DEAN,
               perBookingShareCapMinor: 0,
               dailyShareCapMinor: 0,
@@ -1145,7 +1145,7 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
           'not_owner',
         );
         expectTravError(
-          () => stores.private.putConsent(MAYA, defaultConsent(DEAN, G, T0)),
+          () => stores.private.putConsent(CHASE, defaultConsent(DEAN, G, T0)),
           'not_owner',
         );
 
@@ -1164,9 +1164,9 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         expect(stores.private.getConsent('mem_a|grp', 'b')?.memberId).toBe('mem_a|grp');
 
         stores.private.putPendingItem(DEAN, makePending('priv_p1', DEAN));
-        // Maya re-using Dean's row id with herself as owner must not hijack it.
+        // Chase re-using Dean's row id with Chase as owner must not hijack it.
         expectTravError(
-          () => stores.private.putPendingItem(MAYA, makePending('priv_p1', MAYA)),
+          () => stores.private.putPendingItem(CHASE, makePending('priv_p1', CHASE)),
           'not_owner',
         );
         expect(stores.private.getPendingItem(DEAN, 'priv_p1')?.ownerMemberId).toBe(DEAN);
@@ -1189,18 +1189,18 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         );
         // Another owner may have the same provider id (different account).
         stores.private.putCardTransaction(
-          MAYA,
-          makeCard('priv_m1', MAYA, { providerTransactionId: 'ptx_priv_c1' }),
+          CHASE,
+          makeCard('priv_m1', CHASE, { providerTransactionId: 'ptx_priv_c1' }),
         );
-        expect(stores.private.listCardTransactions(MAYA, G)).toHaveLength(1);
+        expect(stores.private.listCardTransactions(CHASE, G)).toHaveLength(1);
       });
 
       it('pending queue: status filter, scoped per owner and group (no cross-owner count, T-112)', () => {
         stores.private.putPendingItem(DEAN, makePending('priv_p1', DEAN));
         stores.private.putPendingItem(DEAN, makePending('priv_p2', DEAN));
         stores.private.putPendingItem(DEAN, makePending('priv_p3', DEAN, { status: 'dismissed' }));
-        stores.private.putPendingItem(MAYA, makePending('priv_p4', MAYA));
-        stores.private.putPendingItem(MAYA, makePending('priv_p5', MAYA, { groupId: G2 }));
+        stores.private.putPendingItem(CHASE, makePending('priv_p4', CHASE));
+        stores.private.putPendingItem(CHASE, makePending('priv_p5', CHASE, { groupId: G2 }));
         stores.private.putPendingItem(HENRY, makePending('priv_p6', HENRY, { status: 'promoted' }));
         expect(stores.private.listPendingItems(DEAN, G).map((p) => p.id)).toEqual([
           'priv_p1',
@@ -1211,10 +1211,10 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
           'priv_p1',
           'priv_p2',
         ]);
-        expect(stores.private.listPendingItems(MAYA, G, 'pending').map((p) => p.id)).toEqual([
+        expect(stores.private.listPendingItems(CHASE, G, 'pending').map((p) => p.id)).toEqual([
           'priv_p4',
         ]);
-        expect(stores.private.listPendingItems(MAYA, G2, 'pending').map((p) => p.id)).toEqual([
+        expect(stores.private.listPendingItems(CHASE, G2, 'pending').map((p) => p.id)).toEqual([
           'priv_p5',
         ]);
         expect(stores.private.listPendingItems(HENRY, G, 'pending')).toEqual([]);
@@ -1236,8 +1236,8 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         });
         stores.private.putMemberMemory(DEAN, makeMemberFact('mf_1', DEAN));
         stores.private.putTicket(DEAN, makeTicket('priv_t1', DEAN));
-        stores.private.putCardTransaction(MAYA, makeCard('priv_m1', MAYA));
-        stores.private.putPendingItem(MAYA, makePending('priv_p9', MAYA));
+        stores.private.putCardTransaction(CHASE, makeCard('priv_m1', CHASE));
+        stores.private.putPendingItem(CHASE, makePending('priv_p9', CHASE));
 
         expect(stores.private.deletePartition(DEAN)).toEqual({
           card_transactions: 2,
@@ -1252,9 +1252,9 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         expect(stores.private.listCardTransactions(DEAN, G)).toEqual([]);
         expect(stores.private.getConsent(DEAN, G)).toBeUndefined();
         expect(stores.private.getPrefs(DEAN)).toBeUndefined();
-        expect(stores.private.listCardTransactions(MAYA, G)).toHaveLength(1);
+        expect(stores.private.listCardTransactions(CHASE, G)).toHaveLength(1);
         expect(stores.private.listPendingItems(DEAN, G)).toEqual([]);
-        expect(stores.private.listPendingItems(MAYA, G).map((p) => p.id)).toEqual(['priv_p9']);
+        expect(stores.private.listPendingItems(CHASE, G).map((p) => p.id)).toEqual(['priv_p9']);
       });
 
       it('purgeRawInputs blanks raw text of promoted/dismissed items older than the cutoff only', () => {
@@ -1311,7 +1311,7 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         );
         // idempotent; other owners untouched
         expect(stores.private.purgeRawInputs(DEAN, cutoff)).toBe(0);
-        expect(stores.private.purgeRawInputs(MAYA, cutoff)).toBe(0);
+        expect(stores.private.purgeRawInputs(CHASE, cutoff)).toBe(0);
       });
     });
 
@@ -1339,9 +1339,9 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         stores.group.groupMemory.upsert(makeGroupFact(`gf_${suffix}`, { sourceTripId: tripId }));
         stores.group.settlements.record(makePayment(`pay_${suffix}`, { tripId }));
         stores.private.putCardTransaction(DEAN, makeCard(`priv_c_${suffix}`, DEAN, { tripId }));
-        stores.private.putEmailReceipt(MAYA, makeEmail(`priv_e_${suffix}`, MAYA, { tripId }));
+        stores.private.putEmailReceipt(CHASE, makeEmail(`priv_e_${suffix}`, CHASE, { tripId }));
         stores.private.putReceiptScan(DEAN, makeScan(`priv_s_${suffix}`, DEAN, { tripId }));
-        stores.private.putPendingItem(MAYA, makePending(`priv_p_${suffix}`, MAYA, { tripId }));
+        stores.private.putPendingItem(CHASE, makePending(`priv_p_${suffix}`, CHASE, { tripId }));
         stores.private.putMemberMemory(
           DEAN,
           makeMemberFact(`mf_${suffix}`, DEAN, { sourceTripId: tripId }),
@@ -1352,8 +1352,8 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
           makeTicket(`priv_t_${suffix}`, DEAN, { tripId, bookingId: `bk_${suffix}` }),
         );
         stores.private.putTicket(
-          MAYA,
-          makeTicket(`priv_t2_${suffix}`, MAYA, { tripId: null, bookingId: `bk_${suffix}` }),
+          CHASE,
+          makeTicket(`priv_t2_${suffix}`, CHASE, { tripId: null, bookingId: `bk_${suffix}` }),
         );
         stores.group.audit.append(
           auditInput({ tripId, proposalId: `prop_${suffix}`, payload: { note: suffix } }),
@@ -1412,19 +1412,19 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         expect(stores.group.groupMemory.listByGroup(G, { tripId: TRIP })).toEqual([]);
         expect(stores.group.settlements.listByTrip(TRIP)).toEqual([]);
         expect(stores.private.getCardTransaction(DEAN, 'priv_c_a')).toBeUndefined();
-        expect(stores.private.getEmailReceipt(MAYA, 'priv_e_a')).toBeUndefined();
+        expect(stores.private.getEmailReceipt(CHASE, 'priv_e_a')).toBeUndefined();
         expect(stores.private.getReceiptScan(DEAN, 'priv_s_a')).toBeUndefined();
-        expect(stores.private.getPendingItem(MAYA, 'priv_p_a')).toBeUndefined();
+        expect(stores.private.getPendingItem(CHASE, 'priv_p_a')).toBeUndefined();
         expect(stores.private.listMemberMemory(DEAN, G).map((f) => f.factId)).toEqual(['mf_b']);
         expect(stores.private.listTickets(DEAN, 'bk_a')).toEqual([]);
-        expect(stores.private.listTickets(MAYA, 'bk_a')).toEqual([]);
+        expect(stores.private.listTickets(CHASE, 'bk_a')).toEqual([]);
 
         // Trip B untouched.
         expect(stores.group.trips.get(TRIP2)).toBeDefined();
         expect(stores.group.expenses.listEntries(TRIP2)).toHaveLength(3);
         expect(stores.group.settlements.listByTrip(TRIP2)).toHaveLength(1);
-        expect(stores.private.listTickets(MAYA, 'bk_b')).toHaveLength(1);
-        expect(stores.private.getPendingItem(MAYA, 'priv_p_b')).toBeDefined();
+        expect(stores.private.listTickets(CHASE, 'bk_b')).toHaveLength(1);
+        expect(stores.private.getPendingItem(CHASE, 'priv_p_b')).toBeDefined();
 
         // Audit: same rows, same hashes, trip A payloads tombstoned, chain links intact.
         const auditAfter = stores.group.audit.listByGroup(G);
@@ -1466,10 +1466,10 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
           makePending('priv_p1', DEAN, { sourceItemId: 'priv_c1' }),
         );
         // source email on the trip → its trip-less pending item goes too
-        stores.private.putEmailReceipt(MAYA, makeEmail('priv_e1', MAYA));
+        stores.private.putEmailReceipt(CHASE, makeEmail('priv_e1', CHASE));
         stores.private.putPendingItem(
-          MAYA,
-          makePending('priv_p2', MAYA, { tripId: null, source: 'email', sourceItemId: 'priv_e1' }),
+          CHASE,
+          makePending('priv_p2', CHASE, { tripId: null, source: 'email', sourceItemId: 'priv_e1' }),
         );
         // unrelated trip-less pair stays
         stores.private.putCardTransaction(DEAN, makeCard('priv_c9', DEAN, { tripId: null }));
@@ -1484,8 +1484,8 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         expect(counts.pending_private_items).toBe(2);
         expect(stores.private.getCardTransaction(DEAN, 'priv_c1')).toBeUndefined();
         expect(stores.private.getPendingItem(DEAN, 'priv_p1')).toBeUndefined();
-        expect(stores.private.getEmailReceipt(MAYA, 'priv_e1')).toBeUndefined();
-        expect(stores.private.getPendingItem(MAYA, 'priv_p2')).toBeUndefined();
+        expect(stores.private.getEmailReceipt(CHASE, 'priv_e1')).toBeUndefined();
+        expect(stores.private.getPendingItem(CHASE, 'priv_p2')).toBeUndefined();
         expect(stores.private.getCardTransaction(DEAN, 'priv_c9')).toBeDefined();
         expect(stores.private.getPendingItem(DEAN, 'priv_p9')).toBeDefined();
       });

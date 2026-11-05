@@ -68,10 +68,10 @@ const VERIFY_SCRIPT = join(REPO_ROOT, 'scripts', 'audit-verify.ts');
 
 /** VOICE §4.2 example A, byte for byte. */
 const RECEIPT_TEXT =
-  'booked ✅ razzmatazz, 5 tickets, €90\norder RZ-48213 · refundable until 10pm\nQR codes are in your dms, one each\ntab: Maya, Jordan, Priya, Sam → Dean €18';
+  'booked ✅ razzmatazz, 5 tickets, €90\norder RZ-48213 · refundable until 10pm\nQR codes are in your dms, one each\ntab: Chase, Piotr, Arjun, Crowley → Dean €18';
 
 /** VOICE §4.3 example A, byte for byte. */
-const PRIYA_TICKET_TEXT =
+const ARJUN_TICKET_TEXT =
   "your razzmatazz ticket for tonight 🎟️\ndoors 12am · Carrer dels Almogàvers 122\nthis one's yours only, don't forward it. everyone got their own";
 
 function messages(r: TurnResult): OutboundMessage[] {
@@ -182,8 +182,8 @@ describe('the Razzmatazz moment through the real runtime (TRAV_OFFLINE=1)', () =
         expect(dm.card.qr.payload).toMatch(/^TRAV-MOCK-TICKET\|NOT-VALID-FOR-ENTRY\|/);
       }
     }
-    const priya = tickets.find((m) => m.to.kind === 'member' && m.to.memberId === 'mem_priya')!;
-    expect(priya.text).toBe(PRIYA_TICKET_TEXT);
+    const arjun = tickets.find((m) => m.to.kind === 'member' && m.to.memberId === 'mem_arjun')!;
+    expect(arjun.text).toBe(ARJUN_TICKET_TEXT);
     expect(h.channel.dmTranscript('h_henry')).toEqual([]);
 
     // The booking row: 5 ticket refs (ids only), the expense linked, no barcode anywhere in GroupStore.
@@ -260,9 +260,9 @@ describe('the Razzmatazz moment through the real runtime (TRAV_OFFLINE=1)', () =
     expect(h.runtime.stores.group.bookings.getProposal(p)?.status).toBe('completed');
     expect(h.pending()).toEqual([]);
 
-    // A second 👍 from Dean and a late Approve from Maya buy nothing and post nothing.
+    // A second 👍 from Dean and a late Approve from Chase buy nothing and post nothing.
     const again = await h.react('h_dean', cardMessageId, '👍');
-    const late = await h.tap('h_maya', cardMessageId, 'approve');
+    const late = await h.tap('h_chase', cardMessageId, 'approve');
     expect(again.outbound).toEqual([]);
     expect(late.outbound).toEqual([]);
     expect(h.tickets.purchaseCount()).toBe(1);
@@ -291,18 +291,20 @@ describe('the Razzmatazz moment through the real runtime (TRAV_OFFLINE=1)', () =
     expect(run.stdout).toContain(`HEAD group=${G}`);
   }, 30_000);
 
-  it("requester ≠ approver: Sam taps Approve on Dean's proposal and the purchase completes on Dean's card", async () => {
+  it("requester ≠ approver: Crowley taps Approve on Dean's proposal and the purchase completes on Dean's card", async () => {
     const h = harness();
     const { proposal, cardMessageId } = await propose(h);
-    const turn = await h.tap('h_sam', cardMessageId, 'approve');
+    const turn = await h.tap('h_crowley', cardMessageId, 'approve');
     expect(turn.note).toBe('approval:handled');
     expect(groupMessages(turn)[0]!.text).toBe(RECEIPT_TEXT);
     expect(h.tickets.purchaseCount()).toBe(1);
     expect(payments(h).chargeCount()).toBe(1);
     expect(payments(h).listCharges()[0]!.payerMemberId).toBe('mem_dean');
     const granted = h.audit().find((e) => e.type === 'approval.granted');
-    expect(granted?.actor).toEqual({ kind: 'member', id: 'mem_sam' });
-    expect(grantOf(h, proposal.proposalId).grantedBy.map((g) => g.memberId)).toEqual(['mem_sam']);
+    expect(granted?.actor).toEqual({ kind: 'member', id: 'mem_crowley' });
+    expect(grantOf(h, proposal.proposalId).grantedBy.map((g) => g.memberId)).toEqual([
+      'mem_crowley',
+    ]);
     expect(dms(turn)).toHaveLength(5);
   });
 
@@ -361,11 +363,11 @@ describe('the Razzmatazz moment through the real runtime (TRAV_OFFLINE=1)', () =
     const grant = completeGrantDirectly(h, proposal.proposalId);
     h.runtime.stores.group.trips.setAttendance({
       activityId: BARCELONA.razzmatazzActivityId,
-      memberId: 'mem_maya',
+      memberId: 'mem_chase',
       status: 'out',
       updatedAt: h.clock.now(),
       sourceMessageId: 'msg_tool',
-      setBy: 'mem_maya',
+      setBy: 'mem_chase',
     });
     const res = await h.runtime.executor.execute(proposal.proposalId, grant.grantId);
     expect(res).toEqual({ kind: 'refused', reason: 'payers_changed' });
@@ -552,7 +554,7 @@ describe('the Razzmatazz moment through the real runtime (TRAV_OFFLINE=1)', () =
     expect(real.chargeCount()).toBe(0);
 
     fail = false;
-    const third = await h.tap('h_sam', cardMessageId, 'approve');
+    const third = await h.tap('h_crowley', cardMessageId, 'approve');
     expect(third.note).toBe('approval:handled');
     expect(groupMessages(third)[0]!.text).toBe(RECEIPT_TEXT);
     expect(dms(third)).toHaveLength(5);
@@ -606,7 +608,7 @@ describe('the Razzmatazz moment through the real runtime (TRAV_OFFLINE=1)', () =
     );
 
     fail = false;
-    const notMine = await h.say('h_sam', 'yes');
+    const notMine = await h.say('h_crowley', 'yes');
     expect(notMine.outbound).toEqual([]);
     expect(real.chargeCount()).toBe(0);
     const yes = await h.say('h_dean', 'yes');
@@ -653,7 +655,7 @@ describe('the Razzmatazz moment through the real runtime (TRAV_OFFLINE=1)', () =
       ids: createDeterministicIdGenerator('k'),
       inventory: loadTicketInventory('barcelona'),
     });
-    const broken = new Set<string>(['mem_jordan', 'mem_priya', 'mem_sam']);
+    const broken = new Set<string>(['mem_piotr', 'mem_arjun', 'mem_crowley']);
     const fetches: string[] = [];
     const flaky: TicketsAdapter = {
       ...real,
@@ -692,9 +694,9 @@ describe('the Razzmatazz moment through the real runtime (TRAV_OFFLINE=1)', () =
     expect(expense.expenseId).toBe(booking.expenseId);
     const types = h.auditTypes();
     expect(types.indexOf('booking.completed')).toBeLessThan(types.indexOf('ledger.written'));
-    // Maya and Dean's tickets were stored before Jordan's failed; nothing for the rest.
-    expect(h.runtime.stores.private.listTickets('mem_maya', booking.bookingId)).toHaveLength(1);
-    expect(h.runtime.stores.private.listTickets('mem_sam', booking.bookingId)).toEqual([]);
+    // Chase and Dean's tickets were stored before Piotr's failed; nothing for the rest.
+    expect(h.runtime.stores.private.listTickets('mem_chase', booking.bookingId)).toHaveLength(1);
+    expect(h.runtime.stores.private.listTickets('mem_crowley', booking.bookingId)).toEqual([]);
     expect(h.runtime.stores.group.bookings.getProposal(proposal.proposalId)?.status).toBe(
       'completed',
     );
@@ -702,13 +704,13 @@ describe('the Razzmatazz moment through the real runtime (TRAV_OFFLINE=1)', () =
 
     // An @ while the provider is still down: the same truthful line, nothing bought.
     // The turn still carries on with what was asked (r2 review #1).
-    const stillDown = await h.say('h_maya', '@trav where are the tickets?');
+    const stillDown = await h.say('h_chase', '@trav where are the tickets?');
     expect(groupMessages(stillDown)[0]!.text).toBe(TURN_FAILED_AFTER_PURCHASE_TEXT);
     expect(real.purchaseCount()).toBe(1);
 
     // A chat expense sent while it is stuck is logged on that same turn, and
     // the stuck line is not repeated within 30 minutes.
-    const taxi = await h.say('h_priya', '@trav I paid €40 for the taxi, split with everyone');
+    const taxi = await h.say('h_arjun', '@trav I paid €40 for the taxi, split with everyone');
     expect(groupMessages(taxi).map((m) => m.text)).not.toContain(TURN_FAILED_AFTER_PURCHASE_TEXT);
     expect(taxi.note).toBe('expense:logged');
     expect(real.purchaseCount()).toBe(1);
@@ -716,7 +718,7 @@ describe('the Razzmatazz moment through the real runtime (TRAV_OFFLINE=1)', () =
     // The provider is back: the next @ finishes it. Only the missing holders are fetched.
     broken.clear();
     fetches.length = 0;
-    const resumed = await h.say('h_maya', '@trav tickets?');
+    const resumed = await h.say('h_chase', '@trav tickets?');
     expect(groupMessages(resumed)[0]!.text).toBe(RECEIPT_TEXT);
     const tickets = dms(resumed);
     expect(tickets).toHaveLength(5);
@@ -724,7 +726,7 @@ describe('the Razzmatazz moment through the real runtime (TRAV_OFFLINE=1)', () =
       [...FIVE].sort(),
     );
     expect(h.channel.dmTranscript('h_henry')).toEqual([]);
-    expect(fetches.sort()).toEqual(['mem_jordan', 'mem_priya', 'mem_sam']);
+    expect(fetches.sort()).toEqual(['mem_arjun', 'mem_crowley', 'mem_piotr']);
     const done = h.runtime.stores.group.bookings.getBooking(booking.bookingId)!;
     expect(done.tickets.map((t) => t.holderMemberId).sort()).toEqual([...FIVE].sort());
     for (const id of FIVE) {
@@ -738,7 +740,7 @@ describe('the Razzmatazz moment through the real runtime (TRAV_OFFLINE=1)', () =
     expect(auditCore.verifyAuditChain(h.audit()).ok).toBe(true);
 
     // Done: a later @ goes to the model as usual, nothing resumed or re-sent.
-    const later = await h.say('h_maya', '@trav thanks, what time are doors?');
+    const later = await h.say('h_chase', '@trav thanks, what time are doors?');
     expect(later.note).not.toBe('booking:resumed');
   });
 
@@ -1183,13 +1185,13 @@ describe('toApprovalProof and small helpers', () => {
       payers: FIVE.map((memberId) => ({ memberId, shareMinor: 1800 })),
       attendees: [...FIVE],
     });
-    const { decision, grant } = seedApproved(r, proposal, 'mem_sam');
+    const { decision, grant } = seedApproved(r, proposal, 'mem_crowley');
     const proof = toApprovalProof(grant, decision, proposal, 'aud_granted');
     expect(proof).toEqual({
       approvalId: grant.grantId,
       proposalId: proposal.proposalId,
       groupId: G,
-      approvedBy: ['mem_dean', 'mem_sam'],
+      approvedBy: ['mem_dean', 'mem_crowley'],
       approvedAt: r.now,
       expiresAt: grant.expiresAt,
       maxAmount: money(9000, 'EUR'),

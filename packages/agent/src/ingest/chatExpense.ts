@@ -6,7 +6,7 @@
  * `splitQuoted`, SAFETY §2.4). In order:
  *
  *  1. A pending question from Trav to this member (≤ 15 min old) is answered
- *     first: "84", "euros", "me maya and sam" fill the missing facts
+ *     first: "84", "euros", "me chase and crowley" fill the missing facts
  *     (`mergeAnswer`). Still incomplete ⇒ Trav waits silently (it never asks
  *     the same thing twice). "nvm" drops it with a 👍. The question stays
  *     answerable past the loop's 2-minute reply window: the loop hands an
@@ -80,7 +80,7 @@ import {
 
 /** How long Trav's one question stays answerable. */
 export const EXPENSE_QUESTION_TTL_MS = 15 * 60 * 1000;
-/** An unaddressed reply to an open question is taken only when it is this short ("84", "me maya and sam"). */
+/** An unaddressed reply to an open question is taken only when it is this short ("84", "me chase and crowley"). */
 export const ANSWER_ONLY_MAX_WORDS = 8;
 /** More than this many expenses in one message is not something to log blind. */
 export const MAX_EXPENSES_PER_MESSAGE = 4;

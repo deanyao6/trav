@@ -55,7 +55,13 @@ describe('evaluate: defaults', () => {
     expect(decidingRule(d)).toEqual({ ruleId: 'C1', reason: 'default_confirm' });
     expect(d.approvalMode).toBe('any_one');
     // T-104: Henry is not on the booking, so he is not an approver.
-    expect(d.requiredApprovers).toEqual(['mem_dean', 'mem_sam', 'mem_ava', 'mem_maya', 'mem_leo']);
+    expect(d.requiredApprovers).toEqual([
+      'mem_dean',
+      'mem_crowley',
+      'mem_ava',
+      'mem_chase',
+      'mem_leo',
+    ]);
     expect(d.expiresAt).toBe('2026-03-14T21:55:00+01:00');
     expect(d.existingBookingId).toBeNull();
     expect(d.policySnapshot).toEqual(policy());
@@ -182,11 +188,19 @@ describe('evaluate: cap boundaries (at the cap is inside the cap)', () => {
 
   it('member share cap: at cap passes, +1 fires over_member_share_cap with each_payer', () => {
     const prefs = {
-      mem_sam: { memberId: 'mem_sam', perBookingShareCapMinor: 1800, dailyShareCapMinor: null },
+      mem_crowley: {
+        memberId: 'mem_crowley',
+        perBookingShareCapMinor: 1800,
+        dailyShareCapMinor: null,
+      },
     };
     expect(evaluate(razzmatazz(), relaxed(), context({ prefs })).outcome).toBe('auto_approve');
     const tighter = {
-      mem_sam: { memberId: 'mem_sam', perBookingShareCapMinor: 1799, dailyShareCapMinor: null },
+      mem_crowley: {
+        memberId: 'mem_crowley',
+        perBookingShareCapMinor: 1799,
+        dailyShareCapMinor: null,
+      },
     };
     const d = evaluate(razzmatazz(), relaxed(), context({ prefs: tighter }));
     expect(d.reasons).toEqual(['over_member_share_cap']);
@@ -194,7 +208,11 @@ describe('evaluate: cap boundaries (at the cap is inside the cap)', () => {
     expect(d.approvalMode).toBe('each_payer');
     expect(d.requiredApprovers).toEqual([...FIVE]);
     const nullCap = {
-      mem_sam: { memberId: 'mem_sam', perBookingShareCapMinor: null, dailyShareCapMinor: null },
+      mem_crowley: {
+        memberId: 'mem_crowley',
+        perBookingShareCapMinor: null,
+        dailyShareCapMinor: null,
+      },
     };
     expect(evaluate(razzmatazz(), relaxed(), context({ prefs: nullCap })).outcome).toBe(
       'auto_approve',
@@ -306,7 +324,7 @@ describe('evaluate: deny rules (table)', () => {
         totalMinor: 9000,
         payers: [
           ...equalShares(FIVE.slice(0, 3), 1800),
-          { memberId: 'mem_maya', shareMinor: 1800.5 },
+          { memberId: 'mem_chase', shareMinor: 1800.5 },
           { memberId: 'mem_leo', shareMinor: 1799.5 },
         ],
       },
@@ -661,38 +679,41 @@ describe('evaluate: required approvers', () => {
     expect(d.requiredApprovers).toEqual([...FIVE]);
     // A named approver who is not attending is dropped too; the attending requester stays.
     const named = evaluate(
-      razzmatazz({ requestedBy: 'mem_sam', paidBy: { kind: 'member_card', memberId: 'mem_sam' } }),
+      razzmatazz({
+        requestedBy: 'mem_crowley',
+        paidBy: { kind: 'member_card', memberId: 'mem_crowley' },
+      }),
       policy({ approvers: ['mem_henry', 'mem_dean'] }),
       context(),
     );
-    expect(named.requiredApprovers).toEqual(['mem_dean', 'mem_sam']);
+    expect(named.requiredApprovers).toEqual(['mem_dean', 'mem_crowley']);
   });
 
   it('any_one (T-104): the payer approves when attending; a non-attending requester does not', () => {
     const d = evaluate(
       razzmatazz({
         requestedBy: 'mem_henry',
-        payers: equalShares(['mem_dean', 'mem_sam'], 4500),
-        attendees: ['mem_dean', 'mem_sam'],
-        paidBy: { kind: 'member_card', memberId: 'mem_sam' },
+        payers: equalShares(['mem_dean', 'mem_crowley'], 4500),
+        attendees: ['mem_dean', 'mem_crowley'],
+        paidBy: { kind: 'member_card', memberId: 'mem_crowley' },
       }),
       policy({ approvers: ['mem_dean', 'mem_henry'] }),
       context(),
     );
-    // C10: Henry asks on Sam's card, so Sam (the card owner) is the one approver.
-    expect(d.requiredApprovers).toEqual(['mem_sam']);
+    // C10: Henry asks on Crowley's card, so Crowley (the card owner) is the one approver.
+    expect(d.requiredApprovers).toEqual(['mem_crowley']);
     const own = evaluate(
       razzmatazz({
         requestedBy: 'mem_henry',
-        payers: equalShares(['mem_dean', 'mem_sam'], 4500),
-        attendees: ['mem_dean', 'mem_sam'],
+        payers: equalShares(['mem_dean', 'mem_crowley'], 4500),
+        attendees: ['mem_dean', 'mem_crowley'],
         paidBy: { kind: 'member_card', memberId: 'mem_henry' },
       }),
-      policy({ approvers: ['mem_dean', 'mem_sam'] }),
+      policy({ approvers: ['mem_dean', 'mem_crowley'] }),
       context(),
     );
     // On Henry's own card he is a party (card owner) and the pool's attendees stay.
-    expect(own.requiredApprovers).toEqual(['mem_dean', 'mem_sam', 'mem_henry']);
+    expect(own.requiredApprovers).toEqual(['mem_dean', 'mem_crowley', 'mem_henry']);
   });
 
   it("any_one (T-104): kid-only booking on Dean's card ⇒ Dean (card owner, Kid's guardian); a non-party requester is not added", () => {
@@ -700,7 +721,7 @@ describe('evaluate: required approvers', () => {
       razzmatazz({
         ageRestriction: null,
         contentTags: ['family'],
-        requestedBy: 'mem_sam',
+        requestedBy: 'mem_crowley',
         totalMinor: 1800,
         payers: equalShares(['mem_dean'], 1800),
         attendees: ['mem_kid'],
@@ -767,33 +788,33 @@ describe('evaluate: required approvers', () => {
       expect(d.requiredApprovers).toEqual(['mem_mom', 'mem_uncle']);
     });
 
-    it("named approvers ['mem_dean'] and a non-party requester (Maya): Maya can never approve alone", () => {
+    it("named approvers ['mem_dean'] and a non-party requester (Chase): Chase can never approve alone", () => {
       // Dean's card: Dean is the card owner, so he is the party in the pool.
       const onDean = evaluate(
         razzmatazz({
-          requestedBy: 'mem_maya',
-          payers: equalShares(['mem_sam', 'mem_leo'], 4500),
-          attendees: ['mem_sam', 'mem_leo'],
+          requestedBy: 'mem_chase',
+          payers: equalShares(['mem_crowley', 'mem_leo'], 4500),
+          attendees: ['mem_crowley', 'mem_leo'],
         }),
         policy({ approvers: ['mem_dean'] }),
         context(),
       );
       expect(onDean.requiredApprovers).toEqual(['mem_dean']);
-      // Sam's card, Dean not on it: no party is in the pool, so the pool (Dean) stands in, not Maya.
-      const onSam = evaluate(
+      // Crowley's card, Dean not on it: no party is in the pool, so the pool (Dean) stands in, not Chase.
+      const onCrowley = evaluate(
         razzmatazz({
-          requestedBy: 'mem_maya',
-          payers: equalShares(['mem_sam', 'mem_leo'], 4500),
-          attendees: ['mem_sam', 'mem_leo'],
-          paidBy: { kind: 'member_card', memberId: 'mem_sam' },
+          requestedBy: 'mem_chase',
+          payers: equalShares(['mem_crowley', 'mem_leo'], 4500),
+          attendees: ['mem_crowley', 'mem_leo'],
+          paidBy: { kind: 'member_card', memberId: 'mem_crowley' },
         }),
         policy({ approvers: ['mem_dean'] }),
         context(),
       );
-      // C10 (T-148): Sam's card, Maya asking ⇒ Sam, the card owner, is the one approver.
-      expect(onSam.requiredApprovers).toEqual(['mem_sam']);
-      expect(onSam.reasons).toContain('card_not_requester');
-      expect(onSam.requiredApprovers).not.toContain('mem_maya');
+      // C10 (T-148): Crowley's card, Chase asking ⇒ Crowley, the card owner, is the one approver.
+      expect(onCrowley.requiredApprovers).toEqual(['mem_crowley']);
+      expect(onCrowley.reasons).toContain('card_not_requester');
+      expect(onCrowley.requiredApprovers).not.toContain('mem_chase');
     });
 
     it('Henry asks for "the 5 of us, Henry\'s sick" on his own card ⇒ he can confirm his own request', () => {
@@ -812,18 +833,18 @@ describe('evaluate: required approvers', () => {
     it("bookingParties: attendees, the card owner(s) and minor attendees' guardians, nobody else", () => {
       const byId = new Map(views().map((v) => [v.memberId, v] as const));
       const p = razzmatazz({
-        attendees: ['mem_sam', 'mem_kid'],
+        attendees: ['mem_crowley', 'mem_kid'],
         paidBy: { kind: 'member_card', memberId: 'mem_leo' },
       });
       expect([...bookingParties(p, byId)].sort()).toEqual(
-        ['mem_dean', 'mem_kid', 'mem_leo', 'mem_sam'].sort(),
+        ['mem_dean', 'mem_kid', 'mem_leo', 'mem_crowley'].sort(),
       );
       const perCard = razzmatazz({
-        attendees: ['mem_sam'],
-        payers: equalShares(['mem_sam', 'mem_ava'], 4500),
+        attendees: ['mem_crowley'],
+        payers: equalShares(['mem_crowley', 'mem_ava'], 4500),
         paidBy: { kind: 'per_person_cards' },
       });
-      expect([...bookingParties(perCard, byId)].sort()).toEqual(['mem_ava', 'mem_sam']);
+      expect([...bookingParties(perCard, byId)].sort()).toEqual(['mem_ava', 'mem_crowley']);
     });
 
     it("Henry asks for the 5 of us on Dean's card ⇒ only Dean, the card owner, approves (C10)", () => {
@@ -889,7 +910,7 @@ describe('evaluate: required approvers', () => {
           { memberId: 'mem_dean', shareMinor: 4500 },
           { memberId: 'mem_henry', shareMinor: 4500 },
         ],
-        attendees: ['mem_dean', 'mem_sam'],
+        attendees: ['mem_dean', 'mem_crowley'],
       }),
       policy(),
       context(),
@@ -935,8 +956,8 @@ describe('evaluate: required approvers', () => {
       kind: 'lodging',
       ageRestriction: null,
       contentTags: ['family'],
-      requestedBy: 'mem_sam',
-      paidBy: { kind: 'member_card', memberId: 'mem_sam' },
+      requestedBy: 'mem_crowley',
+      paidBy: { kind: 'member_card', memberId: 'mem_crowley' },
       payers: [
         { memberId: 'mem_kid', shareMinor: 4500 },
         { memberId: 'mem_leo', shareMinor: 4500 },
@@ -944,7 +965,7 @@ describe('evaluate: required approvers', () => {
       attendees: ['mem_kid', 'mem_leo'],
     });
     const viaRequester = evaluate(p, policy(), context({ members: views(members) }));
-    expect(viaRequester.requiredApprovers).toEqual(['mem_sam', 'mem_leo']);
+    expect(viaRequester.requiredApprovers).toEqual(['mem_crowley', 'mem_leo']);
 
     const viaPool = evaluate(
       { ...p, requestedBy: 'mem_stranger' },
@@ -1012,7 +1033,7 @@ describe('evaluate: C10 card owner must approve (T-148, D-030)', () => {
     const caps = [0, 1, 1499, 1500, 1501, 10000, 1_000_000];
     const cards: BookingProposal['paidBy'][] = [
       { kind: 'member_card', memberId: 'mem_dean' }, // guardian
-      { kind: 'member_card', memberId: 'mem_sam' }, // another adult
+      { kind: 'member_card', memberId: 'mem_crowley' }, // another adult
       { kind: 'member_card', memberId: 'mem_kid' }, // her own
       { kind: 'per_person_cards' },
     ];
@@ -1054,11 +1075,11 @@ describe('evaluate: C10 card owner must approve (T-148, D-030)', () => {
 
   it("a minor's ask on another adult's card: that adult approves, not the guardian", () => {
     const d = evaluate(
-      kidAsk({ paidBy: { kind: 'member_card', memberId: 'mem_sam' } }),
+      kidAsk({ paidBy: { kind: 'member_card', memberId: 'mem_crowley' } }),
       wideOpen(),
       context(),
     );
-    expect(d.requiredApprovers).toEqual(['mem_sam']);
+    expect(d.requiredApprovers).toEqual(['mem_crowley']);
   });
 
   it("a minor's ask on her own card: her guardian stands in for the card owner", () => {
@@ -1077,19 +1098,19 @@ describe('evaluate: C10 card owner must approve (T-148, D-030)', () => {
   it("a minor's ask on per-person cards is each_payer: every adult payer must 👍", () => {
     const d = evaluate(
       kidAsk({
-        payers: equalShares(['mem_dean', 'mem_sam'], 750),
-        attendees: ['mem_kid', 'mem_sam'],
+        payers: equalShares(['mem_dean', 'mem_crowley'], 750),
+        attendees: ['mem_kid', 'mem_crowley'],
         paidBy: { kind: 'per_person_cards' },
       }),
       wideOpen(),
       context(),
     );
     expect(d.approvalMode).toBe('each_payer');
-    expect(d.requiredApprovers).toEqual(['mem_dean', 'mem_sam']);
+    expect(d.requiredApprovers).toEqual(['mem_dean', 'mem_crowley']);
   });
 
   it("an adult asking on another adult's card never auto-approves; exactly at the cap is still held", () => {
-    const p = razzmatazz({ requestedBy: 'mem_sam' }); // Dean's card, €90, €18 each
+    const p = razzmatazz({ requestedBy: 'mem_crowley' }); // Dean's card, €90, €18 each
     const d = evaluate(
       p,
       wideOpen({ autoApproveCapMinor: 9000, perPersonAutoCapMinor: 1800 }),
@@ -1098,9 +1119,9 @@ describe('evaluate: C10 card owner must approve (T-148, D-030)', () => {
     expect(d.outcome).toBe('needs_confirmation');
     expect(d.reasons).toEqual(['card_not_requester']);
     expect(d.requiredApprovers).toEqual(['mem_dean']);
-    // the same ask on Sam's own card, exactly at the caps, auto-approves
+    // the same ask on Crowley's own card, exactly at the caps, auto-approves
     const own = evaluate(
-      { ...p, paidBy: { kind: 'member_card', memberId: 'mem_sam' } },
+      { ...p, paidBy: { kind: 'member_card', memberId: 'mem_crowley' } },
       wideOpen({ autoApproveCapMinor: 9000, perPersonAutoCapMinor: 1800 }),
       context(),
     );
@@ -1111,21 +1132,21 @@ describe('evaluate: C10 card owner must approve (T-148, D-030)', () => {
     const d = evaluate(
       razzmatazz({
         kind: 'flight',
-        requestedBy: 'mem_sam',
-        payers: equalShares(['mem_sam', 'mem_ava'], 4500),
-        attendees: ['mem_sam', 'mem_ava'],
+        requestedBy: 'mem_crowley',
+        payers: equalShares(['mem_crowley', 'mem_ava'], 4500),
+        attendees: ['mem_crowley', 'mem_ava'],
       }),
       wideOpen(),
       context(),
     );
     expect(d.approvalMode).toBe('each_payer');
-    expect(d.requiredApprovers).toEqual(['mem_sam', 'mem_ava', 'mem_dean']);
+    expect(d.requiredApprovers).toEqual(['mem_crowley', 'mem_ava', 'mem_dean']);
   });
 
   it('a card owner who is not a member leaves the any_one parties (never empty, never auto)', () => {
     const d = evaluate(
       razzmatazz({
-        requestedBy: 'mem_sam',
+        requestedBy: 'mem_crowley',
         paidBy: { kind: 'member_card', memberId: 'mem_nobody' },
       }),
       wideOpen({ autoApproveCapMinor: 20000 }),
@@ -1187,7 +1208,7 @@ describe('POLICY_RULES', () => {
       attendees: ['mem_kid'],
     });
     run({ paidBy: { kind: 'per_person_cards' } });
-    run({ requestedBy: 'mem_sam' });
+    run({ requestedBy: 'mem_crowley' });
     run({
       requestedBy: 'mem_kid',
       ageRestriction: null,

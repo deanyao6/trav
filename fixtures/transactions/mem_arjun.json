@@ -1,6 +1,6 @@
 {
   "fixtureVersion": 1,
-  "ownerMemberId": "mem_priya",
+  "ownerMemberId": "mem_arjun",
   "groupId": "grp_barcelona",
   "tripId": "trip_barcelona",
   "consentInScenario": {
@@ -8,8 +8,8 @@
   },
   "accounts": [
     {
-      "accountId": "acc_priya_cs",
-      "ownerMemberId": "mem_priya",
+      "accountId": "acc_arjun_cs",
+      "ownerMemberId": "mem_arjun",
       "institutionName": "Capitol Student Visa (fictional)",
       "mask": "1187",
       "type": "credit",
@@ -23,9 +23,9 @@
       "result": {
         "added": [
           {
-            "transactionId": "txn_priya_home_07",
-            "accountId": "acc_priya_cs",
-            "ownerMemberId": "mem_priya",
+            "transactionId": "txn_arjun_home_07",
+            "accountId": "acc_arjun_cs",
+            "ownerMemberId": "mem_arjun",
             "amount": {
               "amountMinor": 3624,
               "currency": "USD"
@@ -58,9 +58,9 @@
             ]
           },
           {
-            "transactionId": "txn_priya_home_03",
-            "accountId": "acc_priya_cs",
-            "ownerMemberId": "mem_priya",
+            "transactionId": "txn_arjun_home_03",
+            "accountId": "acc_arjun_cs",
+            "ownerMemberId": "mem_arjun",
             "amount": {
               "amountMinor": 8289,
               "currency": "USD"
@@ -93,9 +93,9 @@
             ]
           },
           {
-            "transactionId": "txn_priya_home_01",
-            "accountId": "acc_priya_cs",
-            "ownerMemberId": "mem_priya",
+            "transactionId": "txn_arjun_home_01",
+            "accountId": "acc_arjun_cs",
+            "ownerMemberId": "mem_arjun",
             "amount": {
               "amountMinor": 653,
               "currency": "USD"
@@ -128,9 +128,9 @@
             ]
           },
           {
-            "transactionId": "txn_priya_home_06",
-            "accountId": "acc_priya_cs",
-            "ownerMemberId": "mem_priya",
+            "transactionId": "txn_arjun_home_06",
+            "accountId": "acc_arjun_cs",
+            "ownerMemberId": "mem_arjun",
             "amount": {
               "amountMinor": 3259,
               "currency": "USD"
@@ -163,9 +163,9 @@
             ]
           },
           {
-            "transactionId": "txn_priya_home_05",
-            "accountId": "acc_priya_cs",
-            "ownerMemberId": "mem_priya",
+            "transactionId": "txn_arjun_home_05",
+            "accountId": "acc_arjun_cs",
+            "ownerMemberId": "mem_arjun",
             "amount": {
               "amountMinor": 731,
               "currency": "USD"
@@ -198,9 +198,9 @@
             ]
           },
           {
-            "transactionId": "txn_priya_home_02",
-            "accountId": "acc_priya_cs",
-            "ownerMemberId": "mem_priya",
+            "transactionId": "txn_arjun_home_02",
+            "accountId": "acc_arjun_cs",
+            "ownerMemberId": "mem_arjun",
             "amount": {
               "amountMinor": 5579,
               "currency": "USD"
@@ -233,9 +233,9 @@
             ]
           },
           {
-            "transactionId": "txn_priya_home_04",
-            "accountId": "acc_priya_cs",
-            "ownerMemberId": "mem_priya",
+            "transactionId": "txn_arjun_home_04",
+            "accountId": "acc_arjun_cs",
+            "ownerMemberId": "mem_arjun",
             "amount": {
               "amountMinor": 1257,
               "currency": "USD"
@@ -268,9 +268,9 @@
             ]
           },
           {
-            "transactionId": "txn_priya_groceries_0312",
-            "accountId": "acc_priya_cs",
-            "ownerMemberId": "mem_priya",
+            "transactionId": "txn_arjun_groceries_0312",
+            "accountId": "acc_arjun_cs",
+            "ownerMemberId": "mem_arjun",
             "amount": {
               "amountMinor": 5102,
               "currency": "USD"
@@ -303,9 +303,9 @@
             ]
           },
           {
-            "transactionId": "txn_priya_uber_0314",
-            "accountId": "acc_priya_cs",
-            "ownerMemberId": "mem_priya",
+            "transactionId": "txn_arjun_uber_0314",
+            "accountId": "acc_arjun_cs",
+            "ownerMemberId": "mem_arjun",
             "amount": {
               "amountMinor": 1999,
               "currency": "USD"
@@ -338,9 +338,9 @@
             ]
           },
           {
-            "transactionId": "txn_priya_gelato_0314",
-            "accountId": "acc_priya_cs",
-            "ownerMemberId": "mem_priya",
+            "transactionId": "txn_arjun_gelato_0314",
+            "accountId": "acc_arjun_cs",
+            "ownerMemberId": "mem_arjun",
             "amount": {
               "amountMinor": 484,
               "currency": "USD"
@@ -373,9 +373,9 @@
             ]
           },
           {
-            "transactionId": "txn_priya_pastries_0315",
-            "accountId": "acc_priya_cs",
-            "ownerMemberId": "mem_priya",
+            "transactionId": "txn_arjun_pastries_0315",
+            "accountId": "acc_arjun_cs",
+            "ownerMemberId": "mem_arjun",
             "amount": {
               "amountMinor": 1591,
               "currency": "USD"
@@ -408,9 +408,9 @@
             ]
           },
           {
-            "transactionId": "txn_priya_pharmacy_0315",
-            "accountId": "acc_priya_cs",
-            "ownerMemberId": "mem_priya",
+            "transactionId": "txn_arjun_pharmacy_0315",
+            "accountId": "acc_arjun_cs",
+            "ownerMemberId": "mem_arjun",
             "amount": {
               "amountMinor": 1526,
               "currency": "USD"
@@ -445,18 +445,18 @@
         ],
         "modified": [],
         "removed": [],
-        "nextCursor": "cur_priya_1",
+        "nextCursor": "cur_arjun_1",
         "hasMore": true
       }
     },
     {
-      "requestCursor": "cur_priya_1",
+      "requestCursor": "cur_arjun_1",
       "result": {
         "added": [
           {
-            "transactionId": "txn_priya_picasso_0316",
-            "accountId": "acc_priya_cs",
-            "ownerMemberId": "mem_priya",
+            "transactionId": "txn_arjun_picasso_0316",
+            "accountId": "acc_arjun_cs",
+            "ownerMemberId": "mem_arjun",
             "amount": {
               "amountMinor": 1615,
               "currency": "USD"
@@ -489,9 +489,9 @@
             ]
           },
           {
-            "transactionId": "txn_priya_home_09",
-            "accountId": "acc_priya_cs",
-            "ownerMemberId": "mem_priya",
+            "transactionId": "txn_arjun_home_09",
+            "accountId": "acc_arjun_cs",
+            "ownerMemberId": "mem_arjun",
             "amount": {
               "amountMinor": 2900,
               "currency": "USD"
@@ -524,9 +524,9 @@
             ]
           },
           {
-            "transactionId": "txn_priya_home_08",
-            "accountId": "acc_priya_cs",
-            "ownerMemberId": "mem_priya",
+            "transactionId": "txn_arjun_home_08",
+            "accountId": "acc_arjun_cs",
+            "ownerMemberId": "mem_arjun",
             "amount": {
               "amountMinor": 1199,
               "currency": "USD"
@@ -561,76 +561,76 @@
         ],
         "modified": [],
         "removed": [],
-        "nextCursor": "cur_priya_2",
+        "nextCursor": "cur_arjun_2",
         "hasMore": false
       }
     }
   ],
   "labels": {
-    "txn_priya_home_01": {
+    "txn_arjun_home_01": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "Bean Theory Coffee at home (Washington), outside the trip"
     },
-    "txn_priya_home_02": {
+    "txn_arjun_home_02": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "PayPeer at home (Washington), outside the trip"
     },
-    "txn_priya_home_03": {
+    "txn_arjun_home_03": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "CampusBooks at home (Washington), outside the trip"
     },
-    "txn_priya_home_04": {
+    "txn_arjun_home_04": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "Corner Slice Pizza at home (Washington), outside the trip"
     },
-    "txn_priya_home_05": {
+    "txn_arjun_home_05": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "Bean Theory Coffee at home (Washington), outside the trip"
     },
-    "txn_priya_home_06": {
+    "txn_arjun_home_06": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "DashDinner at home (Washington), outside the trip"
     },
-    "txn_priya_home_07": {
+    "txn_arjun_home_07": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "FuelUp at home (Washington), outside the trip"
     },
-    "txn_priya_home_08": {
+    "txn_arjun_home_08": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "Streamly at home (Washington), outside the trip"
     },
-    "txn_priya_home_09": {
+    "txn_arjun_home_09": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "home_noise",
       "tripId": null,
       "reason": "PulseFit at home (Washington), outside the trip"
     },
-    "txn_priya_groceries_0312": {
+    "txn_arjun_groceries_0312": {
       "expectedShared": true,
       "expectedPrompt": false,
       "kind": "trip_shared_duplicate",
@@ -644,13 +644,13 @@
       "fxRate": "1.0764",
       "fxAsOf": "2026-03-12"
     },
-    "txn_priya_uber_0314": {
+    "txn_arjun_uber_0314": {
       "expectedShared": true,
       "expectedPrompt": false,
       "kind": "trip_shared_duplicate",
       "tripId": "trip_barcelona",
-      "duplicateOf": "email: em_bcn_priya_uber_0314",
-      "reason": "same ride as the email receipt Priya already shared",
+      "duplicateOf": "email: em_bcn_arjun_uber_0314",
+      "reason": "same ride as the email receipt Arjun already shared",
       "originalAmount": {
         "amountMinor": 1860,
         "currency": "EUR"
@@ -658,7 +658,7 @@
       "fxRate": "1.0749",
       "fxAsOf": "2026-03-13"
     },
-    "txn_priya_gelato_0314": {
+    "txn_arjun_gelato_0314": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "trip_personal",
@@ -671,7 +671,7 @@
       "fxRate": "1.0749",
       "fxAsOf": "2026-03-13"
     },
-    "txn_priya_pastries_0315": {
+    "txn_arjun_pastries_0315": {
       "expectedShared": true,
       "expectedPrompt": true,
       "kind": "trip_shared",
@@ -679,10 +679,10 @@
       "suggestedParticipants": [
         "mem_dean",
         "mem_henry",
-        "mem_maya",
-        "mem_jordan",
-        "mem_priya",
-        "mem_sam"
+        "mem_chase",
+        "mem_piotr",
+        "mem_arjun",
+        "mem_crowley"
       ],
       "reason": "pastries for everyone at the apartment (never mentioned in chat)",
       "originalAmount": {
@@ -692,12 +692,12 @@
       "fxRate": "1.0749",
       "fxAsOf": "2026-03-13"
     },
-    "txn_priya_pharmacy_0315": {
+    "txn_arjun_pharmacy_0315": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "trip_personal",
       "tripId": "trip_barcelona",
-      "reason": "personal pharmacy order (same as em_bcn_priya_pharmacy)",
+      "reason": "personal pharmacy order (same as em_bcn_arjun_pharmacy)",
       "sensitive": true,
       "originalAmount": {
         "amountMinor": 1420,
@@ -706,7 +706,7 @@
       "fxRate": "1.0749",
       "fxAsOf": "2026-03-13"
     },
-    "txn_priya_picasso_0316": {
+    "txn_arjun_picasso_0316": {
       "expectedShared": false,
       "expectedPrompt": false,
       "kind": "trip_personal",

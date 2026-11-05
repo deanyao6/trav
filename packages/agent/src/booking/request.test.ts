@@ -97,8 +97,8 @@ describe('parseBookingRequest: the Barcelona asks', () => {
   it('"for me" names the sender; "everyone but X" and "X\'s out" exclude by name', () => {
     expect(parse('razzmatazz for me', 'Henry')?.attendeeNames).toEqual(['Henry']);
     expect(parse('get razz tickets for everyone but Henry')?.excludedNames).toEqual(['Henry']);
-    expect(parse("grab razz tix for us, maya's out")?.excludedNames).toEqual(['Maya']);
-    expect(parse("get razz tickets for 5, i'm out", 'Sam')?.excludedNames).toEqual(['Sam']);
+    expect(parse("grab razz tix for us, chase's out")?.excludedNames).toEqual(['Chase']);
+    expect(parse("get razz tickets for 5, i'm out", 'Crowley')?.excludedNames).toEqual(['Crowley']);
     // A pronoun is never a name.
     expect(parse("get razz tickets for everyone but Henry, he's sick")?.excludedNames).toEqual([
       'Henry',
@@ -108,15 +108,18 @@ describe('parseBookingRequest: the Barcelona asks', () => {
 });
 
 describe('T-081 r1 review repros', () => {
-  it('#2 "for me and Maya" and friends name the sender plus those names; a headcount with words between', () => {
-    expect(parse('get razz tickets for me and Maya')?.attendeeNames).toEqual(['Dean', 'Maya']);
-    expect(parse('get razz tickets for just me and sam')?.attendeeNames).toEqual(['Dean', 'Sam']);
-    expect(parse('get razz tickets for me, maya and sam')?.attendeeNames).toEqual([
+  it('#2 "for me and Chase" and friends name the sender plus those names; a headcount with words between', () => {
+    expect(parse('get razz tickets for me and Chase')?.attendeeNames).toEqual(['Dean', 'Chase']);
+    expect(parse('get razz tickets for just me and crowley')?.attendeeNames).toEqual([
       'Dean',
-      'Maya',
-      'Sam',
+      'Crowley',
     ]);
-    expect(parse('get me and maya razz tickets')?.attendeeNames).toEqual(['Dean', 'Maya']);
+    expect(parse('get razz tickets for me, chase and crowley')?.attendeeNames).toEqual([
+      'Dean',
+      'Chase',
+      'Crowley',
+    ]);
+    expect(parse('get me and chase razz tickets')?.attendeeNames).toEqual(['Dean', 'Chase']);
     expect(parse("casino night tonight for me and dad? we're both 21+")).toMatchObject({
       attendeeNames: ['Dean', 'Dad'],
       day: 'tonight',
@@ -183,7 +186,7 @@ describe('T-081 r1 review repros', () => {
     'get the 5 of us razz tickets, hold off till henry confirms',
     'get razz tickets for all of us, not yet though',
     'not yet, but get razz tickets for all of us',
-    'get razz tickets for 5. no need to rush, wait on maya',
+    'get razz tickets for 5. no need to rush, wait on chase',
     'get razz tickets for all of us, dont count on it',
     "get razz tickets for all of us, he doesn't want to come",
   ])('T-148 r1 #1 a negation in any clause takes the ask back: %s', (text) => {
@@ -192,7 +195,7 @@ describe('T-081 r1 review repros', () => {
 
   it.each([
     ["henry doesn't want to come, get the 5 of us razz tickets", ['Henry']],
-    ["get razz tickets for all of us, don't include henry or maya", ['Henry', 'Maya']],
+    ["get razz tickets for all of us, don't include henry or chase", ['Henry', 'Chase']],
     ['get razz tickets for all of us, not counting henry', ['Henry']],
   ] as const)('T-148 r1 #1 a negation that governs a name is an exclusion: %s', (text, out) => {
     expect(parse(text)?.excludedNames).toEqual(out);
@@ -205,11 +208,11 @@ describe('T-081 r1 review repros', () => {
     expect(parse("get razz tickets for 5 but not henry, he's sick")?.excludedNames).toEqual([
       'Henry',
     ]);
-    expect(parse('get razz tickets for everyone, dont count me', 'Sam')?.excludedNames).toEqual([
-      'Sam',
-    ]);
-    expect(parse('get razz tickets for everyone, leave me out', 'Sam')?.excludedNames).toEqual([
-      'Sam',
+    expect(parse('get razz tickets for everyone, dont count me', 'Crowley')?.excludedNames).toEqual(
+      ['Crowley'],
+    );
+    expect(parse('get razz tickets for everyone, leave me out', 'Crowley')?.excludedNames).toEqual([
+      'Crowley',
     ]);
   });
 
@@ -258,9 +261,9 @@ describe('T-081 r1 review repros', () => {
 
   it('T-148 #6 not/my/our/his/her/their are never names; "but not X" excludes X', () => {
     expect(parse('get razz tickets for us but not henry')?.excludedNames).toEqual(['Henry']);
-    expect(parse('get razz tickets for 5 but not henry or maya')?.excludedNames).toEqual([
+    expect(parse('get razz tickets for 5 but not henry or chase')?.excludedNames).toEqual([
       'Henry',
-      'Maya',
+      'Chase',
     ]);
     // "my brother" isn't a member name: no guess, so not an ask (like "the kids").
     expect(parse('get razz tickets for me and my brother')).toBeUndefined();
@@ -278,31 +281,31 @@ describe('T-081 r1 review repros', () => {
   });
 
   it('#9 "but" excludes only after a whole-group word', () => {
-    expect(parse("get razz tickets, Henry's out but Maya might join")?.excludedNames).toEqual([
+    expect(parse("get razz tickets, Henry's out but Chase might join")?.excludedNames).toEqual([
       'Henry',
     ]);
-    expect(parse('get razz tickets for all of us but Maya')?.excludedNames).toEqual(['Maya']);
+    expect(parse('get razz tickets for all of us but Chase')?.excludedNames).toEqual(['Chase']);
   });
 });
 
 describe('T-158: the flagship ask in other words', () => {
   it('the three asks from the eval: intent, a named list with "me", "minus X", "not X, <reason>"', () => {
     expect(
-      parse('we need razzmatazz entry tonight for dean maya jordan sam and me', 'Priya'),
+      parse('we need razzmatazz entry tonight for dean chase piotr crowley and me', 'Arjun'),
     ).toMatchObject({
       query: 'razzmatazz tickets',
-      attendeeNames: ['Priya', 'Dean', 'Maya', 'Jordan', 'Sam'],
+      attendeeNames: ['Arjun', 'Dean', 'Chase', 'Piotr', 'Crowley'],
       excludedNames: [],
       day: 'tonight',
     });
-    expect(parse('pick up razzmatazz passes for us tonight minus henry', 'Jordan')).toMatchObject({
+    expect(parse('pick up razzmatazz passes for us tonight minus henry', 'Piotr')).toMatchObject({
       query: 'razzmatazz tickets',
       excludedNames: ['Henry'],
       day: 'tonight',
     });
     const r = parse(
       'can you sort razzmatazz for 5 of us tonight? not henry, he is feeling rough',
-      'Sam',
+      'Crowley',
     )!;
     expect(r).toMatchObject({ quantity: 5, excludedNames: ['Henry'], day: 'tonight' });
     expect(JSON.stringify(r).replace(r.requestText, '')).not.toMatch(/rough|feeling/i);
@@ -320,7 +323,7 @@ describe('T-158: the flagship ask in other words', () => {
     'hook us up with razzmatazz entry',
     "we'd like razzmatazz entry for us tonight",
     'we want 5 razz tickets tonight',
-    'i want razz tickets for maya and me please',
+    'i want razz tickets for chase and me please',
     'purchase razz tickets for tonight',
     'secure razz tix for tonight',
     // A soft verb with the venue and the whole party, no ticket word.
@@ -336,19 +339,19 @@ describe('T-158: the flagship ask in other words', () => {
     ['get razz tix for everyone except for henry', ['Henry']],
     ['grab razz tickets for all of us other than henry', ['Henry']],
     ['book razz for us tonight. not henry though', ['Henry']],
-    ['book razz for all of us; not henry or sam', ['Henry', 'Sam']],
+    ['book razz for all of us; not henry or crowley', ['Henry', 'Crowley']],
     ['we need 5 razz tickets, henry is sitting this one out', ['Henry']],
     ['can you line up razzmatazz tickets tonight, henry is under the weather', ['Henry']],
     ["get the 5 of us razz tickets, henry's feeling rough", ['Henry']],
     ["we'd like razzmatazz entry for all of us tonight, henry's not coming", ['Henry']],
     ['get razz tickets for all of us, and henry is hungover', ['Henry']],
     ['sort us out with razz tickets, leave out henry', ['Henry']],
-    ['set us up with razz tickets for tonight minus henry and sam', ['Henry', 'Sam']],
+    ['set us up with razz tickets for tonight minus henry and crowley', ['Henry', 'Crowley']],
     ['get razz tickets for everyone without me', ['Dean']],
     ["we need razz entry for five tonight, henry's out sick", ['Henry']],
     ["sort razzmatazz for us tonight, not henry - he's wiped", ['Henry']],
     ['henry is under the weather so we need 5 razz tickets', ['Henry']],
-    ['maya and henry are sick so get razz tickets for the rest', ['Maya', 'Henry']],
+    ['chase and henry are sick so get razz tickets for the rest', ['Chase', 'Henry']],
     ['get razz tickets for us, me and henry are out', ['Dean', 'Henry']],
     ["could you sort out razzmatazz passes for the five of us? henry's bailing", ['Henry']],
   ] as const)('an exclusion, name only: %s', (text, out) => {
@@ -360,9 +363,9 @@ describe('T-158: the flagship ask in other words', () => {
   });
 
   it('"i\'m feeling rough" is the sender; "not sure" / "not really" are never names', () => {
-    expect(parse('get razz tickets for everyone, im feeling rough', 'Sam')?.excludedNames).toEqual([
-      'Sam',
-    ]);
+    expect(
+      parse('get razz tickets for everyone, im feeling rough', 'Crowley')?.excludedNames,
+    ).toEqual(['Crowley']);
     for (const tail of ['not sure', 'not really', 'not again', 'not bad', 'not too late']) {
       expect(
         parse(`get razz tickets for all of us tonight. ${tail}`)?.excludedNames ?? [],
@@ -382,14 +385,14 @@ describe('T-158: the flagship ask in other words', () => {
 
   it.each([
     [
-      'grab razzmatazz entry for maya, jordan, sam, dean and me',
-      'Priya',
-      ['Priya', 'Maya', 'Jordan', 'Sam', 'Dean'],
+      'grab razzmatazz entry for chase, piotr, crowley, dean and me',
+      'Arjun',
+      ['Arjun', 'Chase', 'Piotr', 'Crowley', 'Dean'],
     ],
-    ['get razz tickets for maya and sam', 'Priya', ['Maya', 'Sam']],
-    ['get razz tickets for maya & sam tonight', 'Priya', ['Maya', 'Sam']],
-    ['get razz tickets for maya', 'Priya', ['Maya']],
-    ['get razz tickets for henry and maya too', 'Priya', ['Henry', 'Maya']],
+    ['get razz tickets for chase and crowley', 'Arjun', ['Chase', 'Crowley']],
+    ['get razz tickets for chase & crowley tonight', 'Arjun', ['Chase', 'Crowley']],
+    ['get razz tickets for chase', 'Arjun', ['Chase']],
+    ['get razz tickets for henry and chase too', 'Arjun', ['Henry', 'Chase']],
   ] as const)('a "for <names>" list names exactly them: %s', (text, sender, names) => {
     expect(parse(text, sender)?.attendeeNames).toEqual(names);
   });
@@ -415,16 +418,16 @@ describe('T-158: the flagship ask in other words', () => {
       parse('get razz tickets for all 6, a spot for henry too')?.attendeeNames,
     ).toBeUndefined();
     // A night or the venue before the list is skipped.
-    expect(parse('get tickets for razz for maya and me', 'Priya')?.attendeeNames).toEqual([
-      'Priya',
-      'Maya',
+    expect(parse('get tickets for razz for chase and me', 'Arjun')?.attendeeNames).toEqual([
+      'Arjun',
+      'Chase',
     ]);
-    expect(parse('get razz tickets for tonight for maya and sam')?.attendeeNames).toEqual([
-      'Maya',
-      'Sam',
+    expect(parse('get razz tickets for tonight for chase and crowley')?.attendeeNames).toEqual([
+      'Chase',
+      'Crowley',
     ]);
     // A list whose "and" leads to a non-name is not guessed at.
-    expect(parse('we need razz tickets for maya and the kids')).toBeUndefined();
+    expect(parse('we need razz tickets for chase and the kids')).toBeUndefined();
   });
 
   it.each([
@@ -472,19 +475,19 @@ describe('T-158: the flagship ask in other words', () => {
     // T-158 r1 #2: a soft verb whose clause has words that aren't the ask.
     'we need razz passes printed',
     'we need 5 razz passes printed',
-    'need razz passes from sam, he has them',
-    'need razz passes from sam',
+    'need razz passes from crowley, he has them',
+    'need razz passes from crowley',
     'we need razz tickets lol jk',
     'we need razz tickets lol',
     'get razz tickets lol jk',
     'jk we need razz tickets for all of us',
-    'we need razz tickets, sam has them',
+    'we need razz tickets, crowley has them',
     "we need razz tickets for everyone, henry's got them",
     'get razz passes printed',
-    'grab the razz tix from sam',
+    'grab the razz tix from crowley',
     'get razz tickets off henry',
     'we need razz tickets sent to everyone',
-    'we need razz tickets forwarded to maya',
+    'we need razz tickets forwarded to chase',
     'need razz entry back from henry',
     'we need razz tickets more than sleep',
     'we need razz tickets badly lol',
@@ -504,9 +507,9 @@ describe('T-158: the flagship ask in other words', () => {
     'we should probably get razz tickets for everyone',
     'pick up razz passes for 5 of us later maybe',
     'idk get razz tickets for the 5 of us?',
-    'we need razz tickets for us, maya has them',
+    'we need razz tickets for us, chase has them',
     'sort razzmatazz for us tonight, henry has them',
-    'get razz tickets for us. sam already bought them',
+    'get razz tickets for us. crowley already bought them',
     'we need razz tickets for everyone who is coming',
   ])('ordinary chat is never a booking: %s', (text) => {
     expect(parse(text)).toBeUndefined();
@@ -515,25 +518,25 @@ describe('T-158: the flagship ask in other words', () => {
 });
 
 /** The Barcelona six, as the offline responder reads them off the prompt. */
-const BCN = ['Dean', 'Henry', 'Maya', 'Jordan', 'Priya', 'Sam'] as const;
+const BCN = ['Dean', 'Henry', 'Chase', 'Piotr', 'Arjun', 'Crowley'] as const;
 /** Anything that says why someone is out, or a verb: never a name. */
 const REASON_WORD =
   /^(?:sick|ill|unwell|rough|hungover|tired|feeling|is|are|was|has|have|out|home|coming|going|staying|lol|jk|he|she|they)$/i;
 
 describe('T-158 r1 #1: a "for …" list ends where the names end', () => {
   it.each([
-    ['get razz tickets for maya and sam, henry is sick', ['Maya', 'Sam']],
-    ['get razz tickets for maya and sam henry is sick', ['Maya', 'Sam']],
-    ["get razz tickets for maya and sam, henry's sick", ['Maya', 'Sam']],
-    ['get razz tickets for maya and sam, and henry is sick', ['Maya', 'Sam']],
-    ['get razz tickets for maya, sam, henry is feeling rough', ['Maya', 'Sam']],
-    ['get razz tickets for maya, sam, henry stays home', ['Maya', 'Sam']],
-    ['get razz tickets for maya and sam - henry is out', ['Maya', 'Sam']],
-    ['we need razz entry for maya and jordan, henry is hungover', ['Maya', 'Jordan']],
+    ['get razz tickets for chase and crowley, henry is sick', ['Chase', 'Crowley']],
+    ['get razz tickets for chase and crowley henry is sick', ['Chase', 'Crowley']],
+    ["get razz tickets for chase and crowley, henry's sick", ['Chase', 'Crowley']],
+    ['get razz tickets for chase and crowley, and henry is sick', ['Chase', 'Crowley']],
+    ['get razz tickets for chase, crowley, henry is feeling rough', ['Chase', 'Crowley']],
+    ['get razz tickets for chase, crowley, henry stays home', ['Chase', 'Crowley']],
+    ['get razz tickets for chase and crowley - henry is out', ['Chase', 'Crowley']],
+    ['we need razz entry for chase and piotr, henry is hungover', ['Chase', 'Piotr']],
     ['get razz tickets for me, henry is sick', ['Dean']],
-    ['get razz tickets for me and maya, henry is sick', ['Dean', 'Maya']],
-    ['get razz tickets for maya and sam, he is sick', ['Maya', 'Sam']],
-    ['get razz tickets for maya and sam tonight, henry is sick', ['Maya', 'Sam']],
+    ['get razz tickets for me and chase, henry is sick', ['Dean', 'Chase']],
+    ['get razz tickets for chase and crowley, he is sick', ['Chase', 'Crowley']],
+    ['get razz tickets for chase and crowley tonight, henry is sick', ['Chase', 'Crowley']],
   ] as const)('%s', (text, names) => {
     for (const r of [parse(text), parseBookingRequest(text, INDEX, 'Dean', { roster: BCN })]) {
       expect(r?.attendeeNames, text).toEqual(names);
@@ -543,18 +546,18 @@ describe('T-158 r1 #1: a "for …" list ends where the names end', () => {
 
   it('no reason word or verb ever lands in attendeeNames, with or without the roster', () => {
     const asks = [
-      'get razz tickets for maya and sam, henry is sick',
-      'get razz tickets for maya and sam henry is sick',
-      'get razz tickets for maya sam henry is sick lol',
-      'grab razzmatazz entry for maya, jordan, sam, dean and me, henry has been sick',
-      'we need razzmatazz entry tonight for dean maya jordan sam and me, henry is feeling rough',
-      'pick up razz passes for jordan and priya, henry is out, sam is tired',
-      'get razz tickets for dean maya and jordan they are going',
-      'get razz tickets for maya and sam since henry is sick',
-      'get razz tickets for maya and sam because henry is unwell',
+      'get razz tickets for chase and crowley, henry is sick',
+      'get razz tickets for chase and crowley henry is sick',
+      'get razz tickets for chase crowley henry is sick lol',
+      'grab razzmatazz entry for chase, piotr, crowley, dean and me, henry has been sick',
+      'we need razzmatazz entry tonight for dean chase piotr crowley and me, henry is feeling rough',
+      'pick up razz passes for piotr and arjun, henry is out, crowley is tired',
+      'get razz tickets for dean chase and piotr they are going',
+      'get razz tickets for chase and crowley since henry is sick',
+      'get razz tickets for chase and crowley because henry is unwell',
     ];
     for (const text of asks) {
-      for (const r of [parse(text), parseBookingRequest(text, INDEX, 'Priya', { roster: BCN })]) {
+      for (const r of [parse(text), parseBookingRequest(text, INDEX, 'Arjun', { roster: BCN })]) {
         for (const n of r?.attendeeNames ?? []) {
           expect(n, text).not.toMatch(REASON_WORD);
           expect(BCN as readonly string[], `${text}: ${n}`).toContain(n);
@@ -564,20 +567,23 @@ describe('T-158 r1 #1: a "for …" list ends where the names end', () => {
   });
 
   it('with the roster known, only members are listed and a non-member ends the list', () => {
-    const r = (text: string, sender = 'Priya') =>
+    const r = (text: string, sender = 'Arjun') =>
       parseBookingRequest(text, INDEX, sender, { roster: BCN });
     expect(
-      r('we need razzmatazz entry tonight for dean maya jordan sam and me')?.attendeeNames,
-    ).toEqual(['Priya', 'Dean', 'Maya', 'Jordan', 'Sam']);
+      r('we need razzmatazz entry tonight for dean chase piotr crowley and me')?.attendeeNames,
+    ).toEqual(['Arjun', 'Dean', 'Chase', 'Piotr', 'Crowley']);
     // "tickets" for a non-member after a list: the list stops at the members.
-    expect(r('get razz tickets for maya sam henry stays in')?.attendeeNames).toEqual([
-      'Maya',
-      'Sam',
+    expect(r('get razz tickets for chase crowley henry stays in')?.attendeeNames).toEqual([
+      'Chase',
+      'Crowley',
     ]);
     // A non-member joined by "and" is never guessed at.
-    expect(r('get razz tickets for maya and zed')).toBeUndefined();
-    // Roster spelling wins ("MAYA" ⇒ "Maya").
-    expect(r('get razz tickets for MAYA and SAM')?.attendeeNames).toEqual(['Maya', 'Sam']);
+    expect(r('get razz tickets for chase and zed')).toBeUndefined();
+    // Roster spelling wins ("CHASE" ⇒ "Chase").
+    expect(r('get razz tickets for CHASE and CROWLEY')?.attendeeNames).toEqual([
+      'Chase',
+      'Crowley',
+    ]);
   });
 });
 

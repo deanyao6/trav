@@ -411,7 +411,7 @@ function matchRidersAnswer(
   if (event.replyToMessageId !== undefined && quoted === undefined) return undefined;
   const members = stores.group.members.listByGroup(input.groupId);
   const target = quoted ?? rideCards[0]!;
-  // A card that proposed a split is the base for "not jordan" / "maya not jordan".
+  // A card that proposed a split is the base for "not piotr" / "chase not piotr".
   const base = target.ridersToName !== undefined ? undefined : target.suggestedParticipants;
   const read = parseRiderNames(event.text, members, me.memberId, base);
   if (read.kind === 'none' && (quoted === undefined || quoted.ridersToName === undefined)) {

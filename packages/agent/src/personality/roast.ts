@@ -1,5 +1,5 @@
 /**
- * On-demand roast requests ("@trav roast Jordan for the kebabs", T-017;
+ * On-demand roast requests ("@trav roast Piotr for the kebabs", T-017;
  * VOICE §7.2–7.5, SAFETY §2.8). Rule-parsed and deterministic: the answer is
  * either a VOICE §7.5 refusal or ONE line built from the tab (amounts, counts,
  * times, patterns), never model prose. Order of checks:
@@ -74,7 +74,7 @@ export interface RoastRequest {
 const GROUP_TARGET =
   /^(?:everyone|everybody|us|all of us|all of you|you all|y'?all|the group|the whole group|the squad|the gang|the crew)\b\s*(.*)$/u;
 
-/** "@trav roast Jordan for the kebabs" → target "jordan", topic "the kebabs". */
+/** "@trav roast Piotr for the kebabs" → target "piotr", topic "the kebabs". */
 export function parseRoastRequest(text: string): RoastRequest | undefined {
   const t = commandText(text);
   const m = /^(?:(?:can you|go|pls|please)\s+)?roast\s+(.+)$/u.exec(t);

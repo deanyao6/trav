@@ -1,6 +1,6 @@
 {
   "fixtureVersion": 1,
-  "note": "T-010 chat-text expense phrasings for the deterministic parser (packages/agent/src/ingest/expenseText.ts), Barcelona group (member order Dean, Henry, Maya, Jordan, Priya, Sam; trip currency EUR). expect.action: log (expenses with shares in minor units, remainders to the payer then member order), clarify (exactly one question; about = the missing money facts), none (not an expense statement), no_log (a payment the sender keeps off the tab), unsure (the parser hands it to the model). Rosters are activity attendance at parse time; parse time is 2026-03-15T01:30:00+01:00.",
+  "note": "T-010 chat-text expense phrasings for the deterministic parser (packages/agent/src/ingest/expenseText.ts), Barcelona group (member order Dean, Henry, Chase, Piotr, Arjun, Crowley; trip currency EUR). expect.action: log (expenses with shares in minor units, remainders to the payer then member order), clarify (exactly one question; about = the missing money facts), none (not an expense statement), no_log (a payment the sender keeps off the tab), unsure (the parser hands it to the model). Rosters are activity attendance at parse time; parse time is 2026-03-15T01:30:00+01:00.",
   "rows": [
     {
       "id": "tx_001",
@@ -18,10 +18,10 @@
             "category": "food",
             "shares": {
               "mem_dean": 1680,
-              "mem_maya": 1680,
-              "mem_jordan": 1680,
-              "mem_priya": 1680,
-              "mem_sam": 1680
+              "mem_chase": 1680,
+              "mem_piotr": 1680,
+              "mem_arjun": 1680,
+              "mem_crowley": 1680
             }
           }
         ]
@@ -29,7 +29,7 @@
     },
     {
       "id": "tx_002",
-      "sender": "mem_sam",
+      "sender": "mem_crowley",
       "text": "@trav venmo me 20 each for the cab",
       "expect": {
         "action": "clarify",
@@ -39,8 +39,8 @@
     },
     {
       "id": "tx_003",
-      "sender": "mem_maya",
-      "text": "@trav Jordan got the taxi, 32 euro, just the 4 of us",
+      "sender": "mem_chase",
+      "text": "@trav Piotr got the taxi, 32 euro, just the 4 of us",
       "expect": {
         "action": "clarify",
         "about": ["participants"],
@@ -49,27 +49,27 @@
     },
     {
       "id": "tx_004",
-      "sender": "mem_maya",
-      "text": "@trav Jordan got the taxi, 32 euro, just the 4 of us",
+      "sender": "mem_chase",
+      "text": "@trav Piotr got the taxi, 32 euro, just the 4 of us",
       "rosters": [
         {
           "activityId": "act_bcn_razzmatazz",
           "name": "Razzmatazz",
           "startsAt": "2026-03-15T00:00:00+01:00",
-          "inMemberIds": ["mem_dean", "mem_maya", "mem_jordan", "mem_sam"]
+          "inMemberIds": ["mem_dean", "mem_chase", "mem_piotr", "mem_crowley"]
         }
       ],
       "expect": {
         "action": "log",
         "expenses": [
           {
-            "payer": "mem_jordan",
+            "payer": "mem_piotr",
             "amountMinor": 3200,
             "currency": "EUR",
             "method": "equal",
             "description": "taxi",
             "category": "transport",
-            "shares": { "mem_dean": 800, "mem_maya": 800, "mem_jordan": 800, "mem_sam": 800 }
+            "shares": { "mem_dean": 800, "mem_chase": 800, "mem_piotr": 800, "mem_crowley": 800 }
           }
         ]
       }
@@ -91,10 +91,10 @@
             "shares": {
               "mem_dean": 1400,
               "mem_henry": 1400,
-              "mem_maya": 1400,
-              "mem_jordan": 1400,
-              "mem_priya": 1400,
-              "mem_sam": 1400
+              "mem_chase": 1400,
+              "mem_piotr": 1400,
+              "mem_arjun": 1400,
+              "mem_crowley": 1400
             }
           },
           {
@@ -107,10 +107,10 @@
             "shares": {
               "mem_dean": 334,
               "mem_henry": 334,
-              "mem_maya": 333,
-              "mem_jordan": 333,
-              "mem_priya": 333,
-              "mem_sam": 333
+              "mem_chase": 333,
+              "mem_piotr": 333,
+              "mem_arjun": 333,
+              "mem_crowley": 333
             }
           }
         ]
@@ -128,8 +128,8 @@
     },
     {
       "id": "tx_007",
-      "sender": "mem_priya",
-      "text": "@trav paid 20 quid for the bus, me and sam",
+      "sender": "mem_arjun",
+      "text": "@trav paid 20 quid for the bus, me and crowley",
       "expect": {
         "action": "clarify",
         "about": ["trip_currency"],
@@ -148,7 +148,7 @@
     },
     {
       "id": "tx_009",
-      "sender": "mem_maya",
+      "sender": "mem_chase",
       "text": "@trav €40 for the club entry, me and the girls",
       "expect": {
         "action": "clarify",
@@ -172,10 +172,10 @@
             "category": "transport",
             "shares": {
               "mem_henry": 360,
-              "mem_maya": 360,
-              "mem_jordan": 360,
-              "mem_priya": 360,
-              "mem_sam": 360
+              "mem_chase": 360,
+              "mem_piotr": 360,
+              "mem_arjun": 360,
+              "mem_crowley": 360
             }
           }
         ]
@@ -183,13 +183,13 @@
     },
     {
       "id": "tx_011",
-      "sender": "mem_jordan",
+      "sender": "mem_piotr",
       "text": "@trav i got everyone churros, 13.20",
       "expect": {
         "action": "log",
         "expenses": [
           {
-            "payer": "mem_jordan",
+            "payer": "mem_piotr",
             "amountMinor": 1320,
             "currency": "EUR",
             "method": "equal",
@@ -198,10 +198,10 @@
             "shares": {
               "mem_dean": 220,
               "mem_henry": 220,
-              "mem_maya": 220,
-              "mem_jordan": 220,
-              "mem_priya": 220,
-              "mem_sam": 220
+              "mem_chase": 220,
+              "mem_piotr": 220,
+              "mem_arjun": 220,
+              "mem_crowley": 220
             }
           }
         ]
@@ -209,21 +209,21 @@
     },
     {
       "id": "tx_012",
-      "sender": "mem_sam",
+      "sender": "mem_crowley",
       "text": "@trav kebabs were on me, 62 euros, the 5 of us from razz",
       "rosters": [
         {
           "activityId": "act_bcn_razzmatazz",
           "name": "Razzmatazz",
           "startsAt": "2026-03-15T00:00:00+01:00",
-          "inMemberIds": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"]
+          "inMemberIds": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"]
         }
       ],
       "expect": {
         "action": "log",
         "expenses": [
           {
-            "payer": "mem_sam",
+            "payer": "mem_crowley",
             "amountMinor": 6200,
             "currency": "EUR",
             "method": "equal",
@@ -231,10 +231,10 @@
             "category": "food",
             "shares": {
               "mem_dean": 1240,
-              "mem_maya": 1240,
-              "mem_jordan": 1240,
-              "mem_priya": 1240,
-              "mem_sam": 1240
+              "mem_chase": 1240,
+              "mem_piotr": 1240,
+              "mem_arjun": 1240,
+              "mem_crowley": 1240
             }
           }
         ]
@@ -242,19 +242,19 @@
     },
     {
       "id": "tx_013",
-      "sender": "mem_maya",
-      "text": "trav the taxi was €32, me and Sam, Sam had the suitcase so he pays 20",
+      "sender": "mem_chase",
+      "text": "trav the taxi was €32, me and Crowley, Crowley had the suitcase so he pays 20",
       "expect": {
         "action": "log",
         "expenses": [
           {
-            "payer": "mem_maya",
+            "payer": "mem_chase",
             "amountMinor": 3200,
             "currency": "EUR",
             "method": "exact",
             "description": "taxi",
             "category": "transport",
-            "shares": { "mem_maya": 1200, "mem_sam": 2000 }
+            "shares": { "mem_chase": 1200, "mem_crowley": 2000 }
           }
         ]
       }
@@ -262,7 +262,7 @@
     {
       "id": "tx_014",
       "sender": "mem_dean",
-      "text": "@trav dinner was €90: i had the steak (€30), maya and priya split the paella (€40), wine €20 for the three of us",
+      "text": "@trav dinner was €90: i had the steak (€30), chase and arjun split the paella (€40), wine €20 for the three of us",
       "expect": {
         "action": "log",
         "expenses": [
@@ -273,14 +273,14 @@
             "method": "itemized",
             "description": "dinner",
             "category": "food",
-            "shares": { "mem_dean": 3667, "mem_maya": 2667, "mem_priya": 2666 }
+            "shares": { "mem_dean": 3667, "mem_chase": 2667, "mem_arjun": 2666 }
           }
         ]
       }
     },
     {
       "id": "tx_015",
-      "sender": "mem_priya",
+      "sender": "mem_arjun",
       "text": "@trav I paid €38 for lunch but i'll expense it, leave it off",
       "expect": { "action": "no_log" }
     },
@@ -292,19 +292,19 @@
     },
     {
       "id": "tx_017",
-      "sender": "mem_jordan",
-      "text": "@trav weighted split for the bike tour €90: dean 1 maya 1 sam 2",
+      "sender": "mem_piotr",
+      "text": "@trav weighted split for the bike tour €90: dean 1 chase 1 crowley 2",
       "expect": {
         "action": "log",
         "expenses": [
           {
-            "payer": "mem_jordan",
+            "payer": "mem_piotr",
             "amountMinor": 9000,
             "currency": "EUR",
             "method": "weighted",
             "description": "bike tour",
             "category": "activities",
-            "shares": { "mem_dean": 2250, "mem_maya": 2250, "mem_sam": 4500 }
+            "shares": { "mem_dean": 2250, "mem_chase": 2250, "mem_crowley": 4500 }
           }
         ]
       }
@@ -312,12 +312,12 @@
     {
       "id": "tx_018",
       "sender": "mem_dean",
-      "text": "@trav i owe Maya €15 for the tickets",
+      "text": "@trav i owe Chase €15 for the tickets",
       "expect": {
         "action": "log",
         "expenses": [
           {
-            "payer": "mem_maya",
+            "payer": "mem_chase",
             "amountMinor": 1500,
             "currency": "EUR",
             "method": "exact",
@@ -330,19 +330,19 @@
     },
     {
       "id": "tx_019",
-      "sender": "mem_sam",
-      "text": "@trav Priya owes me 12 for the metro",
+      "sender": "mem_crowley",
+      "text": "@trav Arjun owes me 12 for the metro",
       "expect": {
         "action": "log",
         "expenses": [
           {
-            "payer": "mem_sam",
+            "payer": "mem_crowley",
             "amountMinor": 1200,
             "currency": "EUR",
             "method": "exact",
             "description": "metro",
             "category": "transport",
-            "shares": { "mem_priya": 1200 }
+            "shares": { "mem_arjun": 1200 }
           }
         ]
       }
@@ -364,10 +364,10 @@
             "shares": {
               "mem_dean": 759,
               "mem_henry": 759,
-              "mem_maya": 758,
-              "mem_jordan": 758,
-              "mem_priya": 758,
-              "mem_sam": 758
+              "mem_chase": 758,
+              "mem_piotr": 758,
+              "mem_arjun": 758,
+              "mem_crowley": 758
             }
           }
         ]
@@ -376,24 +376,24 @@
     {
       "id": "tx_021",
       "sender": "mem_dean",
-      "text": "@trav i paid 60 and jordan paid 40 for the boat, split with everyone",
+      "text": "@trav i paid 60 and piotr paid 40 for the boat, split with everyone",
       "expect": { "action": "unsure" }
     },
     {
       "id": "tx_022",
-      "sender": "mem_priya",
-      "text": "@trav add €30 for the cava, me maya and jordan",
+      "sender": "mem_arjun",
+      "text": "@trav add €30 for the cava, me chase and piotr",
       "expect": {
         "action": "log",
         "expenses": [
           {
-            "payer": "mem_priya",
+            "payer": "mem_arjun",
             "amountMinor": 3000,
             "currency": "EUR",
             "method": "equal",
             "description": "cava",
             "category": "drinks",
-            "shares": { "mem_maya": 1000, "mem_jordan": 1000, "mem_priya": 1000 }
+            "shares": { "mem_chase": 1000, "mem_piotr": 1000, "mem_arjun": 1000 }
           }
         ]
       }
@@ -414,10 +414,10 @@
             "description": "dinner",
             "shares": {
               "mem_dean": 1680,
-              "mem_maya": 1680,
-              "mem_jordan": 1680,
-              "mem_priya": 1680,
-              "mem_sam": 1680
+              "mem_chase": 1680,
+              "mem_piotr": 1680,
+              "mem_arjun": 1680,
+              "mem_crowley": 1680
             }
           }
         ]
@@ -439,10 +439,10 @@
             "description": "dinner",
             "shares": {
               "mem_dean": 1680,
-              "mem_maya": 1680,
-              "mem_jordan": 1680,
-              "mem_priya": 1680,
-              "mem_sam": 1680
+              "mem_chase": 1680,
+              "mem_piotr": 1680,
+              "mem_arjun": 1680,
+              "mem_crowley": 1680
             }
           }
         ]
@@ -464,10 +464,10 @@
             "description": "dinner",
             "shares": {
               "mem_dean": 1680,
-              "mem_maya": 1680,
-              "mem_jordan": 1680,
-              "mem_priya": 1680,
-              "mem_sam": 1680
+              "mem_chase": 1680,
+              "mem_piotr": 1680,
+              "mem_arjun": 1680,
+              "mem_crowley": 1680
             }
           }
         ]
@@ -489,10 +489,10 @@
             "description": "dinner",
             "shares": {
               "mem_dean": 1680,
-              "mem_maya": 1680,
-              "mem_jordan": 1680,
-              "mem_priya": 1680,
-              "mem_sam": 1680
+              "mem_chase": 1680,
+              "mem_piotr": 1680,
+              "mem_arjun": 1680,
+              "mem_crowley": 1680
             }
           }
         ]
@@ -502,7 +502,7 @@
       "id": "r1_05",
       "note": "T-010 r1 #1",
       "sender": "mem_dean",
-      "text": "@trav i paid €60 for the boat, maya skipped it",
+      "text": "@trav i paid €60 for the boat, chase skipped it",
       "expect": {
         "action": "log",
         "expenses": [
@@ -515,9 +515,9 @@
             "shares": {
               "mem_dean": 1200,
               "mem_henry": 1200,
-              "mem_jordan": 1200,
-              "mem_priya": 1200,
-              "mem_sam": 1200
+              "mem_piotr": 1200,
+              "mem_arjun": 1200,
+              "mem_crowley": 1200
             }
           }
         ]
@@ -550,10 +550,10 @@
             "description": "dinner",
             "shares": {
               "mem_dean": 1680,
-              "mem_maya": 1680,
-              "mem_jordan": 1680,
-              "mem_priya": 1680,
-              "mem_sam": 1680
+              "mem_chase": 1680,
+              "mem_piotr": 1680,
+              "mem_arjun": 1680,
+              "mem_crowley": 1680
             }
           }
         ]
@@ -563,18 +563,18 @@
       "id": "r1_08",
       "note": "T-010 r1 #1: a stray name with no list and no absence cue is a question, not a list",
       "sender": "mem_dean",
-      "text": "@trav i paid €84 for dinner at maya's place",
+      "text": "@trav i paid €84 for dinner at chase's place",
       "expect": {
         "action": "clarify",
         "about": ["participants"],
-        "question": "who's in on the €84 dinner at maya's place, by name?"
+        "question": "who's in on the €84 dinner at chase's place, by name?"
       }
     },
     {
       "id": "r1_09",
       "note": "T-010 r1 #2: evenly says how, the list says who",
       "sender": "mem_dean",
-      "text": "@trav i paid €45 for the taxi, split evenly between me, maya and sam",
+      "text": "@trav i paid €45 for the taxi, split evenly between me, chase and crowley",
       "expect": {
         "action": "log",
         "expenses": [
@@ -584,7 +584,7 @@
             "currency": "EUR",
             "method": "equal",
             "description": "taxi",
-            "shares": { "mem_dean": 1500, "mem_maya": 1500, "mem_sam": 1500 }
+            "shares": { "mem_dean": 1500, "mem_chase": 1500, "mem_crowley": 1500 }
           }
         ]
       }
@@ -605,10 +605,10 @@
             "description": "dinner",
             "shares": {
               "mem_dean": 1680,
-              "mem_maya": 1680,
-              "mem_jordan": 1680,
-              "mem_priya": 1680,
-              "mem_sam": 1680
+              "mem_chase": 1680,
+              "mem_piotr": 1680,
+              "mem_arjun": 1680,
+              "mem_crowley": 1680
             }
           }
         ]
@@ -627,9 +627,9 @@
     },
     {
       "id": "r1_12",
-      "note": "T-010 r1 #4: \"jordan and i\" is the sender plus Jordan",
+      "note": "T-010 r1 #4: \"piotr and i\" is the sender plus Piotr",
       "sender": "mem_dean",
-      "text": "@trav i paid €32 for the cab, jordan and i",
+      "text": "@trav i paid €32 for the cab, piotr and i",
       "expect": {
         "action": "log",
         "expenses": [
@@ -639,7 +639,7 @@
             "currency": "EUR",
             "method": "equal",
             "description": "cab",
-            "shares": { "mem_dean": 1600, "mem_jordan": 1600 }
+            "shares": { "mem_dean": 1600, "mem_piotr": 1600 }
           }
         ]
       }
@@ -648,7 +648,7 @@
       "id": "r1_13",
       "note": "T-010 r1 #4",
       "sender": "mem_dean",
-      "text": "@trav jordan and i split the cab 50/50, it was 32",
+      "text": "@trav piotr and i split the cab 50/50, it was 32",
       "expect": {
         "action": "log",
         "expenses": [
@@ -658,7 +658,7 @@
             "currency": "EUR",
             "method": "equal",
             "description": "cab",
-            "shares": { "mem_dean": 1600, "mem_jordan": 1600 }
+            "shares": { "mem_dean": 1600, "mem_piotr": 1600 }
           }
         ]
       }
@@ -667,7 +667,7 @@
       "id": "r1_14",
       "note": "T-010 r1 #5: both amounts are logged, the list applies to both",
       "sender": "mem_dean",
-      "text": "@trav 84 euros for dinner and 20 for the cab, me and maya",
+      "text": "@trav 84 euros for dinner and 20 for the cab, me and chase",
       "expect": {
         "action": "log",
         "expenses": [
@@ -677,7 +677,7 @@
             "currency": "EUR",
             "method": "equal",
             "description": "dinner",
-            "shares": { "mem_dean": 4200, "mem_maya": 4200 }
+            "shares": { "mem_dean": 4200, "mem_chase": 4200 }
           },
           {
             "payer": "mem_dean",
@@ -685,7 +685,7 @@
             "currency": "EUR",
             "method": "equal",
             "description": "cab",
-            "shares": { "mem_dean": 1000, "mem_maya": 1000 }
+            "shares": { "mem_dean": 1000, "mem_chase": 1000 }
           }
         ]
       }
@@ -694,7 +694,7 @@
       "id": "r1_15",
       "note": "T-010 r1 #5: two debts and no total, never one of them folded into the other",
       "sender": "mem_dean",
-      "text": "@trav sam owes me 20 and maya owes me 30 for the cab",
+      "text": "@trav crowley owes me 20 and chase owes me 30 for the cab",
       "expect": { "action": "unsure" }
     },
     {
@@ -739,10 +739,10 @@
             "shares": {
               "mem_dean": 1567,
               "mem_henry": 1567,
-              "mem_maya": 1567,
-              "mem_jordan": 1567,
-              "mem_priya": 1566,
-              "mem_sam": 1566
+              "mem_chase": 1567,
+              "mem_piotr": 1567,
+              "mem_arjun": 1566,
+              "mem_crowley": 1566
             }
           }
         ]
@@ -783,10 +783,10 @@
             "shares": {
               "mem_dean": 1400,
               "mem_henry": 1400,
-              "mem_maya": 1400,
-              "mem_jordan": 1400,
-              "mem_priya": 1400,
-              "mem_sam": 1400
+              "mem_chase": 1400,
+              "mem_piotr": 1400,
+              "mem_arjun": 1400,
+              "mem_crowley": 1400
             }
           }
         ]
@@ -796,7 +796,7 @@
       "id": "r1_23",
       "note": "T-010 r1 #10: the sender's noun, never the category name",
       "sender": "mem_dean",
-      "text": "@trav put €32 on the tab for me and maya, airport cab",
+      "text": "@trav put €32 on the tab for me and chase, airport cab",
       "expect": {
         "action": "log",
         "expenses": [
@@ -807,7 +807,7 @@
             "method": "equal",
             "description": "cab",
             "category": "transport",
-            "shares": { "mem_dean": 1600, "mem_maya": 1600 }
+            "shares": { "mem_dean": 1600, "mem_chase": 1600 }
           }
         ]
       }
@@ -815,19 +815,19 @@
     {
       "id": "r1_24",
       "note": "T-010 r1 #10: a leading count stays",
-      "sender": "mem_sam",
-      "text": "@trav 2 waters at razz were €28, me and maya",
+      "sender": "mem_crowley",
+      "text": "@trav 2 waters at razz were €28, me and chase",
       "expect": {
         "action": "log",
         "expenses": [
           {
-            "payer": "mem_sam",
+            "payer": "mem_crowley",
             "amountMinor": 2800,
             "currency": "EUR",
             "method": "equal",
             "description": "2 waters at razz",
             "category": "drinks",
-            "shares": { "mem_maya": 1400, "mem_sam": 1400 }
+            "shares": { "mem_chase": 1400, "mem_crowley": 1400 }
           }
         ]
       }
@@ -847,7 +847,7 @@
       "id": "r2_01",
       "note": "T-010 r2 (builder self-review of r1 #1): a name past a comma with its own absence clause never joins the list before it",
       "sender": "mem_dean",
-      "text": "@trav i paid €84 for dinner, me maya and sam, henry wasn't there",
+      "text": "@trav i paid €84 for dinner, me chase and crowley, henry wasn't there",
       "expect": {
         "action": "log",
         "expenses": [
@@ -857,7 +857,7 @@
             "currency": "EUR",
             "method": "equal",
             "description": "dinner",
-            "shares": { "mem_dean": 2800, "mem_maya": 2800, "mem_sam": 2800 }
+            "shares": { "mem_dean": 2800, "mem_chase": 2800, "mem_crowley": 2800 }
           }
         ]
       }
@@ -866,7 +866,7 @@
       "id": "r2_02",
       "note": "T-010 r2 (r1 #1): two names out after a list",
       "sender": "mem_dean",
-      "text": "@trav i paid €84 for dinner, me maya and sam, henry and jordan weren't there",
+      "text": "@trav i paid €84 for dinner, me chase and crowley, henry and piotr weren't there",
       "expect": {
         "action": "log",
         "expenses": [
@@ -876,7 +876,7 @@
             "currency": "EUR",
             "method": "equal",
             "description": "dinner",
-            "shares": { "mem_dean": 2800, "mem_maya": 2800, "mem_sam": 2800 }
+            "shares": { "mem_dean": 2800, "mem_chase": 2800, "mem_crowley": 2800 }
           }
         ]
       }
@@ -898,10 +898,10 @@
             "shares": {
               "mem_dean": 1567,
               "mem_henry": 1567,
-              "mem_maya": 1567,
-              "mem_jordan": 1567,
-              "mem_priya": 1566,
-              "mem_sam": 1566
+              "mem_chase": 1567,
+              "mem_piotr": 1567,
+              "mem_arjun": 1566,
+              "mem_crowley": 1566
             }
           }
         ]
@@ -924,10 +924,10 @@
             "shares": {
               "mem_dean": 1400,
               "mem_henry": 1400,
-              "mem_maya": 1400,
-              "mem_jordan": 1400,
-              "mem_priya": 1400,
-              "mem_sam": 1400
+              "mem_chase": 1400,
+              "mem_piotr": 1400,
+              "mem_arjun": 1400,
+              "mem_crowley": 1400
             }
           },
           {
@@ -939,10 +939,10 @@
             "shares": {
               "mem_dean": 334,
               "mem_henry": 334,
-              "mem_maya": 333,
-              "mem_jordan": 333,
-              "mem_priya": 333,
-              "mem_sam": 333
+              "mem_chase": 333,
+              "mem_piotr": 333,
+              "mem_arjun": 333,
+              "mem_crowley": 333
             }
           }
         ]
@@ -999,16 +999,16 @@
     },
     {
       "id": "r2_12",
-      "note": "T-010 r2 (r1 #5): 'with maya' may or may not cover the cab",
+      "note": "T-010 r2 (r1 #5): 'with chase' may or may not cover the cab",
       "sender": "mem_dean",
-      "text": "@trav i paid 84 for dinner with maya and 20 for the cab",
+      "text": "@trav i paid 84 for dinner with chase and 20 for the cab",
       "expect": { "action": "unsure" }
     },
     {
       "id": "r2_13",
       "note": "T-010 r2 (r1 #10): no description means 'it' in the question, never 'expense' or 'that'",
-      "sender": "mem_priya",
-      "text": "@trav paid 20 quid, me and sam",
+      "sender": "mem_arjun",
+      "text": "@trav paid 20 quid, me and crowley",
       "expect": {
         "action": "clarify",
         "about": ["trip_currency"],
@@ -1019,7 +1019,7 @@
       "id": "r2_14",
       "note": "T-010 r2 (r1 #1, #10): a stray name with the amount missing is one question for both; the second part says 'it'",
       "sender": "mem_dean",
-      "text": "@trav i paid for dinner, sam picked the place",
+      "text": "@trav i paid for dinner, crowley picked the place",
       "expect": {
         "action": "clarify",
         "about": ["amount", "participants"],

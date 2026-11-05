@@ -11,7 +11,7 @@
  *  - the plan has more people, and taking out the ones who said in the group
  *    thread that night that they had left (`leftTheGroup`) leaves exactly
  *    that many, owner included ⇒ those people, listed by name on the card
- *    (Priya's 4 of the 5 out in El Born: Maya lost the others);
+ *    (Arjun's 4 of the 5 out in El Born: Chase lost the others);
  *  - anything else ⇒ no guess. The plan has no participants and carries
  *    `askRiders`, and the card asks the owner, in their DM, who rode
  *    (`ridersQuestion`). Money facts are never assumed (VOICE §4.11): a
@@ -29,8 +29,8 @@
  * the same member saying they are back with the others ("omw", "coming",
  * "found you", "here") cancels it, including on the same line.
  *
- * The owner's answer is a DM naming the others ("dean, jordan and sam",
- * "everyone but maya", "maya not jordan"); `parseRiderNames` reads it
+ * The owner's answer is a DM naming the others ("dean, piotr and crowley",
+ * "everyone but chase", "chase not piotr"); `parseRiderNames` reads it
  * strictly: only active, non-guest members of the group, unambiguous names,
  * and nothing else but joining words, so an ordinary DM is never taken for an
  * answer.
@@ -262,12 +262,12 @@ export type RiderNames =
 
 /**
  * Reads a DM as "these people rode with me" (owner always included).
- * - A plain list ("dean, jordan and sam") is the riders.
- * - "everyone" / "everyone but maya and henry" / "all except henry": the
+ * - A plain list ("dean, piotr and crowley") is the riders.
+ * - "everyone" / "everyone but chase and henry" / "all except henry": the
  *   active group, minus the names after the negator.
- * - Removals only ("not maya", "minus jordan"): `base` (the card's proposed
+ * - Removals only ("not chase", "minus piotr"): `base` (the card's proposed
  *   split) minus them, or the whole active group when the card proposed none.
- * - A correction ("maya not jordan", "no it was maya instead of jordan"):
+ * - A correction ("chase not piotr", "no it was chase instead of piotr"):
  *   `base` minus the removed plus the added (no base: the added names).
  * Returns `none` unless every word is a name or a joining word, unless
  * someone besides the owner rode, and when the owner takes themself out
@@ -280,7 +280,7 @@ export function parseRiderNames(
   base?: readonly MemberId[],
 ): RiderNames {
   const none = { kind: 'none' } as const;
-  // "wait was it dean jordan and maya?" is a question, never a split (VOICE §4.11).
+  // "wait was it dean piotr and chase?" is a question, never a split (VOICE §4.11).
   if (text.includes('?')) return none;
   // Active, non-guest members (`activeMembers` in pending.ts; inlined: pending.ts imports this module).
   const active = members.filter((m) => m.active && m.leftAt === undefined && m.role !== 'guest');
@@ -321,7 +321,7 @@ export function parseRiderNames(
   const removed = new Set<MemberId>();
   let everyone = false;
   let neg = false;
-  // A negator before a comma in a plain list: "dean, not jordan, sam" is mixed, so no answer.
+  // A negator before a comma in a plain list: "dean, not piotr, crowley" is mixed, so no answer.
   let negListed = false;
   for (let i = 0; i < words.length; i += 1) {
     const w = words[i]!;
@@ -338,10 +338,10 @@ export function parseRiderNames(
     } else if (NEGATORS.has(w)) {
       neg = true;
     } else if (w === 'no' || w === 'nah' || w === 'nope') {
-      // "no maya" takes Maya out; "no it was maya" is just a lead-in.
+      // "no chase" takes Chase out; "no it was chase" is just a lead-in.
       if (words[i + 1]?.startsWith('#') === true) neg = true;
     } else if (w === ',') {
-      // A list separator: "all except henry, maya" keeps both out.
+      // A list separator: "all except henry, chase" keeps both out.
       if (neg && !everyone) negListed = true;
     } else if (SELF.has(w)) {
       if (neg) return none;
@@ -361,7 +361,7 @@ export function parseRiderNames(
     riders = new Set(added);
   }
   if (!everyone && added.size === 0 && removed.size === 0) return none;
-  // A trailing negator ("jordan not") says nothing about whom it applies to.
+  // A trailing negator ("piotr not") says nothing about whom it applies to.
   if (NEGATORS.has(words[words.length - 1] ?? '')) return none;
   riders.add(ownerMemberId);
   if (riders.size < 2) return none; // only the owner: "just me" is the keep answer

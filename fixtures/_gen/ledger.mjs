@@ -349,7 +349,7 @@ export function buildWrappedAwards(chat, trip, ledger, album, rosters, recaps) {
       'one award per person where possible (referenceWinner applies that greedily in the order listed; acceptableWinners = everyone tied at the top)',
       'no award or stat references drinking volume, health, bodies, romance or anyone outside the chat',
       'stats come only from group-visible data: never from unconfirmed card or email items',
-      'photos only from members whose photos consent is on at render time (Dean, Maya, Sam); Priya revoked on 2026-03-16',
+      'photos only from members whose photos consent is on at render time (Dean, Chase, Crowley); Arjun revoked on 2026-03-16',
     ],
     mustNotContain: ['sick', 'hungover', 'broke', 'girl', 'pharmacy', '9.80', 'vegetarian', '80 a day'],
   };

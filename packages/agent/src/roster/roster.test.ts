@@ -63,20 +63,20 @@ describe('rosterOf / bookingParty: the roster is the one source of quantity and 
   it('lists in/out/maybe in member order; unanswered members are in no list', () => {
     const { stores, members } = world();
     mark(stores, 'mem_henry', 'out');
-    mark(stores, 'mem_sam', 'maybe');
+    mark(stores, 'mem_crowley', 'maybe');
     const roster = rosterOf(stores.group.trips, ACT, members, BARCELONA_NOW);
-    expect(roster.inMemberIds).toEqual(['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya']);
+    expect(roster.inMemberIds).toEqual(['mem_dean', 'mem_chase', 'mem_piotr', 'mem_arjun']);
     expect(roster.outMemberIds).toEqual(['mem_henry']);
-    expect(roster.maybeMemberIds).toEqual(['mem_sam']);
+    expect(roster.maybeMemberIds).toEqual(['mem_crowley']);
     expect(unanswered(roster, members)).toEqual([]);
   });
 
   it('"maybe" counts as out at booking time, and quantity, attendees and payers are the same list', () => {
     const { stores, members } = world();
     mark(stores, 'mem_henry', 'out');
-    mark(stores, 'mem_sam', 'maybe');
+    mark(stores, 'mem_crowley', 'maybe');
     const party = bookingParty(rosterOf(stores.group.trips, ACT, members, BARCELONA_NOW));
-    expect(party.attendees).toEqual(['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya']);
+    expect(party.attendees).toEqual(['mem_dean', 'mem_chase', 'mem_piotr', 'mem_arjun']);
     expect(party.payers).toEqual(party.attendees);
     expect(party.quantity).toBe(4);
   });
@@ -114,10 +114,10 @@ describe('rosterOf / bookingParty: the roster is the one source of quantity and 
     const all = [members[0]!, left, ...members.slice(2)];
     expect(rosterMembers(all).map((m) => m.memberId)).toEqual([
       'mem_dean',
-      'mem_maya',
-      'mem_jordan',
-      'mem_priya',
-      'mem_sam',
+      'mem_chase',
+      'mem_piotr',
+      'mem_arjun',
+      'mem_crowley',
     ]);
   });
 
@@ -130,10 +130,10 @@ describe('rosterOf / bookingParty: the roster is the one source of quantity and 
     mark(stores, 'mem_henry', 'out');
     const same = rosterOf(stores.group.trips, ACT, members, BARCELONA_NOW);
     expect(rosterDiverged(same, proposal as never)).toBe(false);
-    mark(stores, 'mem_maya', 'maybe');
+    mark(stores, 'mem_chase', 'maybe');
     const fewer = rosterOf(stores.group.trips, ACT, members, BARCELONA_NOW);
     expect(rosterDiverged(fewer, proposal as never)).toBe(true);
-    mark(stores, 'mem_maya', 'in');
+    mark(stores, 'mem_chase', 'in');
     mark(stores, 'mem_henry', 'in');
     const more = rosterOf(stores.group.trips, ACT, members, BARCELONA_NOW);
     expect(rosterDiverged(more, proposal as never)).toBe(true);
@@ -333,8 +333,8 @@ describe('natural language: roll calls and overrides', () => {
     ['count Henry out', { who: 'Henry', status: 'out' }],
     ['henry is out for razzmatazz', { who: 'henry', status: 'out', hint: 'razzmatazz' }],
     ["i'm out tonight", { who: 'me', status: 'out', when: 'tonight' }],
-    ['Maya is out tomorrow', { who: 'Maya', status: 'out', when: 'tomorrow' }],
-    ["Maya's sick tmrw", { who: 'Maya', status: 'out', when: 'tomorrow' }],
+    ['Chase is out tomorrow', { who: 'Chase', status: 'out', when: 'tomorrow' }],
+    ["Chase's sick tmrw", { who: 'Chase', status: 'out', when: 'tomorrow' }],
     ['count me in tomorrow', { who: 'me', status: 'in', when: 'tomorrow' }],
     [
       "i'm a maybe for apolo tomorrow",
@@ -343,15 +343,15 @@ describe('natural language: roll calls and overrides', () => {
     ["i'm out this evening", { who: 'me', status: 'out', when: 'tonight' }],
     // T-009 (T-030 note d): "for tonight" is the night, not an activity hint.
     ["i'm out for tonight", { who: 'me', status: 'out', when: 'tonight' }],
-    ["Maya's sick for tomorrow", { who: 'Maya', status: 'out', when: 'tomorrow' }],
+    ["Chase's sick for tomorrow", { who: 'Chase', status: 'out', when: 'tomorrow' }],
     ["i'm sick", { who: 'me', status: 'out' }],
     ["can't make it", undefined],
     ['count me in', { who: 'me', status: 'in' }],
     ["@trav i'm in", { who: 'me', status: 'in' }],
     ["i'll be there", { who: 'me', status: 'in' }],
-    ['Sam is in', { who: 'Sam', status: 'in' }],
-    ['add Sam', { who: 'Sam', status: 'in' }],
-    ["Sam's a maybe for razzmatazz", { who: 'Sam', status: 'maybe', hint: 'razzmatazz' }],
+    ['Crowley is in', { who: 'Crowley', status: 'in' }],
+    ['add Crowley', { who: 'Crowley', status: 'in' }],
+    ["Crowley's a maybe for razzmatazz", { who: 'Crowley', status: 'maybe', hint: 'razzmatazz' }],
     ['maybe', { who: 'me', status: 'maybe' }],
     ["i'm not sure", { who: 'me', status: 'maybe' }],
   ])('parseRosterUpdate(%j)', (text, expected) => {
@@ -363,7 +363,7 @@ describe('natural language: roll calls and overrides', () => {
     "henry's sick so he missed razzmatazz last year and we should go again",
     'get the 5 of us Razzmatazz tickets, Henry’s sick',
     "@trav get the 5 of us Razzmatazz tickets, Henry's sick",
-    'Maya is in the shower',
+    'Chase is in the shower',
     "i'm in the lobby",
     'henry bailed',
     'how much do i owe',
@@ -380,7 +380,7 @@ describe('natural language: roll calls and overrides', () => {
   it('resolveMemberName: one case-insensitive match, ids pass through, ambiguity ⇒ undefined', () => {
     const { members } = world();
     expect(resolveMemberName(members, 'henry')).toBe('mem_henry');
-    expect(resolveMemberName(members, 'mem_sam')).toBe('mem_sam');
+    expect(resolveMemberName(members, 'mem_crowley')).toBe('mem_crowley');
     expect(resolveMemberName(members, 'Nobody')).toBeUndefined();
     const twins = [...members, { ...members[0]!, memberId: 'mem_dean2', senderId: 'h_dean2' }];
     expect(resolveMemberName(twins, 'Dean')).toBeUndefined();
@@ -394,13 +394,13 @@ describe('renderRollCall / renderAttendanceLine (VOICE §3)', () => {
   it('at most 4 lines, in/out/maybe/unanswered, lowercase, lint-clean', () => {
     const { stores, members, activity } = world();
     mark(stores, 'mem_henry', 'out');
-    mark(stores, 'mem_sam', 'maybe');
+    mark(stores, 'mem_crowley', 'maybe');
     const roster = rosterOf(stores.group.trips, ACT, members, BARCELONA_NOW);
     const text = renderRollCall(activity, roster, members, TZ, BARCELONA_NOW);
     expect(text.split('\n')).toEqual([
-      'razzmatazz tonight: 4 in · Dean, Maya, Jordan, Priya',
+      'razzmatazz tonight: 4 in · Dean, Chase, Piotr, Arjun',
       'out: Henry',
-      'maybe: Sam (counts as out when i book)',
+      'maybe: Crowley (counts as out when i book)',
     ]);
     expect(
       lint(
@@ -429,7 +429,7 @@ describe('renderRollCall / renderAttendanceLine (VOICE §3)', () => {
     const lines = text.split('\n');
     expect(lines[0]).toBe('razzmatazz tomorrow night 12:30am: nobody marked in yet');
     expect(lines[1]).toBe('out: Henry');
-    expect(lines[2]).toBe("haven't said: Dean, Maya, Jordan, Priya, Sam");
+    expect(lines[2]).toBe("haven't said: Dean, Chase, Piotr, Arjun, Crowley");
     expect(lines.length).toBeLessThanOrEqual(4);
     expect(
       lint(
@@ -449,8 +449,8 @@ describe('renderRollCall / renderAttendanceLine (VOICE §3)', () => {
     expect(renderAttendanceLine(activity, roster, members, 'mem_dean', 'in')).toBe(
       "Dean is in for razzmatazz. that's 5 now",
     );
-    expect(renderAttendanceLine(activity, roster, members, 'mem_sam', 'maybe')).toBe(
-      'Sam is a maybe for razzmatazz. maybes count as out when i book',
+    expect(renderAttendanceLine(activity, roster, members, 'mem_crowley', 'maybe')).toBe(
+      'Crowley is a maybe for razzmatazz. maybes count as out when i book',
     );
   });
 });
@@ -503,7 +503,7 @@ describe('handleRosterMessage (the roster turn)', () => {
     const before = stores.group.audit.listByGroup(G).length;
     const r = turn(stores, "@trav who's in tonight?");
     expect(r?.kind).toBe('roll_call');
-    expect(r?.text).toBe('razzmatazz tonight: 6 in · Dean, Henry, Maya, Jordan, Priya, Sam');
+    expect(r?.text).toBe('razzmatazz tonight: 6 in · Dean, Henry, Chase, Piotr, Arjun, Crowley');
     expect(stores.group.audit.listByGroup(G).length).toBe(before);
   });
 
@@ -530,18 +530,18 @@ describe('handleRosterMessage (the roster turn)', () => {
 
   it('first person binds to the sender; the same status twice is "unchanged"', () => {
     const { stores } = world();
-    const first = turn(stores, "i'm out tonight", 'mem_sam');
+    const first = turn(stores, "i'm out tonight", 'mem_crowley');
     expect(first?.kind).toBe('changed');
-    expect(first?.text).toBe('Sam is out for razzmatazz. that leaves 5');
-    const again = turn(stores, "i'm out tonight", 'mem_sam');
+    expect(first?.text).toBe('Crowley is out for razzmatazz. that leaves 5');
+    const again = turn(stores, "i'm out tonight", 'mem_crowley');
     expect(again?.kind).toBe('unchanged');
-    expect(again?.text).toBe("Sam is already out for razzmatazz. that's 5 in");
+    expect(again?.text).toBe("Crowley is already out for razzmatazz. that's 5 in");
   });
 
   it('an unknown name, a named activity that is not planned, or a non-roster sentence ⇒ undefined', () => {
     const { stores } = world();
     expect(turn(stores, "@trav Hnery's sick")).toBeUndefined();
-    expect(turn(stores, '@trav Sam is going to be late')).toBeUndefined();
+    expect(turn(stores, '@trav Crowley is going to be late')).toBeUndefined();
     expect(turn(stores, '@trav what are we doing tonight')).toBeUndefined();
   });
 
@@ -577,18 +577,18 @@ describe('handleRosterMessage (the roster turn)', () => {
     const razzRows = (stores: Stores) =>
       stores.group.trips.listAttendance(ACT).map((r) => [r.memberId, r.status]);
 
-    it('"Maya is out tomorrow" marks her out of tomorrow\'s activity; tonight\'s roster is untouched', () => {
+    it('"Chase is out tomorrow" marks Chase out of tomorrow\'s activity; tonight\'s roster is untouched', () => {
       const { stores } = world();
       const a = apolo(stores);
       const before = razzRows(stores);
-      const r = turn(stores, '@trav Maya is out tomorrow');
+      const r = turn(stores, '@trav Chase is out tomorrow');
       expect(r?.kind).toBe('changed');
       if (r?.kind !== 'changed') return;
       expect(r.activity.activityId).toBe(a.activityId);
-      expect(r.text).toBe('Maya is out for apolo. that leaves 0');
+      expect(r.text).toBe('Chase is out for apolo. that leaves 0');
       expect(r.notice).toMatchObject({
         activityId: a.activityId,
-        changes: [{ memberId: 'mem_maya', status: 'out' }],
+        changes: [{ memberId: 'mem_chase', status: 'out' }],
       });
       expect(razzRows(stores)).toEqual(before);
       expect(stores.group.trips.listAttendance(a.activityId)).toHaveLength(1);
@@ -611,12 +611,12 @@ describe('handleRosterMessage (the roster turn)', () => {
         kind: 'no_activity',
         text: 'nothing on the plan for tomorrow yet',
       });
-      expect(turn(stores, '@trav Maya is out tomorrow')).toBeUndefined();
-      expect(turn(stores, "@trav Maya's sick tmrw")).toBeUndefined();
+      expect(turn(stores, '@trav Chase is out tomorrow')).toBeUndefined();
+      expect(turn(stores, "@trav Chase's sick tmrw")).toBeUndefined();
       expect(razzRows(stores)).toEqual(before);
       expect(stores.group.audit.listByGroup(G).length).toBe(audits);
       // First person with nothing planned: the same one-liner, no row.
-      expect(turn(stores, "@trav i'm out tomorrow", 'mem_maya')).toEqual({
+      expect(turn(stores, "@trav i'm out tomorrow", 'mem_chase')).toEqual({
         kind: 'no_activity',
         text: 'nothing on the plan for tomorrow yet',
       });
@@ -643,8 +643,8 @@ describe('handleRosterMessage (the roster turn)', () => {
 describe('a minor named onto an adult-only plan (T-153, single overrides)', () => {
   function minorWorld(): ReturnType<typeof world> {
     const w = world();
-    const sam = w.members.find((m) => m.memberId === 'mem_sam')!;
-    w.stores.group.members.upsert({ ...sam, birthDate: '2010-05-01', ageBand: 'under18' });
+    const crowley = w.members.find((m) => m.memberId === 'mem_crowley')!;
+    w.stores.group.members.upsert({ ...crowley, birthDate: '2010-05-01', ageBand: 'under18' });
     return { ...w, members: w.stores.group.members.listByGroup(G) };
   }
   function say(stores: Stores, text: string, from: string, expectInCount?: number) {
@@ -660,96 +660,102 @@ describe('a minor named onto an adult-only plan (T-153, single overrides)', () =
       ...(expectInCount !== undefined ? { expectInCount } : {}),
     });
   }
-  const sam = (stores: Stores) =>
-    stores.group.trips.listAttendance(ACT).find((a) => a.memberId === 'mem_sam')?.status;
+  const crowley = (stores: Stores) =>
+    stores.group.trips.listAttendance(ACT).find((a) => a.memberId === 'mem_crowley')?.status;
 
-  it('"@trav sam is in" for 18+ razzmatazz: nothing written, the adults-only line, no age', () => {
+  it('"@trav crowley is in" for 18+ razzmatazz: nothing written, the adults-only line, no age', () => {
     const { stores } = minorWorld();
-    for (const id of ['mem_dean', 'mem_henry', 'mem_maya', 'mem_jordan', 'mem_priya']) {
+    for (const id of ['mem_dean', 'mem_henry', 'mem_chase', 'mem_piotr', 'mem_arjun']) {
       mark(stores, id, 'in');
     }
-    mark(stores, 'mem_sam', 'out');
+    mark(stores, 'mem_crowley', 'out');
     const before = stores.group.audit.listByGroup(G).length;
-    for (const text of ['@trav sam is in', "@trav sam's in for razzmatazz", '@trav count sam in']) {
+    for (const text of [
+      '@trav crowley is in',
+      "@trav crowley's in for razzmatazz",
+      '@trav count crowley in',
+    ]) {
       const r = say(stores, text, 'mem_dean');
       expect(r?.kind, text).toBe('kept_off');
       if (r?.kind !== 'kept_off') return;
-      expect(r.memberIds).toEqual(['mem_sam']);
+      expect(r.memberIds).toEqual(['mem_crowley']);
       expect(r.notice).toBeUndefined();
-      expect(r.text).toBe("Sam stays off this plan, it's not all-ages. that's 5 in");
+      expect(r.text).toBe("Crowley stays off this plan, it's not all-ages. that's 5 in");
       expect(r.text).not.toMatch(/\b(?:1[0-7]|under|age|minor|kid|child|adults?)\b/i);
-      expect(safety.lintVoice(r.text, { kind: 'reply', properNouns: ['Sam'] }).violations).toEqual(
-        [],
-      );
+      expect(
+        safety.lintVoice(r.text, { kind: 'reply', properNouns: ['Crowley'] }).violations,
+      ).toEqual([]);
     }
-    expect(sam(stores)).toBe('out');
+    expect(crowley(stores)).toBe('out');
     expect(stores.group.audit.listByGroup(G).length).toBe(before);
   });
 
   it('a stale in or maybe row for the minor is set to out in the same turn, audited with ids only', () => {
     for (const stale of ['in', 'maybe'] as const) {
       const { stores } = minorWorld();
-      mark(stores, 'mem_sam', stale);
-      const r = say(stores, '@trav sam is in', 'mem_dean');
+      mark(stores, 'mem_crowley', stale);
+      const r = say(stores, '@trav crowley is in', 'mem_dean');
       expect(r?.kind).toBe('kept_off');
       if (r?.kind !== 'kept_off') return;
-      expect(r.notice?.changes).toEqual([{ memberId: 'mem_sam', status: 'out' }]);
-      expect(sam(stores)).toBe('out');
+      expect(r.notice?.changes).toEqual([{ memberId: 'mem_crowley', status: 'out' }]);
+      expect(crowley(stores)).toBe('out');
       const last = stores.group.audit.listByGroup(G).at(-1)!;
       expect(last.type).toBe('roster.changed');
       expect(last.payload).toEqual({
         activityId: ACT,
-        changes: [{ memberId: 'mem_sam', status: 'out' }],
+        changes: [{ memberId: 'mem_crowley', status: 'out' }],
         sourceMessageId: 'msg_t',
       });
       // A second ask writes nothing more.
       const n = stores.group.audit.listByGroup(G).length;
-      expect(say(stores, '@trav sam is in', 'mem_dean')?.kind).toBe('kept_off');
+      expect(say(stores, '@trav crowley is in', 'mem_dean')?.kind).toBe('kept_off');
       expect(stores.group.audit.listByGroup(G).length).toBe(n);
     }
   });
 
   it('unknown age is kept off an 18+ plan until a lead confirms everyone is 18+ (SAFETY §2.7)', () => {
     const { stores } = minorWorld();
-    const m = stores.group.members.get('mem_maya')!;
+    const m = stores.group.members.get('mem_chase')!;
     const { birthDate: _b, ...rest } = m;
     stores.group.members.upsert({ ...rest, ageBand: 'unknown' });
     const g = stores.group.groups.get(G)!;
     stores.group.groups.update({ ...g, settings: { ...g.settings, allAdultsConfirmed: false } });
-    mark(stores, 'mem_maya', 'out');
-    expect(say(stores, "@trav maya's in", 'mem_dean')?.kind).toBe('kept_off');
+    mark(stores, 'mem_chase', 'out');
+    expect(say(stores, "@trav chase's in", 'mem_dean')?.kind).toBe('kept_off');
     expect(
-      stores.group.trips.listAttendance(ACT).find((a) => a.memberId === 'mem_maya')?.status,
+      stores.group.trips.listAttendance(ACT).find((a) => a.memberId === 'mem_chase')?.status,
     ).toBe('out');
     stores.group.groups.update({ ...g, settings: { ...g.settings, allAdultsConfirmed: true } });
-    expect(say(stores, "@trav maya's in", 'mem_dean')?.kind).toBe('changed');
+    expect(say(stores, "@trav chase's in", 'mem_dean')?.kind).toBe('changed');
   });
 
   it('a maybe, "count me in" from the minor, and a headcount tail are all kept off; an earlier "out" stays', () => {
     const { stores } = minorWorld();
-    mark(stores, 'mem_sam', 'out');
+    mark(stores, 'mem_crowley', 'out');
     const before = stores.group.audit.listByGroup(G).length;
-    expect(say(stores, "@trav sam's a maybe for razzmatazz", 'mem_dean')?.kind).toBe('kept_off');
-    expect(say(stores, '@trav count me in', 'mem_sam')?.kind).toBe('kept_off');
-    expect(say(stores, "sam's in", 'mem_dean', 6)?.kind).toBe('kept_off');
-    expect(sam(stores)).toBe('out');
+    expect(say(stores, "@trav crowley's a maybe for razzmatazz", 'mem_dean')?.kind).toBe(
+      'kept_off',
+    );
+    expect(say(stores, '@trav count me in', 'mem_crowley')?.kind).toBe('kept_off');
+    expect(say(stores, "crowley's in", 'mem_dean', 6)?.kind).toBe('kept_off');
+    expect(crowley(stores)).toBe('out');
     expect(stores.group.audit.listByGroup(G).length).toBe(before);
   });
 
   it('marking the minor out still works', () => {
     const { stores } = minorWorld();
-    const r = say(stores, "@trav sam's out", 'mem_dean');
+    const r = say(stores, "@trav crowley's out", 'mem_dean');
     expect(r?.kind).toBe('changed');
-    expect(sam(stores)).toBe('out');
+    expect(crowley(stores)).toBe('out');
   });
 
   it('an all-ages plan: the minor is written in as usual', () => {
     const { stores } = minorWorld();
     const razz = stores.group.trips.getActivity(ACT)!;
     stores.group.trips.upsertActivity({ ...razz, ageRestriction: null, contentTags: [] });
-    mark(stores, 'mem_sam', 'out');
-    expect(say(stores, '@trav sam is in', 'mem_dean')?.kind).toBe('changed');
-    expect(sam(stores)).toBe('in');
+    mark(stores, 'mem_crowley', 'out');
+    expect(say(stores, '@trav crowley is in', 'mem_dean')?.kind).toBe('changed');
+    expect(crowley(stores)).toBe('in');
   });
 
   it('an adult in the same group is written in as usual', () => {
@@ -760,20 +766,22 @@ describe('a minor named onto an adult-only plan (T-153, single overrides)', () =
 });
 
 describe('roster turns through the loop (offline, no model)', () => {
-  it('"@trav sam is in" with Sam under 18: kept off, no model call, no roster write (T-153)', async () => {
+  it('"@trav crowley is in" with Crowley under 18: kept off, no model call, no roster write (T-153)', async () => {
     const h = harness();
     const stores = h.runtime.stores;
-    const samM = stores.group.members.listByGroup(G).find((m) => m.memberId === 'mem_sam')!;
-    stores.group.members.upsert({ ...samM, birthDate: '2010-05-01', ageBand: 'under18' });
-    mark(stores, 'mem_sam', 'out');
-    const turn = await h.say('h_dean', '@trav sam is in');
+    const crowleyM = stores.group.members.listByGroup(G).find((m) => m.memberId === 'mem_crowley')!;
+    stores.group.members.upsert({ ...crowleyM, birthDate: '2010-05-01', ageBand: 'under18' });
+    mark(stores, 'mem_crowley', 'out');
+    const turn = await h.say('h_dean', '@trav crowley is in');
     expect(turn.note).toBe('roster:kept_off');
     expect(h.model.completions).toEqual([]);
     expect(messages(turn)).toHaveLength(1);
     // Reaches the chat: the outbound screen in a group with a minor lets it through.
-    expect(messages(turn)[0]!.text).toBe("Sam stays off this plan, it's not all-ages. that's 5 in");
+    expect(messages(turn)[0]!.text).toBe(
+      "Crowley stays off this plan, it's not all-ages. that's 5 in",
+    );
     expect(
-      stores.group.trips.listAttendance(ACT).find((a) => a.memberId === 'mem_sam')?.status,
+      stores.group.trips.listAttendance(ACT).find((a) => a.memberId === 'mem_crowley')?.status,
     ).toBe('out');
     expect(h.audit().filter((e) => e.type === 'roster.changed')).toEqual([]);
   });
@@ -785,7 +793,7 @@ describe('roster turns through the loop (offline, no model)', () => {
     expect(turn.modelSources).toEqual([]);
     expect(h.model.completions).toEqual([]);
     expect(messages(turn)[0]?.text).toBe(
-      'razzmatazz tonight: 6 in · Dean, Henry, Maya, Jordan, Priya, Sam',
+      'razzmatazz tonight: 6 in · Dean, Henry, Chase, Piotr, Arjun, Crowley',
     );
   });
 
@@ -801,9 +809,9 @@ describe('roster turns through the loop (offline, no model)', () => {
       changes: [{ memberId: 'mem_henry', status: 'out' }],
     });
     expect(JSON.stringify(h.audit())).not.toMatch(/sick/i);
-    const roll = await h.say('h_maya', "@trav who's in?");
+    const roll = await h.say('h_chase', "@trav who's in?");
     expect(messages(roll)[0]?.text.split('\n')).toEqual([
-      'razzmatazz tonight: 5 in · Dean, Maya, Jordan, Priya, Sam',
+      'razzmatazz tonight: 5 in · Dean, Chase, Piotr, Arjun, Crowley',
       'out: Henry',
     ]);
     expect(h.model.completions).toEqual([]);
@@ -811,9 +819,9 @@ describe('roster turns through the loop (offline, no model)', () => {
 
   it('an answer inside the reply window ("henry is out" after Trav asked who\'s in) is a roster override', async () => {
     const h = harness();
-    const ask = await h.say('h_maya', '@trav get the 4 of us Razzmatazz tickets');
+    const ask = await h.say('h_chase', '@trav get the 4 of us Razzmatazz tickets');
     expect(ask.note).toBe('tool:propose_booking:clarify');
-    const turn = await h.say('h_priya', 'henry is out');
+    const turn = await h.say('h_arjun', 'henry is out');
     expect(turn.note).toBe('roster:changed');
     expect(messages(turn)[0]?.text).toBe('Henry is out for razzmatazz. that leaves 5');
     expect(h.model.completions).toHaveLength(1);
@@ -834,23 +842,23 @@ describe('roster turns through the loop (offline, no model)', () => {
     const turn = await h.say('h_dean', "@trav who's in tomorrow?");
     expect(turn.note).toBe('roster:no_activity');
     expect(messages(turn)[0]?.text).toBe('nothing on the plan for tomorrow yet');
-    const out = await h.say('h_dean', '@trav Maya is out tomorrow');
+    const out = await h.say('h_dean', '@trav Chase is out tomorrow');
     expect(out.note).not.toBe('roster:changed');
     expect(h.audit().filter((e) => e.type === 'roster.changed')).toEqual([]);
     const roll = await h.say('h_dean', "@trav who's in tonight?");
     expect(messages(roll)[0]?.text).toBe(
-      'razzmatazz tonight: 6 in · Dean, Henry, Maya, Jordan, Priya, Sam',
+      'razzmatazz tonight: 6 in · Dean, Henry, Chase, Piotr, Arjun, Crowley',
     );
   });
 
   it('a maybe is listed separately and flagged as out for booking', async () => {
     const h = harness();
-    const turn = await h.say('h_sam', '@trav maybe');
+    const turn = await h.say('h_crowley', '@trav maybe');
     expect(messages(turn)[0]?.text).toBe(
-      'Sam is a maybe for razzmatazz. maybes count as out when i book',
+      'Crowley is a maybe for razzmatazz. maybes count as out when i book',
     );
     const roll = await h.say('h_dean', "@trav who's in tonight?");
-    expect(messages(roll)[0]?.text).toContain('maybe: Sam (counts as out when i book)');
+    expect(messages(roll)[0]?.text).toContain('maybe: Crowley (counts as out when i book)');
   });
 });
 
@@ -871,21 +879,21 @@ describe('parseTicketForMe (T-137)', () => {
 
   it.each([
     '@trav can i get one',
-    '@trav get sam one too',
+    '@trav get crowley one too',
     '@trav can i get the vip one too and a table',
     '@trav can i get one too? also what time is it',
     "@trav i'm in",
     '@trav can you book 6 tickets too',
     // r1 #2: a tail that is a condition or a second request is the model's.
-    '@trav get me one too if dean pays, and book sam a vip table',
+    '@trav get me one too if dean pays, and book crowley a vip table',
     '@trav get me one too if dean pays',
-    '@trav can i get one too in case i feel better and book sam one',
+    '@trav can i get one too in case i feel better and book crowley one',
     '@trav can i get one too in case; also log the taxi',
-    '@trav can i get one too if sam splits it with me',
+    '@trav can i get one too if crowley splits it with me',
     '@trav can i get one too for later, put it on my card',
     // r2 #3: a sentence end inside the tail starts a second clause.
-    '@trav can i get one too in case i feel better. sam wants one',
-    '@trav can i get one too in case i feel better? sam too',
+    '@trav can i get one too in case i feel better. crowley wants one',
+    '@trav can i get one too in case i feel better? crowley too',
   ])('"%s" is not', (text) => {
     expect(parseTicketForMe(text)).toBeUndefined();
   });

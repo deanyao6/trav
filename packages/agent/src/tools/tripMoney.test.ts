@@ -54,28 +54,28 @@ async function logBarcelona(h: Harness): Promise<void> {
     split: { method: 'exclude', excluded: ['Henry'] },
     category: 'food',
   });
-  await run('mem_jordan', 'msg_b2', {
+  await run('mem_piotr', 'msg_b2', {
     description: 'kebabs',
     amountMinor: 6200,
     currency: 'EUR',
-    split: { method: 'equal', participants: ['Jordan', 'Maya', 'Sam'] },
+    split: { method: 'equal', participants: ['Piotr', 'Chase', 'Crowley'] },
     category: 'food',
   });
-  await run('mem_priya', 'msg_b3', {
+  await run('mem_arjun', 'msg_b3', {
     description: 'uber',
     amountMinor: 2333,
     currency: 'EUR',
     split: { method: 'exclude', excluded: [] },
     category: 'transport',
   });
-  await run('mem_maya', 'msg_b4', {
+  await run('mem_chase', 'msg_b4', {
     description: 'groceries',
     amountMinor: 4100,
     currency: 'EUR',
     split: {
       method: 'exact',
       amounts: [
-        { member: 'Maya', amountMinor: 1000 },
+        { member: 'Chase', amountMinor: 1000 },
         { member: 'Henry', amountMinor: 3100 },
       ],
     },
@@ -108,33 +108,33 @@ describe('T-065 trip money in the agent: Barcelona unchanged', () => {
             "netMinor": -3489,
           },
           {
-            "memberId": "mem_maya",
-            "name": "Maya",
+            "memberId": "mem_chase",
+            "name": "Chase",
             "netMinor": -1036,
           },
           {
-            "memberId": "mem_jordan",
-            "name": "Jordan",
+            "memberId": "mem_piotr",
+            "name": "Piotr",
             "netMinor": 2064,
           },
           {
-            "memberId": "mem_priya",
-            "name": "Priya",
+            "memberId": "mem_arjun",
+            "name": "Arjun",
             "netMinor": 264,
           },
           {
-            "memberId": "mem_sam",
-            "name": "Sam",
+            "memberId": "mem_crowley",
+            "name": "Crowley",
             "netMinor": -4134,
           },
         ],
         "currency": "EUR",
         "text": "€210.33 on the tab so far
       Henry → Dean €21.97
-      Henry → Jordan €12.92
-      Maya → Jordan €7.72
-      Maya → Priya €2.64
-      Sam → Dean €41.34",
+      Henry → Piotr €12.92
+      Chase → Piotr €7.72
+      Chase → Arjun €2.64
+      Crowley → Dean €41.34",
         "totalSpentMinor": 21033,
         "transfers": [
           {
@@ -146,25 +146,25 @@ describe('T-065 trip money in the agent: Barcelona unchanged', () => {
           {
             "amountMinor": 1292,
             "from": "mem_henry",
-            "text": "Henry → Jordan €12.92",
-            "to": "mem_jordan",
+            "text": "Henry → Piotr €12.92",
+            "to": "mem_piotr",
           },
           {
             "amountMinor": 772,
-            "from": "mem_maya",
-            "text": "Maya → Jordan €7.72",
-            "to": "mem_jordan",
+            "from": "mem_chase",
+            "text": "Chase → Piotr €7.72",
+            "to": "mem_piotr",
           },
           {
             "amountMinor": 264,
-            "from": "mem_maya",
-            "text": "Maya → Priya €2.64",
-            "to": "mem_priya",
+            "from": "mem_chase",
+            "text": "Chase → Arjun €2.64",
+            "to": "mem_arjun",
           },
           {
             "amountMinor": 4134,
-            "from": "mem_sam",
-            "text": "Sam → Dean €41.34",
+            "from": "mem_crowley",
+            "text": "Crowley → Dean €41.34",
             "to": "mem_dean",
           },
         ],
@@ -190,19 +190,19 @@ describe('T-065 trip money in the agent: Barcelona unchanged', () => {
           -3489,
         ],
         [
-          "mem_maya",
+          "mem_chase",
           -1036,
         ],
         [
-          "mem_jordan",
+          "mem_piotr",
           2064,
         ],
         [
-          "mem_priya",
+          "mem_arjun",
           264,
         ],
         [
-          "mem_sam",
+          "mem_crowley",
           -4134,
         ],
       ]
@@ -246,32 +246,32 @@ describe('T-065 trip money in the agent: Barcelona unchanged', () => {
               },
             },
             {
-              "memberId": "mem_maya",
-              "name": "Maya",
+              "memberId": "mem_chase",
+              "name": "Chase",
               "net": {
                 "amountMinor": -1036,
                 "currency": "EUR",
               },
             },
             {
-              "memberId": "mem_jordan",
-              "name": "Jordan",
+              "memberId": "mem_piotr",
+              "name": "Piotr",
               "net": {
                 "amountMinor": 2064,
                 "currency": "EUR",
               },
             },
             {
-              "memberId": "mem_priya",
-              "name": "Priya",
+              "memberId": "mem_arjun",
+              "name": "Arjun",
               "net": {
                 "amountMinor": 264,
                 "currency": "EUR",
               },
             },
             {
-              "memberId": "mem_sam",
-              "name": "Sam",
+              "memberId": "mem_crowley",
+              "name": "Crowley",
               "net": {
                 "amountMinor": -4134,
                 "currency": "EUR",
@@ -282,10 +282,10 @@ describe('T-065 trip money in the agent: Barcelona unchanged', () => {
           "currency": "EUR",
           "fallbackText": "final settle, 5 transfers and everyone's square
       Henry → Dean €21.97
-      Henry → Jordan €12.92
-      Maya → Jordan €7.72
-      Maya → Priya €2.64
-      Sam → Dean €41.34
+      Henry → Piotr €12.92
+      Chase → Piotr €7.72
+      Chase → Arjun €2.64
+      Crowley → Dean €41.34
       👍 on this message when you've paid, i'll tick you off",
           "mode": "final",
           "title": "final settle",
@@ -308,30 +308,30 @@ describe('T-065 trip money in the agent: Barcelona unchanged', () => {
                 "currency": "EUR",
               },
               "from": "mem_henry",
-              "to": "mem_jordan",
+              "to": "mem_piotr",
             },
             {
               "amount": {
                 "amountMinor": 772,
                 "currency": "EUR",
               },
-              "from": "mem_maya",
-              "to": "mem_jordan",
+              "from": "mem_chase",
+              "to": "mem_piotr",
             },
             {
               "amount": {
                 "amountMinor": 264,
                 "currency": "EUR",
               },
-              "from": "mem_maya",
-              "to": "mem_priya",
+              "from": "mem_chase",
+              "to": "mem_arjun",
             },
             {
               "amount": {
                 "amountMinor": 4134,
                 "currency": "EUR",
               },
-              "from": "mem_sam",
+              "from": "mem_crowley",
               "to": "mem_dean",
             },
           ],
@@ -339,10 +339,10 @@ describe('T-065 trip money in the agent: Barcelona unchanged', () => {
         },
         "text": "final settle, 5 transfers and everyone's square
       Henry → Dean €21.97
-      Henry → Jordan €12.92
-      Maya → Jordan €7.72
-      Maya → Priya €2.64
-      Sam → Dean €41.34
+      Henry → Piotr €12.92
+      Chase → Piotr €7.72
+      Chase → Arjun €2.64
+      Crowley → Dean €41.34
       👍 on this message when you've paid, i'll tick you off",
       }
     `);

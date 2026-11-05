@@ -200,7 +200,7 @@ describe('document vectors through intakeDocument (OCR, email, card descriptor, 
         expect(item?.status).toBe('pending');
         expect(
           h.runtime.stores.private.listPendingItems(
-            owner === 'mem_dean' ? 'mem_maya' : 'mem_dean',
+            owner === 'mem_dean' ? 'mem_chase' : 'mem_dean',
             BARCELONA.groupId,
           ),
         ).toEqual([]);
@@ -228,7 +228,7 @@ describe('document vectors through intakeDocument (OCR, email, card descriptor, 
     const h = harness();
     const result = await h.runtime.agent.intakeDocument({
       groupId: BARCELONA.groupId,
-      ownerMemberId: 'mem_jordan',
+      ownerMemberId: 'mem_piotr',
       source: 'receipt_ocr',
       itemId: 'rcpt_clean',
       text: 'TAPAS 24 MESA 7 PATATAS BRAVAS 6.50 CAVA 22.00 TOTAL 84.00',
@@ -247,21 +247,25 @@ describe('document vectors through intakeDocument (OCR, email, card descriptor, 
 
   it('never prompts a minor and refuses an unknown owner', async () => {
     const h = harness();
-    const sam = h.runtime.stores.group.members.get('mem_sam')!;
-    h.runtime.stores.group.members.upsert({ ...sam, birthDate: '2012-02-01', ageBand: 'under18' });
+    const crowley = h.runtime.stores.group.members.get('mem_crowley')!;
+    h.runtime.stores.group.members.upsert({
+      ...crowley,
+      birthDate: '2012-02-01',
+      ageBand: 'under18',
+    });
     const result = await h.runtime.agent.intakeDocument({
       groupId: BARCELONA.groupId,
-      ownerMemberId: 'mem_sam',
+      ownerMemberId: 'mem_crowley',
       source: 'email_receipt',
-      itemId: 'em_sam',
+      itemId: 'em_crowley',
       text: 'Your ride: 12.00 EUR',
       extracted: { amountMinor: 1200, currency: 'EUR', merchantDisplay: 'ride' },
     });
     // T-090: a minor can't hold email import, so nothing is kept and nothing is said.
     expect(result.outbound).toEqual([]);
     expect(result.pendingItemId).toBeUndefined();
-    expect(h.runtime.stores.private.listPendingItems('mem_sam', BARCELONA.groupId)).toEqual([]);
-    expect(h.audit().at(-1)?.payload).toMatchObject({ cause: 'minor', sourceItemId: 'em_sam' });
+    expect(h.runtime.stores.private.listPendingItems('mem_crowley', BARCELONA.groupId)).toEqual([]);
+    expect(h.audit().at(-1)?.payload).toMatchObject({ cause: 'minor', sourceItemId: 'em_crowley' });
     await expect(
       h.runtime.agent.intakeDocument({
         groupId: BARCELONA.groupId,

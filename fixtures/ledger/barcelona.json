@@ -29,10 +29,10 @@
         "participants": [
           "mem_dean",
           "mem_henry",
-          "mem_maya",
-          "mem_jordan",
-          "mem_priya",
-          "mem_sam"
+          "mem_chase",
+          "mem_piotr",
+          "mem_arjun",
+          "mem_crowley"
         ]
       },
       "source": "booking",
@@ -61,28 +61,28 @@
           }
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "amount": {
             "amountMinor": 23000,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "amount": {
             "amountMinor": 23000,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "amount": {
             "amountMinor": 23000,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "amount": {
             "amountMinor": 23000,
             "currency": "EUR"
@@ -115,10 +115,10 @@
         "participants": [
           "mem_dean",
           "mem_henry",
-          "mem_maya",
-          "mem_jordan",
-          "mem_priya",
-          "mem_sam"
+          "mem_chase",
+          "mem_piotr",
+          "mem_arjun",
+          "mem_crowley"
         ]
       },
       "source": "booking",
@@ -129,7 +129,7 @@
       "activityId": "act_bcn_barca",
       "occurredAt": "2026-02-10T19:44:00-05:00",
       "createdAt": "2026-02-10T19:44:00-05:00",
-      "createdBy": "mem_sam",
+      "createdBy": "mem_crowley",
       "status": "logged",
       "expectedShares": [
         {
@@ -147,28 +147,28 @@
           }
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "amount": {
             "amountMinor": 7200,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "amount": {
             "amountMinor": 7200,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "amount": {
             "amountMinor": 7200,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "amount": {
             "amountMinor": 7200,
             "currency": "EUR"
@@ -189,7 +189,7 @@
       },
       "paidBy": [
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "amount": {
             "amountMinor": 15600,
             "currency": "EUR"
@@ -201,10 +201,10 @@
         "participants": [
           "mem_dean",
           "mem_henry",
-          "mem_maya",
-          "mem_jordan",
-          "mem_priya",
-          "mem_sam"
+          "mem_chase",
+          "mem_piotr",
+          "mem_arjun",
+          "mem_crowley"
         ]
       },
       "source": "chat",
@@ -215,7 +215,7 @@
       "activityId": "act_bcn_sagrada",
       "occurredAt": "2026-03-10T12:07:00-04:00",
       "createdAt": "2026-03-10T12:07:00-04:00",
-      "createdBy": "mem_maya",
+      "createdBy": "mem_chase",
       "status": "logged",
       "expectedShares": [
         {
@@ -233,28 +233,28 @@
           }
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "amount": {
             "amountMinor": 2600,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "amount": {
             "amountMinor": 2600,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "amount": {
             "amountMinor": 2600,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "amount": {
             "amountMinor": 2600,
             "currency": "EUR"
@@ -275,7 +275,7 @@
       },
       "paidBy": [
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "amount": {
             "amountMinor": 10800,
             "currency": "EUR"
@@ -287,10 +287,10 @@
         "participants": [
           "mem_dean",
           "mem_henry",
-          "mem_maya",
-          "mem_jordan",
-          "mem_priya",
-          "mem_sam"
+          "mem_chase",
+          "mem_piotr",
+          "mem_arjun",
+          "mem_crowley"
         ]
       },
       "source": "chat",
@@ -301,7 +301,7 @@
       "activityId": "act_bcn_parkguell",
       "occurredAt": "2026-03-10T12:31:00-04:00",
       "createdAt": "2026-03-10T12:31:00-04:00",
-      "createdBy": "mem_jordan",
+      "createdBy": "mem_piotr",
       "status": "logged",
       "expectedShares": [
         {
@@ -319,28 +319,28 @@
           }
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "amount": {
             "amountMinor": 1800,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "amount": {
             "amountMinor": 1800,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "amount": {
             "amountMinor": 1800,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "amount": {
             "amountMinor": 1800,
             "currency": "EUR"
@@ -369,7 +369,7 @@
       },
       "paidBy": [
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "amount": {
             "amountMinor": 3294,
             "currency": "EUR"
@@ -379,9 +379,9 @@
       "split": {
         "method": "equal",
         "participants": [
-          "mem_priya",
-          "mem_jordan",
-          "mem_sam"
+          "mem_arjun",
+          "mem_piotr",
+          "mem_crowley"
         ]
       },
       "source": "chat",
@@ -391,25 +391,25 @@
       },
       "occurredAt": "2026-03-10T12:50:00-04:00",
       "createdAt": "2026-03-10T12:50:00-04:00",
-      "createdBy": "mem_priya",
+      "createdBy": "mem_arjun",
       "status": "logged",
       "expectedShares": [
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "amount": {
             "amountMinor": 1098,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "amount": {
             "amountMinor": 1098,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "amount": {
             "amountMinor": 1098,
             "currency": "EUR"
@@ -441,8 +441,8 @@
         "method": "equal",
         "participants": [
           "mem_dean",
-          "mem_maya",
-          "mem_sam"
+          "mem_chase",
+          "mem_crowley"
         ]
       },
       "source": "chat",
@@ -463,14 +463,14 @@
           }
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "amount": {
             "amountMinor": 1067,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "amount": {
             "amountMinor": 1066,
             "currency": "EUR"
@@ -491,7 +491,7 @@
       },
       "paidBy": [
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "amount": {
             "amountMinor": 4740,
             "currency": "EUR"
@@ -503,10 +503,10 @@
         "participants": [
           "mem_dean",
           "mem_henry",
-          "mem_maya",
-          "mem_jordan",
-          "mem_priya",
-          "mem_sam"
+          "mem_chase",
+          "mem_piotr",
+          "mem_arjun",
+          "mem_crowley"
         ]
       },
       "source": "chat",
@@ -516,7 +516,7 @@
       },
       "occurredAt": "2026-03-12T17:45:00+01:00",
       "createdAt": "2026-03-12T17:45:00+01:00",
-      "createdBy": "mem_priya",
+      "createdBy": "mem_arjun",
       "status": "logged",
       "expectedShares": [
         {
@@ -534,28 +534,28 @@
           }
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "amount": {
             "amountMinor": 790,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "amount": {
             "amountMinor": 790,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "amount": {
             "amountMinor": 790,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "amount": {
             "amountMinor": 790,
             "currency": "EUR"
@@ -576,7 +576,7 @@
       },
       "paidBy": [
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "amount": {
             "amountMinor": 12600,
             "currency": "EUR"
@@ -588,10 +588,10 @@
         "participants": [
           "mem_dean",
           "mem_henry",
-          "mem_maya",
-          "mem_jordan",
-          "mem_priya",
-          "mem_sam"
+          "mem_chase",
+          "mem_piotr",
+          "mem_arjun",
+          "mem_crowley"
         ]
       },
       "source": "chat",
@@ -602,7 +602,7 @@
       "activityId": "act_bcn_dinner_d1",
       "occurredAt": "2026-03-12T23:50:00+01:00",
       "createdAt": "2026-03-12T23:50:00+01:00",
-      "createdBy": "mem_jordan",
+      "createdBy": "mem_piotr",
       "status": "logged",
       "expectedShares": [
         {
@@ -620,28 +620,28 @@
           }
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "amount": {
             "amountMinor": 2100,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "amount": {
             "amountMinor": 2100,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "amount": {
             "amountMinor": 2100,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "amount": {
             "amountMinor": 2100,
             "currency": "EUR"
@@ -662,7 +662,7 @@
       },
       "paidBy": [
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "amount": {
             "amountMinor": 3000,
             "currency": "EUR"
@@ -672,9 +672,9 @@
       "split": {
         "method": "equal",
         "participants": [
-          "mem_maya",
-          "mem_priya",
-          "mem_jordan"
+          "mem_chase",
+          "mem_arjun",
+          "mem_piotr"
         ]
       },
       "source": "chat",
@@ -684,25 +684,25 @@
       },
       "occurredAt": "2026-03-13T14:01:00+01:00",
       "createdAt": "2026-03-13T14:01:00+01:00",
-      "createdBy": "mem_maya",
+      "createdBy": "mem_chase",
       "status": "logged",
       "expectedShares": [
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "amount": {
             "amountMinor": 1000,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "amount": {
             "amountMinor": 1000,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "amount": {
             "amountMinor": 1000,
             "currency": "EUR"
@@ -723,7 +723,7 @@
       },
       "paidBy": [
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "amount": {
             "amountMinor": 18400,
             "currency": "EUR"
@@ -735,10 +735,10 @@
         "participants": [
           "mem_dean",
           "mem_henry",
-          "mem_maya",
-          "mem_jordan",
-          "mem_priya",
-          "mem_sam"
+          "mem_chase",
+          "mem_piotr",
+          "mem_arjun",
+          "mem_crowley"
         ],
         "lineItems": [
           {
@@ -821,9 +821,9 @@
             "claimedBy": [
               "mem_dean",
               "mem_henry",
-              "mem_maya",
-              "mem_jordan",
-              "mem_sam"
+              "mem_chase",
+              "mem_piotr",
+              "mem_crowley"
             ],
             "kind": "item"
           },
@@ -837,9 +837,9 @@
             "claimedBy": [
               "mem_dean",
               "mem_henry",
-              "mem_maya",
-              "mem_jordan",
-              "mem_sam"
+              "mem_chase",
+              "mem_piotr",
+              "mem_crowley"
             ],
             "kind": "item"
           },
@@ -853,9 +853,9 @@
             "claimedBy": [
               "mem_dean",
               "mem_henry",
-              "mem_maya",
-              "mem_jordan",
-              "mem_sam"
+              "mem_chase",
+              "mem_piotr",
+              "mem_crowley"
             ],
             "kind": "item"
           },
@@ -879,7 +879,7 @@
       "activityId": "act_bcn_dinner_d2",
       "occurredAt": "2026-03-13T23:01:00+01:00",
       "createdAt": "2026-03-13T23:06:00+01:00",
-      "createdBy": "mem_jordan",
+      "createdBy": "mem_piotr",
       "status": "logged",
       "expectedShares": [
         {
@@ -897,28 +897,28 @@
           }
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "amount": {
             "amountMinor": 3260,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "amount": {
             "amountMinor": 3260,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "amount": {
             "amountMinor": 2100,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "amount": {
             "amountMinor": 3260,
             "currency": "EUR"
@@ -939,7 +939,7 @@
       },
       "paidBy": [
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "amount": {
             "amountMinor": 1860,
             "currency": "EUR"
@@ -949,10 +949,10 @@
       "split": {
         "method": "equal",
         "participants": [
-          "mem_priya",
+          "mem_arjun",
           "mem_dean",
-          "mem_jordan",
-          "mem_sam"
+          "mem_piotr",
+          "mem_crowley"
         ]
       },
       "source": "email_receipt",
@@ -962,7 +962,7 @@
       },
       "occurredAt": "2026-03-14T01:52:00+01:00",
       "createdAt": "2026-03-14T09:12:00+01:00",
-      "createdBy": "mem_priya",
+      "createdBy": "mem_arjun",
       "status": "logged",
       "expectedShares": [
         {
@@ -973,21 +973,21 @@
           }
         },
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "amount": {
             "amountMinor": 465,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "amount": {
             "amountMinor": 465,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "amount": {
             "amountMinor": 465,
             "currency": "EUR"
@@ -1040,28 +1040,28 @@
           }
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "amount": {
             "amountMinor": 1680,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "amount": {
             "amountMinor": 1680,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "amount": {
             "amountMinor": 1680,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "amount": {
             "amountMinor": 1680,
             "currency": "EUR"
@@ -1093,10 +1093,10 @@
         "method": "equal",
         "participants": [
           "mem_dean",
-          "mem_maya",
-          "mem_jordan",
-          "mem_priya",
-          "mem_sam"
+          "mem_chase",
+          "mem_piotr",
+          "mem_arjun",
+          "mem_crowley"
         ]
       },
       "source": "booking",
@@ -1118,28 +1118,28 @@
           }
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "amount": {
             "amountMinor": 1800,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "amount": {
             "amountMinor": 1800,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "amount": {
             "amountMinor": 1800,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "amount": {
             "amountMinor": 1800,
             "currency": "EUR"
@@ -1160,7 +1160,7 @@
       },
       "paidBy": [
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "amount": {
             "amountMinor": 2800,
             "currency": "EUR"
@@ -1170,8 +1170,8 @@
       "split": {
         "method": "equal",
         "participants": [
-          "mem_sam",
-          "mem_maya"
+          "mem_crowley",
+          "mem_chase"
         ]
       },
       "source": "chat",
@@ -1182,18 +1182,18 @@
       "activityId": "act_bcn_razzmatazz",
       "occurredAt": "2026-03-15T01:30:00+01:00",
       "createdAt": "2026-03-15T01:30:00+01:00",
-      "createdBy": "mem_sam",
+      "createdBy": "mem_crowley",
       "status": "logged",
       "expectedShares": [
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "amount": {
             "amountMinor": 1400,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "amount": {
             "amountMinor": 1400,
             "currency": "EUR"
@@ -1214,7 +1214,7 @@
       },
       "paidBy": [
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "amount": {
             "amountMinor": 6200,
             "currency": "EUR"
@@ -1225,10 +1225,10 @@
         "method": "equal",
         "participants": [
           "mem_dean",
-          "mem_maya",
-          "mem_jordan",
-          "mem_priya",
-          "mem_sam"
+          "mem_chase",
+          "mem_piotr",
+          "mem_arjun",
+          "mem_crowley"
         ]
       },
       "source": "chat",
@@ -1238,7 +1238,7 @@
       },
       "occurredAt": "2026-03-15T02:07:00+01:00",
       "createdAt": "2026-03-15T02:07:00+01:00",
-      "createdBy": "mem_jordan",
+      "createdBy": "mem_piotr",
       "status": "logged",
       "expectedShares": [
         {
@@ -1249,28 +1249,28 @@
           }
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "amount": {
             "amountMinor": 1240,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "amount": {
             "amountMinor": 1240,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "amount": {
             "amountMinor": 1240,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "amount": {
             "amountMinor": 1240,
             "currency": "EUR"
@@ -1291,7 +1291,7 @@
       },
       "paidBy": [
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "amount": {
             "amountMinor": 2340,
             "currency": "EUR"
@@ -1302,10 +1302,10 @@
         "method": "equal",
         "participants": [
           "mem_dean",
-          "mem_maya",
-          "mem_jordan",
-          "mem_priya",
-          "mem_sam"
+          "mem_chase",
+          "mem_piotr",
+          "mem_arjun",
+          "mem_crowley"
         ]
       },
       "source": "card_transaction",
@@ -1315,7 +1315,7 @@
       },
       "occurredAt": "2026-03-15T02:14:00+01:00",
       "createdAt": "2026-03-15T09:20:00+01:00",
-      "createdBy": "mem_sam",
+      "createdBy": "mem_crowley",
       "status": "logged",
       "expectedShares": [
         {
@@ -1326,28 +1326,28 @@
           }
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "amount": {
             "amountMinor": 468,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "amount": {
             "amountMinor": 468,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "amount": {
             "amountMinor": 468,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "amount": {
             "amountMinor": 468,
             "currency": "EUR"
@@ -1380,10 +1380,10 @@
         "participants": [
           "mem_dean",
           "mem_henry",
-          "mem_maya",
-          "mem_jordan",
-          "mem_priya",
-          "mem_sam"
+          "mem_chase",
+          "mem_piotr",
+          "mem_arjun",
+          "mem_crowley"
         ]
       },
       "source": "chat",
@@ -1411,28 +1411,28 @@
           }
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "amount": {
             "amountMinor": 220,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "amount": {
             "amountMinor": 220,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "amount": {
             "amountMinor": 220,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "amount": {
             "amountMinor": 220,
             "currency": "EUR"
@@ -1453,7 +1453,7 @@
       },
       "paidBy": [
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "amount": {
             "amountMinor": 10890,
             "currency": "EUR"
@@ -1464,8 +1464,8 @@
         "method": "itemized",
         "participants": [
           "mem_dean",
-          "mem_maya",
-          "mem_priya"
+          "mem_chase",
+          "mem_arjun"
         ],
         "lineItems": [
           {
@@ -1477,7 +1477,7 @@
             },
             "claimedBy": [
               "mem_dean",
-              "mem_maya"
+              "mem_chase"
             ],
             "kind": "item"
           },
@@ -1489,7 +1489,7 @@
               "currency": "EUR"
             },
             "claimedBy": [
-              "mem_priya"
+              "mem_arjun"
             ],
             "kind": "item"
           },
@@ -1502,8 +1502,8 @@
             },
             "claimedBy": [
               "mem_dean",
-              "mem_maya",
-              "mem_priya"
+              "mem_chase",
+              "mem_arjun"
             ],
             "kind": "item"
           },
@@ -1537,7 +1537,7 @@
       "activityId": "act_bcn_lunch_d5",
       "occurredAt": "2026-03-16T13:47:00+01:00",
       "createdAt": "2026-03-16T13:53:00+01:00",
-      "createdBy": "mem_maya",
+      "createdBy": "mem_chase",
       "status": "logged",
       "expectedShares": [
         {
@@ -1548,14 +1548,14 @@
           }
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "amount": {
             "amountMinor": 3872,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "amount": {
             "amountMinor": 3146,
             "currency": "EUR"
@@ -1576,7 +1576,7 @@
       },
       "paidBy": [
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "amount": {
             "amountMinor": 9000,
             "currency": "EUR"
@@ -1588,10 +1588,10 @@
         "participants": [
           "mem_dean",
           "mem_henry",
-          "mem_maya",
-          "mem_jordan",
-          "mem_priya",
-          "mem_sam"
+          "mem_chase",
+          "mem_piotr",
+          "mem_arjun",
+          "mem_crowley"
         ]
       },
       "source": "chat",
@@ -1602,7 +1602,7 @@
       "activityId": "act_bcn_club_d5",
       "occurredAt": "2026-03-16T17:05:00+01:00",
       "createdAt": "2026-03-16T17:05:00+01:00",
-      "createdBy": "mem_sam",
+      "createdBy": "mem_crowley",
       "status": "logged",
       "expectedShares": [
         {
@@ -1620,28 +1620,28 @@
           }
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "amount": {
             "amountMinor": 1500,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "amount": {
             "amountMinor": 1500,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "amount": {
             "amountMinor": 1500,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "amount": {
             "amountMinor": 1500,
             "currency": "EUR"
@@ -1674,10 +1674,10 @@
         "participants": [
           "mem_dean",
           "mem_henry",
-          "mem_maya",
-          "mem_jordan",
-          "mem_priya",
-          "mem_sam"
+          "mem_chase",
+          "mem_piotr",
+          "mem_arjun",
+          "mem_crowley"
         ]
       },
       "source": "card_transaction",
@@ -1705,28 +1705,28 @@
           }
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "amount": {
             "amountMinor": 787,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "amount": {
             "amountMinor": 787,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "amount": {
             "amountMinor": 786,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "amount": {
             "amountMinor": 786,
             "currency": "EUR"
@@ -1769,28 +1769,28 @@
           }
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "net": {
             "amountMinor": -22957,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "net": {
             "amountMinor": -15188,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "net": {
             "amountMinor": -30554,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "net": {
             "amountMinor": -39654,
             "currency": "EUR"
@@ -1838,28 +1838,28 @@
           }
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "net": {
             "amountMinor": -30805,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "net": {
             "amountMinor": -501,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "net": {
             "amountMinor": -37447,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "net": {
             "amountMinor": -44827,
             "currency": "EUR"
@@ -1911,28 +1911,28 @@
           }
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "net": {
             "amountMinor": -26294,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "net": {
             "amountMinor": -3008,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "net": {
             "amountMinor": -43099,
             "currency": "EUR"
           }
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "net": {
             "amountMinor": -38333,
             "currency": "EUR"
@@ -1978,7 +1978,7 @@
         }
       },
       {
-        "memberId": "mem_maya",
+        "memberId": "mem_chase",
         "net": {
           "amountMinor": -26294,
           "currency": "EUR"
@@ -1993,7 +1993,7 @@
         }
       },
       {
-        "memberId": "mem_jordan",
+        "memberId": "mem_piotr",
         "net": {
           "amountMinor": -3008,
           "currency": "EUR"
@@ -2008,7 +2008,7 @@
         }
       },
       {
-        "memberId": "mem_priya",
+        "memberId": "mem_arjun",
         "net": {
           "amountMinor": -43099,
           "currency": "EUR"
@@ -2023,7 +2023,7 @@
         }
       },
       {
-        "memberId": "mem_sam",
+        "memberId": "mem_crowley",
         "net": {
           "amountMinor": -38333,
           "currency": "EUR"
@@ -2040,7 +2040,7 @@
     ],
     "transfers": [
       {
-        "from": "mem_priya",
+        "from": "mem_arjun",
         "to": "mem_dean",
         "amount": {
           "amountMinor": 43099,
@@ -2056,7 +2056,7 @@
         }
       },
       {
-        "from": "mem_sam",
+        "from": "mem_crowley",
         "to": "mem_dean",
         "amount": {
           "amountMinor": 38333,
@@ -2064,7 +2064,7 @@
         }
       },
       {
-        "from": "mem_maya",
+        "from": "mem_chase",
         "to": "mem_dean",
         "amount": {
           "amountMinor": 26294,
@@ -2072,7 +2072,7 @@
         }
       },
       {
-        "from": "mem_jordan",
+        "from": "mem_piotr",
         "to": "mem_dean",
         "amount": {
           "amountMinor": 3008,

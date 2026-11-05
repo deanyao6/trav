@@ -433,7 +433,7 @@ describe('verifyAuditChain', () => {
   it('approval.invalidated / rejected / expired revoke the grant (A8)', () => {
     const revocations: readonly [AuditEventType, Record<string, unknown>][] = [
       ['approval.invalidated', { cause: 'price_changed', grantId: 'grant_1' }],
-      ['approval.rejected', { memberId: 'mem_sam', messageId: 'msg_2' }],
+      ['approval.rejected', { memberId: 'mem_crowley', messageId: 'msg_2' }],
       ['approval.expired', { expiresAt: T0 }],
       ['proposal.superseded', { supersededBy: 'prop_2', cause: 'roster_changed' }],
     ];

@@ -82,12 +82,12 @@
       },
       {
         "do": "patch_member",
-        "memberId": "mem_sam",
+        "memberId": "mem_crowley",
         "patch": { "birthDate": "2012-02-01", "ageBand": "under18" }
       },
       {
         "do": "react",
-        "from": "h_sam",
+        "from": "h_crowley",
         "target": "razz",
         "reaction": "👍",
         "expect": {
@@ -137,7 +137,7 @@
       },
       {
         "do": "react",
-        "from": "h_maya",
+        "from": "h_chase",
         "target": "razz",
         "reaction": "❤️",
         "expect": { "silent": true, "note": "reaction:not_approval" }

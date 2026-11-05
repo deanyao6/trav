@@ -6,8 +6,8 @@
  *                   ...
  *                   [card: booking_proposal rz-001 · approve/not_me/decline]
  *   [9:41 pm] Dean 👍 (approve rz-001)
- *   [9:41 pm] trav → Priya (private): your razzmatazz ticket for tonight 🎟️
- *                   [card: ticket tkt-priya · qr: data:image/png;base64,iVBORw0KGgoAAAANSUhE...]
+ *   [9:41 pm] trav → Arjun (private): your razzmatazz ticket for tonight 🎟️
+ *                   [card: ticket tkt-arjun · qr: data:image/png;base64,iVBORw0KGgoAAAANSUhE...]
  *
  * Continuation lines align under the first character of the text after
  * `[time] trav: `. Private (DM-lane) messages are marked `→ Name (private)`.

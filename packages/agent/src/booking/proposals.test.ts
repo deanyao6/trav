@@ -20,7 +20,7 @@ import {
 } from './proposals.js';
 
 const NOW = '2026-03-14T21:40:00+01:00';
-const FIVE: readonly MemberId[] = ['mem_dean', 'mem_sam', 'mem_ava', 'mem_maya', 'mem_leo'];
+const FIVE: readonly MemberId[] = ['mem_dean', 'mem_crowley', 'mem_ava', 'mem_chase', 'mem_leo'];
 
 function member(id: string): Member {
   const name = id.replace(/^mem_/, '');
@@ -120,7 +120,7 @@ describe('renderProposalText: who approves (T-104 round 2, VOICE §4.1)', () => 
   it('any_one with several approvers (the pool standing in): everyone is named, one tap is enough', () => {
     // A card owner nobody can approve for (not a member): the any_one parties stand in.
     const lines = render(proposal({ paidBy: { kind: 'member_card', memberId: 'mem_nobody' } }));
-    expect(lines.at(-2)).toBe('any one of Dean, Sam, Ava, Maya or Leo can ok it');
+    expect(lines.at(-2)).toBe('any one of Dean, Crowley, Ava, Chase or Leo can ok it');
     expect(lines.at(-1)).toBe(
       'one 👍 from any of them books it, or anyone can say "not me" first. price held for 15 min',
     );
@@ -253,7 +253,7 @@ describe('T-158: a clarify roster never lists someone the member excluded', () =
   it('a count that is not the roster after the exclusion lists only who is still in', () => {
     const q = question(party({ quantity: 4, excludedNames: ['Henry'] }));
     expect(q).toBe(
-      "who's in? i've got Dean, Sam, Ava, Maya, Leo. 👍 if that's right, or tell me who to swap",
+      "who's in? i've got Dean, Crowley, Ava, Chase, Leo. 👍 if that's right, or tell me who to swap",
     );
   });
 
@@ -266,18 +266,18 @@ describe('T-158: a clarify roster never lists someone the member excluded', () =
   });
 
   it('r1 #4: an unknown attendee lists the named people Trav could match, never the whole group', () => {
-    const r = party({ attendeeNames: ['Maya', 'Sam', 'Zed'] });
+    const r = party({ attendeeNames: ['Chase', 'Crowley', 'Zed'] });
     expect(question(r)).toBe(
-      "who's in? i've got Sam, Maya. 👍 if that's right, or tell me who to swap",
+      "who's in? i've got Crowley, Chase. 👍 if that's right, or tell me who to swap",
     );
     expect(r).toMatchObject({ problems: ['unknown_name:Zed'] });
     // Excluded and named: the excluded one is still never listed.
     const q = question(
-      party({ excludedNames: ['Henry'], attendeeNames: ['Maya', 'Henry', 'Zed'] }),
+      party({ excludedNames: ['Henry'], attendeeNames: ['Chase', 'Henry', 'Zed'] }),
     );
-    expect(q).toBe("who's in? i've got Maya. 👍 if that's right, or tell me who to swap");
+    expect(q).toBe("who's in? i've got Chase. 👍 if that's right, or tell me who to swap");
     // Every unknown is reported at once, not just the first.
-    expect(party({ attendeeNames: ['Zed', 'Maya', 'Quinn'] })).toMatchObject({
+    expect(party({ attendeeNames: ['Zed', 'Chase', 'Quinn'] })).toMatchObject({
       problems: ['unknown_name:Zed', 'unknown_name:Quinn'],
     });
   });
@@ -287,18 +287,18 @@ describe('T-158: a clarify roster never lists someone the member excluded', () =
     expect(q).toBe("who's in? tell me who's going");
     // A reason word that slipped into the names is never echoed back.
     const r = party({
-      attendeeNames: ['Maya', 'Sam', 'Henry', 'Is', 'Sick'],
+      attendeeNames: ['Chase', 'Crowley', 'Henry', 'Is', 'Sick'],
       excludedNames: ['Henry'],
     });
     expect(question(r)).toBe(
-      "who's in? i've got Sam, Maya. 👍 if that's right, or tell me who to swap",
+      "who's in? i've got Crowley, Chase. 👍 if that's right, or tell me who to swap",
     );
     expect(question(r)).not.toMatch(/sick|\bis\b/i);
   });
 
   it('r1 #4: an unknown excluded name next to named attendees lists those attendees', () => {
-    const q = question(party({ excludedNames: ['Zed'], attendeeNames: ['Maya', 'Leo'] }));
-    expect(q).toBe("who's in? i've got Maya, Leo. 👍 if that's right, or tell me who to swap");
+    const q = question(party({ excludedNames: ['Zed'], attendeeNames: ['Chase', 'Leo'] }));
+    expect(q).toBe("who's in? i've got Chase, Leo. 👍 if that's right, or tell me who to swap");
   });
 
   it('an excluded member id is left out the same way', () => {
@@ -309,7 +309,7 @@ describe('T-158: a clarify roster never lists someone the member excluded', () =
 
   it('nobody left: a plain question, never an empty list', () => {
     const q = question(
-      party({ quantity: 1, excludedNames: ['Dean', 'Sam', 'Ava', 'Maya', 'Leo', 'Henry'] }),
+      party({ quantity: 1, excludedNames: ['Dean', 'Crowley', 'Ava', 'Chase', 'Leo', 'Henry'] }),
     );
     expect(q).toBe("who's in? tell me who's going");
   });
@@ -324,9 +324,12 @@ describe('T-158: the ticket path through the runtime (offline)', () => {
   const REASON = /sick|rough|feeling/i;
 
   it.each([
-    ['h_priya', '@trav we need razzmatazz entry tonight for dean maya jordan sam and me'],
-    ['h_jordan', '@trav pick up razzmatazz passes for us tonight minus henry'],
-    ['h_sam', '@trav can you sort razzmatazz for 5 of us tonight? not henry, he is feeling rough'],
+    ['h_arjun', '@trav we need razzmatazz entry tonight for dean chase piotr crowley and me'],
+    ['h_piotr', '@trav pick up razzmatazz passes for us tonight minus henry'],
+    [
+      'h_crowley',
+      '@trav can you sort razzmatazz for 5 of us tonight? not henry, he is feeling rough',
+    ],
   ])('%s: "%s" proposes the five at €90, Henry out, no reason repeated', async (from, text) => {
     const h = harness();
     const turn = await h.say(from, text);
@@ -343,23 +346,26 @@ describe('T-158: the ticket path through the runtime (offline)', () => {
   it('"the 4 of us …, not henry, he\'s feeling rough": the question names the five still in, never Henry', async () => {
     const h = harness();
     const turn = await h.say(
-      'h_maya',
+      'h_chase',
       "@trav get the 4 of us razzmatazz tickets tonight. not henry, he's feeling rough",
     );
     expect(h.pending()).toHaveLength(0);
     const said = groupText(turn);
     expect(said).toContain("who's in?");
-    expect(said).toContain('Dean, Maya, Jordan, Priya, Sam');
+    expect(said).toContain('Dean, Chase, Piotr, Arjun, Crowley');
     expect(said).not.toContain('Henry');
     expect(said).not.toMatch(REASON);
   });
 
-  it('r1 #1: "for maya and sam, henry is sick" proposes exactly Maya and Sam, no reason repeated', async () => {
+  it('r1 #1: "for chase and crowley, henry is sick" proposes exactly Chase and Crowley, no reason repeated', async () => {
     const h = harness();
-    const turn = await h.say('h_dean', '@trav get razz tickets for maya and sam, henry is sick');
+    const turn = await h.say(
+      'h_dean',
+      '@trav get razz tickets for chase and crowley, henry is sick',
+    );
     const p = h.pending()[0];
     expect(p, turn.note).toBeDefined();
-    expect(new Set(p!.attendees)).toEqual(new Set(['mem_maya', 'mem_sam']));
+    expect(new Set(p!.attendees)).toEqual(new Set(['mem_chase', 'mem_crowley']));
     expect(h.tickets.purchaseCount()).toBe(0);
     const said = groupText(turn);
     expect(said).not.toMatch(/sick|\bIs\b/);
@@ -368,7 +374,7 @@ describe('T-158: the ticket path through the runtime (offline)', () => {
 
   it.each([
     '@trav we need razz passes printed',
-    '@trav need razz passes from sam, he has them',
+    '@trav need razz passes from crowley, he has them',
     '@trav we need razz tickets lol jk',
     '@trav we want razz tickets but henry wants apolo',
     '@trav we need 5 razz passes printed',

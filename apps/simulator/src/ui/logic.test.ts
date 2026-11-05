@@ -5,7 +5,7 @@ import { BARCELONA } from '../server/groups.js';
 import { avatarColor, initials, layoutThread, planButtons, splitMentions } from './logic.js';
 
 const member = (handle: string) => BARCELONA.members.find((m) => m.handle === handle)!;
-const FIVE = ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam'];
+const FIVE = ['mem_dean', 'mem_chase', 'mem_piotr', 'mem_arjun', 'mem_crowley'];
 
 const actions: Action[] = [
   { id: 'approve', label: 'Approve', style: 'primary', textAliases: [], allowedMemberIds: FIVE },
@@ -53,12 +53,12 @@ describe('planButtons (VOICE §9.3: buttons only for members allowed to act)', (
   it('Henry (not charged) sees "waiting on ..." and no buttons', () => {
     const plan = planButtons(proposal(), member('h_henry'), BARCELONA);
     expect(plan.buttons).toEqual([]);
-    expect(plan.waitingOn).toBe('waiting on Dean, Maya +3');
+    expect(plan.waitingOn).toBe('waiting on Dean, Chase +3');
   });
 
   it('a single approver reads "waiting on Dean"', () => {
     const one: Action[] = actions.map((a) => ({ ...a, allowedMemberIds: ['mem_dean'] }));
-    const plan = planButtons(proposal({ actions: one }, ['mem_dean']), member('h_sam'), BARCELONA);
+    const plan = planButtons(proposal({ actions: one }, ['mem_dean']), member('h_crowley'), BARCELONA);
     expect(plan.waitingOn).toBe('waiting on Dean');
   });
 
@@ -73,7 +73,7 @@ describe('planButtons (VOICE §9.3: buttons only for members allowed to act)', (
   it('omitted allowedMemberIds on a proposal means any charged member', () => {
     const open = actions.map(({ allowedMemberIds: _a, ...rest }) => rest);
     expect(
-      planButtons(proposal({ actions: open }), member('h_sam'), BARCELONA).buttons,
+      planButtons(proposal({ actions: open }), member('h_crowley'), BARCELONA).buttons,
     ).toHaveLength(3);
     expect(
       planButtons(proposal({ actions: open }), member('h_henry'), BARCELONA).buttons,
@@ -85,7 +85,7 @@ describe('planButtons (VOICE §9.3: buttons only for members allowed to act)', (
     const all6 = BARCELONA.members.map((m) => m.memberId);
     const plan = planButtons(proposal({ actions: open }, all6), member('h_henry'), BARCELONA);
     expect(plan.buttons).toEqual([]);
-    expect(plan.waitingOn).toBe('waiting on Dean, Maya +3');
+    expect(plan.waitingOn).toBe('waiting on Dean, Chase +3');
   });
 
   it('approvers none of whom are charged are still named', () => {
@@ -115,10 +115,10 @@ describe('layoutThread', () => {
 
   it('starts a separator on gaps over 15 minutes and groups runs by sender', () => {
     const entries = [
-      m(1, 'h_sam', '2026-03-14T17:30:00+01:00'),
-      m(2, 'h_sam', '2026-03-14T17:31:00+01:00'),
-      m(3, 'h_jordan', '2026-03-14T17:32:00+01:00'),
-      m(4, 'h_jordan', '2026-03-14T20:30:00+01:00'),
+      m(1, 'h_crowley', '2026-03-14T17:30:00+01:00'),
+      m(2, 'h_crowley', '2026-03-14T17:31:00+01:00'),
+      m(3, 'h_piotr', '2026-03-14T17:32:00+01:00'),
+      m(4, 'h_piotr', '2026-03-14T20:30:00+01:00'),
     ];
     const layout = layoutThread(entries, BARCELONA);
     expect(layout.map((l) => l.separator)).toEqual([

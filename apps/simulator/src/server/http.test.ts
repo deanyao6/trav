@@ -180,14 +180,14 @@ describe('simulator HTTP handler', () => {
     expect(out.headers['content-type']).toMatch(/text\/event-stream/);
     expect(out.chunks).toHaveLength(1);
     expect(out.chunks[0]).toMatch(/^event: state\ndata: \{/);
-    await backend.inject({ type: 'message', from: 'h_maya', text: 'hi' });
+    await backend.inject({ type: 'message', from: 'h_chase', text: 'hi' });
     const afterOne = out.chunks.length;
     expect(afterOne).toBeGreaterThan(1);
     const last = out.chunks.at(-1)!;
     const payload = JSON.parse(last.replace(/^event: state\ndata: /, '').trim()) as SimState;
     expect(payload.groups[0]!.thread.at(-1)).toMatchObject({ kind: 'message', text: 'hi' });
     req.emit('close');
-    await backend.inject({ type: 'message', from: 'h_maya', text: 'again' });
+    await backend.inject({ type: 'message', from: 'h_chase', text: 'again' });
     expect(out.chunks.length).toBe(afterOne);
   });
 

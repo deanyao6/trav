@@ -283,15 +283,15 @@ export function barcelonaFlightGroundTruth(real, sourceSha256) {
   const naive = describe(byTraveler.map((t) => cheapest(t.list)));
   let combos = 0;
   let best = null;
-  let bestNoEarlyJordan = null;
+  let bestNoEarlyPiotr = null;
   const better = (d, cur) => !cur || d.arrivalSpreadMinutes < cur.arrivalSpreadMinutes || (d.arrivalSpreadMinutes === cur.arrivalSpreadMinutes && d.totalCost.amountMinor < cur.totalCost.amountMinor);
   const walk = (i, acc) => {
     if (i === byTraveler.length) {
       combos += 1;
       const d = describe(acc);
       if (better(d, best)) best = d;
-      const jordanPick = acc[byTraveler.findIndex((t) => t.memberId === BCN.jordan)];
-      if (!jordanPick.departsBefore7am && better(d, bestNoEarlyJordan)) bestNoEarlyJordan = d;
+      const piotrPick = acc[byTraveler.findIndex((t) => t.memberId === BCN.piotr)];
+      if (!piotrPick.departsBefore7am && better(d, bestNoEarlyPiotr)) bestNoEarlyPiotr = d;
       return;
     }
     for (const f of byTraveler[i].list) walk(i + 1, [...acc, f]);
@@ -313,7 +313,7 @@ export function barcelonaFlightGroundTruth(real, sourceSha256) {
       combinations: combos,
       naiveCheapestPerPerson: naive,
       minArrivalSpread: best,
-      minArrivalSpreadWithoutJordanBefore7am: bestNoEarlyJordan,
+      minArrivalSpreadWithoutPiotrBefore7am: bestNoEarlyPiotr,
       cheapestAllRefundable,
       minPricePerMember: minPrice,
       groupTotalLowerBound: eur(minPrice.reduce((s, m) => s + m.min.amountMinor, 0)),
@@ -321,7 +321,7 @@ export function barcelonaFlightGroundTruth(real, sourceSha256) {
     expectations: [
       'optimizer top pick has arrivalSpreadMinutes < naiveCheapestPerPerson.arrivalSpreadMinutes',
       'refundableOnly: true ⇒ every pick refundable; the cheapest such set is cheapestAllRefundable',
-      'group memory gm_bcn_3 ("jordan does not want flights before 7am"): a ranked option that includes an ORD offer departing before 07:00 must say so, or the optimizer should prefer minArrivalSpreadWithoutJordanBefore7am',
+      'group memory gm_bcn_3 ("piotr does not want flights before 7am"): a ranked option that includes an ORD offer departing before 07:00 must say so, or the optimizer should prefer minArrivalSpreadWithoutPiotrBefore7am',
       'offers with mockReprice must be re-priced before createOrder (price_changed); offers with expiresAfterMinutes expire on the injected clock (offer_expired)',
       'each member pays their own fare (paidBy per_person_cards): booking writes nothing to the group ledger',
     ],

@@ -2,10 +2,10 @@
   "fixtureVersion": 1,
   "groupId": "grp_barcelona",
   "tripId": "trip_barcelona",
-  "forwardingAddress": "priya.k7f3@in.trav.example.test",
+  "forwardingAddress": "arjun.k7f3@in.trav.example.test",
   "email": {
-    "emailId": "em_bcn_priya_promo",
-    "ownerMemberId": "mem_priya",
+    "emailId": "em_bcn_arjun_promo",
+    "ownerMemberId": "mem_arjun",
     "from": "Uber <promos@uber-receipts.example.test>",
     "subject": "50% off your next 3 rides in Barcelona",
     "receivedAt": "2026-03-13T09:00:00+01:00",

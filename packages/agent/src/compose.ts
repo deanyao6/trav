@@ -439,10 +439,10 @@ export const BARCELONA: BarcelonaSeed = {
   members: [
     { memberId: 'mem_dean', name: 'Dean', handle: 'h_dean' },
     { memberId: 'mem_henry', name: 'Henry', handle: 'h_henry' },
-    { memberId: 'mem_maya', name: 'Maya', handle: 'h_maya' },
-    { memberId: 'mem_jordan', name: 'Jordan', handle: 'h_jordan' },
-    { memberId: 'mem_priya', name: 'Priya', handle: 'h_priya' },
-    { memberId: 'mem_sam', name: 'Sam', handle: 'h_sam' },
+    { memberId: 'mem_chase', name: 'Chase', handle: 'h_chase' },
+    { memberId: 'mem_piotr', name: 'Piotr', handle: 'h_piotr' },
+    { memberId: 'mem_arjun', name: 'Arjun', handle: 'h_arjun' },
+    { memberId: 'mem_crowley', name: 'Crowley', handle: 'h_crowley' },
   ],
 };
 
@@ -467,10 +467,10 @@ export function seedBarcelona(stores: Stores): BarcelonaSeed {
   const birthDates: Record<string, string> = {
     mem_dean: '2004-05-02',
     mem_henry: '2003-11-19',
-    mem_maya: '2005-01-27',
-    mem_jordan: '2005-08-14',
-    mem_priya: '2004-09-03',
-    mem_sam: '2005-12-30',
+    mem_chase: '2005-01-27',
+    mem_piotr: '2005-08-14',
+    mem_arjun: '2004-09-03',
+    mem_crowley: '2005-12-30',
   };
   for (const m of b.members) {
     const member: Member = {
@@ -524,7 +524,7 @@ export function seedBarcelona(stores: Stores): BarcelonaSeed {
       status: 'in',
       updatedAt: '2026-03-10T12:30:00-04:00',
       sourceMessageId: 'msg_bcn_razz_plan',
-      setBy: 'mem_sam',
+      setBy: 'mem_crowley',
     };
     stores.group.trips.setAttendance(row);
   }

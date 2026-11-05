@@ -193,12 +193,12 @@ describe('sendOutbound / sendTurn: the single send path', () => {
     const h = harness();
     const dm = renderLooksShared(
       {
-        ownerMemberId: 'mem_sam',
+        ownerMemberId: 'mem_crowley',
         items: [
           {
             item: {
               id: 'priv_1',
-              ownerMemberId: 'mem_sam',
+              ownerMemberId: 'mem_crowley',
               groupId: GROUP_ID,
               tripId: TRIP_ID,
               createdAt: NOW,
@@ -224,7 +224,7 @@ describe('sendOutbound / sendTurn: the single send path', () => {
     // The same card to its owner goes through.
     const ok = await sendOutbound(dm, h.deps);
     expect(ok.sent).not.toBeNull();
-    expect(h.channel.dmTranscript('h_sam')).toHaveLength(1);
+    expect(h.channel.dmTranscript('h_crowley')).toHaveLength(1);
   });
 
   it('a voice violation fails in strict mode (tests) and is logged + sent in log mode (production)', async () => {
@@ -265,7 +265,7 @@ describe('sendOutbound / sendTurn: the single send path', () => {
 
   it('strips roast lines when roast mode is off and audits roast.suppressed', async () => {
     const h = harness();
-    const roastLine = 'Jordan has paid for kebabs 3 nights running. the tab remembers';
+    const roastLine = 'Piotr has paid for kebabs 3 nights running. the tab remembers';
     const text = [
       'morning after, day 3 ☀️',
       '€199 total, €39.80 each',
@@ -333,8 +333,8 @@ describe('sendOutbound / sendTurn: the single send path', () => {
   });
 
   it('a channel refusal is a failure outcome with no message.sent', async () => {
-    const h = harness({ overrides: { handleFor: () => 'h_dean' } }); // wrong handle for Priya
-    const ticket = ticketMessages()[3]!; // Priya's
+    const h = harness({ overrides: { handleFor: () => 'h_dean' } }); // wrong handle for Arjun
+    const ticket = ticketMessages()[3]!; // Arjun's
     const outcome = await sendOutbound(ticket, h.deps);
     expect(outcome.failure?.code).toBe('invalid_request');
     expect(outcome.sent).toBeNull();
@@ -375,15 +375,15 @@ describe('sendOutbound / sendTurn: the single send path', () => {
   });
 });
 
-function samLooksShared(): OutboundMessage {
+function crowleyLooksShared(): OutboundMessage {
   return renderLooksShared(
     {
-      ownerMemberId: 'mem_sam',
+      ownerMemberId: 'mem_crowley',
       items: [
         {
           item: {
             id: 'priv_1',
-            ownerMemberId: 'mem_sam',
+            ownerMemberId: 'mem_crowley',
             groupId: GROUP_ID,
             tripId: TRIP_ID,
             createdAt: NOW,
@@ -420,15 +420,15 @@ describe('T-026 review round 2 (send path)', () => {
 
   it.each([
     {
-      name: "Sam's private card transaction into Dean's DM",
-      message: () => ({ ...samLooksShared(), to: { kind: 'member', memberId: 'mem_dean' } }),
-      owner: 'mem_sam',
+      name: "Crowley's private card transaction into Dean's DM",
+      message: () => ({ ...crowleyLooksShared(), to: { kind: 'member', memberId: 'mem_dean' } }),
+      owner: 'mem_crowley',
       cardType: 'expense_confirm',
     },
     {
-      name: "Priya's QR ticket into Sam's DM",
-      message: () => ({ ...ticketMessages()[3]!, to: { kind: 'member', memberId: 'mem_sam' } }),
-      owner: 'mem_priya',
+      name: "Arjun's QR ticket into Crowley's DM",
+      message: () => ({ ...ticketMessages()[3]!, to: { kind: 'member', memberId: 'mem_crowley' } }),
+      owner: 'mem_arjun',
       cardType: 'ticket',
     },
   ] as const)(
@@ -467,23 +467,23 @@ describe('T-026 review round 2 (send path)', () => {
     const h = harness();
     const spy = vi.spyOn(h.channel, 'sendDirect');
     const outcome = await sendOutbound(
-      { ...samLooksShared(), to: { kind: 'member', memberId: 'mem_dean' } },
+      { ...crowleyLooksShared(), to: { kind: 'member', memberId: 'mem_dean' } },
       h.deps,
     );
     expect(outcome.suppressed).toBe(true);
     expect(spy).not.toHaveBeenCalled();
     // The right owner still gets it.
-    const ok = await sendOutbound(samLooksShared(), h.deps);
+    const ok = await sendOutbound(crowleyLooksShared(), h.deps);
     expect(ok.sent).not.toBeNull();
     expect(spy).toHaveBeenCalledTimes(1);
-    expect(spy.mock.calls[0]?.[0]).toBe('h_sam');
+    expect(spy.mock.calls[0]?.[0]).toBe('h_crowley');
   });
 
   it('flaw 4: Wrapped rendered with roast on, sent with roast off + returned lines: only the line is stripped', async () => {
-    const line = 'Priya booked 11 of 23 ubers. the city has a metro';
+    const line = 'Arjun booked 11 of 23 ubers. the city has a metro';
     const balances = [
       { memberId: 'mem_dean', net: { amountMinor: 500, currency: 'EUR' } },
-      { memberId: 'mem_sam', net: { amountMinor: -500, currency: 'EUR' } },
+      { memberId: 'mem_crowley', net: { amountMinor: -500, currency: 'EUR' } },
     ];
     const input = {
       trip: { name: 'Barcelona', days: 6, people: 6, currency: 'EUR' },
@@ -505,7 +505,7 @@ describe('T-026 review round 2 (send path)', () => {
     const { message, roastLines } = renderWrappedForSend(input, renderCtx(undefined, when), {
       group: barcelonaGroup({ roastMode: true }),
       trip: barcelonaTrip(),
-      consent: consentFor({ roast: ['mem_priya'] }),
+      consent: consentFor({ roast: ['mem_arjun'] }),
     });
     expect(message.roast).toBe(true);
     expect(roastLines).toEqual([line]);
@@ -531,7 +531,7 @@ describe('T-026 review round 2 (send path)', () => {
     const h = harness({
       overrides: {
         handleFor: (id) =>
-          id === 'mem_sam'
+          id === 'mem_crowley'
             ? undefined
             : barcelonaMembers().find((m) => m.memberId === id)?.senderId,
       },
@@ -539,11 +539,11 @@ describe('T-026 review round 2 (send path)', () => {
     const tickets = ticketMessages();
     const outcomes = await sendTurn(tickets, h.deps);
 
-    const sam = outcomes.find(
-      (o) => o.outbound.to.kind === 'member' && o.outbound.to.memberId === 'mem_sam',
+    const crowley = outcomes.find(
+      (o) => o.outbound.to.kind === 'member' && o.outbound.to.memberId === 'mem_crowley',
     );
-    expect(sam?.dropped).toBe('no_dm_handle');
-    expect(sam?.sent).toBeNull();
+    expect(crowley?.dropped).toBe('no_dm_handle');
+    expect(crowley?.sent).toBeNull();
 
     const drops = h.stores.group.audit
       .listByGroup(GROUP_ID, { types: ['content.suppressed'] })
@@ -551,11 +551,11 @@ describe('T-026 review round 2 (send path)', () => {
     expect(drops).toHaveLength(1);
     expect(drops[0]).toMatchObject({
       visibility: 'owner',
-      ownerId: 'mem_sam',
+      ownerId: 'mem_crowley',
       payload: {
         cause: 'no_dm_handle',
         messageDraftId: tickets[4]!.id,
-        toMemberId: 'mem_sam',
+        toMemberId: 'mem_crowley',
         cardType: 'ticket',
         kind: 'message',
       },
@@ -565,7 +565,7 @@ describe('T-026 review round 2 (send path)', () => {
     const group = h.channel.groupTranscript('conv_barcelona');
     expect(group).toHaveLength(1);
     expect(group[0]?.type === 'message' && group[0].text).toBe(
-      "1 private message couldn't go out, i can't dm Sam yet",
+      "1 private message couldn't go out, i can't dm Crowley yet",
     );
     // The four reachable tickets still went out.
     expect(outcomes.filter((o) => o.sent !== null && o.outbound.to.kind === 'member')).toHaveLength(
@@ -575,13 +575,13 @@ describe('T-026 review round 2 (send path)', () => {
 
   it('flaw 5: a dropped private "looks shared?" DM is counted without naming the owner', async () => {
     const h = harness({ overrides: { handleFor: () => undefined } });
-    const outcomes = await sendTurn([samLooksShared()], h.deps);
+    const outcomes = await sendTurn([crowleyLooksShared()], h.deps);
     expect(outcomes[0]?.dropped).toBe('no_dm_handle');
     const group = h.channel.groupTranscript('conv_barcelona');
     expect(group[0]?.type === 'message' && group[0].text).toBe(
       "1 private message couldn't go out, i can't dm everyone yet",
     );
-    expect(JSON.stringify(group)).not.toContain('Sam');
+    expect(JSON.stringify(group)).not.toContain('Crowley');
     expect(JSON.stringify(group)).not.toContain('Uber');
   });
 
@@ -592,7 +592,7 @@ describe('T-026 review round 2 (send path)', () => {
         id: 'msg_react_dm',
         groupId: GROUP_ID,
         kind: 'reaction',
-        to: { kind: 'member', memberId: 'mem_sam' },
+        to: { kind: 'member', memberId: 'mem_crowley' },
         targetMessageId: 'sim_in_1',
         emoji: '❤️',
       },

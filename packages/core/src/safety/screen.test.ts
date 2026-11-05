@@ -91,12 +91,12 @@ function bcnCtx(over: Partial<ScreenContext> = {}): ScreenContext {
 const ROAST_1 =
   "€62 of it was kebabs at 3am, which is a kebab-to-ticket ratio i haven't seen before";
 const ROAST_2 =
-  'Jordan paid for two of those. Jordan has paid for kebabs 3 nights running. the tab remembers';
+  'Piotr paid for two of those. Piotr has paid for kebabs 3 nights running. the tab remembers';
 const RECAP_B = [
   'morning after, day 3 ☀️',
   `razzmatazz, 5 of you, €199 all in. ${ROAST_1}`,
   ROAST_2,
-  'Maya → Dean €31.60 · Priya → Dean €22.80 · Sam → Dean €18.80',
+  'Chase → Dean €31.60 · Arjun → Dean €22.80 · Crowley → Dean €18.80',
   "Sagrada Família at 3pm. it's a church, dress like it",
 ].join('\n');
 
@@ -124,7 +124,7 @@ describe('screenOutbound: roast lines', () => {
       [
         'morning after, day 3 ☀️',
         'razzmatazz, 5 of you, €199 all in.',
-        'Maya → Dean €31.60 · Priya → Dean €22.80 · Sam → Dean €18.80',
+        'Chase → Dean €31.60 · Arjun → Dean €22.80 · Crowley → Dean €18.80',
         "Sagrada Família at 3pm. it's a church, dress like it",
       ].join('\n'),
     );
@@ -164,17 +164,17 @@ describe('screenOutbound: roast lines', () => {
   it('only the line naming an opted-out member is stripped', () => {
     const r = screenOutbound(
       recapDraft(),
-      bcnCtx({ consent: consentWithRoast(['dean', 'maya', 'priya', 'sam']) }),
+      bcnCtx({ consent: consentWithRoast(['dean', 'chase', 'arjun', 'crowley']) }),
     );
     const out = r.outbound as OutboundMessage;
-    expect(out.text).not.toContain('Jordan has paid');
+    expect(out.text).not.toContain('Piotr has paid');
     expect(out.text).toContain(ROAST_1);
     expect(out.roast).toBe(true);
     expect(out.card?.type === 'recap' ? out.card.roastLines : null).toEqual([ROAST_1]);
     expect(r.suppressed).toEqual([
       expect.objectContaining({
         cause: 'roast_member_opted_out',
-        detail: 'jordan',
+        detail: 'piotr',
         payload: expect.objectContaining({ cause: 'member_opted_out' }),
       }),
     ]);
@@ -214,7 +214,7 @@ describe('screenOutbound: roast lines', () => {
         ),
         member({ memberId: 'alex', displayName: 'Alex', role: 'guest', ageBand: 'adult' }),
       ];
-      const consent = consentWithRoast(['dean', 'maya', 'jordan', 'priya', 'henry', 'alex']); // Sam opted out
+      const consent = consentWithRoast(['dean', 'chase', 'piotr', 'arjun', 'henry', 'alex']); // Crowley opted out
       const text = `morning after, day 3 ☀️\n${c.line}`;
       const r = screenOutbound(recapDraft(text, [c.line]), bcnCtx({ members: roster, consent }));
       expect((r.outbound as OutboundMessage).text).toBe('morning after, day 3 ☀️');
@@ -223,9 +223,9 @@ describe('screenOutbound: roast lines', () => {
   );
 
   it('roast lines never ride on proposals, receipts, settle-ups or DMs', () => {
-    const aside = 'Sam has booked 4 ubers today';
+    const aside = 'Crowley has booked 4 ubers today';
     const dm = groupMessage(`logged. ${aside}`, {
-      to: { kind: 'member', memberId: 'sam' },
+      to: { kind: 'member', memberId: 'crowley' },
       roast: true,
     });
     const r = screenOutbound(dm, bcnCtx({ roastLines: [aside] }));
@@ -234,8 +234,8 @@ describe('screenOutbound: roast lines', () => {
   });
 
   it('expense aside in the group is allowed (one line, mode on)', () => {
-    const aside = 'that is Jordan’s third kebab run';
-    const draft = groupMessage(`logged: €12 kebabs on Jordan, 3 ways → €4 each\n${aside}`, {
+    const aside = 'that is Piotr’s third kebab run';
+    const draft = groupMessage(`logged: €12 kebabs on Piotr, 3 ways → €4 each\n${aside}`, {
       roast: true,
     });
     const r = screenOutbound(draft, bcnCtx({ roastLines: [aside] }));
@@ -252,19 +252,19 @@ describe('screenOutbound: roast lines', () => {
   });
 
   it('T-138: the recap\'s non-roast lines are not roast material; the recap keeps its roast lines', () => {
-    const line = 'Sam paid for a round at 2:14am. the tab remembers';
+    const line = 'Crowley paid for a round at 2:14am. the tab remembers';
     const text = [
       'morning after, day 4 ☀️',
       'last night: Razzmatazz (5 of you, not Henry) €100',
       line,
-      'tab: Sam → Dean €40.00 is the big one, full list in the card',
+      'tab: Crowley → Dean €40.00 is the big one, full list in the card',
     ].join('\n');
     const draft = recapDraft(text, [line]);
     const r = screenOutbound(draft, bcnCtx());
     expect(r.suppressed).toEqual([]);
     expect(r.outbound).toBe(draft);
     // A real body topic outside the declared lines still fails the roast-marked message closed.
-    const dirty = recapDraft(`${text}\nJordan looks rough today`, [line]);
+    const dirty = recapDraft(`${text}\nPiotr looks rough today`, [line]);
     const d = screenOutbound(dirty, bcnCtx());
     expect(d.outbound).toBeNull();
     expect(d.suppressed.map((s) => s.cause)).toEqual(['roast_topic_blocked', 'roast_unlocatable']);
@@ -290,7 +290,7 @@ describe('screenOutbound: roast lines', () => {
   });
 
   it('roast lines built from unconfirmed private data are stripped', () => {
-    const line = 'Sam spent €80 at Kebab King and kept quiet';
+    const line = 'Crowley spent €80 at Kebab King and kept quiet';
     const r = screenOutbound(
       recapDraft(`morning ☀️\n${line}`, [line]),
       bcnCtx({ privateTerms: ['Kebab King'] }),
@@ -303,7 +303,7 @@ describe('screenOutbound: roast lines', () => {
   });
 
   it('message with only a roast line and the line stripped ⇒ fully suppressed', () => {
-    const line = 'Sam was so drunk he paid twice';
+    const line = 'Crowley was so drunk he paid twice';
     const r = screenOutbound(recapDraft(line, [line]), bcnCtx());
     expect(r.outbound).toBeNull();
   });
@@ -318,11 +318,11 @@ describe('screenOutbound: lanes', () => {
     title: 'your ticket',
     fallbackText: 'your razzmatazz ticket for tonight 🎟️',
     bookingId: 'b1',
-    ownerMemberId: 'priya',
-    deliveredTo: 'priya',
+    ownerMemberId: 'arjun',
+    deliveredTo: 'arjun',
     event: { name: 'Razzmatazz', venue: 'Razzmatazz', startsAt: '2026-03-14T23:00:00+01:00' },
     qr: { dataUrl: 'data:image/png;base64,AAAA', payload: 'RZ-1' },
-    holderName: 'Priya',
+    holderName: 'Arjun',
   };
 
   it('a ticket card never goes to the group', () => {
@@ -333,7 +333,7 @@ describe('screenOutbound: lanes', () => {
     ]);
     const dm = groupMessage(ticket.fallbackText, {
       card: ticket,
-      to: { kind: 'member', memberId: 'priya' },
+      to: { kind: 'member', memberId: 'arjun' },
     });
     expect(screenOutbound(dm, bcnCtx()).outbound).toBe(dm);
   });
@@ -350,7 +350,7 @@ describe('screenOutbound: lanes', () => {
       visibility: 'group',
       description: 'uber',
       amount: { amountMinor: 2340, currency: 'EUR' },
-      paidBy: 'sam',
+      paidBy: 'crowley',
       split: { method: 'equal', participants: [] },
       digestItems: [
         {
@@ -364,7 +364,7 @@ describe('screenOutbound: lanes', () => {
           visibility: 'private',
           description: 'bicing',
           amount: { amountMinor: 1200, currency: 'EUR' },
-          paidBy: 'sam',
+          paidBy: 'crowley',
           split: { method: 'equal', participants: [] },
         },
       ],
@@ -651,7 +651,7 @@ describe('screenOutbound: flaw 1, roast content outside the declared roast lines
   });
 
   it('undeclared private data fails closed too', () => {
-    const line = 'Sam spent €80 at Kebab King and kept quiet';
+    const line = 'Crowley spent €80 at Kebab King and kept quiet';
     const r = screenOutbound(
       recapDraft(`morning ☀️\n${UBERS}\n${line}`, [UBERS]),
       bcnCtx({ privateTerms: ['Kebab King'] }),
@@ -675,16 +675,16 @@ describe('screenOutbound: flaw 1, roast content outside the declared roast lines
   });
 
   it('settle lines naming an opted-out or departed member are ledger facts, not roasts', () => {
-    // Maya opted out and Henry left; both appear in the tab line, Jordan is the roast target.
+    // Chase opted out and Henry left; both appear in the tab line, Piotr is the roast target.
     const roster = BCN.map((m) =>
       m.memberId === 'henry' ? { ...m, active: false, leftAt: '2026-03-14T09:00:00Z' } : m,
     );
-    const text = ['morning after, day 3 ☀️', ROAST_2, 'Maya → Dean €31.60 · Henry → Dean €12'].join(
+    const text = ['morning after, day 3 ☀️', ROAST_2, 'Chase → Dean €31.60 · Henry → Dean €12'].join(
       '\n',
     );
     const r = screenOutbound(
       recapDraft(text, [ROAST_2]),
-      bcnCtx({ members: roster, consent: consentWithRoast(['dean', 'jordan', 'priya', 'sam']) }),
+      bcnCtx({ members: roster, consent: consentWithRoast(['dean', 'piotr', 'arjun', 'crowley']) }),
     );
     expect(r.suppressed).toEqual([]);
     expect(r.outbound).toBe(r.outbound);
@@ -696,20 +696,20 @@ describe('screenOutbound: flaw 2, Wrapped awards and stats are roast material', 
   const AWARD_TEXT = [
     'barcelona wrapped 🎉',
     '6 days · 6 people · €2,340 · €390 each',
-    '23 ubers, €412. Priya booked 11 of them',
-    'awards 🏆 Blackout Champion: Sam · Receipt Hoarder: Dean (14 photos)',
+    '23 ubers, €412. Arjun booked 11 of them',
+    'awards 🏆 Blackout Champion: Crowley · Receipt Hoarder: Dean (14 photos)',
     "final settle is in the card, 4 transfers and you're done 💸",
   ].join('\n');
   const AWARDS = [
     {
       title: 'Blackout Champion',
-      memberId: 'sam',
-      evidence: 'Sam was so drunk he paid for everyone twice',
+      memberId: 'crowley',
+      evidence: 'Crowley was so drunk he paid for everyone twice',
       basis: 'ledger' as const,
     },
     { title: 'Receipt Hoarder', memberId: 'dean', evidence: '14 photos', basis: 'ledger' as const },
   ];
-  const STATS = [{ value: '23', label: 'ubers, €412. Priya booked 11 of them' }];
+  const STATS = [{ value: '23', label: 'ubers, €412. Arjun booked 11 of them' }];
 
   function wrappedDraft(
     text = AWARD_TEXT,
@@ -736,7 +736,7 @@ describe('screenOutbound: flaw 2, Wrapped awards and stats are roast material', 
       [
         'barcelona wrapped 🎉',
         '6 days · 6 people · €2,340 · €390 each',
-        '23 ubers, €412. Priya booked 11 of them',
+        '23 ubers, €412. Arjun booked 11 of them',
         'awards 🏆 Receipt Hoarder: Dean (14 photos)',
         "final settle is in the card, 4 transfers and you're done 💸",
       ].join('\n'),
@@ -760,23 +760,23 @@ describe('screenOutbound: flaw 2, Wrapped awards and stats are roast material', 
     const awards = [
       {
         title: 'Uber Captain',
-        memberId: 'priya',
+        memberId: 'arjun',
         evidence: 'booked 11 of 23 ubers',
         basis: 'ledger' as const,
       },
       ...AWARDS,
     ];
     const text =
-      'barcelona wrapped 🎉\nawards 🏆 Uber Captain: Priya · Blackout Champion: Sam · Receipt Hoarder: Dean (14 photos)';
+      'barcelona wrapped 🎉\nawards 🏆 Uber Captain: Arjun · Blackout Champion: Crowley · Receipt Hoarder: Dean (14 photos)';
     const r = screenOutbound(wrappedDraft(text, awards, []), bcnCtx({ group: group() }));
     expect((r.outbound as OutboundMessage).text).toBe(
-      'barcelona wrapped 🎉\nawards 🏆 Uber Captain: Priya · Receipt Hoarder: Dean (14 photos)',
+      'barcelona wrapped 🎉\nawards 🏆 Uber Captain: Arjun · Receipt Hoarder: Dean (14 photos)',
     );
   });
 
   it('a clean Wrapped passes untouched', () => {
     const clean = AWARDS.slice(1);
-    const text = AWARD_TEXT.replace('Blackout Champion: Sam · ', '');
+    const text = AWARD_TEXT.replace('Blackout Champion: Crowley · ', '');
     const draft = wrappedDraft(text, clean);
     const r = screenOutbound(draft, bcnCtx());
     expect(r.suppressed).toEqual([]);
@@ -784,14 +784,14 @@ describe('screenOutbound: flaw 2, Wrapped awards and stats are roast material', 
   });
 
   it('the blocked evidence surviving in the text anywhere fails closed', () => {
-    const text = `${AWARD_TEXT}\nSam was so drunk he paid for everyone twice, a legend`;
+    const text = `${AWARD_TEXT}\nCrowley was so drunk he paid for everyone twice, a legend`;
     const r = screenOutbound(wrappedDraft(text), bcnCtx());
     // The evidence is removed where it sits, leaving the harmless remainder.
     expect((r.outbound as OutboundMessage).text).not.toContain('drunk');
     // A paraphrase we cannot splice out drops the message instead.
     const paraphrased = AWARD_TEXT.replace(
-      'Blackout Champion: Sam',
-      'Blackout Champion goes to Sam, so drunk he paid for everyone twice',
+      'Blackout Champion: Crowley',
+      'Blackout Champion goes to Crowley, so drunk he paid for everyone twice',
     );
     const r2 = screenOutbound(wrappedDraft(paraphrased), bcnCtx());
     expect(r2.outbound).toBeNull();
@@ -802,7 +802,7 @@ describe('screenOutbound: flaw 2, Wrapped awards and stats are roast material', 
     const awards = [
       {
         title: 'Uber Captain',
-        memberId: 'priya',
+        memberId: 'arjun',
         evidence: 'booked 11 of 23 ubers',
         basis: 'ledger' as const,
       },
@@ -815,17 +815,17 @@ describe('screenOutbound: flaw 2, Wrapped awards and stats are roast material', 
     ];
     const text = [
       'barcelona wrapped 🎉',
-      'awards 🏆 Uber Captain: Priya · Receipt Hoarder: Dean (14 photos)',
+      'awards 🏆 Uber Captain: Arjun · Receipt Hoarder: Dean (14 photos)',
     ].join('\n');
-    const priyaOut = consentWithRoast(['dean', 'henry', 'maya', 'jordan', 'sam']);
-    const on = screenOutbound(wrappedDraft(text, awards, []), bcnCtx({ consent: priyaOut }));
+    const arjunOut = consentWithRoast(['dean', 'henry', 'chase', 'piotr', 'crowley']);
+    const on = screenOutbound(wrappedDraft(text, awards, []), bcnCtx({ consent: arjunOut }));
     expect((on.outbound as OutboundMessage).text).toBe(
       'barcelona wrapped 🎉\nawards 🏆 Receipt Hoarder: Dean (14 photos)',
     );
     expect(on.suppressed.map((s) => s.cause)).toEqual(['roast_member_opted_out']);
     const off = screenOutbound(
       wrappedDraft(text, awards, []),
-      bcnCtx({ group: group(), consent: priyaOut }),
+      bcnCtx({ group: group(), consent: arjunOut }),
     );
     expect(off.suppressed).toEqual([]);
   });
@@ -866,9 +866,9 @@ describe('screenOutbound: flaw 2, Wrapped awards and stats are roast material', 
   it('a blocklisted stat is stripped from card and text', () => {
     const stats = [
       { value: '23', label: 'ubers, €412' },
-      { value: '3', label: 'nights Jordan was hammered' },
+      { value: '3', label: 'nights Piotr was hammered' },
     ];
-    const text = 'barcelona wrapped 🎉\n23 ubers, €412\n3 nights Jordan was hammered\ndone 💸';
+    const text = 'barcelona wrapped 🎉\n23 ubers, €412\n3 nights Piotr was hammered\ndone 💸';
     const r = screenOutbound(wrappedDraft(text, AWARDS.slice(1), stats), bcnCtx());
     const out = r.outbound as OutboundMessage;
     expect(out.text).toBe('barcelona wrapped 🎉\n23 ubers, €412\ndone 💸');
@@ -878,41 +878,41 @@ describe('screenOutbound: flaw 2, Wrapped awards and stats are roast material', 
 });
 
 describe('screenOutbound: flaw 3, first-name roasts and gates keyed on full display names', () => {
-  it('"Jordan has paid..." is gated when Jordan Kim opted out', () => {
+  it('"Piotr has paid..." is gated when Piotr Kim opted out', () => {
     const roster = BCN.map((m) =>
-      m.memberId === 'jordan' ? { ...m, displayName: 'Jordan Kim' } : m,
+      m.memberId === 'piotr' ? { ...m, displayName: 'Piotr Kim' } : m,
     );
     const r = screenOutbound(
       recapDraft(),
-      bcnCtx({ members: roster, consent: consentWithRoast(['dean', 'maya', 'priya', 'sam']) }),
+      bcnCtx({ members: roster, consent: consentWithRoast(['dean', 'chase', 'arjun', 'crowley']) }),
     );
     const out = r.outbound as OutboundMessage;
-    expect(out.text).not.toContain('Jordan has paid');
+    expect(out.text).not.toContain('Piotr has paid');
     expect(r.suppressed).toEqual([
-      expect.objectContaining({ cause: 'roast_member_opted_out', detail: 'jordan' }),
+      expect.objectContaining({ cause: 'roast_member_opted_out', detail: 'piotr' }),
     ]);
   });
 
   it('an ambiguous first name gates on every member it could mean (fail closed)', () => {
     const roster = [
-      ...BCN.map((m) => (m.memberId === 'sam' ? { ...m, displayName: 'Sam Lee' } : m)),
+      ...BCN.map((m) => (m.memberId === 'crowley' ? { ...m, displayName: 'Crowley Lee' } : m)),
       member({
-        memberId: 'sam2',
-        displayName: 'Sam Park',
+        memberId: 'crowley2',
+        displayName: 'Crowley Park',
         birthDate: '2003-03-03',
         ageBand: 'adult',
       }),
     ];
-    const line = 'Sam took 19 ubers in 4 days';
+    const line = 'Crowley took 19 ubers in 4 days';
     const r = screenOutbound(
       recapDraft(`morning ☀️\n${line}`, [line]),
       bcnCtx({
         members: roster,
-        consent: consentWithRoast(roster.map((m) => m.memberId).filter((id) => id !== 'sam2')),
+        consent: consentWithRoast(roster.map((m) => m.memberId).filter((id) => id !== 'crowley2')),
       }),
     );
     expect((r.outbound as OutboundMessage).text).toBe('morning ☀️');
-    expect(r.suppressed.map((s) => s.detail)).toEqual(['sam2']);
+    expect(r.suppressed.map((s) => s.detail)).toEqual(['crowley2']);
   });
 
   it('the adult-audience check also accepts a first name when the display name has a surname', () => {
@@ -948,14 +948,14 @@ describe('screenOutbound: flaw 3, first-name roasts and gates keyed on full disp
 
 describe('screenOutbound: flaw 8, stripping keeps the original text (curly quotes intact)', () => {
   it('locates a straight-quote roast line inside curly-quote text and splices the original', () => {
-    const roastLine = "that is Jordan's third kebab run";
-    const text = `logged: €12 kebabs on Jordan, 3 ways → €4 each\nthat is Jordan’s third kebab run\nit’s a church, dress like it`;
+    const roastLine = "that is Piotr's third kebab run";
+    const text = `logged: €12 kebabs on Piotr, 3 ways → €4 each\nthat is Piotr’s third kebab run\nit’s a church, dress like it`;
     const r = screenOutbound(
       groupMessage(text, { roast: true }),
       bcnCtx({ group: group(), roastLines: [roastLine] }),
     );
     expect((r.outbound as OutboundMessage).text).toBe(
-      'logged: €12 kebabs on Jordan, 3 ways → €4 each\nit’s a church, dress like it',
+      'logged: €12 kebabs on Piotr, 3 ways → €4 each\nit’s a church, dress like it',
     );
     expect(r.suppressed.map((s) => s.cause)).toEqual(['roast_mode_off']);
   });
@@ -964,18 +964,18 @@ describe('screenOutbound: flaw 8, stripping keeps the original text (curly quote
 // ---------- revision round 3 ----------
 
 describe('round 3 flaw 1: a name-blocked award or stat never survives in the text', () => {
-  const jordanOut = consentWithRoast(['dean', 'henry', 'maya', 'priya', 'sam']);
-  const priyaOut = consentWithRoast(['dean', 'henry', 'maya', 'jordan', 'sam']);
+  const piotrOut = consentWithRoast(['dean', 'henry', 'chase', 'arjun', 'crowley']);
+  const arjunOut = consentWithRoast(['dean', 'henry', 'chase', 'piotr', 'crowley']);
 
   function draft(text: string, awards: WrappedCard['awards'], stats: WrappedCard['stats']) {
     return groupMessage(text, { id: 'wrapped_r3', card: wrappedCard(text, awards, stats) });
   }
 
   it('stat paraphrased in the text (opted-out member, roast on) fails closed', () => {
-    const text = 'barcelona wrapped 🎉\nJordan paid for kebabs 3 nights running\ndone 💸';
+    const text = 'barcelona wrapped 🎉\nPiotr paid for kebabs 3 nights running\ndone 💸';
     const r = screenOutbound(
-      draft(text, [], [{ value: '3', label: 'nights Jordan paid for kebabs' }]),
-      bcnCtx({ consent: jordanOut }),
+      draft(text, [], [{ value: '3', label: 'nights Piotr paid for kebabs' }]),
+      bcnCtx({ consent: piotrOut }),
     );
     expect(r.outbound).toBeNull();
     expect(r.suppressed.map((s) => s.cause)).toEqual([
@@ -999,10 +999,10 @@ describe('round 3 flaw 1: a name-blocked award or stat never survives in the tex
   });
 
   it('letterless stat label with the name as the value fails closed', () => {
-    const text = 'barcelona wrapped 🎉\n€412 by Jordan on ubers\ndone 💸';
+    const text = 'barcelona wrapped 🎉\n€412 by Piotr on ubers\ndone 💸';
     const r = screenOutbound(
-      draft(text, [], [{ value: 'Jordan', label: '€412' }]),
-      bcnCtx({ consent: jordanOut }),
+      draft(text, [], [{ value: 'Piotr', label: '€412' }]),
+      bcnCtx({ consent: piotrOut }),
     );
     expect(r.outbound).toBeNull();
     expect(r.suppressed.map((s) => s.cause)).toEqual([
@@ -1013,9 +1013,9 @@ describe('round 3 flaw 1: a name-blocked award or stat never survives in the tex
 
   it('award rendered as "Title goes to Name" fails closed instead of leaving the name', () => {
     const text =
-      'barcelona wrapped 🎉\nawards 🏆 Uber Captain goes to Priya, 11 of 23 · Receipt Hoarder: Dean (14 photos)';
+      'barcelona wrapped 🎉\nawards 🏆 Uber Captain goes to Arjun, 11 of 23 · Receipt Hoarder: Dean (14 photos)';
     const awards = [
-      { title: 'Uber Captain', memberId: 'priya', evidence: '11 of 23', basis: 'ledger' as const },
+      { title: 'Uber Captain', memberId: 'arjun', evidence: '11 of 23', basis: 'ledger' as const },
       {
         title: 'Receipt Hoarder',
         memberId: 'dean',
@@ -1023,7 +1023,7 @@ describe('round 3 flaw 1: a name-blocked award or stat never survives in the tex
         basis: 'ledger' as const,
       },
     ];
-    const r = screenOutbound(draft(text, awards, []), bcnCtx({ consent: priyaOut }));
+    const r = screenOutbound(draft(text, awards, []), bcnCtx({ consent: arjunOut }));
     expect(r.outbound).toBeNull();
     expect(r.suppressed.map((s) => s.cause)).toEqual([
       'roast_member_opted_out',
@@ -1054,17 +1054,17 @@ describe('round 3 flaw 1: a name-blocked award or stat never survives in the tex
   });
 
   it('the canonical shape is still stripped cleanly, and a kept pick award may name the minor', () => {
-    const text = 'barcelona wrapped 🎉\n3 nights Jordan paid for kebabs\n23 ubers, €412\ndone 💸';
+    const text = 'barcelona wrapped 🎉\n3 nights Piotr paid for kebabs\n23 ubers, €412\ndone 💸';
     const r = screenOutbound(
       draft(
         text,
         [],
         [
-          { value: '3', label: 'nights Jordan paid for kebabs' },
+          { value: '3', label: 'nights Piotr paid for kebabs' },
           { value: '23', label: 'ubers, €412' },
         ],
       ),
-      bcnCtx({ consent: jordanOut }),
+      bcnCtx({ consent: piotrOut }),
     );
     expect((r.outbound as OutboundMessage).text).toBe(
       'barcelona wrapped 🎉\n23 ubers, €412\ndone 💸',
@@ -1074,9 +1074,9 @@ describe('round 3 flaw 1: a name-blocked award or stat never survives in the tex
 });
 
 describe('round 3 flaw 2: gates keyed on an accented display name', () => {
-  const joseRoster = BCN.map((m) => (m.memberId === 'jordan' ? { ...m, displayName: 'José' } : m));
-  const plainRoster = BCN.map((m) => (m.memberId === 'jordan' ? { ...m, displayName: 'Jose' } : m));
-  const joseOut = consentWithRoast(['dean', 'henry', 'maya', 'priya', 'sam']);
+  const joseRoster = BCN.map((m) => (m.memberId === 'piotr' ? { ...m, displayName: 'José' } : m));
+  const plainRoster = BCN.map((m) => (m.memberId === 'piotr' ? { ...m, displayName: 'Jose' } : m));
+  const joseOut = consentWithRoast(['dean', 'henry', 'chase', 'arjun', 'crowley']);
 
   it.each([
     ['José in the roster, Jose in the line', joseRoster, 'Jose took 19 ubers in 4 days'],
@@ -1088,7 +1088,7 @@ describe('round 3 flaw 2: gates keyed on an accented display name', () => {
     );
     expect((r.outbound as OutboundMessage).text).toBe('morning ☀️');
     expect(r.suppressed).toEqual([
-      expect.objectContaining({ cause: 'roast_member_opted_out', detail: 'jordan' }),
+      expect.objectContaining({ cause: 'roast_member_opted_out', detail: 'piotr' }),
     ]);
   });
 
@@ -1096,7 +1096,7 @@ describe('round 3 flaw 2: gates keyed on an accented display name', () => {
     const text =
       'barcelona wrapped 🎉\nawards 🏆 Uber Captain: Jose · Receipt Hoarder: Dean (14 photos)';
     const awards = [
-      { title: 'Uber Captain', memberId: 'jordan', evidence: '11 of 23', basis: 'ledger' as const },
+      { title: 'Uber Captain', memberId: 'piotr', evidence: '11 of 23', basis: 'ledger' as const },
       {
         title: 'Receipt Hoarder',
         memberId: 'dean',
@@ -1116,13 +1116,13 @@ describe('round 3 flaw 2: gates keyed on an accented display name', () => {
 });
 
 describe('round 3 flaw 3: pronoun continuation after a target strip', () => {
-  const jordanOut = consentWithRoast(['dean', 'henry', 'maya', 'priya', 'sam']);
-  const L1 = 'Jordan took 19 ubers in 4 days';
+  const piotrOut = consentWithRoast(['dean', 'henry', 'chase', 'arjun', 'crowley']);
+  const L1 = 'Piotr took 19 ubers in 4 days';
   const L2 = 'he also tipped €0 every time, 3 for 3';
 
   it('a nameless third-person line after the stripped line is stripped too', () => {
     const text = `morning after, day 3 ☀️\n${L1}\n${L2}\n€199 total`;
-    const r = screenOutbound(recapDraft(text, [L1, L2]), bcnCtx({ consent: jordanOut }));
+    const r = screenOutbound(recapDraft(text, [L1, L2]), bcnCtx({ consent: piotrOut }));
     const out = r.outbound as OutboundMessage;
     expect(out.text).toBe('morning after, day 3 ☀️\n€199 total');
     expect(out.roast).toBeUndefined();
@@ -1153,9 +1153,9 @@ describe('round 3 flaw 3: pronoun continuation after a target strip', () => {
   });
 
   it('the chain breaks once a line names someone who passes; nameless lines with no prior strip are kept', () => {
-    const L3 = 'Sam paid for kebabs twice';
+    const L3 = 'Crowley paid for kebabs twice';
     const text = `morning ☀️\n${L1}\n${L3}\n${L2}`;
-    const r = screenOutbound(recapDraft(text, [L1, L3, L2]), bcnCtx({ consent: jordanOut }));
+    const r = screenOutbound(recapDraft(text, [L1, L3, L2]), bcnCtx({ consent: piotrOut }));
     expect((r.outbound as OutboundMessage).text).toBe(`morning ☀️\n${L3}\n${L2}`);
     const plain = recapDraft(`morning ☀️\n19 ubers in 4 days\n${L2}`, ['19 ubers in 4 days', L2]);
     const ok = screenOutbound(plain, bcnCtx());
@@ -1220,7 +1220,7 @@ describe('round 3 flaw 7: card fields and alt text go through the roast screen',
   it('a roast-flagged message with a blocklisted image alt fails closed', () => {
     const d = groupMessage('19 ubers in 4 days. the metro is right there', {
       roast: true,
-      images: [{ url: 'https://example.invalid/p.jpg', alt: 'Sam hammered at razzmatazz' }],
+      images: [{ url: 'https://example.invalid/p.jpg', alt: 'Crowley hammered at razzmatazz' }],
     });
     const r = screenOutbound(d, bcnCtx());
     expect(r.outbound).toBeNull();
@@ -1240,7 +1240,7 @@ describe('round 3 flaw 7: card fields and alt text go through the roast screen',
         ...card,
         lastNight: {
           ...card.lastNight,
-          events: [{ label: 'Sam blackout at razzmatazz', attendees: [] }],
+          events: [{ label: 'Crowley blackout at razzmatazz', attendees: [] }],
         },
       },
     });
@@ -1266,7 +1266,7 @@ describe('round 3 flaw 7: card fields and alt text go through the roast screen',
       photos: [
         {
           url: 'https://example.invalid/p.jpg',
-          alt: 'Jordan so drunk at the kebab place',
+          alt: 'Piotr so drunk at the kebab place',
           byMemberId: 'dean',
         },
       ],
@@ -1293,15 +1293,15 @@ describe('round 3 flaw 7: card fields and alt text go through the roast screen',
         bcnCtx({ group: group(), members: [...BCN, lily] }),
       ).outbound,
     ).toBeNull();
-    const priyaAlt = {
+    const arjunAlt = {
       ...card,
       photos: [
-        { url: 'https://example.invalid/p.jpg', alt: 'Priya at the beach', byMemberId: 'dean' },
+        { url: 'https://example.invalid/p.jpg', alt: 'Arjun at the beach', byMemberId: 'dean' },
       ],
     };
-    const priyaOut = consentWithRoast(['dean', 'henry', 'maya', 'jordan', 'sam']);
+    const arjunOut = consentWithRoast(['dean', 'henry', 'chase', 'piotr', 'crowley']);
     expect(
-      screenOutbound(groupMessage(text, { card: priyaAlt }), bcnCtx({ consent: priyaOut }))
+      screenOutbound(groupMessage(text, { card: arjunAlt }), bcnCtx({ consent: arjunOut }))
         .suppressed,
     ).toEqual([]);
   });

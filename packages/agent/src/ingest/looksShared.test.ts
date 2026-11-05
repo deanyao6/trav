@@ -217,7 +217,7 @@ describe('looks shared: precision/recall on the labeled card fixtures', () => {
 // ---------- the rules ----------
 
 const BCN_CTX: LooksSharedContext = {
-  ownerMemberId: 'mem_sam',
+  ownerMemberId: 'mem_crowley',
   trip: {
     startDate: '2026-03-12',
     endDate: '2026-03-17',
@@ -225,21 +225,21 @@ const BCN_CTX: LooksSharedContext = {
     countryCode: 'ES',
     timeZone: 'Europe/Madrid',
   },
-  memberIds: ['mem_dean', 'mem_henry', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam'],
+  memberIds: ['mem_dean', 'mem_henry', 'mem_chase', 'mem_piotr', 'mem_arjun', 'mem_crowley'],
   activities: [
     {
       name: 'Razzmatazz',
       kind: 'nightlife',
       startsAt: '2026-03-15T00:00:00+01:00',
       endsAt: '2026-03-15T06:00:00+01:00',
-      inMemberIds: ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam'],
+      inMemberIds: ['mem_dean', 'mem_chase', 'mem_piotr', 'mem_arjun', 'mem_crowley'],
     },
     {
       name: 'the apartment',
       kind: 'lodging',
       startsAt: '2026-03-12T15:00:00+01:00',
       endsAt: '2026-03-17T11:00:00+01:00',
-      inMemberIds: ['mem_sam'],
+      inMemberIds: ['mem_crowley'],
     },
   ],
   homeMerchantCounts: new Map([['ent_streamly', 3]]),
@@ -249,7 +249,7 @@ function charge(over: Partial<ProviderTransaction> = {}): ProviderTransaction {
   return {
     transactionId: 'txn_t',
     accountId: 'acc_t',
-    ownerMemberId: 'mem_sam',
+    ownerMemberId: 'mem_crowley',
     amount: { amountMinor: 2340, currency: 'EUR' },
     direction: 'debit',
     date: '2026-03-15',
@@ -348,7 +348,7 @@ describe('looks shared: heuristic rules', () => {
     expect(mid).toBeGreaterThan(PERSONAL_AT);
     expect(mid).toBeLessThan(SHARED_AT);
     expect(score(food(8400))).toBeGreaterThanOrEqual(SHARED_AT);
-    expect(score(food(8400), { ...BCN_CTX, memberIds: ['mem_sam'] })).toBeLessThanOrEqual(
+    expect(score(food(8400), { ...BCN_CTX, memberIds: ['mem_crowley'] })).toBeLessThanOrEqual(
       PERSONAL_AT,
     );
   });
@@ -365,9 +365,9 @@ describe('looks shared: heuristic rules', () => {
       kind: 'other',
       startsAt: '2026-03-16T09:00:00+01:00',
       endsAt: '2026-03-16T13:00:00+01:00',
-      inMemberIds: ['mem_sam'],
+      inMemberIds: ['mem_crowley'],
     };
-    const pair = { ...BCN_CTX, memberIds: ['mem_dean', 'mem_sam'] };
+    const pair = { ...BCN_CTX, memberIds: ['mem_dean', 'mem_crowley'] };
     expect(score(meal, pair)).toBeGreaterThanOrEqual(SHARED_AT);
     expect(score(meal, { ...pair, activities: [conf] })).toBeLessThanOrEqual(PERSONAL_AT);
     expect(

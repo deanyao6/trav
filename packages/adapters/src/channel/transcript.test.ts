@@ -32,7 +32,7 @@ async function razzmatazz() {
   clock.advanceMinutes(1);
   await sim.injectReaction({ from: 'h_dean', targetMessageId: proposal.id, reaction: '👍' });
   await sim.sendGroup(BCN_CONVERSATION, groupMsg(RECEIPT_TEXT, { card: receiptCard() }));
-  for (const name of ['dean', 'maya', 'jordan', 'priya', 'sam']) {
+  for (const name of ['dean', 'chase', 'piotr', 'arjun', 'crowley']) {
     const memberId = `mem_${name}`;
     await sim.sendDirect(
       `h_${name}`,
@@ -47,7 +47,7 @@ const QR40 = `${QR_DATA_URL.slice(0, 40)}...`;
 describe('printTranscript (VOICE §9.4)', () => {
   it('prints the scripted Razzmatazz sequence exactly', async () => {
     const sim = await razzmatazz();
-    const ticketLines = ['Dean', 'Maya', 'Jordan', 'Priya', 'Sam'].flatMap((n) => [
+    const ticketLines = ['Dean', 'Chase', 'Piotr', 'Arjun', 'Crowley'].flatMap((n) => [
       `[9:41 pm] trav → ${n} (private): ${TICKET_TEXT}`,
       `                [card: ticket tkt-${n.toLowerCase()} · qr: ${QR40}]`,
     ]);
@@ -55,7 +55,7 @@ describe('printTranscript (VOICE §9.4)', () => {
       [
         "[9:40 pm] Dean: @trav get the 5 of us Razzmatazz tickets, Henry's sick",
         '[9:40 pm] trav: razzmatazz tonight, 5 tickets',
-        '                Dean, Maya, Jordan, Priya, Sam (not Henry)',
+        '                Dean, Chase, Piotr, Arjun, Crowley (not Henry)',
         '                €18 each · €90 total · refundable until 10pm',
         "                charged to Dean's card, split 5 ways on the tab",
         '                👍 to book. price held for 15 min',
@@ -79,10 +79,10 @@ describe('printTranscript (VOICE §9.4)', () => {
 
   it('a DM thread prints only that member', async () => {
     const sim = await razzmatazz();
-    expect(printTranscript(sim.dmTranscript('h_priya'))).toBe(
+    expect(printTranscript(sim.dmTranscript('h_arjun'))).toBe(
       [
-        `[9:41 pm] trav → Priya (private): ${TICKET_TEXT}`,
-        `                [card: ticket tkt-priya · qr: ${QR40}]`,
+        `[9:41 pm] trav → Arjun (private): ${TICKET_TEXT}`,
+        `                [card: ticket tkt-arjun · qr: ${QR40}]`,
       ].join('\n'),
     );
     expect(printTranscript(sim.dmTranscript('h_henry'))).toBe('');
@@ -94,12 +94,12 @@ describe('printTranscript (VOICE §9.4)', () => {
     const opt = groupMsg('two picks for tomorrow', { card: optionsCard() });
     await sim.sendGroup(BCN_CONVERSATION, opt);
     await sim.injectButtonTap({
-      from: 'h_maya',
+      from: 'h_chase',
       cardMessageId: opt.id,
       actionId: 'pick',
       value: 'opt_pg',
     });
-    const thanks = await sim.injectMessage({ from: 'h_sam', text: 'thanks trav' });
+    const thanks = await sim.injectMessage({ from: 'h_crowley', text: 'thanks trav' });
     await sim.react(BCN_CONVERSATION, {
       id: 'msg_heart',
       groupId: 'grp_barcelona',
@@ -109,29 +109,29 @@ describe('printTranscript (VOICE §9.4)', () => {
       emoji: '❤️',
     });
     await sim.injectReaction({
-      from: 'h_jordan',
+      from: 'h_piotr',
       targetMessageId: opt.id,
       reaction: '😂',
     });
     await sim.injectReaction({
-      from: 'h_jordan',
+      from: 'h_piotr',
       targetMessageId: opt.id,
       reaction: '😂',
       removed: true,
     });
     clock.advanceHours(12);
-    await sim.injectMessage({ from: 'h_sam', text: 'share it', lane: 'dm' });
+    await sim.injectMessage({ from: 'h_crowley', text: 'share it', lane: 'dm' });
     await sim.injectMemberJoined({ participant: { handle: 'h_alex', displayName: 'Alex' } });
     expect(printTranscript(sim.transcript())).toBe(
       [
         '[12:05 am] trav: two picks for tomorrow',
         '                 [card: options opt-1 · pick:1/2]',
-        '[12:05 am] Maya tapped Pick (pick opt_pg opt-1)',
-        '[12:05 am] Sam: thanks trav',
+        '[12:05 am] Chase tapped Pick (pick opt_pg opt-1)',
+        '[12:05 am] Crowley: thanks trav',
         '[12:05 am] trav ❤️',
-        '[12:05 am] Jordan 😂',
-        '[12:05 am] Jordan removed 😂',
-        '[12:05 pm] Sam → trav (private): share it',
+        '[12:05 am] Piotr 😂',
+        '[12:05 am] Piotr removed 😂',
+        '[12:05 pm] Crowley → trav (private): share it',
         '[12:05 pm] Alex joined the chat',
       ].join('\n'),
     );
@@ -141,7 +141,7 @@ describe('printTranscript (VOICE §9.4)', () => {
     const clock = manualClock('2026-03-14T13:00:00+01:00');
     const sim = createSimulatorChannel({ clock, conversations: [barcelona] });
     await sim.injectMessage({
-      from: 'h_priya',
+      from: 'h_arjun',
       text: 'lunch receipt',
       attachments: [
         { kind: 'image', mimeType: 'image/png', uri: 'fixtures/r.png', fileName: 'r.png' },
@@ -151,7 +151,7 @@ describe('printTranscript (VOICE §9.4)', () => {
     const hint: ChannelSendOptions = { renderAsCard: true };
     await sim.sendGroup(BCN_CONVERSATION, long, hint);
     const printed = printTranscript(sim.transcript()).split('\n');
-    expect(printed[0]).toBe('[1:00 pm] Priya: lunch receipt');
+    expect(printed[0]).toBe('[1:00 pm] Arjun: lunch receipt');
     expect(printed[1]).toBe('                 [image: r.png]');
     expect(printed.at(-1)).toBe(`                [card: text ${long.id}]`);
   });

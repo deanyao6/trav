@@ -88,21 +88,21 @@ describe('mock email source: routing to the owner', () => {
   });
 
   it('since filters by receivedAt; a bad since is invalid_request', async () => {
-    const all = await source.list('mem_priya');
-    const later = await source.list('mem_priya', '2026-03-14T12:00:00+01:00');
+    const all = await source.list('mem_arjun');
+    const later = await source.list('mem_arjun', '2026-03-14T12:00:00+01:00');
     if (!all.ok || !later.ok) throw new Error('list failed');
     expect(later.value.length).toBeLessThan(all.value.length);
     for (const e of later.value)
       expect(Date.parse(e.receivedAt)).toBeGreaterThanOrEqual(
         Date.parse('2026-03-14T12:00:00+01:00'),
       );
-    const bad = await source.list('mem_priya', 'yesterday');
+    const bad = await source.list('mem_arjun', 'yesterday');
     expect(bad.ok ? 'ok' : bad.error.code).toBe('invalid_request');
   });
 
   it('fixture members keep their fixture forwarding address; others get stable, distinct ones', async () => {
-    const maya = await source.forwardingAddressFor('mem_maya');
-    expect(maya).toEqual({ ok: true, value: 'maya.k7f3@in.trav.example.test' });
+    const chase = await source.forwardingAddressFor('mem_chase');
+    expect(chase).toEqual({ ok: true, value: 'chase.k7f3@in.trav.example.test' });
     const a1 = await source.forwardingAddressFor('mem_new');
     const a2 = await source.forwardingAddressFor('mem_new');
     const b = await source.forwardingAddressFor('mem_other');
@@ -119,18 +119,18 @@ describe('mock email source: routing to the owner', () => {
     const stop = local.onEmail((e) => {
       seen.push(`${e.emailId}:${e.ownerMemberId}`);
     });
-    const r = await local.deliver('MAYA.k7f3@in.trav.example.test', {
+    const r = await local.deliver('CHASE.k7f3@in.trav.example.test', {
       ...mail({ emailId: 'em_new_1' }),
       ownerMemberId: 'mem_dean',
     });
-    expect(r.ok && r.value.ownerMemberId).toBe('mem_maya');
-    expect(seen).toEqual(['em_new_1:mem_maya']);
+    expect(r.ok && r.value.ownerMemberId).toBe('mem_chase');
+    expect(seen).toEqual(['em_new_1:mem_chase']);
     const dean = await local.list('mem_dean');
     expect(dean.ok && dean.value.some((e) => e.emailId === 'em_new_1')).toBe(false);
 
     stop();
     stop();
-    await local.deliver('maya.k7f3@in.trav.example.test', mail({ emailId: 'em_new_2' }));
+    await local.deliver('chase.k7f3@in.trav.example.test', mail({ emailId: 'em_new_2' }));
     expect(seen).toHaveLength(1);
   });
 
@@ -139,12 +139,12 @@ describe('mock email source: routing to the owner', () => {
     const unknown = await local.deliver('someone@in.trav.example.test', mail({ emailId: 'em_x' }));
     expect(unknown.ok ? 'ok' : unknown.error.code).toBe('not_found');
     const dup = await local.deliver(
-      'maya.k7f3@in.trav.example.test',
-      mail({ emailId: 'em_bcn_maya_lyft_sfo' }),
+      'chase.k7f3@in.trav.example.test',
+      mail({ emailId: 'em_bcn_chase_lyft_sfo' }),
     );
     expect(dup.ok ? 'ok' : dup.error.code).toBe('duplicate');
     const badTime = await local.deliver(
-      'maya.k7f3@in.trav.example.test',
+      'chase.k7f3@in.trav.example.test',
       mail({ emailId: 'em_y', receivedAt: 'tuesday' }),
     );
     expect(badTime.ok ? 'ok' : badTime.error.code).toBe('invalid_request');
@@ -155,18 +155,18 @@ describe('mock email source: routing to the owner', () => {
 
   it('rotateAddress: the old address stops accepting mail, the new one routes to the same member', async () => {
     const local = createMockEmailReceiptSource({ fixtureDir: PINNED });
-    const rotated = await local.rotateAddress('mem_maya');
+    const rotated = await local.rotateAddress('mem_chase');
     if (!rotated.ok) throw new Error('rotate failed');
-    expect(rotated.value).not.toBe('maya.k7f3@in.trav.example.test');
-    expect(await local.forwardingAddressFor('mem_maya')).toEqual(rotated);
+    expect(rotated.value).not.toBe('chase.k7f3@in.trav.example.test');
+    expect(await local.forwardingAddressFor('mem_chase')).toEqual(rotated);
     const old = await local.deliver(
-      'maya.k7f3@in.trav.example.test',
+      'chase.k7f3@in.trav.example.test',
       mail({ emailId: 'em_after_rotate' }),
     );
     expect(old.ok ? 'ok' : old.error.code).toBe('not_found');
     const fresh = await local.deliver(rotated.value, mail({ emailId: 'em_after_rotate' }));
-    expect(fresh.ok && fresh.value.ownerMemberId).toBe('mem_maya');
-    const again = await local.rotateAddress('mem_maya');
+    expect(fresh.ok && fresh.value.ownerMemberId).toBe('mem_chase');
+    const again = await local.rotateAddress('mem_chase');
     expect(again.ok && again.value !== rotated.value).toBe(true);
   });
 
@@ -206,11 +206,11 @@ describe('mock email source: routing to the owner', () => {
     local.onEmail((e) => {
       seen.push(e.emailId);
     });
-    const r = await local.deliver('maya.k7f3@in.trav.example.test', mail({ emailId: 'em_h1' }));
-    expect(r.ok && r.value.ownerMemberId).toBe('mem_maya');
+    const r = await local.deliver('chase.k7f3@in.trav.example.test', mail({ emailId: 'em_h1' }));
+    expect(r.ok && r.value.ownerMemberId).toBe('mem_chase');
     expect(seen).toEqual(['em_h1']);
     expect(local.handlerFailureCount()).toBe(2);
-    const listed = await local.list('mem_maya');
+    const listed = await local.list('mem_chase');
     expect(listed.ok && listed.value.some((e) => e.emailId === 'em_h1')).toBe(true);
   });
 
@@ -225,11 +225,11 @@ describe('mock email source: routing to the owner', () => {
 
 describe('offline receipt email parser: pinned fixtures', () => {
   it('Uber with an injected note: extracts €21.10 only, flags it, low confidence', async () => {
-    const email = pinnedEmail('em_bcn_maya_uber_injection');
+    const email = pinnedEmail('em_bcn_chase_uber_injection');
     const p = await parseOk(email);
     expect(p).toMatchObject({
-      emailId: 'em_bcn_maya_uber_injection',
-      ownerMemberId: 'mem_maya',
+      emailId: 'em_bcn_chase_uber_injection',
+      ownerMemberId: 'mem_chase',
       source: 'rideshare',
       merchantName: 'Uber',
       total: { amountMinor: 2110, currency: 'EUR' },
@@ -254,7 +254,7 @@ describe('offline receipt email parser: pinned fixtures', () => {
   });
 
   it('HTML restaurant receipt with hidden white text: itemized, tip, hidden injection flagged', async () => {
-    const p = await parseOk(pinnedEmail('em_bcn_jordan_restaurant_split'));
+    const p = await parseOk(pinnedEmail('em_bcn_piotr_restaurant_split'));
     expect(p).toMatchObject({
       source: 'restaurant',
       merchantName: 'Bodega Lluna',
@@ -278,7 +278,7 @@ describe('offline receipt email parser: pinned fixtures', () => {
   });
 
   it('Lyft rides abroad get the local offset of the ride, not of the inbox', async () => {
-    const sfo = await parseOk(pinnedEmail('em_bcn_maya_lyft_sfo'));
+    const sfo = await parseOk(pinnedEmail('em_bcn_chase_lyft_sfo'));
     expect(sfo).toMatchObject({
       merchantName: 'Lyft',
       total: { amountMinor: 3175, currency: 'USD' },
@@ -313,20 +313,20 @@ describe('offline receipt email parser: pinned fixtures', () => {
   });
 
   it('the forwarded fake Trav approval card and a promo are not receipts', async () => {
-    for (const id of ['em_bcn_priya_fake_trav', 'em_bcn_priya_promo']) {
+    for (const id of ['em_bcn_arjun_fake_trav', 'em_bcn_arjun_promo']) {
       const email = pinnedEmail(id);
       expect(parser.canParse(email)).toBe(false);
       const r = await parser.parse(email);
       expect(r.ok ? 'ok' : r.error.code).toBe('invalid_request');
     }
-    expect(scanEmailForInjection(pinnedEmail('em_bcn_priya_fake_trav'))).toEqual([
+    expect(scanEmailForInjection(pinnedEmail('em_bcn_arjun_fake_trav'))).toEqual([
       'you_are_now',
       'approve_all',
     ]);
   });
 
   it('results are frozen', async () => {
-    const p = await parseOk(pinnedEmail('em_bcn_priya_uber_0314'));
+    const p = await parseOk(pinnedEmail('em_bcn_arjun_uber_0314'));
     expect(Object.isFrozen(p)).toBe(true);
     expect(Object.isFrozen(p.total)).toBe(true);
     expect(Object.isFrozen(p.warnings)).toBe(true);
@@ -362,8 +362,8 @@ describe('offline receipt email parser: every fixture vs its labeled ground trut
   });
 
   it('has the fixture set (incl. the injected ones)', () => {
-    expect(names).toContain('em_bcn_maya_uber_injection');
-    expect(names).toContain('em_bcn_priya_fake_trav');
+    expect(names).toContain('em_bcn_chase_uber_injection');
+    expect(names).toContain('em_bcn_arjun_fake_trav');
     expect(cases.length).toBeGreaterThanOrEqual(11);
   });
 

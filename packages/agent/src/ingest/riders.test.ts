@@ -19,7 +19,7 @@ import {
   validRiders,
 } from './riders.js';
 
-const NAMES = ['Dean', 'Henry', 'Maya', 'Jordan', 'Priya', 'Sam'] as const;
+const NAMES = ['Dean', 'Henry', 'Chase', 'Piotr', 'Arjun', 'Crowley'] as const;
 const id = (name: string): MemberId => `mem_${name.toLowerCase()}`;
 
 function member(name: string, over: Partial<Member> = {}): Member {
@@ -39,7 +39,7 @@ function member(name: string, over: Partial<Member> = {}): Member {
 const MEMBERS: readonly Member[] = NAMES.map((n) => member(n));
 const EVERYONE = NAMES.map(id);
 const FIVE = EVERYONE.filter((m) => m !== 'mem_henry');
-const PRIYA = id('Priya');
+const ARJUN = id('Arjun');
 const RIDE_END = '2026-03-14T01:52:00+01:00';
 
 let seq = 0;
@@ -57,14 +57,14 @@ function line(at: string, who: string | null, text: string, fromTrav = false): G
 
 /** The El Born thread (fixtures/chats/barcelona.jsonl msg_bcn_0094..0102). */
 const NIGHT: readonly GroupMessageSummary[] = [
-  line('2026-03-13T23:30:00+01:00', 'Sam', "bar crawl in el born?? who's in"),
-  line('2026-03-13T23:31:00+01:00', 'Maya', 'me'),
-  line('2026-03-13T23:31:00+01:00', 'Jordan', 'ya'),
+  line('2026-03-13T23:30:00+01:00', 'Crowley', "bar crawl in el born?? who's in"),
+  line('2026-03-13T23:31:00+01:00', 'Chase', 'me'),
+  line('2026-03-13T23:31:00+01:00', 'Piotr', 'ya'),
   line('2026-03-13T23:32:00+01:00', 'Henry', 'im beat, heading back. feel kinda off'),
-  line('2026-03-13T23:32:00+01:00', 'Priya', 'in'),
+  line('2026-03-13T23:32:00+01:00', 'Arjun', 'in'),
   line('2026-03-13T23:33:00+01:00', 'Dean', 'in'),
-  line('2026-03-14T00:40:00+01:00', 'Maya', 'where r u guys'),
-  line('2026-03-14T00:41:00+01:00', 'Priya', 'bar with the green door'),
+  line('2026-03-14T00:40:00+01:00', 'Chase', 'where r u guys'),
+  line('2026-03-14T00:41:00+01:00', 'Arjun', 'bar with the green door'),
 ];
 
 const everyonePlan: SharePlan = { participants: EVERYONE, label: 'everyone' };
@@ -75,7 +75,7 @@ const rosterPlan: SharePlan = {
   activityId: 'act_bcn_elborn_d2',
 };
 const ctx = (groupMessages: readonly GroupMessageSummary[] = NIGHT) => ({
-  ownerMemberId: PRIYA,
+  ownerMemberId: ARJUN,
   occurredAt: RIDE_END,
   groupMessages,
 });
@@ -101,10 +101,10 @@ describe('applyRiders', () => {
     expect(applyRiders(rosterPlan, 5, ctx())).toEqual({ ...rosterPlan, riders: 5 });
   });
 
-  it("Priya's Uber, roster of 5: Maya lost the group, so the 4 are Dean, Jordan, Priya, Sam", () => {
+  it("Arjun's Uber, roster of 5: Chase lost the group, so the 4 are Dean, Piotr, Arjun, Crowley", () => {
     const plan = applyRiders(rosterPlan, 4, ctx());
     expect(plan).toEqual({
-      participants: ['mem_dean', 'mem_jordan', 'mem_priya', 'mem_sam'],
+      participants: ['mem_dean', 'mem_piotr', 'mem_arjun', 'mem_crowley'],
       riders: 4,
       guess: 'that the ride back from bars in el born?',
       activityId: 'act_bcn_elborn_d2',
@@ -114,12 +114,12 @@ describe('applyRiders', () => {
     expect(plan.askRiders).toBeUndefined();
   });
 
-  it('no roster (everyone, 6): Henry went back and Maya lost the group, so the same 4', () => {
+  it('no roster (everyone, 6): Henry went back and Chase lost the group, so the same 4', () => {
     expect(applyRiders(everyonePlan, 4, ctx()).participants).toEqual([
       'mem_dean',
-      'mem_jordan',
-      'mem_priya',
-      'mem_sam',
+      'mem_piotr',
+      'mem_arjun',
+      'mem_crowley',
     ]);
   });
 
@@ -133,10 +133,10 @@ describe('applyRiders', () => {
   });
 
   it('the thread leaves out too many or too few: ask', () => {
-    // 6 could ride, only Maya left ⇒ 5 ≠ 4
-    const onlyMaya = NIGHT.filter((m) => m.senderMemberId !== 'mem_henry');
-    expect(applyRiders(everyonePlan, 4, ctx(onlyMaya)).askRiders).toBe(4);
-    // 3 riders but only Maya left the 5 ⇒ 4 ≠ 3
+    // 6 could ride, only Chase left ⇒ 5 ≠ 4
+    const onlyChase = NIGHT.filter((m) => m.senderMemberId !== 'mem_henry');
+    expect(applyRiders(everyonePlan, 4, ctx(onlyChase)).askRiders).toBe(4);
+    // 3 riders but only Chase left the 5 ⇒ 4 ≠ 3
     expect(applyRiders(rosterPlan, 3, ctx()).askRiders).toBe(3);
   });
 
@@ -150,8 +150,8 @@ describe('applyRiders', () => {
 
   it('the owner\'s own "where r u guys" never takes the owner out', () => {
     const own = [
-      ...NIGHT.filter((m) => m.senderMemberId !== 'mem_maya'),
-      line('2026-03-14T00:40:00+01:00', 'Priya', 'where r u guys'),
+      ...NIGHT.filter((m) => m.senderMemberId !== 'mem_chase'),
+      line('2026-03-14T00:40:00+01:00', 'Arjun', 'where r u guys'),
     ];
     expect(applyRiders(rosterPlan, 4, ctx(own)).askRiders).toBe(4);
   });
@@ -159,11 +159,11 @@ describe('applyRiders', () => {
 
 describe('leftTheGroup', () => {
   const left = (msgs: readonly GroupMessageSummary[], candidates = EVERYONE) =>
-    [...leftTheGroup(msgs, candidates, PRIYA, RIDE_END)].sort();
+    [...leftTheGroup(msgs, candidates, ARJUN, RIDE_END)].sort();
 
-  it('reads the El Born night: Henry and Maya', () => {
-    expect(left(NIGHT)).toEqual(['mem_henry', 'mem_maya']);
-    expect(left(NIGHT, FIVE)).toEqual(['mem_maya']);
+  it('reads the El Born night: Henry and Chase', () => {
+    expect(left(NIGHT)).toEqual(['mem_chase', 'mem_henry']);
+    expect(left(NIGHT, FIVE)).toEqual(['mem_chase']);
   });
 
   it.each([
@@ -180,7 +180,7 @@ describe('leftTheGroup', () => {
     'ok im heading back',
     'im beat, heading back. feel kinda off',
   ])('"%s" is leaving the others', (text) => {
-    expect(left([line('2026-03-14T00:00:00+01:00', 'Sam', text)])).toEqual(['mem_sam']);
+    expect(left([line('2026-03-14T00:00:00+01:00', 'Crowley', text)])).toEqual(['mem_crowley']);
   });
 
   it.each([
@@ -191,13 +191,13 @@ describe('leftTheGroup', () => {
     "i'm in",
     'in',
   ])('"%s" is not', (text) => {
-    expect(left([line('2026-03-14T00:00:00+01:00', 'Sam', text)])).toEqual([]);
+    expect(left([line('2026-03-14T00:00:00+01:00', 'Crowley', text)])).toEqual([]);
   });
 
   // T-135 r1 #1: one regression per case the reviewer found.
   it.each([
     // about someone else
-    ['jordan is heading back, he said bye', 'another member named'],
+    ['piotr is heading back, he said bye', 'another member named'],
     ["he's heading home", 'he/she/they'],
     ['they went back', 'he/she/they'],
     ["we're heading back", 'we (the whole group)'],
@@ -222,52 +222,54 @@ describe('leftTheGroup', () => {
     ['heading home jk', 'joke'],
     ['went back', 'past (maybe back inside)'],
   ])('"%s" does not take the sender out (%s)', (text) => {
-    expect(left([line('2026-03-14T00:00:00+01:00', 'Sam', text)])).toEqual([]);
+    expect(left([line('2026-03-14T00:00:00+01:00', 'Crowley', text)])).toEqual([]);
   });
 
   it.each(['coming', 'found them', 'here', 'with you guys now', 'omw', 'be there in 5'])(
     'a later "%s" from the same member cancels it',
     (text) => {
-      expect(left([...NIGHT, line('2026-03-14T00:45:00+01:00', 'Maya', text)])).toEqual([
+      expect(left([...NIGHT, line('2026-03-14T00:45:00+01:00', 'Chase', text)])).toEqual([
         'mem_henry',
       ]);
     },
   );
 
   it('a line naming another member never takes the sender out (members given)', () => {
-    const msgs = [line('2026-03-14T00:00:00+01:00', 'Sam', 'jordan heading back')];
-    expect([...leftTheGroup(msgs, EVERYONE, PRIYA, RIDE_END, MEMBERS)]).toEqual([]);
-    // and Jordan isn't taken out either: only a member's own line counts
+    const msgs = [line('2026-03-14T00:00:00+01:00', 'Crowley', 'piotr heading back')];
+    expect([...leftTheGroup(msgs, EVERYONE, ARJUN, RIDE_END, MEMBERS)]).toEqual([]);
+    // and Piotr isn't taken out either: only a member's own line counts
   });
 
   it('"where r u guys" counts up to 30 min before the ride ended; "heading back" up to 60', () => {
     const at = (min: number) => new Date(Date.parse(RIDE_END) - min * 60_000).toISOString();
-    expect(left([line(at(LOST_MIN_LEAD_MIN + 1), 'Sam', 'where r u guys')])).toEqual(['mem_sam']);
-    expect(left([line(at(LOST_MIN_LEAD_MIN - 1), 'Sam', 'where r u guys')])).toEqual([]);
-    expect(left([line(at(LEFT_MIN_LEAD_MIN - 1), 'Sam', 'heading back')])).toEqual([]);
+    expect(left([line(at(LOST_MIN_LEAD_MIN + 1), 'Crowley', 'where r u guys')])).toEqual([
+      'mem_crowley',
+    ]);
+    expect(left([line(at(LOST_MIN_LEAD_MIN - 1), 'Crowley', 'where r u guys')])).toEqual([]);
+    expect(left([line(at(LEFT_MIN_LEAD_MIN - 1), 'Crowley', 'heading back')])).toEqual([]);
   });
 
   it('within the last hour before the ride ended, "heading back" is likely the ride itself', () => {
     const at = new Date(Date.parse(RIDE_END) - (LEFT_MIN_LEAD_MIN - 5) * 60_000).toISOString();
-    expect(left([line(at, 'Sam', 'heading back')])).toEqual([]);
+    expect(left([line(at, 'Crowley', 'heading back')])).toEqual([]);
   });
 
   it('a line from before the night (over the lookback) does not count', () => {
     const at = new Date(Date.parse(RIDE_END) - (LEFT_LOOKBACK_MIN + 5) * 60_000).toISOString();
-    expect(left([line(at, 'Sam', 'heading back')])).toEqual([]);
+    expect(left([line(at, 'Crowley', 'heading back')])).toEqual([]);
   });
 
   it('a later "omw" / "found you guys" from the same member cancels it', () => {
-    expect(left([...NIGHT, line('2026-03-14T00:45:00+01:00', 'Maya', 'omw')])).toEqual([
+    expect(left([...NIGHT, line('2026-03-14T00:45:00+01:00', 'Chase', 'omw')])).toEqual([
       'mem_henry',
     ]);
-    expect(left([...NIGHT, line('2026-03-14T01:30:00+01:00', 'Maya', 'found you guys!')])).toEqual([
-      'mem_henry',
-    ]);
+    expect(left([...NIGHT, line('2026-03-14T01:30:00+01:00', 'Chase', 'found you guys!')])).toEqual(
+      ['mem_henry'],
+    );
     // Someone else's "omw" does not.
     expect(left([...NIGHT, line('2026-03-14T00:45:00+01:00', 'Dean', 'omw')])).toEqual([
+      'mem_chase',
       'mem_henry',
-      'mem_maya',
     ]);
   });
 
@@ -278,25 +280,25 @@ describe('leftTheGroup', () => {
         line('2026-03-14T00:00:00+01:00', null, 'where r u guys'),
       ]),
     ).toEqual([]);
-    expect(left(NIGHT, ['mem_dean', 'mem_priya'])).toEqual([]);
+    expect(left(NIGHT, ['mem_dean', 'mem_arjun'])).toEqual([]);
   });
 });
 
 describe('parseRiderNames', () => {
   const read = (text: string, members: readonly Member[] = MEMBERS) =>
-    parseRiderNames(text, members, PRIYA);
-  const FOUR = ['mem_dean', 'mem_jordan', 'mem_priya', 'mem_sam'];
+    parseRiderNames(text, members, ARJUN);
+  const FOUR = ['mem_dean', 'mem_piotr', 'mem_arjun', 'mem_crowley'];
 
   it.each([
-    'dean, jordan and sam',
-    'Dean Jordan Sam',
-    'me dean jordan & sam',
-    'it was dean, jordan and sam',
-    'dean + jordan + sam!',
-    'everyone but maya and henry',
-    'all except henry, maya',
-    'not maya or henry',
-  ])('"%s" ⇒ Dean, Jordan, Priya, Sam (owner always in, group order)', (text) => {
+    'dean, piotr and crowley',
+    'Dean Piotr Crowley',
+    'me dean piotr & crowley',
+    'it was dean, piotr and crowley',
+    'dean + piotr + crowley!',
+    'everyone but chase and henry',
+    'all except henry, chase',
+    'not chase or henry',
+  ])('"%s" ⇒ Dean, Piotr, Arjun, Crowley (owner always in, group order)', (text) => {
     expect(read(text)).toEqual({ kind: 'names', memberIds: FOUR });
   });
 
@@ -311,7 +313,7 @@ describe('parseRiderNames', () => {
     'yes',
     'no',
     'just me',
-    'priya',
+    'arjun',
     'everyone else',
     // T-135 r1 #2: the owner paid and is on the receipt; taking themself out is no answer
     'all except me',
@@ -319,60 +321,60 @@ describe('parseRiderNames', () => {
     'not me',
     'not',
     // T-135 r2 #3, #4: questions, mixed lists, a trailing negator
-    'wait was it dean jordan and maya?',
-    'sam?',
-    'was it sam?',
-    'dean, not jordan, sam',
-    'jordan not',
+    'wait was it dean piotr and chase?',
+    'crowley?',
+    'was it crowley?',
+    'dean, not piotr, crowley',
+    'piotr not',
   ])('"%s" is not an answer naming riders', (text) => {
     expect(read(text)).toEqual({ kind: 'none' });
   });
 
   describe('corrections to a proposed split (T-135 r1 #3)', () => {
-    const PROPOSED = FOUR; // Dean, Jordan, Priya, Sam
-    const fix = (text: string) => parseRiderNames(text, MEMBERS, PRIYA, PROPOSED);
+    const PROPOSED = FOUR; // Dean, Piotr, Arjun, Crowley
+    const fix = (text: string) => parseRiderNames(text, MEMBERS, ARJUN, PROPOSED);
 
     it.each([
-      ['no it was maya not jordan', ['mem_dean', 'mem_maya', 'mem_priya', 'mem_sam']],
-      ['maya instead of jordan', ['mem_dean', 'mem_maya', 'mem_priya', 'mem_sam']],
-      ['not jordan', ['mem_dean', 'mem_priya', 'mem_sam']],
-      ['minus jordan', ['mem_dean', 'mem_priya', 'mem_sam']],
+      ['no it was chase not piotr', ['mem_dean', 'mem_chase', 'mem_arjun', 'mem_crowley']],
+      ['chase instead of piotr', ['mem_dean', 'mem_chase', 'mem_arjun', 'mem_crowley']],
+      ['not piotr', ['mem_dean', 'mem_arjun', 'mem_crowley']],
+      ['minus piotr', ['mem_dean', 'mem_arjun', 'mem_crowley']],
       // a plain list replaces the proposal
-      ['dean, maya and sam', ['mem_dean', 'mem_maya', 'mem_priya', 'mem_sam']],
-      ['dean', ['mem_dean', 'mem_priya']],
+      ['dean, chase and crowley', ['mem_dean', 'mem_chase', 'mem_arjun', 'mem_crowley']],
+      ['dean', ['mem_dean', 'mem_arjun']],
     ])('"%s" on the 4-way card', (text, want) => {
       expect(fix(text)).toEqual({ kind: 'names', memberIds: want });
     });
 
-    it('without a proposal, "not maya" is everyone but Maya', () => {
-      expect(read('not maya')).toEqual({
+    it('without a proposal, "not chase" is everyone but Chase', () => {
+      expect(read('not chase')).toEqual({
         kind: 'names',
-        memberIds: EVERYONE.filter((id) => id !== 'mem_maya'),
+        memberIds: EVERYONE.filter((id) => id !== 'mem_chase'),
       });
     });
   });
 
   it('a name two members share is no answer; a guest or departed member is never matched', () => {
-    const twoSams = [...MEMBERS, member('Sam', { memberId: 'mem_sam2' })];
-    expect(read('dean and sam', twoSams)).toEqual({ kind: 'none' });
+    const twoCrowleys = [...MEMBERS, member('Crowley', { memberId: 'mem_crowley2' })];
+    expect(read('dean and crowley', twoCrowleys)).toEqual({ kind: 'none' });
     const withGuest = [
-      ...MEMBERS.filter((m) => m.memberId !== 'mem_sam'),
-      member('Sam', { role: 'guest' }),
+      ...MEMBERS.filter((m) => m.memberId !== 'mem_crowley'),
+      member('Crowley', { role: 'guest' }),
     ];
-    expect(read('dean and sam', withGuest)).toEqual({ kind: 'none' });
+    expect(read('dean and crowley', withGuest)).toEqual({ kind: 'none' });
     const departed = MEMBERS.map((m) =>
-      m.memberId === 'mem_sam' ? { ...m, leftAt: '2026-03-13T00:00:00+01:00' } : m,
+      m.memberId === 'mem_crowley' ? { ...m, leftAt: '2026-03-13T00:00:00+01:00' } : m,
     );
-    expect(read('dean and sam', departed)).toEqual({ kind: 'none' });
+    expect(read('dean and crowley', departed)).toEqual({ kind: 'none' });
   });
 
   it('longest names first: "Mary Jo" is one person, not Mary', () => {
-    const ms = [member('Priya'), member('Mary'), member('Mary Jo', { memberId: 'mem_maryjo' })];
-    expect(read('mary jo', ms)).toEqual({ kind: 'names', memberIds: ['mem_priya', 'mem_maryjo'] });
+    const ms = [member('Arjun'), member('Mary'), member('Mary Jo', { memberId: 'mem_maryjo' })];
+    expect(read('mary jo', ms)).toEqual({ kind: 'names', memberIds: ['mem_arjun', 'mem_maryjo'] });
   });
 
-  it('a possessive is the name: "sam\'s"', () => {
-    expect(read("dean's, jordan's and sam's")).toEqual({ kind: 'names', memberIds: FOUR });
+  it('a possessive is the name: "crowley\'s"', () => {
+    expect(read("dean's, piotr's and crowley's")).toEqual({ kind: 'names', memberIds: FOUR });
   });
 });
 

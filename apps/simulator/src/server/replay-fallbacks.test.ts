@@ -83,7 +83,7 @@ describe('Barcelona replay: generic fallback ratchet (T-092)', () => {
     const run = await playAll();
     expect(run.replies).toBeGreaterThan(60);
     expect(run.fallbacks).toEqual(KNOWN_FALLBACKS);
-    // The Barça over-cap approvals (0044-0049) and Sam's VIP 👍 (0123) now land on real cards.
+    // The Barça over-cap approvals (0044-0049) and Crowley's VIP 👍 (0123) now land on real cards.
     expect(run.skips.filter((id) => !id.startsWith('sys_'))).toEqual(KNOWN_SKIPS);
     const said = (id: string): string => (run.byLine.get(id) ?? []).join('\n');
     // Friday's "it's the 5 of us tonight, henry's out": the seed plans nothing
@@ -99,7 +99,7 @@ describe('Barcelona replay: generic fallback ratchet (T-092)', () => {
     expect(said('msg_bcn_0049')).toMatch(/^booked ✅ fc barcelona vs sevilla fc, 6 tickets/);
     // Group flights (T-074): the optimizer's options, "book option 1" (no
     // fallback) through the approval policy, nothing booked until the sixth
-    // payer's 👍, Priya's bare "yes" counting for nothing.
+    // payer's 👍, Arjun's bare "yes" counting for nothing.
     expect(said('msg_bcn_0014')).toMatch(/^flights for 6 into BCN thu mar 12, home tue mar 17/);
     expect(said('msg_bcn_0019')).toMatch(/^option 1, flights for 6: into BCN/);
     expect(said('msg_bcn_0019')).toMatch(/all 6 of you have to 👍/);
@@ -107,7 +107,7 @@ describe('Barcelona replay: generic fallback ratchet (T-092)', () => {
     expect(said('msg_bcn_0025')).toMatch(/still need 👍 from Henry$/);
     expect(said('msg_bcn_0026')).toMatch(/^booked ✅ flights to BCN, €2,956/);
     expect(said('msg_bcn_0026')).toMatch(/each on your own card, nothing to split/);
-    // The stay (T-132): the refundable Eixample rate for all 6, booked on Henry's 👍, not Jordan's relay.
+    // The stay (T-132): the refundable Eixample rate for all 6, booked on Henry's 👍, not Piotr's relay.
     expect(said('msg_bcn_0027')).toMatch(
       /€1,380 for 5 nights · €230 each · free cancel until mar 7/,
     );

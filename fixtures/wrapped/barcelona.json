@@ -102,19 +102,19 @@
           "value": 1320
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "value": 29490
         },
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "value": 48000
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "value": 9894
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "value": 14140
         }
       ],
@@ -141,19 +141,19 @@
           "value": 0
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "value": 0
         },
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "value": 0
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "value": 0
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "value": 0
         }
       ],
@@ -180,34 +180,34 @@
           "value": 0
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "value": 0
         },
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "value": 0
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "value": 1
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "value": 1
         }
       ],
       "topHolders": [
         "mem_dean",
-        "mem_priya",
-        "mem_sam"
+        "mem_arjun",
+        "mem_crowley"
       ],
-      "referenceWinner": "mem_sam",
+      "referenceWinner": "mem_crowley",
       "runnerUpBecauseTopAlreadyAwarded": false,
       "repeatWinner": false,
       "acceptableWinners": [
         "mem_dean",
-        "mem_sam",
-        "mem_priya"
+        "mem_crowley",
+        "mem_arjun"
       ]
     },
     {
@@ -223,34 +223,34 @@
           "value": 0
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "value": 0
         },
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "value": 1
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "value": 1
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "value": 1
         }
       ],
       "topHolders": [
-        "mem_jordan",
-        "mem_priya",
-        "mem_sam"
+        "mem_piotr",
+        "mem_arjun",
+        "mem_crowley"
       ],
-      "referenceWinner": "mem_priya",
+      "referenceWinner": "mem_arjun",
       "runnerUpBecauseTopAlreadyAwarded": false,
       "repeatWinner": false,
       "acceptableWinners": [
-        "mem_sam",
-        "mem_priya",
-        "mem_jordan"
+        "mem_crowley",
+        "mem_arjun",
+        "mem_piotr"
       ]
     },
     {
@@ -266,19 +266,19 @@
           "value": 1
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "value": 1
         },
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "value": 0
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "value": 0
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "value": 0
         }
       ],
@@ -302,25 +302,25 @@
           "value": 10
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "value": 4
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "value": 10
         }
       ],
       "topHolders": [
         "mem_dean",
-        "mem_sam"
+        "mem_crowley"
       ],
-      "referenceWinner": "mem_maya",
+      "referenceWinner": "mem_chase",
       "runnerUpBecauseTopAlreadyAwarded": true,
       "repeatWinner": false,
       "acceptableWinners": [
         "mem_dean",
-        "mem_sam",
-        "mem_maya"
+        "mem_crowley",
+        "mem_chase"
       ]
     },
     {
@@ -336,37 +336,37 @@
           "value": 6
         },
         {
-          "memberId": "mem_maya",
+          "memberId": "mem_chase",
           "value": 10
         },
         {
-          "memberId": "mem_jordan",
+          "memberId": "mem_piotr",
           "value": 9
         },
         {
-          "memberId": "mem_priya",
+          "memberId": "mem_arjun",
           "value": 10
         },
         {
-          "memberId": "mem_sam",
+          "memberId": "mem_crowley",
           "value": 10
         }
       ],
       "topHolders": [
         "mem_dean",
-        "mem_maya",
-        "mem_priya",
-        "mem_sam"
+        "mem_chase",
+        "mem_arjun",
+        "mem_crowley"
       ],
-      "referenceWinner": "mem_jordan",
+      "referenceWinner": "mem_piotr",
       "runnerUpBecauseTopAlreadyAwarded": true,
       "repeatWinner": false,
       "acceptableWinners": [
         "mem_dean",
-        "mem_maya",
-        "mem_priya",
-        "mem_sam",
-        "mem_jordan"
+        "mem_chase",
+        "mem_arjun",
+        "mem_crowley",
+        "mem_piotr"
       ]
     }
   ],
@@ -422,19 +422,19 @@
   "nightOwlDetail": {
     "2026-03-12": {
       "t": 23.833333333333332,
-      "memberId": "mem_jordan",
+      "memberId": "mem_piotr",
       "expenseId": "exp_bcn_008",
       "at": "2026-03-12T23:50:00+01:00"
     },
     "2026-03-13": {
       "t": 25.866666666666667,
-      "memberId": "mem_priya",
+      "memberId": "mem_arjun",
       "expenseId": "exp_bcn_011",
       "at": "2026-03-14T01:52:00+01:00"
     },
     "2026-03-14": {
       "t": 26.233333333333334,
-      "memberId": "mem_sam",
+      "memberId": "mem_crowley",
       "expenseId": "exp_bcn_016",
       "at": "2026-03-15T02:14:00+01:00"
     }
@@ -452,7 +452,7 @@
     },
     "2026-03-16": {
       "at": "2026-03-16T13:47:00+01:00",
-      "memberId": "mem_maya",
+      "memberId": "mem_chase",
       "expenseId": "exp_bcn_018"
     },
     "2026-03-13": {
@@ -464,8 +464,8 @@
   "photos": {
     "onlyFromOwners": [
       "mem_dean",
-      "mem_maya",
-      "mem_sam"
+      "mem_chase",
+      "mem_crowley"
     ],
     "highlightCandidates": [
       "photo_bcn_004",
@@ -527,7 +527,7 @@
     "one award per person where possible (referenceWinner applies that greedily in the order listed; acceptableWinners = everyone tied at the top)",
     "no award or stat references drinking volume, health, bodies, romance or anyone outside the chat",
     "stats come only from group-visible data: never from unconfirmed card or email items",
-    "photos only from members whose photos consent is on at render time (Dean, Maya, Sam); Priya revoked on 2026-03-16"
+    "photos only from members whose photos consent is on at render time (Dean, Chase, Crowley); Arjun revoked on 2026-03-16"
   ],
   "mustNotContain": [
     "sick",

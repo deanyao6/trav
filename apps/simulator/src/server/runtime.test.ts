@@ -139,13 +139,13 @@ describe('agent backend', () => {
     expect(card.card?.cardId).toBe('card_1');
     await backend.inject({
       type: 'button_tap',
-      from: 'h_sam',
+      from: 'h_crowley',
       cardMessageId: card.messageId,
       actionId: 'approve',
     });
     await backend.inject({
       type: 'reaction',
-      from: 'h_sam',
+      from: 'h_crowley',
       targetMessageId: card.messageId,
       reaction: '👍',
     });
@@ -155,7 +155,7 @@ describe('agent backend', () => {
       type: 'button_tap',
       channel: 'simulator',
       lane: 'group',
-      sender: 'h_sam',
+      sender: 'h_crowley',
       cardMessageId: card.messageId,
       cardId: 'card_1',
       actionId: 'approve',
@@ -196,7 +196,7 @@ describe('agent backend', () => {
     });
     await Promise.all([
       backend.inject({ type: 'message', from: 'h_dean', text: '@trav razz for 5' }),
-      backend.inject({ type: 'message', from: 'h_maya', text: '@trav razz for 5' }),
+      backend.inject({ type: 'message', from: 'h_chase', text: '@trav razz for 5' }),
     ]);
     const reply = backend
       .state()
@@ -204,13 +204,13 @@ describe('agent backend', () => {
     await Promise.all([
       backend.inject({
         type: 'reaction',
-        from: 'h_sam',
+        from: 'h_crowley',
         targetMessageId: reply.messageId,
         reaction: '👍',
       }),
       backend.inject({
         type: 'reaction',
-        from: 'h_sam',
+        from: 'h_crowley',
         targetMessageId: reply.messageId,
         reaction: '👍',
       }),
@@ -219,12 +219,12 @@ describe('agent backend', () => {
     expect(order).toEqual([
       'start:h_dean',
       'end:h_dean',
-      'start:h_maya',
-      'end:h_maya',
-      'start:h_sam',
-      'end:h_sam',
-      'start:h_sam',
-      'end:h_sam',
+      'start:h_chase',
+      'end:h_chase',
+      'start:h_crowley',
+      'end:h_crowley',
+      'start:h_crowley',
+      'end:h_crowley',
     ]);
     expect(backend.state().groups[0]!.typing).toBe(false);
   });
@@ -246,7 +246,7 @@ describe('agent backend', () => {
     });
     await Promise.all([
       backend.inject({ type: 'message', from: 'h_dean', text: '@trav a' }),
-      backend.inject({ type: 'message', from: 'h_maya', text: '@trav b' }),
+      backend.inject({ type: 'message', from: 'h_chase', text: '@trav b' }),
     ]);
     expect(calls).toBe(2);
     expect(backend.state().lastError).toBeUndefined();
@@ -305,13 +305,13 @@ describe('agent backend', () => {
     expect(backend.state().lastError).toBeUndefined();
 
     next = { ...SILENT, note: 'mention:not_addressed' };
-    await backend.inject({ type: 'message', from: 'h_maya', text: 'lol' });
+    await backend.inject({ type: 'message', from: 'h_chase', text: 'lol' });
     expect(backend.state().groups[0]!.status).toBeUndefined();
 
     next = { ...SILENT, note: 'approval:not_required_approver' };
     await backend.inject({
       type: 'reaction',
-      from: 'h_sam',
+      from: 'h_crowley',
       targetMessageId: card.messageId,
       reaction: '👍',
     });
@@ -408,7 +408,7 @@ describe('agent backend', () => {
       (e): e is ThreadMessage => e.kind === 'message' && e.messageId === proposal!.messageId,
     );
     expect(card?.cardState).toMatchObject({ status: 'approved', label: 'Approved by Dean' });
-    for (const id of ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam']) {
+    for (const id of ['mem_dean', 'mem_chase', 'mem_piotr', 'mem_arjun', 'mem_crowley']) {
       const tickets = g.dms[id]!.filter(
         (e): e is ThreadMessage => e.kind === 'message' && e.card?.type === 'ticket',
       );

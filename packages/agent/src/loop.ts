@@ -18,7 +18,7 @@
  *     proposal is pending, "Dean said it's fine" is an invalid approval attempt
  *     only when the message is for Trav (addressed, or carrying an approval
  *     word); Trav names the real approver only when it was addressed;
- *     "Maya is in the shower" is chat and gets nothing, not even audit
+ *     "Chase is in the shower" is chat and gets nothing, not even audit
  *  5. group context → prompt → model tool loop capped at `maxToolRounds`
  *  6. money results (proposal, logged expense, clarifying question, refusal) are
  *     rendered from the tool result, never from model prose; model prose is
@@ -485,7 +485,7 @@ const QUOTE_LINE = /^\s*(?:>|\||»)/;
  * tickets", "Forwarded message:", Apple Mail's "Begin forwarded message:"), a
  * header word alone on its line ("Fwd", "---------- Forwarded message
  * ----------"), or a "from …" / "by …" line ending in a colon ("fwd from dean
- * lol:", "forwarded by maya:"). "fwd this to henry pls" is a sentence, not a
+ * lol:", "forwarded by chase:"). "fwd this to henry pls" is a sentence, not a
  * header (T-066).
  */
 const FWD_HEADER =
@@ -548,7 +548,7 @@ export function splitQuoted(text: string): QuoteSplit {
 
 const AT_TRAV_TOKEN = /(^|[^\w@])@trav(?![\w-])\s*[,:]?/gi;
 const TRAV_VOCATIVE_PREFIX = /^\s*(?:(?:hey|hi|yo|ok|okay|yeah)\s+)?trav\s*[,:]\s*/i;
-/** "too", "now too", "after all": filler on an attendance line. A bare "now" is not ("sam is going now" means leaving). */
+/** "too", "now too", "after all": filler on an attendance line. A bare "now" is not ("crowley is going now" means leaving). */
 const ATTENDANCE_FILLER = /\s+(?:now\s+too|now\s+as\s+well|too|as\s+well|again|after\s+all)$/i;
 /** What may follow an attendance clause without being a separate request: "add him", "make it 6". */
 const ATTENDANCE_FOLLOW_UP =
@@ -2130,7 +2130,7 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     // dean said it's fine") and was addressed to Trav (D-019 §1-2). An
     // "everyone" claim needs the approval word: "@trav everyone's in the
     // lobby, where next?" is a question for the model, and attendance lines
-    // ("@trav henry's in now too") are no claim at all (T-066). "Maya is in
+    // ("@trav henry's in now too") are no claim at all (T-066). "Chase is in
     // the shower" is chat: no post, no audit. Trav answers out loud only when
     // it was addressed; an unaddressed claim is audited and nothing more.
     const pending = pendingFor(r);

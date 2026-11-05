@@ -57,9 +57,9 @@ describe('resolveIdentity (SAFETY §2.5: identity is the channel sender id)', ()
 
   it('an inactive or departed member is a guest for authorization', () => {
     const left = members.map((m) =>
-      m.memberId === 'mem_sam' ? { ...m, active: false, leftAt: NOW } : m,
+      m.memberId === 'mem_crowley' ? { ...m, active: false, leftAt: NOW } : m,
     );
-    expect(resolveIdentity(repo(left), GROUP, 'h_sam').kind).toBe('guest');
+    expect(resolveIdentity(repo(left), GROUP, 'h_crowley').kind).toBe('guest');
   });
 
   it('roles: guests cannot request; minors can request but never approve; leads and guardians are leads', () => {
@@ -103,8 +103,8 @@ describe('approval-shaped text and tapbacks (VOICE §6.2)', () => {
     expect(hasApprovalIntentWord("Dean said it's fine, go ahead")).toBe(true);
     expect(hasApprovalIntentWord('henry says book it')).toBe(true);
     expect(hasApprovalIntentWord('dean approved 👍')).toBe(true);
-    expect(hasApprovalIntentWord('Maya is in the shower, 10 more min')).toBe(false);
-    expect(hasApprovalIntentWord('Priya is good at this')).toBe(false);
+    expect(hasApprovalIntentWord('Chase is in the shower, 10 more min')).toBe(false);
+    expect(hasApprovalIntentWord('Arjun is good at this')).toBe(false);
     expect(hasApprovalIntentWord("everyone's in the lobby")).toBe(false);
   });
 
@@ -125,9 +125,9 @@ describe('detectClaimedApproval', () => {
     expect(
       detectClaimedApproval("Dean said it's fine, go ahead @trav", members, 'mem_henry'),
     ).toEqual({ kind: 'named', claimedFor: 'mem_dean' });
-    expect(detectClaimedApproval("Maya's ok, book it", members, 'mem_dean')).toEqual({
+    expect(detectClaimedApproval("Chase's ok, book it", members, 'mem_dean')).toEqual({
       kind: 'named',
-      claimedFor: 'mem_maya',
+      claimedFor: 'mem_chase',
     });
   });
 
@@ -152,7 +152,7 @@ describe('detectClaimedApproval', () => {
       'dean said do it tomorrow',
       'dean said approved for the 5',
       'dean said go ahead with the booking',
-      'dean said yes and sam too',
+      'dean said yes and crowley too',
       "dean's good with this",
       'dean said yes to brunch tomorrow',
     ]) {
@@ -177,7 +177,7 @@ describe('detectClaimedApproval', () => {
       "henry's in now too",
       "henry's in, make it 6",
       "henry's in! @trav add him",
-      'Maya is down',
+      'Chase is down',
       "henry's in, book it",
     ]) {
       expect(detectClaimedApproval(text, members, 'mem_dean'), text).toBeUndefined();
@@ -191,13 +191,13 @@ describe('detectClaimedApproval', () => {
     expect(detectClaimedApproval('we all said yes, book it', members, 'mem_dean')).toEqual({
       kind: 'everyone',
     });
-    expect(detectClaimedApproval("everyone's in, book it", members, 'mem_sam')).toEqual({
+    expect(detectClaimedApproval("everyone's in, book it", members, 'mem_crowley')).toEqual({
       kind: 'everyone',
     });
-    expect(detectClaimedApproval("everyone's in 👍", members, 'mem_sam')).toEqual({
+    expect(detectClaimedApproval("everyone's in 👍", members, 'mem_crowley')).toEqual({
       kind: 'everyone',
     });
-    expect(detectClaimedApproval("everyone's in so book it", members, 'mem_sam')).toEqual({
+    expect(detectClaimedApproval("everyone's in so book it", members, 'mem_crowley')).toEqual({
       kind: 'everyone',
     });
   });
@@ -208,7 +208,7 @@ describe('detectClaimedApproval', () => {
       "everyone's in the lobby",
       'everybody is good at this game',
     ]) {
-      expect(detectClaimedApproval(text, members, 'mem_sam'), text).toBeUndefined();
+      expect(detectClaimedApproval(text, members, 'mem_crowley'), text).toBeUndefined();
     }
   });
 
@@ -233,19 +233,19 @@ describe('detectClaimedApproval', () => {
       'approved for henry',
       '👍 for henry',
     ]) {
-      expect(detectClaimedApproval(text, members, 'mem_jordan'), text).toEqual(henry);
+      expect(detectClaimedApproval(text, members, 'mem_piotr'), text).toEqual(henry);
     }
     // Nobody (or several) named: still never the sender's own 👍.
-    expect(detectClaimedApproval("i'll approve for him", members, 'mem_jordan')).toEqual({
+    expect(detectClaimedApproval("i'll approve for him", members, 'mem_piotr')).toEqual({
       kind: 'proxy',
       others: [],
     });
     expect(
-      detectClaimedApproval("dean and maya are busy, i'll approve for them", members, 'mem_jordan'),
-    ).toEqual({ kind: 'proxy', others: ['mem_dean', 'mem_maya'] });
-    expect(detectClaimedApproval('approve for dean and maya', members, 'mem_jordan')).toEqual({
+      detectClaimedApproval("dean and chase are busy, i'll approve for them", members, 'mem_piotr'),
+    ).toEqual({ kind: 'proxy', others: ['mem_dean', 'mem_chase'] });
+    expect(detectClaimedApproval('approve for dean and chase', members, 'mem_piotr')).toEqual({
       kind: 'proxy',
-      others: ['mem_dean', 'mem_maya'],
+      others: ['mem_dean', 'mem_chase'],
     });
   });
 
@@ -257,13 +257,10 @@ describe('detectClaimedApproval', () => {
       ['i approve for both of us', { kind: 'with_self', others: [], group: true }],
       ['i approve for me and henry', { kind: 'with_self', others: ['mem_henry'], group: false }],
       ['yes for henry too', { kind: 'with_self', others: ['mem_henry'], group: false }],
-      [
-        'i approve for jordan and henry',
-        { kind: 'with_self', others: ['mem_henry'], group: false },
-      ],
+      ['i approve for piotr and henry', { kind: 'with_self', others: ['mem_henry'], group: false }],
     ];
     for (const [text, want] of cases) {
-      expect(detectClaimedApproval(text, members, 'mem_jordan'), text).toEqual(want);
+      expect(detectClaimedApproval(text, members, 'mem_piotr'), text).toEqual(want);
     }
   });
 
@@ -282,8 +279,8 @@ describe('detectClaimedApproval', () => {
     }
     for (const text of [
       'henry approves for me too',
-      'maya confirmed for the group',
-      'maya approved for all of us',
+      'chase confirmed for the group',
+      'chase approved for all of us',
       'she approved for the group',
     ]) {
       const got = detectClaimedApproval(text, members, 'mem_dean');
@@ -300,7 +297,7 @@ describe('detectClaimedApproval', () => {
       group: false,
     });
     // Someone else's minor is still a claim for them.
-    expect(detectClaimedApproval("i'll approve for lily, she's in", family, 'mem_maya')).toEqual({
+    expect(detectClaimedApproval("i'll approve for lily, she's in", family, 'mem_chase')).toEqual({
       kind: 'named',
       claimedFor: 'mem_lily',
     });
@@ -317,7 +314,7 @@ describe('detectClaimedApproval', () => {
       "i'll confirm for real",
       'henry is at practice',
     ]) {
-      expect(detectClaimedApproval(text, members, 'mem_jordan'), text).toBeUndefined();
+      expect(detectClaimedApproval(text, members, 'mem_piotr'), text).toBeUndefined();
     }
   });
 });
@@ -440,7 +437,7 @@ describe('gateApproval (SAFETY §2.5 pre-check)', () => {
   });
 
   it('SAFETY §2.1: a bare yes / no from anyone but the requester binds to nothing, even with one proposal pending', () => {
-    // Maya is charged on it; Henry is neither charged nor an approver. Neither asked for it.
+    // Chase is charged on it; Henry is neither charged nor an approver. Neither asked for it.
     for (const m of [members[1]!, members[2]!]) {
       const who: Identity = { kind: 'member', member: m };
       expect(gateApproval(input(who)), m.displayName).toEqual({
@@ -460,9 +457,9 @@ describe('gateApproval (SAFETY §2.5 pre-check)', () => {
   });
 
   it('a bare "not me" binds for a charged member (an opt-out never spends), not for someone off the proposal', () => {
-    const maya: Identity = { kind: 'member', member: members[2]! };
-    expect(proposal.attendees).toContain('mem_maya');
-    expect(gateApproval(input(maya, { intent: 'not_me' }))).toEqual({
+    const chase: Identity = { kind: 'member', member: members[2]! };
+    expect(proposal.attendees).toContain('mem_chase');
+    expect(gateApproval(input(chase, { intent: 'not_me' }))).toEqual({
       kind: 'candidate',
       proposal,
     });
@@ -475,7 +472,7 @@ describe('gateApproval (SAFETY §2.5 pre-check)', () => {
   });
 
   it("\"everyone's in, book it\" is the sender's own attempt: card-less it binds only to the requester's own proposal (SAFETY §2.1), and only where they are a required approver", () => {
-    // One-tap by Dean: Maya is charged but not an approver.
+    // One-tap by Dean: Chase is charged but not an approver.
     const oneTap: PolicyDecision = {
       ...decision,
       approvalMode: 'any_one',
@@ -491,35 +488,35 @@ describe('gateApproval (SAFETY §2.5 pre-check)', () => {
     expect(
       gateApproval(input(dean, { text, decisionFor, boundProposalId: proposal.proposalId })),
     ).toEqual({ kind: 'candidate', proposal });
-    const maya: Identity = { kind: 'member', member: members[2]! };
-    // Maya did not ask: card-less, her text binds to nothing, like a bare "yes".
-    expect(gateApproval(input(maya, { text, decisionFor }))).toEqual({
+    const chase: Identity = { kind: 'member', member: members[2]! };
+    // Chase did not ask: card-less, Chase's text binds to nothing, like a bare "yes".
+    expect(gateApproval(input(chase, { text, decisionFor }))).toEqual({
       kind: 'ignored',
       cause: 'not_requester',
     });
     // Replying to the card binds, and then she must be an approver.
     expect(
-      gateApproval(input(maya, { text, decisionFor, boundProposalId: proposal.proposalId })),
+      gateApproval(input(chase, { text, decisionFor, boundProposalId: proposal.proposalId })),
     ).toEqual({ kind: 'ignored', cause: 'claimed_for_other' });
-    // Under each-payer (the testkit decision) Maya is a required approver, yet
-    // card-less her "everyone's in, book it" is still not_requester (T-066);
-    // on the card it counts for her.
-    expect(decision.requiredApprovers).toContain('mem_maya');
-    expect(gateApproval(input(maya, { text }))).toEqual({
+    // Under each-payer (the testkit decision) Chase is a required approver, yet
+    // card-less Chase's "everyone's in, book it" is still not_requester (T-066);
+    // on the card it counts for Chase.
+    expect(decision.requiredApprovers).toContain('mem_chase');
+    expect(gateApproval(input(chase, { text }))).toEqual({
       kind: 'ignored',
       cause: 'not_requester',
     });
-    expect(gateApproval(input(maya, { text, boundProposalId: proposal.proposalId }))).toEqual({
+    expect(gateApproval(input(chase, { text, boundProposalId: proposal.proposalId }))).toEqual({
       kind: 'candidate',
       proposal,
     });
-    // The requester who is not an approver (lead-only policy, Sam asked): a claim, never counted.
-    const samsOwn = { ...proposal, requestedBy: 'mem_sam' };
-    const sam: Identity = {
+    // The requester who is not an approver (lead-only policy, Crowley asked): a claim, never counted.
+    const crowleysOwn = { ...proposal, requestedBy: 'mem_crowley' };
+    const crowley: Identity = {
       kind: 'member',
-      member: members.find((m) => m.memberId === 'mem_sam')!,
+      member: members.find((m) => m.memberId === 'mem_crowley')!,
     };
-    expect(gateApproval(input(sam, { text, decisionFor, pending: [samsOwn] }))).toEqual({
+    expect(gateApproval(input(crowley, { text, decisionFor, pending: [crowleysOwn] }))).toEqual({
       kind: 'ignored',
       cause: 'claimed_for_other',
     });

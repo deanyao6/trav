@@ -578,7 +578,7 @@ function containsWord(haystack: string, term: string): boolean {
 
 /** Description words too generic to identify a charge. */
 // "ride" is the parser's own fallback label for an unbranded ride receipt
-// (T-138/T-142: the Wrapped "3 rides, €74" stat is not Maya's private ride).
+// (T-138/T-142: the Wrapped "3 rides, €74" stat is not Chase's private ride).
 const GENERIC_WORDS = new Set([
   'expense',
   'total',
@@ -741,7 +741,7 @@ export const privateConfirmDelivery: Grader = {
     /**
      * The amount is accounted for by another member's group-visible expense
      * already on the tab, same amount and currency (the €90 Razzmatazz booking
-     * vs Sam's €90 private charge, T-138; a $90 one is not it, T-148 r1 #4), and no line carrying it names the owner. A line that
+     * vs Crowley's €90 private charge, T-138; a $90 one is not it, T-148 r1 #4), and no line carrying it names the owner. A line that
      * names the owner and the amount still leaks, coincidence or not.
      */
     const publicAmount = (

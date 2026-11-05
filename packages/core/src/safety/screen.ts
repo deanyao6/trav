@@ -636,7 +636,7 @@ function screenWrapped(
 
   if (recheck) {
     // A blocked award/stat was removed in every shape we know, but the text may
-    // carry it paraphrased ("goes to Sam, so drunk he...", "Jordan paid for
+    // carry it paraphrased ("goes to Crowley, so drunk he...", "Piotr paid for
     // kebabs 3 nights running"). If a blocklisted topic, private data, or the
     // name of a member the block was about still appears anywhere outside the
     // kept awards and stats, fail closed rather than send it.

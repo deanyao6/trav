@@ -127,64 +127,64 @@ describe('roster tools', () => {
         ctx(h),
       ) as Promise<Res>;
 
-    it('Sam (under 18) in for razzmatazz: nothing written, the stays-off line, no age', async () => {
+    it('Crowley (under 18) in for razzmatazz: nothing written, the stays-off line, no age', async () => {
       const h = harness();
-      patch(h, 'mem_sam', { birthDate: '2010-05-01', ageBand: 'under18' });
-      await set(h, 'Sam', 'out');
+      patch(h, 'mem_crowley', { birthDate: '2010-05-01', ageBand: 'under18' });
+      await set(h, 'Crowley', 'out');
       const events = rosterEvents(h).length;
       for (const status of ['in', 'maybe']) {
-        const res = await set(h, 'Sam', status);
+        const res = await set(h, 'Crowley', status);
         expect(res.kind).toBe('kept_off');
-        expect(res.text).toBe("Sam stays off this plan, it's not all-ages. that's 5 in");
+        expect(res.text).toBe("Crowley stays off this plan, it's not all-ages. that's 5 in");
         expect(res.text).not.toMatch(/\b(?:1[0-7]|under|age|minor|kid|child|adults?)\b/i);
       }
-      expect(row(h, 'mem_sam')).toBe('out');
+      expect(row(h, 'mem_crowley')).toBe('out');
       expect(rosterEvents(h)).toHaveLength(events);
     });
 
     it('a stale in row for the minor is set to out in the same call (one audited change)', async () => {
       const h = harness(); // Barcelona seeds everyone in
-      patch(h, 'mem_sam', { birthDate: '2010-05-01', ageBand: 'under18' });
-      expect(row(h, 'mem_sam')).toBe('in');
-      const res = await set(h, 'Sam', 'in');
+      patch(h, 'mem_crowley', { birthDate: '2010-05-01', ageBand: 'under18' });
+      expect(row(h, 'mem_crowley')).toBe('in');
+      const res = await set(h, 'Crowley', 'in');
       expect(res.kind).toBe('kept_off');
-      expect(res.roster.in.map((m) => m.memberId)).not.toContain('mem_sam');
-      expect(row(h, 'mem_sam')).toBe('out');
+      expect(res.roster.in.map((m) => m.memberId)).not.toContain('mem_crowley');
+      expect(row(h, 'mem_crowley')).toBe('out');
       const last = rosterEvents(h).at(-1)!;
       // Ids and statuses only: no age, no reason.
       expect(last.payload).toEqual({
         activityId: RAZZ,
-        changes: [{ memberId: 'mem_sam', status: 'out' }],
+        changes: [{ memberId: 'mem_crowley', status: 'out' }],
         sourceMessageId: 'msg_test_1',
       });
     });
 
     it('"everyone\'s in" one call per member: the adults are written, the minor is skipped', async () => {
       const h = harness();
-      patch(h, 'mem_sam', { birthDate: '2010-05-01', ageBand: 'under18' });
-      for (const name of ['Dean', 'Henry', 'Maya', 'Jordan', 'Priya', 'Sam'])
+      patch(h, 'mem_crowley', { birthDate: '2010-05-01', ageBand: 'under18' });
+      for (const name of ['Dean', 'Henry', 'Chase', 'Piotr', 'Arjun', 'Crowley'])
         await set(h, name, 'out');
       const kinds: string[] = [];
-      for (const name of ['Dean', 'Henry', 'Maya', 'Jordan', 'Priya', 'Sam']) {
+      for (const name of ['Dean', 'Henry', 'Chase', 'Piotr', 'Arjun', 'Crowley']) {
         kinds.push((await set(h, name, 'in')).kind);
       }
       expect(kinds).toEqual([...Array(5).fill('attendance_set'), 'kept_off']);
-      expect(row(h, 'mem_sam')).toBe('out');
+      expect(row(h, 'mem_crowley')).toBe('out');
       expect(row(h, 'mem_henry')).toBe('in');
     });
 
     it('unknown age is kept off until a lead confirms everyone is 18+ (SAFETY §2.7)', async () => {
       const h = harness();
-      patch(h, 'mem_sam', { birthDate: undefined, ageBand: 'unknown' });
+      patch(h, 'mem_crowley', { birthDate: undefined, ageBand: 'unknown' });
       const groups = h.runtime.stores.group.groups;
       const g = groups.get(G)!;
       groups.update({ ...g, settings: { ...g.settings, allAdultsConfirmed: false } });
-      await set(h, 'Sam', 'out');
-      expect((await set(h, 'Sam', 'in')).kind).toBe('kept_off');
-      expect(row(h, 'mem_sam')).toBe('out');
+      await set(h, 'Crowley', 'out');
+      expect((await set(h, 'Crowley', 'in')).kind).toBe('kept_off');
+      expect(row(h, 'mem_crowley')).toBe('out');
       groups.update({ ...g, settings: { ...g.settings, allAdultsConfirmed: true } });
-      expect((await set(h, 'Sam', 'in')).kind).toBe('attendance_set');
-      expect(row(h, 'mem_sam')).toBe('in');
+      expect((await set(h, 'Crowley', 'in')).kind).toBe('attendance_set');
+      expect(row(h, 'mem_crowley')).toBe('in');
     });
   });
 });
@@ -221,7 +221,7 @@ describe('ledger tools', () => {
       {
         ...dinner,
         amountMinor: 8401,
-        split: { method: 'equal', participants: ['Dean', 'Maya', 'Sam'] },
+        split: { method: 'equal', participants: ['Dean', 'Chase', 'Crowley'] },
       },
       ctx(h),
     )) as LogExpenseResult;
@@ -241,7 +241,7 @@ describe('ledger tools', () => {
       description: 'museum',
       amountMinor: 4000,
       currency: 'USD',
-      split: { method: 'equal', participants: ['Dean', 'Maya', 'Sam'] },
+      split: { method: 'equal', participants: ['Dean', 'Chase', 'Crowley'] },
     };
     const withFx = (h: Harness, over: Partial<TurnToolContext> = {}) =>
       ctx(h, { fx: createMockFxRates({ clock: h.clock }), ...over });
@@ -257,7 +257,7 @@ describe('ledger tools', () => {
       expect(res.original).toEqual({ amountMinor: 4000, currency: 'USD' });
       expect(res.shares.map((s) => s.amountMinor)).toEqual([1230, 1230, 1230]);
       expect(res.text).toBe(
-        'logged: $40 museum (≈€36.90) on Dean, 3 ways (not Henry, Jordan, Priya) → €12.30 each\n👎 to undo or tell me what to change',
+        'logged: $40 museum (≈€36.90) on Dean, 3 ways (not Henry, Piotr, Arjun) → €12.30 each\n👎 to undo or tell me what to change',
       );
       expect(res.card.amount).toEqual({ amountMinor: 3690, currency: 'EUR' });
       expect(res.card.original).toEqual({ amountMinor: 4000, currency: 'USD' });
@@ -336,8 +336,8 @@ describe('ledger tools', () => {
             method: 'exact',
             amounts: [
               { member: 'Dean', amountMinor: 3333 },
-              { member: 'Maya', amountMinor: 3334 },
-              { member: 'Sam', amountMinor: 3334 },
+              { member: 'Chase', amountMinor: 3334 },
+              { member: 'Crowley', amountMinor: 3334 },
             ],
           },
         },
@@ -357,10 +357,10 @@ describe('ledger tools', () => {
           amountMinor: 5000,
           split: {
             method: 'itemized',
-            participants: ['Dean', 'Maya'],
+            participants: ['Dean', 'Chase'],
             lineItems: [
               { label: 'patatas', amountMinor: 1700, claimedBy: ['Dean'] },
-              { label: 'croquetas', amountMinor: 3300, claimedBy: ['Maya'] },
+              { label: 'croquetas', amountMinor: 3300, claimedBy: ['Chase'] },
             ],
           },
         },
@@ -388,7 +388,7 @@ describe('ledger tools', () => {
               method: 'exact',
               amounts: [
                 { member: 'Dean', amountMinor: 1000 },
-                { member: 'Maya', amountMinor: 1000 },
+                { member: 'Chase', amountMinor: 1000 },
               ],
             },
           },
@@ -500,10 +500,10 @@ describe('ledger tools', () => {
             amountMinor: 5000,
             split: {
               method: 'itemized',
-              participants: ['Dean', 'Maya'],
+              participants: ['Dean', 'Chase'],
               lineItems: [
                 { label: 'a', amountMinor: 3000, claimedBy: ['Dean'] },
-                { label: 'b', amountMinor: 2500, claimedBy: ['Maya'] },
+                { label: 'b', amountMinor: 2500, claimedBy: ['Chase'] },
                 { label: 'off', amountMinor: off, claimedBy: [], kind: 'discount' },
               ],
             },
@@ -593,7 +593,7 @@ describe('ledger tools', () => {
           description: 'snacks',
           amountMinor: 1002,
           currency: 'EUR',
-          split: { method: 'equal', participants: ['Dean', 'Maya', 'Sam', 'Priya'] },
+          split: { method: 'equal', participants: ['Dean', 'Chase', 'Crowley', 'Arjun'] },
         },
         ctx(h),
       );
@@ -607,7 +607,7 @@ describe('ledger tools', () => {
       if (res.kind !== 'logged') throw new Error(res.kind);
       expect(res.amount).toEqual({ amountMinor: 2449, currency: 'EUR' });
       expect(res.text.split('\n')[0]).toBe(
-        'logged: ¥4,000 museum (≈€24.49) on Dean, 3 ways (not Henry, Jordan, Priya) → €8.16 each',
+        'logged: ¥4,000 museum (≈€24.49) on Dean, 3 ways (not Henry, Piotr, Arjun) → €8.16 each',
       );
     });
 
@@ -665,7 +665,7 @@ describe('ledger tools', () => {
     expect(b.transfers).toHaveLength(4);
     expect(b.transfers.every((t) => t.to === 'mem_dean' && t.amountMinor === 1680)).toBe(true);
     expect(b.text.split('\n')[0]).toBe('€84 on the tab so far');
-    expect(b.text).toContain('Maya → Dean €16.80');
+    expect(b.text).toContain('Chase → Dean €16.80');
   });
 });
 
@@ -677,7 +677,7 @@ describe('memory tools', () => {
       {
         text: 'the group picks clubs after dinner',
         category: 'preference',
-        about: ['Dean', 'mem_maya'],
+        about: ['Dean', 'mem_chase'],
       },
       ctx(h),
     );
@@ -689,7 +689,7 @@ describe('memory tools', () => {
       {
         text: 'the group picks clubs after dinner',
         category: 'preference',
-        about: ['Dean', 'Maya'],
+        about: ['Dean', 'Chase'],
       },
     ]);
     await expect(
@@ -721,15 +721,19 @@ describe('memory tools', () => {
 
   it('a minor gets no private notes', async () => {
     const h = harness();
-    const sam = h.runtime.stores.group.members.get('mem_sam')!;
-    h.runtime.stores.group.members.upsert({ ...sam, birthDate: '2012-02-01', ageBand: 'under18' });
+    const crowley = h.runtime.stores.group.members.get('mem_crowley')!;
+    h.runtime.stores.group.members.upsert({
+      ...crowley,
+      birthDate: '2012-02-01',
+      ageBand: 'under18',
+    });
     const r = await h.runtime.tools.run(
       'remember',
       { text: 'likes late nights', scope: 'me' },
-      as(h, 'mem_sam', { lane: 'dm' }),
+      as(h, 'mem_crowley', { lane: 'dm' }),
     );
     expect(r).toMatchObject({ kind: 'refused' });
-    expect(h.runtime.memberMemory.recall('mem_sam', G)).toEqual([]);
+    expect(h.runtime.memberMemory.recall('mem_crowley', G)).toEqual([]);
   });
 
   it('an instruction dressed as a fact is refused and audited, never stored in group or member memory (SAFETY §2.4)', async () => {
@@ -787,13 +791,13 @@ describe('settings tools', () => {
         input,
         as(h, who),
       ) as Promise<SettingsChangeResult>;
-    expect((await run({ setting: 'roastMode', value: true }, 'mem_maya')).kind).toBe('refused');
+    expect((await run({ setting: 'roastMode', value: true }, 'mem_chase')).kind).toBe('refused');
     expect((await run({ setting: 'roastMode', value: true }, 'mem_dean')).kind).toBe('changed');
     expect(h.runtime.stores.group.groups.get(G)?.settings.roastMode).toBe(true);
     expect((await run({ setting: 'roastMode', value: true }, 'mem_dean')).kind).toBe('unchanged');
-    expect((await run({ setting: 'roastMode', value: false }, 'mem_maya')).kind).toBe('changed');
+    expect((await run({ setting: 'roastMode', value: false }, 'mem_chase')).kind).toBe('changed');
     // Requester confirmation is the settings flow's job (T-017): no flow, no change.
-    expect((await run({ setting: 'quietMode', value: true }, 'mem_maya')).kind).toBe(
+    expect((await run({ setting: 'quietMode', value: true }, 'mem_chase')).kind).toBe(
       'needs_confirmation',
     );
     expect(h.runtime.stores.group.groups.get(G)?.settings.quietMode).toBe(false);
@@ -818,8 +822,12 @@ describe('settings tools', () => {
 
   it('roast mode stays off with a minor in the group', async () => {
     const h = harness();
-    const sam = h.runtime.stores.group.members.get('mem_sam')!;
-    h.runtime.stores.group.members.upsert({ ...sam, birthDate: '2012-02-01', ageBand: 'under18' });
+    const crowley = h.runtime.stores.group.members.get('mem_crowley')!;
+    h.runtime.stores.group.members.upsert({
+      ...crowley,
+      birthDate: '2012-02-01',
+      ageBand: 'under18',
+    });
     const r = (await h.runtime.tools.run(
       'request_settings_change',
       { setting: 'roastMode', value: true },
@@ -861,10 +869,10 @@ describe('booking tools stop at a proposal', () => {
     expect(list.proposals).toHaveLength(1);
     expect(list.proposals[0]?.attendees.map((a) => a.name)).toEqual([
       'Dean',
-      'Maya',
-      'Jordan',
-      'Priya',
-      'Sam',
+      'Chase',
+      'Piotr',
+      'Arjun',
+      'Crowley',
     ]);
   });
 
@@ -890,7 +898,7 @@ describe('booking tools stop at a proposal', () => {
     const res = (await h.runtime.tools.run(
       'propose_booking',
       ask,
-      as(h, 'mem_maya'),
+      as(h, 'mem_chase'),
     )) as ProposeResult;
     expect(res.kind).toBe('proposal');
     if (res.kind !== 'proposal') return;
@@ -898,13 +906,13 @@ describe('booking tools stop at a proposal', () => {
       h.runtime.tools.run(
         'cancel_proposal',
         { proposalId: res.proposal.proposalId },
-        as(h, 'mem_sam'),
+        as(h, 'mem_crowley'),
       ),
     ).rejects.toMatchObject({ code: 'not_authorized' });
     const cancelled = await h.runtime.tools.run(
       'cancel_proposal',
       { proposalId: res.proposal.proposalId },
-      as(h, 'mem_maya'),
+      as(h, 'mem_chase'),
     );
     expect(cancelled).toMatchObject({ kind: 'cancelled' });
     expect(h.runtime.stores.group.bookings.getProposal(res.proposal.proposalId)?.status).toBe(
@@ -916,7 +924,7 @@ describe('booking tools stop at a proposal', () => {
       h.runtime.tools.run(
         'cancel_proposal',
         { proposalId: res.proposal.proposalId },
-        as(h, 'mem_maya'),
+        as(h, 'mem_chase'),
       ),
     ).rejects.toMatchObject({ code: 'invalid_argument' });
   });
@@ -1000,10 +1008,14 @@ describe('booking tools stop at a proposal', () => {
 
 describe('propose_booking with no venue named (T-143)', () => {
   const minor = (h: Harness): void => {
-    const sam = h.runtime.stores.group.members
+    const crowley = h.runtime.stores.group.members
       .listByGroup(G)
-      .find((m) => m.memberId === 'mem_sam')!;
-    h.runtime.stores.group.members.upsert({ ...sam, birthDate: '2010-05-01', ageBand: 'under18' });
+      .find((m) => m.memberId === 'mem_crowley')!;
+    h.runtime.stores.group.members.upsert({
+      ...crowley,
+      birthDate: '2010-05-01',
+      ageBand: 'under18',
+    });
   };
   const clarify = (res: ProposeResult): string => {
     if (res.kind !== 'clarify') throw new Error(`expected clarify, got ${res.kind}`);
@@ -1020,7 +1032,7 @@ describe('propose_booking with no venue named (T-143)', () => {
     )) as ProposeResult;
     const q = clarify(res);
     expect(q).toBe(
-      "i can't see a club i can book tonight\nwhich club did you mean, and is it Dean, Henry, Maya, Jordan, Priya, Sam?",
+      "i can't see a club i can book tonight\nwhich club did you mean, and is it Dean, Henry, Chase, Piotr, Arjun, Crowley?",
     );
     expect(res.kind === 'clarify' && res.problems).toEqual(['unnamed_venue']);
     expect(h.tickets.holdCount()).toBe(0);
@@ -1089,7 +1101,7 @@ describe('propose_booking with no venue named (T-143)', () => {
         kind: 'ticket',
         query: 'razzmatazz tickets',
         day: 'tonight',
-        attendeeNames: ['Dean', 'Maya'],
+        attendeeNames: ['Dean', 'Chase'],
       },
       ctx(h),
     )) as ProposeResult;
@@ -1139,7 +1151,7 @@ describe('get_my_pending_items (DM only)', () => {
     });
     const item: PendingPrivateItem = markPrivate({
       id: 'priv_1',
-      ownerMemberId: 'mem_maya',
+      ownerMemberId: 'mem_chase',
       groupId: G,
       tripId: T,
       createdAt: h.clock.now(),
@@ -1152,11 +1164,11 @@ describe('get_my_pending_items (DM only)', () => {
       category: 'transport' as const,
       lowConfidence: false,
     });
-    h.runtime.stores.private.putPendingItem('mem_maya', item);
+    h.runtime.stores.private.putPendingItem('mem_chase', item);
     const mine = (await h.runtime.tools.run(
       'get_my_pending_items',
       {},
-      as(h, 'mem_maya', { lane: 'dm' }),
+      as(h, 'mem_chase', { lane: 'dm' }),
     )) as { items: { id: string; amount: string }[] };
     expect(mine.items.map((i) => i.id)).toEqual(['priv_1']);
     expect(mine.items[0]?.amount).toBe('€23.40');
@@ -1182,26 +1194,26 @@ describe('get_my_pending_items (DM only)', () => {
       merchantDisplay: 'Uber',
       category: 'transport' as const,
       lowConfidence: false,
-      ownerMemberId: 'mem_priya',
+      ownerMemberId: 'mem_arjun',
     };
     h.runtime.stores.private.putPendingItem(
-      'mem_priya',
+      'mem_arjun',
       markPrivate({ ...base, id: 'priv_ask', sourceItemId: 'em_1', ridersToName: 4 }),
     );
     h.runtime.stores.private.putPendingItem(
-      'mem_priya',
+      'mem_arjun',
       markPrivate({
         ...base,
         id: 'priv_guess',
         sourceItemId: 'em_2',
         receiptRiders: 4,
-        suggestedParticipants: ['mem_dean', 'mem_jordan', 'mem_priya', 'mem_sam'],
+        suggestedParticipants: ['mem_dean', 'mem_piotr', 'mem_arjun', 'mem_crowley'],
       }),
     );
     const res = (await h.runtime.tools.run(
       'get_my_pending_items',
       {},
-      as(h, 'mem_priya', { lane: 'dm' }),
+      as(h, 'mem_arjun', { lane: 'dm' }),
     )) as {
       items: {
         id: string;

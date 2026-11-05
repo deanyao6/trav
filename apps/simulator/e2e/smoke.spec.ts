@@ -72,11 +72,11 @@ async function main(): Promise<void> {
     await thread.getByTestId('card-receipt').waitFor();
     await proposal.getByText(/Approved by Dean/).waitFor();
     assert.equal(await count(page, '[data-testid="thread"] [data-testid="card-ticket"]'), 0);
-    for (const id of ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam']) {
+    for (const id of ['mem_dean', 'mem_chase', 'mem_piotr', 'mem_arjun', 'mem_crowley']) {
       assert.equal(await page.getByTestId(`dm-tab-${id}`).getAttribute('data-count'), '1', id);
     }
     assert.equal(await page.getByTestId('dm-tab-mem_henry').getAttribute('data-count'), '0');
-    await page.getByTestId('dm-tab-mem_priya').click();
+    await page.getByTestId('dm-tab-mem_arjun').click();
     await page.getByTestId('dm-thread').getByTestId('card-ticket').waitFor();
     await page.screenshot({ path: join(SHOTS, 't019a-3-receipt.png') });
     await page.getByTestId('dm-tab-mem_henry').click();

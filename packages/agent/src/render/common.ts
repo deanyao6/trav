@@ -59,7 +59,7 @@ export function inMemberOrder(
   return ctx.members.map((m) => m.memberId).filter((id) => wanted.has(id));
 }
 
-/** `Dean, Maya, Jordan` (VOICE §3.5: first names, comma-separated, member order). */
+/** `Dean, Chase, Piotr` (VOICE §3.5: first names, comma-separated, member order). */
 export function listNames(ctx: Pick<RenderContext, 'members'>, ids: readonly MemberId[]): string {
   return inMemberOrder(ctx, ids)
     .map((id) => nameOf(ctx, id))

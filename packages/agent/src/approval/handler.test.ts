@@ -49,7 +49,7 @@ import { createApprovalHandler, EXECUTOR_REFUSED_TEXT } from './handler.js';
 const G = BARCELONA.groupId;
 const T = BARCELONA.tripId;
 const ACT = BARCELONA.razzmatazzActivityId;
-const FOUR = ['mem_dean', 'mem_jordan', 'mem_priya', 'mem_sam'] as const;
+const FOUR = ['mem_dean', 'mem_piotr', 'mem_arjun', 'mem_crowley'] as const;
 
 type FakeMode =
   | 'complete'
@@ -389,7 +389,7 @@ describe('the Razzmatazz moment: 5 of 6, one tap, one purchase (CLAUDE.md §8)',
     expect(receipt.card?.type).toBe('receipt');
     expect(receipt.text.split('\n')[0]).toBe('booked ✅ razzmatazz, 5 tickets, €90');
     expect(receipt.text).toContain('QR codes are in your dms, one each');
-    expect(receipt.text).toContain('tab: Maya, Jordan, Priya, Sam → Dean €18');
+    expect(receipt.text).toContain('tab: Chase, Piotr, Arjun, Crowley → Dean €18');
     expect(receipt.text).not.toContain('SECRET');
 
     // Five ticket DMs, one per attendee, none for Henry; QR payloads only on the DM lane.
@@ -400,9 +400,9 @@ describe('the Razzmatazz moment: 5 of 6, one tap, one purchase (CLAUDE.md §8)',
     );
     expect(tickets.every((m) => m.card?.type === 'ticket')).toBe(true);
     expect(h.channel.dmTranscript('h_henry')).toEqual([]);
-    expect(h.channel.dmTranscript('h_maya').filter((e) => e.direction === 'outbound')).toHaveLength(
-      1,
-    );
+    expect(
+      h.channel.dmTranscript('h_chase').filter((e) => e.direction === 'outbound'),
+    ).toHaveLength(1);
     expect(h.channel.groupTranscript().some((e) => JSON.stringify(e).includes('SECRET'))).toBe(
       false,
     );
@@ -488,14 +488,14 @@ describe('the Razzmatazz moment: 5 of 6, one tap, one purchase (CLAUDE.md §8)',
     expect(attempts(h).at(-1)?.payload).toMatchObject({ cause: 'not_pending', messageId: 't2' });
   });
 
-  it("the requester need not be the approver: Sam's 👍 books Dean's proposal", async () => {
+  it("the requester need not be the approver: Crowley's 👍 books Dean's proposal", async () => {
     const { h, fake } = rig();
     const { proposal, cardMessageId } = await propose(h);
-    const turn = await h.react('h_sam', cardMessageId, '👍');
+    const turn = await h.react('h_crowley', cardMessageId, '👍');
     expect(turn.note).toBe('approval:handled');
     expect(fake.calls.map((c) => c.proposalId)).toEqual([proposal.proposalId]);
     const grant = h.runtime.stores.group.bookings.getGrantForProposal(proposal.proposalId)!;
-    expect(grant.grantedBy.map((g) => g.memberId)).toEqual(['mem_sam']);
+    expect(grant.grantedBy.map((g) => g.memberId)).toEqual(['mem_crowley']);
     expect(groupMessages(turn)[0]?.card?.type).toBe('receipt');
   });
 
@@ -505,13 +505,13 @@ describe('the Razzmatazz moment: 5 of 6, one tap, one purchase (CLAUDE.md §8)',
     const turn = await h.say('h_dean', 'book it');
     expect(turn.note).toBe('approval:handled');
     expect(fake.calls).toHaveLength(1);
-    expect((await h.tap('h_maya', cardMessageId, 'not_me')).silent).toBe(true);
+    expect((await h.tap('h_chase', cardMessageId, 'not_me')).silent).toBe(true);
     expect(fake.calls).toHaveLength(1);
   });
 });
 
 describe('T-104: a member the booking leaves out never approves it', () => {
-  it("Henry (out tonight, excluded) taps Approve: nothing books, approval.invalid_attempt{not_attendee}, silent; Maya's tap books", async () => {
+  it("Henry (out tonight, excluded) taps Approve: nothing books, approval.invalid_attempt{not_attendee}, silent; Chase's tap books", async () => {
     const { h, fake } = rig();
     const { proposal, cardMessageId } = await propose(h);
     expect(proposal.attendees).not.toContain('mem_henry');
@@ -536,12 +536,12 @@ describe('T-104: a member the booking leaves out never approves it', () => {
     expect(attempts(h).at(-1)?.payload).toMatchObject({ cause: 'not_attendee', via: 'reaction' });
     expect(fake.calls).toEqual([]);
 
-    // Maya is on it: her one tap books it, once.
-    await h.tap('h_maya', cardMessageId, 'approve');
+    // Chase is on it: Chase's one tap books it, once.
+    await h.tap('h_chase', cardMessageId, 'approve');
     expect(fake.calls).toHaveLength(1);
     expect(status(h, proposal.proposalId)).toBe('completed');
     const granted = h.audit().filter((e) => e.type === 'approval.granted');
-    expect(granted.map((e) => e.payload['memberId'])).toEqual(['mem_maya']);
+    expect(granted.map((e) => e.payload['memberId'])).toEqual(['mem_chase']);
   });
 
   it('Henry replying "yes" (text approval) books nothing either', async () => {
@@ -614,12 +614,12 @@ describe('approver eligibility (VOICE §6, SAFETY §2.5)', () => {
     const { h, fake } = rig();
     setPolicy(h, { approvers: ['mem_dean'] });
     const { proposal, cardMessageId } = await propose(h);
-    const turn = await h.react('h_maya', cardMessageId, '👍');
+    const turn = await h.react('h_chase', cardMessageId, '👍');
     expect(turn.silent).toBe(true);
     expect(turn.outbound).toEqual([]);
     expect(attempts(h).at(-1)?.payload).toMatchObject({
       cause: 'not_required_approver',
-      senderId: 'h_maya',
+      senderId: 'h_chase',
       via: 'reaction',
     });
     expect(fake.calls).toEqual([]);
@@ -640,7 +640,7 @@ describe('approver eligibility (VOICE §6, SAFETY §2.5)', () => {
 
     const first = await h.react('h_dean', cardMessageId, '👍');
     expect(groupMessages(first)[0]?.text).toBe(
-      'Dean okayed it. still need 👍 from Maya, Jordan, Priya, Sam',
+      'Dean okayed it. still need 👍 from Chase, Piotr, Arjun, Crowley',
     );
     expect(fake.calls).toEqual([]);
     const henry = await h.react('h_henry', cardMessageId, '👍');
@@ -652,11 +652,11 @@ describe('approver eligibility (VOICE §6, SAFETY §2.5)', () => {
     });
     expect((await h.react('h_dean', cardMessageId, '👍')).silent).toBe(true);
     expect(attempts(h).at(-1)?.payload).toMatchObject({ cause: 'already_granted' });
-    for (const handle of ['h_maya', 'h_jordan', 'h_priya']) {
+    for (const handle of ['h_chase', 'h_piotr', 'h_arjun']) {
       await h.tap(handle, cardMessageId, 'approve');
       expect(fake.calls).toEqual([]);
     }
-    const last = await h.say('h_sam', 'yes', { replyToMessageId: cardMessageId });
+    const last = await h.say('h_crowley', 'yes', { replyToMessageId: cardMessageId });
     expect(fake.calls).toHaveLength(1);
     expect(groupMessages(last)[0]?.card?.type).toBe('receipt');
     const grants = h.audit().filter((e) => e.type === 'approval.granted');
@@ -680,12 +680,16 @@ describe('approver eligibility (VOICE §6, SAFETY §2.5)', () => {
       cause: 'not_member',
       senderId: 'h_nobody',
     });
-    const sam = h.runtime.stores.group.members.get('mem_sam')!;
-    h.runtime.stores.group.members.upsert({ ...sam, birthDate: '2012-02-01', ageBand: 'under18' });
-    expect(await handler.handle(ev('h_sam'))).toEqual([]);
+    const crowley = h.runtime.stores.group.members.get('mem_crowley')!;
+    h.runtime.stores.group.members.upsert({
+      ...crowley,
+      birthDate: '2012-02-01',
+      ageBand: 'under18',
+    });
+    expect(await handler.handle(ev('h_crowley'))).toEqual([]);
     expect(attempts(h).at(-1)?.payload).toMatchObject({ cause: 'minor' });
-    h.runtime.stores.group.members.upsert({ ...sam, role: 'guest' });
-    expect(await handler.handle(ev('h_sam'))).toEqual([]);
+    h.runtime.stores.group.members.upsert({ ...crowley, role: 'guest' });
+    expect(await handler.handle(ev('h_crowley'))).toEqual([]);
     expect(attempts(h).at(-1)?.payload).toMatchObject({ cause: 'guest' });
     expect(fake.calls).toEqual([]);
     expect(grantStatus(h, proposal.proposalId)).toBe('pending');
@@ -693,10 +697,10 @@ describe('approver eligibility (VOICE §6, SAFETY §2.5)', () => {
 });
 
 describe('"not me" supersedes with a re-proposal (VOICE §6.2)', () => {
-  it('Maya\'s "not me" marks her out, invalidates the grant, supersedes the proposal and posts a 4-ticket one; the old card is dead', async () => {
+  it('Chase\'s "not me" marks Chase out, invalidates the grant, supersedes the proposal and posts a 4-ticket one; the old card is dead', async () => {
     const { h, fake } = rig();
     const { proposal, cardMessageId } = await propose(h);
-    const turn = await h.tap('h_maya', cardMessageId, 'not_me');
+    const turn = await h.tap('h_chase', cardMessageId, 'not_me');
     expect(turn.note).toBe('approval:handled');
 
     const group = groupMessages(turn);
@@ -705,7 +709,7 @@ describe('"not me" supersedes with a re-proposal (VOICE §6.2)', () => {
     expect(card.card?.type).toBe('booking_proposal');
     expect(card.text.split('\n').slice(0, 3)).toEqual([
       'razzmatazz tonight, 4 tickets',
-      'Dean, Jordan, Priya, Sam (not Henry, Maya)',
+      'Dean, Piotr, Arjun, Crowley (not Henry, Chase)',
       '€18 each · €72 total · refundable until 10pm',
     ]);
     const next = h.pending();
@@ -733,7 +737,7 @@ describe('"not me" supersedes with a re-proposal (VOICE §6.2)', () => {
     });
     const row = h.runtime.stores.group.trips
       .listAttendance(ACT)
-      .find((r) => r.memberId === 'mem_maya');
+      .find((r) => r.memberId === 'mem_chase');
     expect(row?.status).toBe('out');
 
     // The old card's actions are dead; the new one books for 4.
@@ -745,13 +749,13 @@ describe('"not me" supersedes with a re-proposal (VOICE §6.2)', () => {
       'booked ✅ razzmatazz, 4 tickets, €72',
     );
     expect(dms(booked)).toHaveLength(4);
-    expect(h.channel.dmTranscript('h_maya')).toEqual([]);
+    expect(h.channel.dmTranscript('h_chase')).toEqual([]);
   });
 
   it('the superseded proposal never posts an expiry line; the replacement expires once (exactly one line)', async () => {
     const { h, fake } = rig();
     const { proposal, cardMessageId } = await propose(h);
-    await h.say('h_maya', 'not me', { replyToMessageId: cardMessageId });
+    await h.say('h_chase', 'not me', { replyToMessageId: cardMessageId });
     const next = h.pending()[0]!;
     expect(expiryJobs(h)).toEqual([expiryJobId(next.proposalId)]);
     h.clock.advanceMs(20 * 60 * 1000);
@@ -772,7 +776,7 @@ describe('"not me" supersedes with a re-proposal (VOICE §6.2)', () => {
     // Henry is already out (the ask synced the roster): just the line.
     const henry = await h.tap('h_henry', cardMessageId, 'not_me');
     expect(groupMessages(henry)[0]?.text).toBe(
-      "you're not on that one, Henry. it's Dean, Maya, Jordan, Priya, Sam",
+      "you're not on that one, Henry. it's Dean, Chase, Piotr, Arjun, Crowley",
     );
     expect(status(h, proposal.proposalId)).toBe('pending');
     expect(h.pending()).toHaveLength(1);
@@ -780,7 +784,7 @@ describe('"not me" supersedes with a re-proposal (VOICE §6.2)', () => {
 
   it('the last attendee saying "not me" drops the proposal instead of re-proposing for nobody', async () => {
     const { h, fake } = rig();
-    for (const id of ['mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam', 'mem_henry']) {
+    for (const id of ['mem_chase', 'mem_piotr', 'mem_arjun', 'mem_crowley', 'mem_henry']) {
       h.runtime.stores.group.trips.setAttendance({
         activityId: ACT,
         memberId: id,
@@ -805,16 +809,16 @@ describe('"not me" supersedes with a re-proposal (VOICE §6.2)', () => {
 });
 
 describe('roster change before approval invalidates the grant and re-prices', () => {
-  it('"@trav Maya\'s out" mid-flow ⇒ approval.invalidated{payers_changed}, a 4-ticket re-proposal in that same turn, and a fresh 👍 is required', async () => {
+  it('"@trav Chase\'s out" mid-flow ⇒ approval.invalidated{payers_changed}, a 4-ticket re-proposal in that same turn, and a fresh 👍 is required', async () => {
     const { h, fake } = rig();
     const { proposal, cardMessageId } = await propose(h);
-    const turn = await h.say('h_dean', "@trav Maya's out");
+    const turn = await h.say('h_dean', "@trav Chase's out");
     expect(turn.note).toBe('roster:changed');
     // One group message for the turn: the re-proposal (its "who" line carries the change).
     const group = groupMessages(turn);
     expect(group).toHaveLength(1);
     expect(group[0]!.card?.type).toBe('booking_proposal');
-    expect(group[0]!.text).toContain('Dean, Jordan, Priya, Sam (not Henry, Maya)');
+    expect(group[0]!.text).toContain('Dean, Piotr, Arjun, Crowley (not Henry, Chase)');
     expect(group[0]!.text).toContain('€72 total');
 
     expect(status(h, proposal.proposalId)).toBe('superseded');
@@ -844,7 +848,7 @@ describe('roster change before approval invalidates the grant and re-prices', ()
     expect(turn.note).toBe('roster:changed');
     expect(groupMessages(turn)[0]!.text.split('\n').slice(0, 2)).toEqual([
       'razzmatazz tonight, 6 tickets',
-      'Dean, Henry, Maya, Jordan, Priya, Sam',
+      'Dean, Henry, Chase, Piotr, Arjun, Crowley',
     ]);
     expect(status(h, proposal.proposalId)).toBe('superseded');
     expect(h.audit().filter((e) => e.type === 'approval.granted')).toEqual([]);
@@ -857,11 +861,11 @@ describe('roster change before approval invalidates the grant and re-prices', ()
     const { proposal, cardMessageId } = await propose(h);
     h.runtime.stores.group.trips.setAttendance({
       activityId: ACT,
-      memberId: 'mem_sam',
+      memberId: 'mem_crowley',
       status: 'maybe',
       updatedAt: h.clock.now(),
       sourceMessageId: 'msg_tool',
-      setBy: 'mem_sam',
+      setBy: 'mem_crowley',
     });
     const turn = await h.tap('h_dean', cardMessageId, 'approve');
     expect(fake.calls).toEqual([]);
@@ -869,8 +873,8 @@ describe('roster change before approval invalidates the grant and re-prices', ()
     expect(h.audit().filter((e) => e.type === 'approval.granted')).toEqual([]);
     const card = groupMessages(turn)[0]!;
     expect(card.card?.type).toBe('booking_proposal');
-    expect(card.text).toContain('Dean, Maya, Jordan, Priya (not Henry, Sam)');
-    expect(h.pending()[0]!.attendees).toEqual(['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya']);
+    expect(card.text).toContain('Dean, Chase, Piotr, Arjun (not Henry, Crowley)');
+    expect(h.pending()[0]!.attendees).toEqual(['mem_dean', 'mem_chase', 'mem_piotr', 'mem_arjun']);
   });
 
   it('an empty roster blocks the purchase: checkProposalConsistency ⇒ empty_roster, the grant is invalidated, Trav asks who is in', async () => {
@@ -930,7 +934,7 @@ describe('a re-quote never spends (D-019 §3, VOICE §6.2): supersede and roster
     // €90 is over the €80 auto cap, so the first card needs a 👍 as usual…
     expect(decisionOf(h, proposal.proposalId).outcome).toBe('needs_confirmation');
     // …and the €72 re-quote would be under it.
-    const turn = await h.say('h_maya', 'not me', { replyToMessageId: cardMessageId });
+    const turn = await h.say('h_chase', 'not me', { replyToMessageId: cardMessageId });
     expect(turn.note).toBe('approval:handled');
     expect(fake.calls).toEqual([]);
     expect(h.tickets.purchaseCount()).toBe(0);
@@ -968,18 +972,18 @@ describe('a re-quote never spends (D-019 §3, VOICE §6.2): supersede and roster
     );
   });
 
-  it('"@trav Maya is sick" under the cap ⇒ the roster change re-proposes a card that needs a 👍; nothing executes', async () => {
+  it('"@trav Chase is sick" under the cap ⇒ the roster change re-proposes a card that needs a 👍; nothing executes', async () => {
     const { h, fake } = rig();
     setPolicy(h, { autoApproveCapMinor: 8000 });
     const { proposal } = await propose(h);
-    const turn = await h.say('h_dean', '@trav Maya is sick');
+    const turn = await h.say('h_dean', '@trav Chase is sick');
     expect(turn.note).toBe('roster:changed');
     expect(fake.calls).toEqual([]);
     expect(h.tickets.purchaseCount()).toBe(0);
     const card = groupMessages(turn)[0]!;
     expect(card.card?.type).toBe('booking_proposal');
     expect(card.actions?.map((a) => a.id)).toEqual(['approve', 'not_me', 'decline']);
-    expect(card.text).toContain('Dean, Jordan, Priya, Sam (not Henry, Maya)');
+    expect(card.text).toContain('Dean, Piotr, Arjun, Crowley (not Henry, Chase)');
     expect(status(h, proposal.proposalId)).toBe('superseded');
     const next = h.pending()[0]!;
     expect(decisionOf(h, next.proposalId).outcome).toBe('needs_confirmation');
@@ -1043,7 +1047,7 @@ describe('a re-quote never spends (D-019 §3, VOICE §6.2): supersede and roster
     const handler = handlerWith(h, { executor: fake.executor, proposals: forgetful });
     const out = await handler.handle({
       kind: 'not_me',
-      senderId: 'h_maya',
+      senderId: 'h_chase',
       via: 'button',
       messageId: 'm_not_me',
       at: h.clock.now(),
@@ -1096,13 +1100,13 @@ describe('the roster does not race the purchase', () => {
     expect(grantStatus(h, proposal.proposalId)).toBe('complete');
     expect(fake.calls).toEqual([]);
 
-    // Maya drops out while the purchase is running.
-    markOut(h, 'mem_maya');
+    // Chase drops out while the purchase is running.
+    markOut(h, 'mem_chase');
     const follow = await handler.rosterChanged({
       groupId: G,
       activityId: ACT,
-      changes: [{ memberId: 'mem_maya', status: 'out' }],
-      by: 'mem_maya',
+      changes: [{ memberId: 'mem_chase', status: 'out' }],
+      by: 'mem_chase',
       messageId: 'm_out',
     });
     expect(follow).toEqual([]);
@@ -1123,8 +1127,8 @@ describe('the roster does not race the purchase', () => {
       await handler.rosterChanged({
         groupId: G,
         activityId: ACT,
-        changes: [{ memberId: 'mem_maya', status: 'out' }],
-        by: 'mem_maya',
+        changes: [{ memberId: 'mem_chase', status: 'out' }],
+        by: 'mem_chase',
         messageId: 'm_out2',
       }),
     ).toEqual([]);
@@ -1132,11 +1136,11 @@ describe('the roster does not race the purchase', () => {
 });
 
 describe("a non-approver's 👍 never supersedes", () => {
-  it("Henry's 👍 with Sam drifted to maybe is silent (not_attendee); the card stays pending until Dean's 👍 catches the drift", async () => {
+  it("Henry's 👍 with Crowley drifted to maybe is silent (not_attendee); the card stays pending until Dean's 👍 catches the drift", async () => {
     const { h, fake } = rig();
     setPolicy(h, { approvers: ['mem_dean'] });
     const { proposal, cardMessageId } = await propose(h);
-    markOut(h, 'mem_sam', 'maybe');
+    markOut(h, 'mem_crowley', 'maybe');
     const henry = await h.react('h_henry', cardMessageId, '👍');
     expect(henry.silent).toBe(true);
     expect(attempts(h).at(-1)?.payload).toMatchObject({
@@ -1154,22 +1158,24 @@ describe("a non-approver's 👍 never supersedes", () => {
     const dean = await h.tap('h_dean', cardMessageId, 'approve');
     expect(fake.calls).toEqual([]);
     expect(status(h, proposal.proposalId)).toBe('superseded');
-    expect(groupMessages(dean)[0]?.text).toContain('Dean, Maya, Jordan, Priya (not Henry, Sam)');
+    expect(groupMessages(dean)[0]?.text).toContain(
+      'Dean, Chase, Piotr, Arjun (not Henry, Crowley)',
+    );
   });
 });
 
 describe('"not me" on a superseded card', () => {
-  it("follows supersededBy: Maya opts out (new card), then Jordan's Not me on the OLD card drops him from the live proposal", async () => {
+  it("follows supersededBy: Chase opts out (new card), then Piotr's Not me on the OLD card drops him from the live proposal", async () => {
     const { h, fake } = rig();
     const { proposal, cardMessageId } = await propose(h);
-    const first = await h.tap('h_maya', cardMessageId, 'not_me');
+    const first = await h.tap('h_chase', cardMessageId, 'not_me');
     expect(groupMessages(first)[0]?.card?.type).toBe('booking_proposal');
     const live = h.pending()[0]!;
     expect(live.attendees).toEqual([...FOUR]);
 
     const out = await h.runtime.approvalHandler.handle({
       kind: 'not_me',
-      senderId: 'h_jordan',
+      senderId: 'h_piotr',
       via: 'button',
       messageId: 'm_old_card',
       at: h.clock.now(),
@@ -1178,16 +1184,16 @@ describe('"not me" on a superseded card', () => {
     });
     const card = out.find((o) => !isReaction(o) && o.to.kind === 'group') as OutboundMessage;
     expect(card.card?.type).toBe('booking_proposal');
-    expect(card.text).toContain('Dean, Priya, Sam (not Henry, Maya, Jordan)');
+    expect(card.text).toContain('Dean, Arjun, Crowley (not Henry, Chase, Piotr)');
     expect(card.text).toContain('€54 total');
     const next = h.pending();
     expect(next).toHaveLength(1);
-    expect(next[0]!.attendees).toEqual(['mem_dean', 'mem_priya', 'mem_sam']);
+    expect(next[0]!.attendees).toEqual(['mem_dean', 'mem_arjun', 'mem_crowley']);
     expect(status(h, live.proposalId)).toBe('superseded');
     expect(h.runtime.stores.group.bookings.getProposal(live.proposalId)?.supersededBy).toBe(
       next[0]!.proposalId,
     );
-    expect(rosterRow(h, 'mem_jordan')).toBe('out');
+    expect(rosterRow(h, 'mem_piotr')).toBe('out');
     expect(attempts(h).filter((e) => e.payload['cause'] === 'not_pending')).toEqual([]);
     expect(fake.calls).toEqual([]);
 
@@ -1224,25 +1230,25 @@ describe('"not me" on a superseded card', () => {
     );
   });
 
-  it("through the loop (T-030 note a): Jordan's Not me TAP on the OLD card is mapped to the live proposal before the gate, so it supersedes it instead of being refused as not_pending", async () => {
+  it("through the loop (T-030 note a): Piotr's Not me TAP on the OLD card is mapped to the live proposal before the gate, so it supersedes it instead of being refused as not_pending", async () => {
     const { h, fake } = rig();
     const { proposal, cardMessageId } = await propose(h);
-    const first = await h.tap('h_maya', cardMessageId, 'not_me');
+    const first = await h.tap('h_chase', cardMessageId, 'not_me');
     const live = h.pending()[0]!;
     expect(live.attendees).toEqual([...FOUR]);
     expect(status(h, proposal.proposalId)).toBe('superseded');
 
     // The real inbound path: a button tap bound to the superseded card's proposal.
-    const turn = await h.tap('h_jordan', cardMessageId, 'not_me');
+    const turn = await h.tap('h_piotr', cardMessageId, 'not_me');
     expect(turn.silent).toBe(false);
     const card = groupMessages(turn)[0]!;
     expect(card.card?.type).toBe('booking_proposal');
-    expect(card.text).toContain('Dean, Priya, Sam (not Henry, Maya, Jordan)');
+    expect(card.text).toContain('Dean, Arjun, Crowley (not Henry, Chase, Piotr)');
     const next = h.pending();
     expect(next).toHaveLength(1);
-    expect(next[0]!.attendees).toEqual(['mem_dean', 'mem_priya', 'mem_sam']);
+    expect(next[0]!.attendees).toEqual(['mem_dean', 'mem_arjun', 'mem_crowley']);
     expect(status(h, live.proposalId)).toBe('superseded');
-    expect(rosterRow(h, 'mem_jordan')).toBe('out');
+    expect(rosterRow(h, 'mem_piotr')).toBe('out');
     // Nothing was refused for being stale, and nothing was bought.
     expect(attempts(h).filter((e) => e.payload['cause'] === 'not_pending')).toEqual([]);
     expect(fake.calls).toEqual([]);
@@ -1255,18 +1261,18 @@ describe('"not me" on a superseded card', () => {
   it('someone no longer charged on the live card gets the "not on that one" line, nothing superseded', async () => {
     const { h } = rig();
     const { proposal, cardMessageId } = await propose(h);
-    await h.tap('h_maya', cardMessageId, 'not_me');
+    await h.tap('h_chase', cardMessageId, 'not_me');
     const live = h.pending()[0]!;
     const out = await h.runtime.approvalHandler.handle({
       kind: 'not_me',
-      senderId: 'h_maya',
+      senderId: 'h_chase',
       via: 'button',
       messageId: 'm_again',
       at: h.clock.now(),
       proposalId: proposal.proposalId,
     });
     expect(out.map((o) => (isReaction(o) ? '' : o.text))).toEqual([
-      "you're not on that one, Maya. it's Dean, Jordan, Priya, Sam",
+      "you're not on that one, Chase. it's Dean, Piotr, Arjun, Crowley",
     ]);
     expect(h.pending().map((p) => p.proposalId)).toEqual([live.proposalId]);
   });
@@ -1322,7 +1328,7 @@ describe('expiry is the shorter of the grant TTL and the provider hold (VOICE §
     const { h } = rig('complete', { runtime: { providers: { tickets } } });
     const { cardMessageId } = await propose(h);
     h.clock.advanceMs(60 * 1000);
-    const turn = await h.say('h_maya', 'not me', { replyToMessageId: cardMessageId });
+    const turn = await h.say('h_chase', 'not me', { replyToMessageId: cardMessageId });
     const next = h.pending()[0]!;
     const expected = proposalExpiresAt(decisionOf(h, next.proposalId), next);
     expect(expected).toBe(next.holdExpiresAt);
@@ -1360,7 +1366,7 @@ describe('decline (VOICE §6.2)', () => {
     const { h } = rig();
     setPolicy(h, { approvers: ['mem_dean'] });
     const { proposal, cardMessageId } = await propose(h);
-    const turn = await h.say('h_maya', 'nah', { replyToMessageId: cardMessageId });
+    const turn = await h.say('h_chase', 'nah', { replyToMessageId: cardMessageId });
     expect(turn.silent).toBe(true);
     expect(attempts(h).at(-1)?.payload).toMatchObject({
       cause: 'not_required_approver',
@@ -1445,7 +1451,7 @@ describe('late joiner after the booking', () => {
     // Roll call now counts six, and a second "i'm in" from Henry changes nothing.
     const roll = await h.say('h_dean', "@trav who's in tonight?");
     expect(groupMessages(roll)[0]?.text).toBe(
-      'razzmatazz tonight: 6 in · Dean, Henry, Maya, Jordan, Priya, Sam',
+      'razzmatazz tonight: 6 in · Dean, Henry, Chase, Piotr, Arjun, Crowley',
     );
     expect((await h.say('h_henry', "@trav i'm in")).note).toBe('roster:unchanged');
     expect(h.pending()).toEqual([]);
@@ -1527,7 +1533,7 @@ describe('T-137: "can i get one too" and its cancel', () => {
     expect(henryRow(h)).toBe('out');
     const roll = await h.say('h_dean', "@trav who's in tonight?");
     expect(groupMessages(roll)[0]?.text.split('\n')[0]).toBe(
-      'razzmatazz tonight: 5 in · Dean, Maya, Jordan, Priya, Sam',
+      'razzmatazz tonight: 5 in · Dean, Chase, Piotr, Arjun, Crowley',
     );
   });
 
@@ -1553,7 +1559,7 @@ describe('T-137: "can i get one too" and its cancel', () => {
     const addOn = h.pending()[0]!;
     // Dean (the lead) has nothing of his own pending: his bare "cancel that" binds to nothing here.
     await h.say('h_dean', 'actually nah. cancel that');
-    await h.say('h_maya', 'cancel that');
+    await h.say('h_chase', 'cancel that');
     expect(status(h, addOn.proposalId)).toBe('pending');
     expect(h.audit().filter((e) => e.type === 'approval.rejected')).toEqual([]);
 
@@ -1646,12 +1652,12 @@ describe('T-137: "can i get one too" and its cancel', () => {
     expect(groupMessages(turn)).toHaveLength(1);
   });
 
-  it('r1 #2: "get me one too if dean pays, and book sam a vip table" is never a Henry-only card', async () => {
+  it('r1 #2: "get me one too if dean pays, and book crowley a vip table" is never a Henry-only card', async () => {
     const { h, fake } = rig();
     await bookFive(h, fake);
     const turn = await h.say(
       'h_henry',
-      '@trav get me one too if dean pays, and book sam a vip table',
+      '@trav get me one too if dean pays, and book crowley a vip table',
     );
     expect(turn.note?.startsWith('roster:')).toBe(false);
     expect(h.pending().filter((p) => p.attendees.join() === 'mem_henry')).toEqual([]);
@@ -1825,7 +1831,7 @@ describe('executor outcomes other than completed', () => {
       next.proposalId,
     );
     expect(card.actions?.map((a) => a.id)).toEqual(['approve', 'not_me', 'decline']);
-    expect(card.text.split('\n')[1]).toBe('Dean, Maya, Jordan, Priya, Sam (not Henry)');
+    expect(card.text.split('\n')[1]).toBe('Dean, Chase, Piotr, Arjun, Crowley (not Henry)');
     expect(expiryJobs(h)).toEqual([expiryJobId(next.proposalId)]);
     // The new card is live: a tap on it reaches the executor again (it re-quotes again here).
     await h.tap('h_dean', card.id, 'approve');
@@ -1854,7 +1860,7 @@ describe('the reason is never stored', () => {
       'h_dean',
       '@trav get the 5 of us Razzmatazz tickets',
     );
-    await h.say('h_maya', "i'm out", { replyToMessageId: cardMessageId });
+    await h.say('h_chase', "i'm out", { replyToMessageId: cardMessageId });
     const s = h.runtime.stores;
     const dump = JSON.stringify({
       rows: s.group.trips.listAttendance(ACT),
@@ -1874,12 +1880,12 @@ describe('the reason is never stored', () => {
 });
 
 describe('family group: the 18+ plan is "the adults\' plan" on card follow-ups (T-154 r1 #2)', () => {
-  // The card for the 4 adults is posted first, then Sam turns out to be under
+  // The card for the 4 adults is posted first, then Crowley turns out to be under
   // 18: family mode from then on (an 18+ card is never set up in a family chat, T-143).
   async function familyCard() {
     const { h, fake } = rig();
     const stores = h.runtime.stores;
-    const sam = stores.group.members.listByGroup(G).find((m) => m.memberId === 'mem_sam')!;
+    const crowley = stores.group.members.listByGroup(G).find((m) => m.memberId === 'mem_crowley')!;
     const mark = (memberId: string, s: 'in' | 'out' | 'maybe') =>
       stores.group.trips.setAttendance({
         activityId: ACT,
@@ -1889,15 +1895,15 @@ describe('family group: the 18+ plan is "the adults\' plan" on card follow-ups (
         sourceMessageId: 'msg_prior',
         setBy: memberId,
       });
-    mark('mem_sam', 'out');
+    mark('mem_crowley', 'out');
     mark('mem_henry', 'out');
     const { proposal, cardMessageId } = await propose(
       h,
       'h_dean',
       '@trav get the 4 of us razzmatazz tickets',
     );
-    expect(proposal.attendees).toEqual(['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya']);
-    stores.group.members.upsert({ ...sam, birthDate: '2010-05-01', ageBand: 'under18' });
+    expect(proposal.attendees).toEqual(['mem_dean', 'mem_chase', 'mem_piotr', 'mem_arjun']);
+    stores.group.members.upsert({ ...crowley, birthDate: '2010-05-01', ageBand: 'under18' });
     return { h, fake, mark, cardMessageId };
   }
 

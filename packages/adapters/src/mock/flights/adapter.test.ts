@@ -145,8 +145,8 @@ describe('search', () => {
         deanSearch({
           passengers: [
             { memberId: 'mem_dean', type: 'adult' },
-            { memberId: 'mem_maya', type: 'adult' },
-            { memberId: 'mem_sam', type: 'adult' },
+            { memberId: 'mem_chase', type: 'adult' },
+            { memberId: 'mem_crowley', type: 'adult' },
           ],
         }),
       ),
@@ -170,10 +170,10 @@ describe('search', () => {
   it('finds options for all six Barcelona travelers', async () => {
     const routes: [string, string, string][] = [
       ['mem_dean', 'BOS', 'JFK'],
-      ['mem_maya', 'SFO', 'LAX'],
-      ['mem_jordan', 'ORD', 'ORD'],
-      ['mem_priya', 'JFK', 'IAD'],
-      ['mem_sam', 'LAX', 'SEA'],
+      ['mem_chase', 'SFO', 'LAX'],
+      ['mem_piotr', 'ORD', 'ORD'],
+      ['mem_arjun', 'JFK', 'IAD'],
+      ['mem_crowley', 'LAX', 'SEA'],
       ['mem_henry', 'MIA', 'ATL'],
     ];
     for (const [memberId, origin, home] of routes) {
@@ -258,7 +258,7 @@ describe('getOffer', () => {
           { origin: 'JFK', destination: 'BCN', departureDate: '2026-03-12' },
           { origin: 'BCN', destination: 'IAD', departureDate: '2026-03-17' },
         ],
-        passengers: [{ memberId: 'mem_priya', type: 'adult' }],
+        passengers: [{ memberId: 'mem_arjun', type: 'adult' }],
       }),
     );
     const short = byTemplate(offers, 'jfk-iad-4');

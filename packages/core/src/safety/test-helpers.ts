@@ -100,15 +100,20 @@ export function barcelonaMembers(): Member[] {
       ageBand: 'adult',
     }),
     member({ memberId: 'henry', displayName: 'Henry', birthDate: '2004-07-30', ageBand: 'adult' }),
-    member({ memberId: 'maya', displayName: 'Maya', birthDate: '2005-11-02', ageBand: 'adult' }),
+    member({ memberId: 'chase', displayName: 'Chase', birthDate: '2005-11-02', ageBand: 'adult' }),
     member({
-      memberId: 'jordan',
-      displayName: 'Jordan',
+      memberId: 'piotr',
+      displayName: 'Piotr',
       birthDate: '2004-01-19',
       ageBand: 'adult',
     }),
-    member({ memberId: 'priya', displayName: 'Priya', birthDate: '2005-05-05', ageBand: 'adult' }),
-    member({ memberId: 'sam', displayName: 'Sam', birthDate: '2006-01-01', ageBand: 'adult' }),
+    member({ memberId: 'arjun', displayName: 'Arjun', birthDate: '2005-05-05', ageBand: 'adult' }),
+    member({
+      memberId: 'crowley',
+      displayName: 'Crowley',
+      birthDate: '2006-01-01',
+      ageBand: 'adult',
+    }),
   ];
 }
 
@@ -164,7 +169,7 @@ export function recapCard(text: string, roastLines: readonly string[]): RecapCar
     date: '2026-03-15',
     dayNumber: 3,
     lastNight: {
-      events: [{ label: 'razzmatazz', attendees: ['dean', 'maya', 'jordan', 'priya', 'sam'] }],
+      events: [{ label: 'razzmatazz', attendees: ['dean', 'chase', 'piotr', 'arjun', 'crowley'] }],
       total: { amountMinor: 19900, currency: 'EUR' },
     },
     roastLines,

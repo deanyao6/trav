@@ -28,7 +28,7 @@ const turn = (outbound: OutboundMessage[]): TurnSummary => ({
 
 describe('privateCard (T-077 r2)', () => {
   const dm = (card: NonNullable<OutboundMessage['card']>) =>
-    message({ text: 'x', to: { kind: 'member', memberId: 'mem_sam' }, card });
+    message({ text: 'x', to: { kind: 'member', memberId: 'mem_crowley' }, card });
 
   it('is a DM of a private confirm card, or of a digest holding one', () => {
     expect(privateCard(dm(confirm('private')))).toBe(true);

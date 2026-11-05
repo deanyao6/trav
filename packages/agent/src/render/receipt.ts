@@ -207,7 +207,7 @@ export function renderReceipt(
 
   if (booking.paidBy.kind === 'per_person_cards') {
     // A traveler who pays nothing themselves (a minor) is on whoever carries
-    // their fare: the same "Sam's on Dean's" note the proposal said (T-074).
+    // their fare: the same "Crowley's on Dean's" note the proposal said (T-074).
     const payerIds = facts.payers.map((p) => p.memberId);
     const carried = facts.attendees.filter((id) => !payerIds.includes(id));
     const notes = carried.map((id) => {

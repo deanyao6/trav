@@ -1,7 +1,7 @@
 {
   "fixtureVersion": 1,
   "source": "fixtures/flights/barcelona.json",
-  "sourceSha256": "38db1fd22e72c7a9da980bc6d8941fcaf5d8e8f4f6a75fe216575fe93f92f35a",
+  "sourceSha256": "7cce3e591e5a0258e6d21cd93dcb4872a17cf77099d9336355b588334640d7c3",
   "note": "Brute force over every combination of one offer per traveler. Prices are per passenger in EUR. Times compared in UTC using the March 2026 offsets in ZONE_OFFSET_MARCH_2026 (fixtures/_gen/inventory.mjs).",
   "travelers": [
     {
@@ -16,7 +16,7 @@
       ]
     },
     {
-      "memberId": "mem_maya",
+      "memberId": "mem_chase",
       "origin": "SFO",
       "returnTo": "LAX",
       "offerIds": [
@@ -27,7 +27,7 @@
       ]
     },
     {
-      "memberId": "mem_jordan",
+      "memberId": "mem_piotr",
       "origin": "ORD",
       "returnTo": "ORD",
       "offerIds": [
@@ -38,7 +38,7 @@
       ]
     },
     {
-      "memberId": "mem_priya",
+      "memberId": "mem_arjun",
       "origin": "JFK",
       "returnTo": "IAD",
       "offerIds": [
@@ -49,7 +49,7 @@
       ]
     },
     {
-      "memberId": "mem_sam",
+      "memberId": "mem_crowley",
       "origin": "LAX",
       "returnTo": "SEA",
       "offerIds": [
@@ -443,7 +443,7 @@
         "mia-atl-4"
       ]
     },
-    "minArrivalSpreadWithoutJordanBefore7am": {
+    "minArrivalSpreadWithoutPiotrBefore7am": {
       "offerIds": [
         "bos-jfk-2",
         "sfo-lax-3",
@@ -493,28 +493,28 @@
         }
       },
       {
-        "memberId": "mem_maya",
+        "memberId": "mem_chase",
         "min": {
           "amountMinor": 42900,
           "currency": "EUR"
         }
       },
       {
-        "memberId": "mem_jordan",
+        "memberId": "mem_piotr",
         "min": {
           "amountMinor": 44100,
           "currency": "EUR"
         }
       },
       {
-        "memberId": "mem_priya",
+        "memberId": "mem_arjun",
         "min": {
           "amountMinor": 36200,
           "currency": "EUR"
         }
       },
       {
-        "memberId": "mem_sam",
+        "memberId": "mem_crowley",
         "min": {
           "amountMinor": 46200,
           "currency": "EUR"
@@ -536,7 +536,7 @@
   "expectations": [
     "optimizer top pick has arrivalSpreadMinutes < naiveCheapestPerPerson.arrivalSpreadMinutes",
     "refundableOnly: true ⇒ every pick refundable; the cheapest such set is cheapestAllRefundable",
-    "group memory gm_bcn_3 (\"jordan does not want flights before 7am\"): a ranked option that includes an ORD offer departing before 07:00 must say so, or the optimizer should prefer minArrivalSpreadWithoutJordanBefore7am",
+    "group memory gm_bcn_3 (\"piotr does not want flights before 7am\"): a ranked option that includes an ORD offer departing before 07:00 must say so, or the optimizer should prefer minArrivalSpreadWithoutPiotrBefore7am",
     "offers with mockReprice must be re-priced before createOrder (price_changed); offers with expiresAfterMinutes expire on the injected clock (offer_expired)",
     "each member pays their own fare (paidBy per_person_cards): booking writes nothing to the group ledger"
   ]

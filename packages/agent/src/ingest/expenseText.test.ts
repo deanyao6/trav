@@ -107,10 +107,10 @@ function clarify(
 const PROPER = [
   'Dean',
   'Henry',
-  'Maya',
-  'Jordan',
-  'Priya',
-  'Sam',
+  'Chase',
+  'Piotr',
+  'Arjun',
+  'Crowley',
   'Dad',
   'Mom',
   'Lily',
@@ -458,20 +458,20 @@ describe('parseExpenseText rules', () => {
   });
 
   it('a booking ask or a suggestion with a price is never an expense', () => {
-    const ctx = BCN('mem_maya', {
+    const ctx = BCN('mem_chase', {
       rosters: [
         {
           activityId: 'act_bcn_razzmatazz',
           name: 'Razzmatazz',
           startsAt: '2026-03-15T00:00:00+01:00',
-          inMemberIds: ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam'],
+          inMemberIds: ['mem_dean', 'mem_chase', 'mem_piotr', 'mem_arjun', 'mem_crowley'],
         },
       ],
       now: '2026-03-14T21:40:00+01:00',
     });
     for (const t of [
       '@trav book the €18 tickets for the 5 of us',
-      '@trav can you get the €18 tickets for me and sam',
+      '@trav can you get the €18 tickets for me and crowley',
       '@trav how about €18 tickets for the 5 of us',
       "@trav let's do the €25 boat, everyone",
       '@trav should we split a €60 boat, everyone',
@@ -509,21 +509,21 @@ describe('parseExpenseText rules', () => {
   });
 
   it('spending at a share boundary: shares that exactly use up the total leave nothing to split', () => {
-    const [e] = ready('@trav i paid €50 for the boat, Maya owes 30 and Sam owes 20', BCN());
-    expect(sharesOf(e!, BCN())).toEqual({ mem_maya: 3000, mem_sam: 2000 });
+    const [e] = ready('@trav i paid €50 for the boat, Chase owes 30 and Crowley owes 20', BCN());
+    expect(sharesOf(e!, BCN())).toEqual({ mem_chase: 3000, mem_crowley: 2000 });
   });
 
   it('shares above the total are unsure (never logged as given)', () => {
-    expect(run('@trav i paid €40 for the boat, Maya owes 30 and Sam owes 20', BCN()).kind).toBe(
-      'unsure',
-    );
+    expect(
+      run('@trav i paid €40 for the boat, Chase owes 30 and Crowley owes 20', BCN()).kind,
+    ).toBe('unsure');
   });
 
   it('two payers in one clause are unsure, never put on one of them', () => {
-    expect(parseExpenseText('@trav me and Sam paid €30 for the taxi, everyone', BCN()).kind).toBe(
-      'unsure',
-    );
-    expect(parseExpenseText('@trav jordan and i paid 50 for the boat', BCN()).kind).toBe('unsure');
+    expect(
+      parseExpenseText('@trav me and Crowley paid €30 for the taxi, everyone', BCN()).kind,
+    ).toBe('unsure');
+    expect(parseExpenseText('@trav piotr and i paid 50 for the boat', BCN()).kind).toBe('unsure');
   });
 
   it('"6x €11.35" with no total is the product, in integer cents', () => {
@@ -531,7 +531,7 @@ describe('parseExpenseText rules', () => {
     expect(e!.amount).toEqual({ amountMinor: 6810, currency: 'EUR' });
     expect(e!.split).toEqual({
       method: 'equal',
-      participants: ['mem_dean', 'mem_henry', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam'],
+      participants: ['mem_dean', 'mem_henry', 'mem_chase', 'mem_piotr', 'mem_arjun', 'mem_crowley'],
     });
     expect(decimalToCents('11.35')).toBe(1135);
     expect(decimalToCents('0.1')).toBe(10);
@@ -542,13 +542,15 @@ describe('parseExpenseText rules', () => {
     for (const t of [
       '@trav dinner was €90 (€30 of it was wine), everyone',
       '@trav i got the metro cards, 6x €11.35 = 70, everyone',
-      '@trav sam owes me 20 and maya owes me 30 for the cab',
+      '@trav crowley owes me 20 and chase owes me 30 for the cab',
       '@trav i paid €84 for dinner, everyone but henry, and he owes me 15 for the cab',
     ]) {
       expect(parseExpenseText(t, BCN()).kind, t).toBe('unsure');
     }
     // asides that ARE accounted for still log: a per-person restatement, a matching product, a "+" part
-    expect(ready('@trav 2 waters were €28, €14 EACH, me and maya', BCN('mem_sam'))).toHaveLength(1);
+    expect(
+      ready('@trav 2 waters were €28, €14 EACH, me and chase', BCN('mem_crowley')),
+    ).toHaveLength(1);
     expect(ready('@trav i got the metro cards, 6x €11.35 = 68.10, everyone', BCN())).toHaveLength(
       1,
     );
@@ -558,20 +560,20 @@ describe('parseExpenseText rules', () => {
   });
 
   it('a name is a participant only inside a list (r1 #1, #4): stray names ask, absent names are left out', () => {
-    const c = clarify('@trav i paid €84 for dinner, sam picked the place', BCN());
+    const c = clarify('@trav i paid €84 for dinner, crowley picked the place', BCN());
     expect(c.missing[0]).toEqual(['participants']);
     expect(ready("@trav i paid €84 for dinner, henry's out", BCN())[0]!.split).toEqual({
       method: 'exclude',
       excluded: ['mem_henry'],
     });
-    expect(ready('@trav i paid €32 for the cab, jordan and i', BCN())[0]!.split).toEqual({
+    expect(ready('@trav i paid €32 for the cab, piotr and i', BCN())[0]!.split).toEqual({
       method: 'equal',
-      participants: ['mem_dean', 'mem_jordan'],
+      participants: ['mem_dean', 'mem_piotr'],
     });
     // a member both listed and named absent is a contradiction: ask
-    expect(clarify("@trav i paid €40 for the cab, me and sam, sam wasn't there", BCN()).kind).toBe(
-      'clarify',
-    );
+    expect(
+      clarify("@trav i paid €40 for the cab, me and crowley, crowley wasn't there", BCN()).kind,
+    ).toBe('clarify');
   });
 
   it('a pronoun with nobody before it is unsure', () => {
@@ -604,23 +606,23 @@ describe('mergeAnswer', () => {
   });
 
   it('a participants answer fills who is in', () => {
-    const ctx = BCN('mem_maya');
+    const ctx = BCN('mem_chase');
     const q = asked('@trav log 30 for the cava', ctx);
-    const merged = mergeAnswer(q.drafts, q.missing, 'me, jordan and sam', ctx)!;
+    const merged = mergeAnswer(q.drafts, q.missing, 'me, piotr and crowley', ctx)!;
     const ev = evaluateDrafts(merged, ctx) as Extract<DraftsEvaluation, { kind: 'ready' }>;
     expect(ev.kind).toBe('ready');
     expect(sharesOf(ev.expenses[0]!, ctx)).toEqual({
-      mem_maya: 1000,
-      mem_jordan: 1000,
-      mem_sam: 1000,
+      mem_chase: 1000,
+      mem_piotr: 1000,
+      mem_crowley: 1000,
     });
   });
 
   it('a currency answer settles a venmo amount; an unrelated reply fills nothing', () => {
-    const ctx = BCN('mem_sam');
+    const ctx = BCN('mem_crowley');
     const q = asked('@trav venmo me 20 each for the cab', ctx);
     expect(mergeAnswer(q.drafts, q.missing, 'lol the cab was wild', ctx)).toBeUndefined();
-    const merged = mergeAnswer(q.drafts, q.missing, 'euros, me maya and dean', ctx)!;
+    const merged = mergeAnswer(q.drafts, q.missing, 'euros, me chase and dean', ctx)!;
     const ev = evaluateDrafts(merged, ctx) as Extract<DraftsEvaluation, { kind: 'ready' }>;
     expect(ev.kind).toBe('ready');
     expect(ev.expenses[0]!.amount).toEqual({ amountMinor: 6000, currency: 'EUR' });
@@ -633,7 +635,7 @@ describe('mergeAnswer', () => {
           activityId: 'act_bcn_razzmatazz',
           name: 'Razzmatazz',
           startsAt: '2026-03-15T00:00:00+01:00',
-          inMemberIds: ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam'],
+          inMemberIds: ['mem_dean', 'mem_chase', 'mem_piotr', 'mem_arjun', 'mem_crowley'],
         },
       ],
       now: '2026-03-14T21:40:00+01:00',
@@ -655,7 +657,7 @@ describe('mergeAnswer', () => {
 
   it('a foreign amount is asked again in the trip currency, and the answer is used as is', () => {
     const ctx = BCN();
-    const q = asked('@trav add $60 for the airport uber, me maya and sam', ctx);
+    const q = asked('@trav add $60 for the airport uber, me chase and crowley', ctx);
     expect(q.missing[0]).toEqual(['trip_currency']);
     const merged = mergeAnswer(q.drafts, q.missing, '55', ctx)!;
     const ev = evaluateDrafts(merged, ctx) as Extract<DraftsEvaluation, { kind: 'ready' }>;
@@ -676,32 +678,32 @@ describe('T-010 r2 review cases', () => {
       .sort();
 
   it.each([
-    "i paid €84 for dinner with maya, henry's paying next time",
-    "i paid €84 for dinner with maya, sam's getting the cab",
-    'i paid €84 for dinner with maya, jordan said thanks',
-    "i paid €84 for dinner with sam, maya you're next",
-    'i paid €84 for dinner with sam and maya, priya where are you',
-    'i paid €84 for dinner, sam and i, henry owes me for lunch',
+    "i paid €84 for dinner with chase, henry's paying next time",
+    "i paid €84 for dinner with chase, crowley's getting the cab",
+    'i paid €84 for dinner with chase, piotr said thanks',
+    "i paid €84 for dinner with crowley, chase you're next",
+    'i paid €84 for dinner with crowley and chase, arjun where are you',
+    'i paid €84 for dinner, crowley and i, henry owes me for lunch',
   ])('#1 a name in its own later clause never joins the split: %s', (text) => {
     const r = run(text, ctx);
     expect(r.kind, JSON.stringify(r)).not.toBe('ready');
   });
 
   it('#1 a comma list of bare names still works', () => {
-    expect(ids(ready('i paid €84 for dinner with maya, sam and jordan', ctx)[0]!)).toEqual([
+    expect(ids(ready('i paid €84 for dinner with chase, crowley and piotr', ctx)[0]!)).toEqual([
+      'mem_chase',
+      'mem_crowley',
       'mem_dean',
-      'mem_jordan',
-      'mem_maya',
-      'mem_sam',
+      'mem_piotr',
     ]);
   });
 
-  it.each(['i paid €84 for dinner, maya too', 'i paid €84 for dinner, maya as well'])(
+  it.each(['i paid €84 for dinner, chase too', 'i paid €84 for dinner, chase as well'])(
     '#2 "too" adds to the payer: %s',
     (text) => {
       const r = run(text, ctx);
       expect(r.kind, JSON.stringify(r)).toBe('ready');
-      expect(ids((r as Ready).expenses[0]!)).toEqual(['mem_dean', 'mem_maya']);
+      expect(ids((r as Ready).expenses[0]!)).toEqual(['mem_chase', 'mem_dean']);
     },
   );
 
@@ -750,10 +752,10 @@ describe('T-010 r2 review cases', () => {
 describe('T-017 r2: "on X\'s card" names the payer, not who\'s in', () => {
   it.each([
     ["@trav split the €200 groceries with everyone, it went on Dean's card", 'mem_dean', 20000],
-    ["@trav i paid €84 for dinner on Jordan's card, split with everyone", 'mem_jordan', 8400],
-    ["@trav €60 taxi, everyone. put it on Maya's card", 'mem_maya', 6000],
+    ["@trav i paid €84 for dinner on Piotr's card, split with everyone", 'mem_piotr', 8400],
+    ["@trav €60 taxi, everyone. put it on Chase's card", 'mem_chase', 6000],
   ])('%s', (text, payer, minor) => {
-    const [e] = ready(text, BCN('mem_sam'));
+    const [e] = ready(text, BCN('mem_crowley'));
     expect(e).toMatchObject({ payer, amount: { amountMinor: minor, currency: 'EUR' } });
     expect(e!.split).toMatchObject({ method: 'equal' });
   });
@@ -761,9 +763,9 @@ describe('T-017 r2: "on X\'s card" names the payer, not who\'s in', () => {
   it("someone outside the group's card is left to the usual rules (the stated payer)", () => {
     const [e] = ready(
       "@trav i paid €84 for dinner on Alex's card, split with everyone",
-      BCN('mem_sam'),
+      BCN('mem_crowley'),
     );
-    expect(e!.payer).toBe('mem_sam');
+    expect(e!.payer).toBe('mem_crowley');
   });
 
   // T-017 r2 final review: a card that didn't pay says nothing about the payer.
@@ -772,14 +774,14 @@ describe('T-017 r2: "on X\'s card" names the payer, not who\'s in', () => {
     "@trav tried it on Dean's card but it got declined, so i paid €84 for dinner, split with everyone",
     "@trav €84 dinner split with everyone, should've put it on Dean's card but i paid",
   ])('negated or failed card keeps the sender as payer: %s', (text) => {
-    const [e] = ready(text, BCN('mem_sam'));
-    expect(e!.payer).toBe('mem_sam');
+    const [e] = ready(text, BCN('mem_crowley'));
+    expect(e!.payer).toBe('mem_crowley');
   });
 
   it('a "not Henry" exclusion elsewhere does not cancel the card owner (T-110)', () => {
     const [e] = ready(
       "@trav €84 dinner on Dean's card, split with everyone. not Henry",
-      BCN('mem_sam'),
+      BCN('mem_crowley'),
     );
     expect(e!.payer).toBe('mem_dean');
     expect(e!.split).not.toMatchObject({
@@ -789,9 +791,9 @@ describe('T-017 r2: "on X\'s card" names the payer, not who\'s in', () => {
   });
 
   it('a stated payer who is not the card owner, or several expenses, is not guessed', () => {
-    const ctx = BCN('mem_sam');
+    const ctx = BCN('mem_crowley');
     expect(
-      parseExpenseText("@trav Jordan paid €84 for dinner on Dean's card, split with everyone", ctx)
+      parseExpenseText("@trav Piotr paid €84 for dinner on Dean's card, split with everyone", ctx)
         .kind,
     ).toBe('unsure');
     expect(
@@ -818,17 +820,17 @@ describe('T-084: an amount in another currency is converted at the rate for its 
     expect(day).toBe('2026-03-10');
     const rate = FX_TABLE.rates[day]!['USD']!;
     expect(rate).toBe('1.0928');
-    const ctx = BCN('mem_priya', {
+    const ctx = BCN('mem_arjun', {
       fx: new Map([['USD', { rate, rateDate: day, source: 'mock-fx' }]]),
     });
-    const all = ready('@trav i got esims for me jordan and sam before we fly, $36 total', ctx);
+    const all = ready('@trav i got esims for me piotr and crowley before we fly, $36 total', ctx);
     expect(all).toHaveLength(1);
     const e = all[0]!;
     expect(e.amount).toEqual(eur(3294));
     expect(e.split.method).toBe('equal');
     const split = e.split as Extract<SplitSpec, { method: 'equal' }>;
-    expect([...split.participants].sort()).toEqual(['mem_jordan', 'mem_priya', 'mem_sam']);
-    expect(sharesOf(e, ctx)).toEqual({ mem_priya: 1098, mem_jordan: 1098, mem_sam: 1098 });
+    expect([...split.participants].sort()).toEqual(['mem_arjun', 'mem_crowley', 'mem_piotr']);
+    expect(sharesOf(e, ctx)).toEqual({ mem_arjun: 1098, mem_piotr: 1098, mem_crowley: 1098 });
     expect(e.original).toEqual({
       amount: { amountMinor: 3600, currency: 'USD' },
       rate: '1.0928',
@@ -839,7 +841,7 @@ describe('T-084: an amount in another currency is converted at the rate for its 
 
   it('odd cents: the converted total is split exactly (the payer gets a remainder cent)', () => {
     const ctx = BCN('mem_dean', { fx: FRI });
-    const [e] = ready('@trav i paid $10 for snacks, me maya and sam', ctx);
+    const [e] = ready('@trav i paid $10 for snacks, me chase and crowley', ctx);
     expect(e!.amount).toEqual(eur(923)); // 1000 / 1.0840 = 922.5… ⇒ 923
     const shares = sharesOf(e!, ctx);
     expect(Object.values(shares).reduce((a, b) => a + b, 0)).toBe(923);
@@ -848,14 +850,17 @@ describe('T-084: an amount in another currency is converted at the rate for its 
   });
 
   it('fixed shares carry over in proportion and sum to the converted total', () => {
-    const ctx = BCN('mem_maya', { fx: FRI });
-    const [e] = ready('trav the taxi was $32, me and Sam, Sam had the suitcase so he pays 20', ctx);
+    const ctx = BCN('mem_chase', { fx: FRI });
+    const [e] = ready(
+      'trav the taxi was $32, me and Crowley, Crowley had the suitcase so he pays 20',
+      ctx,
+    );
     expect(e!.amount).toEqual(eur(2952));
     expect(e!.split).toEqual({
       method: 'exact',
       amounts: [
-        { memberId: 'mem_maya', amount: eur(1107) },
-        { memberId: 'mem_sam', amount: eur(1845) },
+        { memberId: 'mem_chase', amount: eur(1107) },
+        { memberId: 'mem_crowley', amount: eur(1845) },
       ],
     });
   });
@@ -863,7 +868,7 @@ describe('T-084: an amount in another currency is converted at the rate for its 
   it('itemized lines carry over and still sum to the total', () => {
     const ctx = BCN('mem_dean', { fx: FRI });
     const [e] = ready(
-      '@trav dinner was $90: i had the steak ($30), maya and priya split the paella ($40), wine $20 for the three of us',
+      '@trav dinner was $90: i had the steak ($30), chase and arjun split the paella ($40), wine $20 for the three of us',
       ctx,
     );
     expect(e!.amount).toEqual(eur(8303));
@@ -874,8 +879,8 @@ describe('T-084: an amount in another currency is converted at the rate for its 
   });
 
   it('per person: the total is multiplied first, then converted once', () => {
-    const ctx = BCN('mem_sam', { fx: FRI });
-    const [e] = ready('@trav venmo me $20 each for the cab, me maya and dean', ctx);
+    const ctx = BCN('mem_crowley', { fx: FRI });
+    const [e] = ready('@trav venmo me $20 each for the cab, me chase and dean', ctx);
     expect(e!.original?.amount).toEqual({ amountMinor: 6000, currency: 'USD' });
     expect(e!.amount).toEqual(eur(5535));
   });
@@ -890,10 +895,10 @@ describe('T-084: an amount in another currency is converted at the rate for its 
   });
 
   it('no rate for that currency: the one question, never a guess', () => {
-    const ctx = BCN('mem_priya', {
+    const ctx = BCN('mem_arjun', {
       fx: new Map([['GBP', { rate: '0.8611', rateDate: '2026-03-13', source: 'mock-fx' }]]),
     });
-    const q = clarify('@trav i got esims for me jordan and sam before we fly, $36 total', ctx);
+    const q = clarify('@trav i got esims for me piotr and crowley before we fly, $36 total', ctx);
     expect(q.missing).toEqual([['trip_currency']]);
     expect(q.question).toMatch(/in euros\? the tab's in EUR and i can't convert \$36 yet$/);
   });
@@ -902,7 +907,7 @@ describe('T-084: an amount in another currency is converted at the rate for its 
     const ctx = BCN('mem_dean', {
       fx: new Map([['USD', { rate: '0', rateDate: '2026-03-13', source: 'mock-fx' }]]),
     });
-    expect(run('@trav i paid $10 for snacks, me maya and sam', ctx).kind).toBe('unsure');
+    expect(run('@trav i paid $10 for snacks, me chase and crowley', ctx).kind).toBe('unsure');
   });
 
   it('above the sanity bound the amount is still said again first', () => {

@@ -30,16 +30,16 @@ const fixture = loadSafetyFixture<BlocklistFixture>('roast-blocklist-cases.json'
 
 describe('roastAllowed (gate 1)', () => {
   const members = barcelonaMembers();
-  const jordan = members.find((m) => m.memberId === 'jordan')!;
+  const piotr = members.find((m) => m.memberId === 'piotr')!;
   const on = group({ roastMode: true });
   const allIn = consentWithRoast(members.map((m) => m.memberId));
 
   it('allowed: mode on, adults with known ages, opted in, active trip', () => {
-    expect(roastAllowed(on, members, jordan, allIn, trip(), BCN_NOW)).toEqual({ allowed: true });
+    expect(roastAllowed(on, members, piotr, allIn, trip(), BCN_NOW)).toEqual({ allowed: true });
   });
 
   it('off by default', () => {
-    expect(roastAllowed(group(), members, jordan, allIn, trip(), BCN_NOW)).toEqual({
+    expect(roastAllowed(group(), members, piotr, allIn, trip(), BCN_NOW)).toEqual({
       allowed: false,
       cause: 'mode_off',
     });
@@ -47,7 +47,7 @@ describe('roastAllowed (gate 1)', () => {
 
   it('any minor in the group blocks it entirely, whoever the target is', () => {
     const lily = member({ memberId: 'lily', displayName: 'Lily', birthDate: '2012-06-10' });
-    expect(roastAllowed(on, [...members, lily], jordan, allIn, trip(), BCN_NOW)).toEqual({
+    expect(roastAllowed(on, [...members, lily], piotr, allIn, trip(), BCN_NOW)).toEqual({
       allowed: false,
       cause: 'minor_in_group',
     });
@@ -56,19 +56,19 @@ describe('roastAllowed (gate 1)', () => {
   it('age unknown ⇒ roast blocked until the group confirms everyone is 18+', () => {
     const unknown = member({ memberId: 'alex', displayName: 'Alex', ageBand: 'unknown' });
     const roster = [...members, unknown];
-    expect(roastAllowed(on, roster, jordan, allIn, trip(), BCN_NOW)).toEqual({
+    expect(roastAllowed(on, roster, piotr, allIn, trip(), BCN_NOW)).toEqual({
       allowed: false,
       cause: 'age_unconfirmed',
     });
     const confirmed = group({ roastMode: true, allAdultsConfirmed: true });
-    expect(roastAllowed(confirmed, roster, jordan, allIn, trip(), BCN_NOW)).toEqual({
+    expect(roastAllowed(confirmed, roster, piotr, allIn, trip(), BCN_NOW)).toEqual({
       allowed: true,
     });
   });
 
   it('age-unknown target alone (everyone else known) still blocks', () => {
     const roster = members.map((m) =>
-      m.memberId === 'jordan' ? member({ memberId: 'jordan', displayName: 'Jordan' }) : m,
+      m.memberId === 'piotr' ? member({ memberId: 'piotr', displayName: 'Piotr' }) : m,
     );
     expect(roastAllowed(on, roster, roster[3]!, allIn, trip(), BCN_NOW).allowed).toBe(false);
   });
@@ -78,7 +78,7 @@ describe('roastAllowed (gate 1)', () => {
       roastAllowed(
         group({ roastMode: true, familyModeForced: true }),
         members,
-        jordan,
+        piotr,
         allIn,
         trip(),
         BCN_NOW,
@@ -90,11 +90,11 @@ describe('roastAllowed (gate 1)', () => {
   });
 
   it('target must have opted in (consent defaults false)', () => {
-    expect(roastAllowed(on, members, jordan, consentWithRoast(['dean']), trip(), BCN_NOW)).toEqual({
+    expect(roastAllowed(on, members, piotr, consentWithRoast(['dean']), trip(), BCN_NOW)).toEqual({
       allowed: false,
       cause: 'member_opted_out',
     });
-    expect(roastAllowed(on, members, jordan, () => undefined, trip(), BCN_NOW)).toEqual({
+    expect(roastAllowed(on, members, piotr, () => undefined, trip(), BCN_NOW)).toEqual({
       allowed: false,
       cause: 'member_opted_out',
     });
@@ -102,9 +102,9 @@ describe('roastAllowed (gate 1)', () => {
 
   it('target who left, a guest, or someone not in the group is blocked', () => {
     const left = members.map((m) =>
-      m.memberId === 'jordan' ? { ...m, active: false, leftAt: '2026-03-14T10:00:00Z' } : m,
+      m.memberId === 'piotr' ? { ...m, active: false, leftAt: '2026-03-14T10:00:00Z' } : m,
     );
-    expect(roastAllowed(on, left, jordan, allIn, trip(), BCN_NOW)).toEqual({
+    expect(roastAllowed(on, left, piotr, allIn, trip(), BCN_NOW)).toEqual({
       allowed: false,
       cause: 'target_inactive',
     });
@@ -121,18 +121,18 @@ describe('roastAllowed (gate 1)', () => {
   });
 
   it('a stale target object cannot bypass a leave', () => {
-    const left = members.map((m) => (m.memberId === 'jordan' ? { ...m, active: false } : m));
-    // `jordan` (stale, active: true) is passed, but the roster says inactive.
-    expect(roastAllowed(on, left, jordan, allIn, trip(), BCN_NOW).allowed).toBe(false);
+    const left = members.map((m) => (m.memberId === 'piotr' ? { ...m, active: false } : m));
+    // `piotr` (stale, active: true) is passed, but the roster says inactive.
+    expect(roastAllowed(on, left, piotr, allIn, trip(), BCN_NOW).allowed).toBe(false);
   });
 
   it('no roasts weeks after the trip, or with no trip', () => {
-    expect(roastAllowed(on, members, jordan, allIn, null, BCN_NOW)).toEqual({
+    expect(roastAllowed(on, members, piotr, allIn, null, BCN_NOW)).toEqual({
       allowed: false,
       cause: 'trip_over',
     });
     expect(
-      roastAllowed(on, members, jordan, allIn, trip({ status: 'closed' }), BCN_NOW).allowed,
+      roastAllowed(on, members, piotr, allIn, trip({ status: 'closed' }), BCN_NOW).allowed,
     ).toBe(false);
     expect(tripAllowsRoast(trip({ status: 'ended' }), '2026-03-18T10:00:00+01:00')).toBe(true);
     expect(tripAllowsRoast(trip({ status: 'ended' }), '2026-03-24T10:00:00+01:00')).toBe(true);
@@ -143,12 +143,10 @@ describe('roastAllowed (gate 1)', () => {
   it('no roasts while a trip is still being planned (SAFETY §2.8: active or just ended)', () => {
     expect(tripAllowsRoast(trip({ status: 'planning' }), '2026-03-10T10:00:00+01:00')).toBe(false);
     expect(tripAllowsRoast(trip({ status: 'planning' }), BCN_NOW)).toBe(false);
-    expect(roastAllowed(on, members, jordan, allIn, trip({ status: 'planning' }), BCN_NOW)).toEqual(
-      {
-        allowed: false,
-        cause: 'trip_over',
-      },
-    );
+    expect(roastAllowed(on, members, piotr, allIn, trip({ status: 'planning' }), BCN_NOW)).toEqual({
+      allowed: false,
+      cause: 'trip_over',
+    });
   });
 });
 
@@ -198,14 +196,16 @@ describe('roastTopicBlocked (gate 2 blocklist)', () => {
       'the €180 Sintra driver, worth it per both of you',
       'most expensive thing: the Sintra driver, €180, worth it per both of you',
       'a single €14 water',
-      'every single uber was Priya',
+      'every single uber was Arjun',
       'asleep at the wheel of this trip',
       'the airbnb host fee was €40, split 6 ways',
     ]) {
       expect(roastTopicBlocked(fine), fine).toBeNull();
     }
-    expect(roastTopicBlocked('Sam is single and spent €40 at the bar proving it')).toBe('romance');
-    expect(roastTopicBlocked('Priya, still single, €40 on the tab')).toBe('romance');
+    expect(roastTopicBlocked('Crowley is single and spent €40 at the bar proving it')).toBe(
+      'romance',
+    );
+    expect(roastTopicBlocked('Arjun, still single, €40 on the tab')).toBe('romance');
     expect(roastTopicBlocked('the driver was lost for 40 minutes, €23')).toBe('outsider');
     expect(roastTopicBlocked("the driver's attitude cost us €23")).toBe('outsider');
     expect(roastTopicBlocked('our host charged €1,380 for that')).toBe('outsider');
@@ -214,23 +214,25 @@ describe('roastTopicBlocked (gate 2 blocklist)', () => {
       'outsider',
     );
     // The idiom is blanked whole; "asleep" on its own is still a body topic.
-    expect(roastTopicBlocked('Jordan fell asleep at dinner, €0 spent')).toBe('body');
-    expect(roastTopicBlocked('asleep at the wheel again, and Sam was asleep by 10')).toBe('body');
+    expect(roastTopicBlocked('Piotr fell asleep at dinner, €0 spent')).toBe('body');
+    expect(roastTopicBlocked('asleep at the wheel again, and Crowley was asleep by 10')).toBe(
+      'body',
+    );
   });
 
   it('T-099: no "looks shared" carve-out (the recap line is gone); looks are a body topic', () => {
     expect(ROAST_IDIOMS.some((i) => i.includes('look'))).toBe(false);
     expect(roastTopicBlocked('1 charge that looks shared is waiting on a tap in dms')).toBe('body');
-    expect(roastTopicBlocked("Sam's looks shared the spotlight with his €90 tab")).toBe('body');
+    expect(roastTopicBlocked("Crowley's looks shared the spotlight with his €90 tab")).toBe('body');
     expect(roastTopicBlocked('her looks shared?')).toBe('body');
-    expect(roastTopicBlocked("Sam's looks cost him €40 at the door")).toBe('body');
+    expect(roastTopicBlocked("Crowley's looks cost him €40 at the door")).toBe('body');
     expect(roastTopicBlocked('looks shared, and so does his ugly shirt')).toBe('body');
-    expect(roastTopicBlocked('Jordan looks rough after €90 of rounds')).toBe('body');
+    expect(roastTopicBlocked('Piotr looks rough after €90 of rounds')).toBe('body');
   });
 
   it('extra caller-supplied terms are honored', () => {
     expect(
-      roastTopicBlocked('Sam and the karaoke machine', [{ term: 'karaoke', category: 'body' }]),
+      roastTopicBlocked('Crowley and the karaoke machine', [{ term: 'karaoke', category: 'body' }]),
     ).toBe('body');
     expect(roastTopicBlocked('anything', [{ term: '  ', category: 'body' }])).toBeNull();
   });
