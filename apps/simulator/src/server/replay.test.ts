@@ -185,6 +185,34 @@ describe('findTargetCard', () => {
     ).toBeUndefined();
     expect(findTargetCard([], { kind: 'reaction', cardRef: 'razz_proposal' })).toBeUndefined();
   });
+
+  it('a `_receipt` ref lands only on a receipt read-it card, never redirected to another card (T-083)', () => {
+    const expense = (seq: number, source: string): ThreadMessage => ({
+      ...base,
+      seq,
+      messageId: `m${seq}`,
+      text: 'e',
+      card: { type: 'expense_confirm', source } as unknown as RichCard,
+      actions: [],
+    });
+    // Maya's cava chat expense and the settle card are on screen, but no read-it card.
+    const noReceipt = [proposal(1), expense(4, 'chat'), settle];
+    expect(
+      findTargetCard(noReceipt, { kind: 'reaction', cardRef: 'gatblau_receipt' }),
+    ).toBeUndefined();
+    expect(
+      findTargetCard(noReceipt, { kind: 'reaction', cardRef: 'lunch_receipt' }),
+    ).toBeUndefined();
+    // With a read-it card on screen, the 👍 goes to it even when newer cards follow.
+    const withReceipt = [expense(5, 'receipt_photo'), expense(6, 'chat'), settle];
+    expect(
+      findTargetCard(withReceipt, { kind: 'reaction', cardRef: 'gatblau_receipt' })?.messageId,
+    ).toBe('m5');
+    // ...and a looks-shared prompt never takes the receipt card's place, nor the reverse.
+    expect(
+      findTargetCard(withReceipt, { kind: 'reaction', cardRef: 'sam_uber_prompt' })?.messageId,
+    ).toBe('m6');
+  });
 });
 
 describe('withReplay (real runtime, opened on the seeded chat)', () => {
@@ -247,13 +275,30 @@ describe('withReplay (real runtime, opened on the seeded chat)', () => {
   });
 
   it('a line that cannot run is skipped with a reason, and the replay goes on', async () => {
-    const b = withReplay(await demoBackend(), SCRIPT);
-    const until = SCRIPT.findIndex((l) => l.id === 'msg_bcn_0020');
+    // Without "@trav book option 1" (T-074 posts a real flight card for it),
+    // Dean's 👍 that follows has no card to land on.
+    const script = SCRIPT.filter((l) => l.id !== 'msg_bcn_0019');
+    const b = withReplay(await demoBackend(), script);
+    const until = script.findIndex((l) => l.id === 'msg_bcn_0020');
     for (let i = 0; i <= until; i++) await b.replay.step();
     expect(b.replay.view().last).toBe(
       'skipped msg_bcn_0020: no flights_proposal on screen to react to',
     );
     expect(b.replay.view().cursor).toBe(until + 1);
+  });
+
+  it("the payer's receipt 👍 is skipped when no read-it card is on screen, never aimed at another card (T-083)", async () => {
+    // The replay posts no photos, so neither receipt's read-it card exists.
+    const b = withReplay(await demoBackend(), SCRIPT);
+    for (const [id, ref] of [
+      ['msg_bcn_0093a', 'gatblau_receipt'],
+      ['msg_bcn_0161a', 'lunch_receipt'],
+    ] as const) {
+      const until = SCRIPT.findIndex((l) => l.id === id);
+      expect(until, id).toBeGreaterThan(0);
+      while (b.replay.view().cursor <= until) await b.replay.step();
+      expect(b.replay.view().last).toBe(`skipped ${id}: no ${ref} on screen to react to`);
+    }
   });
 
   it('refuses a second run while one is in flight; reset rewinds the cursor', async () => {

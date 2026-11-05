@@ -413,7 +413,7 @@ export function barcelonaChat(opts = {}) {
       activityId: 'act_bcn_dinner_d2',
       source: 'receipt_photo',
       split: { method: 'itemized', participants: g.all, lineItems: GATBLAU_LINES() },
-      occurredAt: B(13, '23:05'),
+      occurredAt: B(13, '23:01'), // the printed time on rcpt_bcn_gatblau (receipts.mjs), what the agent records
     }),
     mustContain: ['€184'],
     notes: "the payer's 👍 on the read-it card writes the receipt expense (SAFETY D5)",
@@ -728,7 +728,7 @@ export function barcelonaChat(opts = {}) {
       activityId: 'act_bcn_lunch_d5',
       source: 'receipt_photo',
       split: { method: 'itemized', participants: [g.dean, g.maya, g.priya], lineItems: LUNCH_LINES() },
-      occurredAt: B(16, '13:52'),
+      occurredAt: B(16, '13:47'), // the printed time on rcpt_bcn_lunch_service (receipts.mjs)
     }),
     mustContain: ['€108.90'],
     notes: "the payer's 👍 on the updated read-it card writes the receipt expense (SAFETY D5)",

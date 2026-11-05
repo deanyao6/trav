@@ -69,15 +69,14 @@ async function playAll(): Promise<ReplayRun> {
  */
 const KNOWN_FALLBACKS: readonly string[] = [];
 
-/** Taps that need a card v0 can't post yet (flights aren't bookable, T-074; stays are since T-132). */
-const KNOWN_SKIPS: readonly string[] = [
-  'msg_bcn_0020',
-  'msg_bcn_0021',
-  'msg_bcn_0023',
-  'msg_bcn_0024',
-  'msg_bcn_0025',
-  'msg_bcn_0026',
-];
+/**
+ * Taps that need a card v0 can't post yet. Since T-074 the six
+ * `flights_proposal` 👍s/taps (0020-0026) land on the flight card (stays
+ * since T-132). The payer's receipt 👍s (T-083) wait on a read-it card the
+ * replay never posts (it sends no photos), so they skip rather than land on
+ * some other expense or settle card.
+ */
+const KNOWN_SKIPS: readonly string[] = ['msg_bcn_0093a', 'msg_bcn_0161a'];
 
 describe('Barcelona replay: generic fallback ratchet (T-092)', () => {
   it('only the known lines get the generic "not sure" fallback, and the Barça and VIP cards are tappable', async () => {
@@ -98,6 +97,16 @@ describe('Barcelona replay: generic fallback ratchet (T-092)', () => {
     // Barça (T-081): a proposal over the cap that everyone charged 👍s, then a receipt.
     expect(said('msg_bcn_0040')).toMatch(/6 tickets · Tribuna lateral/);
     expect(said('msg_bcn_0049')).toMatch(/^booked ✅ fc barcelona vs sevilla fc, 6 tickets/);
+    // Group flights (T-074): the optimizer's options, "book option 1" (no
+    // fallback) through the approval policy, nothing booked until the sixth
+    // payer's 👍, Priya's bare "yes" counting for nothing.
+    expect(said('msg_bcn_0014')).toMatch(/^flights for 6 into BCN thu mar 12, home tue mar 17/);
+    expect(said('msg_bcn_0019')).toMatch(/^option 1, flights for 6: into BCN/);
+    expect(said('msg_bcn_0019')).toMatch(/all 6 of you have to 👍/);
+    expect(said('msg_bcn_0022')).toBe('');
+    expect(said('msg_bcn_0025')).toMatch(/still need 👍 from Henry$/);
+    expect(said('msg_bcn_0026')).toMatch(/^booked ✅ flights to BCN, €2,956/);
+    expect(said('msg_bcn_0026')).toMatch(/each on your own card, nothing to split/);
     // The stay (T-132): the refundable Eixample rate for all 6, booked on Henry's 👍, not Jordan's relay.
     expect(said('msg_bcn_0027')).toMatch(
       /€1,380 for 5 nights · €230 each · free cancel until mar 7/,

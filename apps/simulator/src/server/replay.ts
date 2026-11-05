@@ -198,13 +198,23 @@ export function describeLine(line: ReplayLine, group: SimGroup): string {
   }
 }
 
-/** Card types a `cardRef` names (`razz_proposal`, `sam_uber_prompt`, `dean_digest`, `final_settle`). */
-function refTypes(cardRef: string | undefined): readonly RichCard['type'][] | undefined {
+/**
+ * Which cards a `cardRef` names (`razz_proposal`, `sam_uber_prompt`,
+ * `dean_digest`, `final_settle`, `gatblau_receipt`). A `…_receipt` ref is a
+ * receipt photo's "read it" card only (T-083): never another expense card.
+ */
+function refMatcher(cardRef: string | undefined): ((card: RichCard) => boolean) | undefined {
   if (cardRef === undefined) return undefined;
-  if (/proposal$/.test(cardRef)) return ['booking_proposal'];
-  if (/(prompt|digest)$/.test(cardRef)) return ['expense_confirm'];
-  if (/settle/.test(cardRef)) return ['settle_up'];
-  if (/options$/.test(cardRef)) return ['options'];
+  const ofType =
+    (...types: readonly RichCard['type'][]) =>
+    (card: RichCard): boolean =>
+      types.includes(card.type);
+  if (/proposal$/.test(cardRef)) return ofType('booking_proposal');
+  if (/receipt$/.test(cardRef))
+    return (card) => card.type === 'expense_confirm' && card.source === 'receipt_photo';
+  if (/(prompt|digest)$/.test(cardRef)) return ofType('expense_confirm');
+  if (/settle/.test(cardRef)) return ofType('settle_up');
+  if (/options$/.test(cardRef)) return ofType('options');
   return undefined;
 }
 
@@ -213,11 +223,11 @@ export function findTargetCard(
   entries: readonly ThreadEntry[],
   line: Pick<ReplayLine, 'kind' | 'cardRef' | 'actionId'>,
 ): ThreadMessage | undefined {
-  const types = refTypes(line.cardRef);
+  const matches = refMatcher(line.cardRef);
   for (let i = entries.length - 1; i >= 0; i--) {
     const e = entries[i]!;
     if (e.kind !== 'message' || !e.isTrav || e.card === undefined) continue;
-    if (types !== undefined && !types.includes(e.card.type)) continue;
+    if (matches !== undefined && !matches(e.card)) continue;
     if (line.kind === 'button_tap') {
       const ids = new Set<string>(e.actions.map((a) => a.id));
       if (e.card.type === 'options') ids.add(e.card.pickAction.id);

@@ -96,7 +96,7 @@ One JSON object per line, ordered by `ts` (local trip time with offset; pre-trip
 - `toolCalls`, `roster`, `consent`, `memory`, `refusal{ reason, topicCategory? }`, `identity`, `injection` (expected pattern names), `recapMode` + `groupMessages` (on `morning_after` clock lines), `scheduledJob`, `groundTruth` (path into another fixture).
 - Text checks: `mustContain` / `mustNotContain` (case-insensitive substrings of Trav's group output), `dmMustContain`, `expectedText` (reference rendering per VOICE.md; graders compare structure, not exact bytes), `mustNotStore` (text that must never be persisted).
 
-Counts: Barcelona 199 lines over 11 days (64 addressed to Trav, 20 expenses, 6 proposals), Lisbon 40, Turks and Caicos 29.
+Counts: Barcelona 201 lines over 11 days (64 addressed to Trav, 20 expenses, 6 proposals), Lisbon 40, Turks and Caicos 29.
 
 ### ledger
 

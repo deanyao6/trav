@@ -21,17 +21,7 @@ const gap = (task: string, why: string, ids: readonly string[]): [string, LinePe
 
 export const LINE_PENDING: Readonly<Record<string, LinePending>> = Object.fromEntries([
   // ---- Barcelona (fixtures/chats/barcelona.jsonl) ----
-  ...gap('T-074', 'flights in chat: no offline flight search or flight proposal', [
-    'msg_bcn_0014',
-    'msg_bcn_0019',
-    'msg_bcn_0020',
-    'msg_bcn_0021',
-    'msg_bcn_0022',
-    'msg_bcn_0023',
-    'msg_bcn_0024',
-    'msg_bcn_0025',
-    'msg_bcn_0026',
-  ]),
+  // (msg_bcn_0014–0026, group flights: T-074 landed, graded as is.)
   ...gap('T-136', 'roast from group-ledger facts finds nothing to say', ['msg_bcn_0112']),
   ...gap('T-139', "a guest's second message: fixture expects a refusal, agent stays silent", [
     'msg_bcn_0147',
