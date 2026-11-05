@@ -4,8 +4,12 @@
  *   node --import tsx src/server/main.ts --dev   API + SSE + Vite dev middleware (HMR)
  *   node --import tsx src/server/main.ts         API + SSE + the built UI from dist/ui
  *
- * Env: TRAV_SIM_PORT (default 5179), TRAV_SIM_BACKEND (scripted | agent | auto,
- * default auto), TRAV_OFFLINE (1 = no live model calls; read by the agent runtime).
+ * Always the real Trav runtime over mock providers (`runtime.ts`), opening on
+ * demo state 1 (`seed.ts`).
+ *
+ * Env: TRAV_SIM_PORT (default 5179), TRAV_OFFLINE (1 = no live model calls; read
+ * by the agent runtime), TRAV_SIM_BACKEND (optional, `agent` only; the old
+ * `scripted` value is refused, T-021).
  */
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -26,7 +30,7 @@ async function main(): Promise<void> {
   // missing key), and the backend reports that real mode in its state.
   const selected = await selectBackend({
     choice: backendChoice(process.env['TRAV_SIM_BACKEND']),
-    responseDelayMs: 700,
+    seed: true,
     log: (line) => console.log(`[sim] ${line}`),
   });
   // The top bar's replay button runs fixtures/chats/barcelona.jsonl into this backend.

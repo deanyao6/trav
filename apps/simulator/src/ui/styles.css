@@ -81,10 +81,6 @@ button {
   background: #fff4d6;
   color: #7a5b00;
 }
-.badge.scripted {
-  background: #e6f4f1;
-  color: var(--teal);
-}
 
 .main {
   display: flex;

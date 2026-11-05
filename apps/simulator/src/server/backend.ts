@@ -2,19 +2,12 @@
  * The one seam between the simulator server/UI and whatever answers as Trav.
  *
  * The HTTP layer (`routes.ts`) and the UI only talk to `SimulatorBackend`.
- * Two implementations:
- *   - `createAgentBackend(parts)`: the real `TravAgent` over the simulator
- *     channel (parts come from `runtime.ts`, which wraps `createTravRuntime`).
- *   - `createScriptedBackend()` (`scripted.ts`): a deterministic Barcelona
- *     replay of VOICE §9.5 demo states 1–3 for the UI (kept until T-021
- *     retires it; the agent backend runs the real flow since T-009).
- *
- * Both record through the same in-memory simulator channel, so transcripts,
- * lanes and the DM-only card refusal are identical; only the responder that
- * reacts to inbound events differs. Both get the same simulator services
- * (`SimServices`) from a real runtime: the simulated clock, the scheduler
- * drain and the document intake, so the top-bar clock and the DM rail's
- * demo documents run the product's code in either mode.
+ * The implementation is `createAgentBackend(parts)`: the real `TravAgent`
+ * over the in-memory simulator channel (parts come from `runtime.ts`, which
+ * wraps `createTravRuntime`). The runtime also lends the simulator services
+ * (`SimServices`): the simulated clock, the scheduler drain and the document
+ * intake, so the top-bar clock and the DM rail's demo documents run the
+ * product's code. (T-021 retired the scripted stand-in responder.)
  */
 import type { InboundEvent, SimulatorChannel, TranscriptEntry, Unsubscribe } from '@trav/adapters';
 import type { Clock, IsoDateTime, RichCard, ScheduledJob, SimulatedClock } from '@trav/core';
@@ -38,7 +31,7 @@ import { buildDmThread, buildState } from './state.js';
 
 /** How a backend starts over (`POST /api/reset`, or the replay's first step). */
 export interface ResetOptions {
-  /** Seed demo state 1 (the scripted backend's chat lines). Default true. */
+  /** Seed demo state 1 (`seed.ts`) when the backend was built with `seed: true`. Default true. */
   readonly seed?: boolean;
   /** Simulated time to start at. Default: the backend's demo start. */
   readonly startAt?: IsoDateTime;
@@ -92,7 +85,7 @@ export interface RespondOutcome {
   readonly status?: string;
 }
 
-/** Reacts to one inbound event as Trav (the agent, or the demo script). */
+/** Reacts to one inbound event as Trav. */
 export type Responder = (event: InboundEvent) => Promise<RespondOutcome | undefined | void>;
 
 /**
@@ -139,8 +132,6 @@ export interface ChannelBackendOptions {
   readonly clock: Clock;
   readonly offline: boolean;
   readonly respond: Responder;
-  /** Runs before each inbound is injected (the scripted backend advances its clock). */
-  readonly beforeInject?: () => void;
   readonly services?: SimServices;
   /** Default `DEMO_DOCUMENTS`. */
   readonly documents?: readonly DemoDocument[];
@@ -294,7 +285,6 @@ export function createChannelBackend(options: ChannelBackendOptions): ChannelBac
     members: allMembers,
 
     async inject(input) {
-      options.beforeInject?.();
       switch (input.type) {
         case 'message': {
           const lane = input.lane ?? 'group';

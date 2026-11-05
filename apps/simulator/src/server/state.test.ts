@@ -297,7 +297,7 @@ describe('reactions and empty groups', () => {
   it('an empty transcript gives an empty thread, empty DMs and no preview', () => {
     const state = buildState({
       version: 1,
-      backend: 'scripted',
+      backend: 'agent',
       offline: true,
       now: AT,
       groups: [BARCELONA],

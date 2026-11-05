@@ -14,7 +14,7 @@ import {
 import type { ReplayLine } from './replay.js';
 import { handleApi } from './routes.js';
 import { loadAgentBackend } from './runtime.js';
-import { createScriptedBackend } from './scripted.js';
+import { demoBackend } from './testkit.js';
 
 const SCRIPT = loadBarcelonaScript();
 
@@ -167,9 +167,9 @@ describe('findTargetCard', () => {
   });
 });
 
-describe('withReplay (scripted backend)', () => {
+describe('withReplay (real runtime, opened on the seeded chat)', () => {
   it('step 1 starts over on a clean slate at the first line; each line runs as its sender', async () => {
-    const b = withReplay(await createScriptedBackend(), SCRIPT);
+    const b = withReplay(await demoBackend(), SCRIPT);
     const before = b.state();
     expect(before.controls.replay).toBe(true);
     expect(before.replay).toMatchObject({ cursor: 0, total: 199, running: false });
@@ -178,11 +178,8 @@ describe('withReplay (scripted backend)', () => {
     const v1 = await b.replay.step();
     expect(v1).toMatchObject({ cursor: 1, next: 'Maya: AHHHH' });
     const s1 = b.state();
-    // The session restarted at the script's first moment (the scripted backend
-    // ticks its clock once per inbound, so allow that one step).
-    const drift = Date.parse(s1.now) - Date.parse(SCRIPT[0]!.ts);
-    expect(drift).toBeGreaterThanOrEqual(0);
-    expect(drift).toBeLessThanOrEqual(60_000);
+    // The session restarted at the script's first moment.
+    expect(s1.now).toBe(SCRIPT[0]!.ts);
     const thread = messages(s1.groups[0]!.thread);
     // The seeded demo lines are gone: only the script's first line.
     expect(thread.map((m) => [m.from, m.text])).toEqual([
@@ -196,7 +193,7 @@ describe('withReplay (scripted backend)', () => {
   });
 
   it('the clock follows the script forward and never rewinds', async () => {
-    const b = withReplay(await createScriptedBackend(), SCRIPT);
+    const b = withReplay(await demoBackend(), SCRIPT);
     let prev = 0;
     for (let i = 0; i < 60; i++) {
       await b.replay.step();
@@ -207,7 +204,7 @@ describe('withReplay (scripted backend)', () => {
   });
 
   it('play all runs every line exactly once, terminates, and the group thread stays clean', async () => {
-    const b = withReplay(await createScriptedBackend(), SCRIPT);
+    const b = withReplay(await demoBackend(), SCRIPT);
     const v = await b.replay.all();
     expect(v).toMatchObject({ cursor: 199, total: 199, running: false });
     expect(v.next).toBeUndefined();
@@ -228,7 +225,7 @@ describe('withReplay (scripted backend)', () => {
   });
 
   it('a line that cannot run is skipped with a reason, and the replay goes on', async () => {
-    const b = withReplay(await createScriptedBackend(), SCRIPT);
+    const b = withReplay(await demoBackend(), SCRIPT);
     const until = SCRIPT.findIndex((l) => l.id === 'msg_bcn_0020');
     for (let i = 0; i <= until; i++) await b.replay.step();
     expect(b.replay.view().last).toBe('skipped msg_bcn_0020: no flights_proposal on screen to react to');
@@ -236,7 +233,7 @@ describe('withReplay (scripted backend)', () => {
   });
 
   it('refuses a second run while one is in flight; reset rewinds the cursor', async () => {
-    const b = withReplay(await createScriptedBackend(), SCRIPT);
+    const b = withReplay(await demoBackend(), SCRIPT);
     const running = b.replay.all();
     await expect(b.replay.step()).rejects.toThrow(/already running/);
     await running;
@@ -246,7 +243,7 @@ describe('withReplay (scripted backend)', () => {
   });
 
   it('routes: /api/replay/step and /all; 409 without a script; 405 on GET', async () => {
-    const plain = await createScriptedBackend();
+    const plain = await demoBackend();
     expect((await handleApi(plain, { method: 'POST', path: '/api/replay/step' })).status).toBe(409);
     const b = withReplay(plain, SCRIPT.slice(0, 3));
     expect((await handleApi(b, { method: 'GET', path: '/api/replay/step' })).status).toBe(405);

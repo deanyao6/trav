@@ -8,7 +8,7 @@
  *   POST /api/messages              { from, text, groupId?, lane? }
  *   POST /api/reactions             { from, targetMessageId, reaction, removed? }
  *   POST /api/button-taps           { from, cardMessageId, actionId, value? }
- *   POST /api/reset                 start over (scripted: demo state 1; agent: fresh runtime)
+ *   POST /api/reset                 start over (fresh runtime; demo state 1 again if seeded)
  *   POST /api/clock                 { step: hour | morning | end_of_trip, groupId? }:
  *                                   move the simulated clock, drain due scheduled jobs
  *   POST /api/intake                { docId }: feed one demo document (DM rail) through

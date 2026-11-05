@@ -158,15 +158,6 @@ function TopBar({
           offline
         </span>
       ) : null}
-      {state.backend === 'scripted' ? (
-        <span
-          className="badge scripted"
-          data-testid="scripted-badge"
-          title="scripted Barcelona demo, not the agent"
-        >
-          scripted demo
-        </span>
-      ) : null}
       {onReset ? (
         <button type="button" className="btn secondary small" data-testid="reset" onClick={onReset}>
           restart demo

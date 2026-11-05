@@ -1,6 +1,7 @@
 /**
  * Headless-browser smoke test for VOICE §9.5 demo states 1–3, clicked through
- * in Chromium against the scripted backend (TRAV_OFFLINE=1, no model calls).
+ * in Chromium against the real Trav runtime, offline (no model calls), opened
+ * on the seeded chat exactly as `pnpm sim` serves it.
  *
  * Run:  pnpm --filter @trav/simulator qa
  *   (builds the UI, starts the simulator on 127.0.0.1 with a free port,
@@ -18,7 +19,8 @@ import { chromium } from 'playwright';
 import type { Page } from 'playwright';
 import { createSimServer, listenLocal, staticUi } from '../src/server/http.js';
 import { RAZZMATAZZ_ASK } from '../src/server/groups.js';
-import { createScriptedBackend } from '../src/server/scripted.js';
+import { loadAgentBackend } from '../src/server/runtime.js';
+import { bookingCount } from '../src/server/testkit.js';
 
 const APP_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const REPO_ROOT = join(APP_ROOT, '..', '..');
@@ -31,7 +33,7 @@ async function count(page: Page, selector: string): Promise<number> {
 
 async function main(): Promise<void> {
   mkdirSync(SHOTS, { recursive: true });
-  const backend = await createScriptedBackend({ responseDelayMs: 400 });
+  const backend = await loadAgentBackend({ offline: true, seed: true });
   const server = createSimServer({ backend, ui: staticUi(join(APP_ROOT, 'dist', 'ui')) });
   const port = await listenLocal(server, 0);
   const browser = await chromium.launch({ headless: true });
@@ -47,12 +49,12 @@ async function main(): Promise<void> {
     await page.getByTestId('offline-badge').waitFor();
     await page.screenshot({ path: join(SHOTS, 't019a-1-chat.png') });
 
-    // State 2: the ask ⇒ typing indicator ⇒ proposal card.
+    // State 2: the ask ⇒ proposal card (the offline runtime answers too fast to
+    // catch the typing indicator reliably; App.test.tsx renders it).
     await page.getByTestId('sendas-h_dean').click();
     await page.getByTestId('hint').click();
     assert.equal(await page.getByTestId('composer-input').inputValue(), RAZZMATAZZ_ASK);
     await page.getByTestId('composer-send').click();
-    await page.getByTestId('typing').waitFor();
     const proposal = thread.getByTestId('card-booking_proposal');
     await proposal.waitFor();
     await assertGone(page, 'typing');
@@ -79,7 +81,7 @@ async function main(): Promise<void> {
     await page.screenshot({ path: join(SHOTS, 't019a-3-receipt.png') });
     await page.getByTestId('dm-tab-mem_henry').click();
     assert.equal(await page.getByTestId('dm-thread').getByTestId('card-ticket').count(), 0);
-    assert.equal(backend.bookingCount(), 1);
+    assert.equal(bookingCount(backend), 1);
     console.log('[qa] T-019-a smoke: demo states 1–3 passed');
   } finally {
     await browser.close();

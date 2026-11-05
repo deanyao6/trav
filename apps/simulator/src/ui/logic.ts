@@ -58,6 +58,21 @@ function waitingLabel(list: readonly string[]): string {
   return `waiting on ${list.slice(0, 2).join(', ')} +${list.length - 2}`;
 }
 
+/**
+ * Who a live proposal is waiting on, consistent with `mayAct`: the approvers
+ * who are also charged (the ones who get buttons). An any-one proposal under
+ * the cap lists the whole group as approvers, but "waiting on Dean, Henry +4"
+ * shown to Henry (who is out tonight) would name someone with no button.
+ * Falls back to every approver if none of them is charged.
+ */
+function proposalWaitingOn(card: RichCard | undefined): readonly string[] {
+  if (card?.type !== 'booking_proposal') return [];
+  const approvers = card.policy.requiresApprovalFrom;
+  const charged = new Set(card.charged.map((c) => c.memberId));
+  const both = approvers.filter((id) => charged.has(id));
+  return both.length > 0 ? both : approvers;
+}
+
 /** VOICE §9.3: buttons appear only for members allowed to act; others see "waiting on Dean". */
 export function planButtons(msg: ThreadMessage, me: SimMember, group: SimGroup): ButtonPlan {
   const live = new Set(msg.cardState?.liveActionIds ?? msg.actions.map((a) => a.id));
@@ -66,9 +81,7 @@ export function planButtons(msg: ThreadMessage, me: SimMember, group: SimGroup):
   const buttons = liveActions.filter((a) => mayAct(a, msg.card, me));
   if (buttons.length > 0) return { buttons };
   const primary = liveActions.find((a) => a.style === 'primary') ?? liveActions[0]!;
-  const allowed =
-    primary.allowedMemberIds ??
-    (msg.card?.type === 'booking_proposal' ? msg.card.policy.requiresApprovalFrom : []);
+  const allowed = primary.allowedMemberIds ?? proposalWaitingOn(msg.card);
   return allowed.length > 0
     ? { buttons: [], waitingOn: waitingLabel(names(allowed, group)) }
     : { buttons: [] };

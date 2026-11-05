@@ -17,7 +17,7 @@ import type { ClockStep, SimState, ThreadMessage } from '../shared/types.js';
 import { BARCELONA, RAZZMATAZZ_ASK } from '../server/groups.js';
 import { handleApi } from '../server/routes.js';
 import { loadBarcelonaScript, withReplay } from '../server/replay.js';
-import { createScriptedBackend } from '../server/scripted.js';
+import { bookingCount, demoBackend } from '../server/testkit.js';
 import { AppView } from './App.js';
 import type { AppViewProps } from './App.js';
 import { TapbackPicker } from './components/Thread.js';
@@ -88,7 +88,7 @@ function click(root: ReactNode, id: string): void {
 }
 
 async function state3() {
-  const b = await createScriptedBackend();
+  const b = await demoBackend();
   await b.inject({ type: 'message', from: 'h_dean', text: RAZZMATAZZ_ASK, groupId: BARCELONA.groupId });
   const proposal = b
     .state()
@@ -106,7 +106,7 @@ describe('top bar: clock and replay', () => {
     const steps: ClockStep[] = [];
     const p = props(s, 'h_dean', { onClock: (step) => steps.push(step) });
     const markup = html(p);
-    expect(markup).toContain('data-testid="clock">sat mar 14 · 9:4');
+    expect(markup).toContain('data-testid="clock">sat mar 14 · 9:39pm');
     expect(markup).toContain('· day 3<');
     for (const [id, label] of [
       ['clock-hour', '+1 hour'],
@@ -133,7 +133,7 @@ describe('top bar: clock and replay', () => {
   });
 
   it('replay: shows progress and the next line; step and play all send their mode', async () => {
-    const b = withReplay(await createScriptedBackend(), loadBarcelonaScript());
+    const b = withReplay(await demoBackend(), loadBarcelonaScript());
     const s = b.state();
     const modes: string[] = [];
     const p = props(s, 'h_dean', { onReplay: (m) => modes.push(m) });
@@ -153,7 +153,8 @@ describe('top bar: clock and replay', () => {
   });
 
   it('after a quiet next morning the muted status line says so under the thread, not as a Trav bubble', async () => {
-    const b = await state3();
+    // Demo state 1, nothing booked or logged yet: nothing moved overnight.
+    const b = await demoBackend();
     const before = html(props(b.state(), 'h_dean'));
     const res = await handleApi(b, {
       method: 'POST',
@@ -163,7 +164,7 @@ describe('top bar: clock and replay', () => {
     const s = (res.body as { state: SimState }).state;
     const markup = html(props(s, 'h_dean'));
     expect(markup).toContain('data-testid="sim-status"');
-    // Nothing reached the embedded runtime's tab overnight: the Morning After (T-015) stays silent.
+    // Nothing reached the tab overnight: the Morning After (T-015) stays silent.
     expect(markup).toContain('trav stayed quiet (scheduled:morning_after:silent)');
     expect(markup).not.toContain('T-015');
     expect(markup).toContain('sun mar 15 · 10am · day 4');
@@ -285,7 +286,7 @@ describe('tapback picker', () => {
   });
 
   it('a 👍 picked on the proposal goes through /api/reactions and books, exactly like Approve', async () => {
-    const b = await createScriptedBackend();
+    const b = await demoBackend();
     await b.inject({ type: 'message', from: 'h_dean', text: RAZZMATAZZ_ASK, groupId: BARCELONA.groupId });
     const proposal = b
       .state()
@@ -305,7 +306,7 @@ describe('tapback picker', () => {
     expect(thread.find((m) => m.messageId === proposal.messageId)?.cardState?.label).toBe('Approved by Dean');
     const markup = html(props(s, 'h_dean'));
     expect(markup).toContain('tapback-pill');
-    expect(b.bookingCount()).toBe(1);
+    expect(bookingCount(b)).toBe(1);
   });
 
   it('bubbles take tapbacks in the group thread; another member’s DM is view-only', async () => {

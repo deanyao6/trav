@@ -72,41 +72,17 @@ function fakeRuntime() {
 }
 
 describe('backend selection', () => {
-  it('parses TRAV_SIM_BACKEND', () => {
-    expect(backendChoice(undefined)).toBe('auto');
-    expect(backendChoice('')).toBe('auto');
-    expect(backendChoice('scripted')).toBe('scripted');
+  it('parses TRAV_SIM_BACKEND: always the agent runtime; the retired scripted value says why', () => {
+    expect(backendChoice(undefined)).toBe('agent');
+    expect(backendChoice('')).toBe('agent');
+    expect(backendChoice('auto')).toBe('agent');
     expect(backendChoice('agent')).toBe('agent');
+    expect(() => backendChoice('scripted')).toThrow(/retired \(T-021\)/);
+    expect(() => backendChoice('scripted')).toThrow(TravError);
     expect(() => backendChoice('live')).toThrow(TravError);
   });
 
-  it('auto falls back to the scripted demo when the runtime is not configured', async () => {
-    const logs: string[] = [];
-    const backend = await selectBackend({
-      choice: 'auto',
-      offline: true,
-      log: (l) => logs.push(l),
-      createTravRuntime: () => {
-        throw new TravError('not_implemented', 'not_configured: test');
-      },
-    });
-    expect(backend.kind).toBe('scripted');
-    expect(logs.join('\n')).toMatch(/scripted Barcelona demo/);
-  });
-
-  it('auto does not hide unexpected runtime errors', async () => {
-    await expect(
-      selectBackend({
-        choice: 'auto',
-        offline: true,
-        createTravRuntime: () => {
-          throw new Error('boom');
-        },
-      }),
-    ).rejects.toThrow('boom');
-  });
-
-  it('explicit agent choice surfaces not_configured instead of falling back', async () => {
+  it('there is no fallback: a runtime that is not configured fails loudly', async () => {
     await expect(
       selectBackend({
         choice: 'agent',
@@ -116,6 +92,18 @@ describe('backend selection', () => {
         },
       }),
     ).rejects.toThrow(/not_configured/);
+  });
+
+  it('unexpected runtime errors surface as themselves', async () => {
+    await expect(
+      selectBackend({
+        choice: 'agent',
+        offline: true,
+        createTravRuntime: () => {
+          throw new Error('boom');
+        },
+      }),
+    ).rejects.toThrow('boom');
   });
 
   it('rejects a runtime that does not return a TravAgent', async () => {
@@ -505,17 +493,37 @@ describe('agent backend', () => {
     expect(Object.values(g.dms).every((d) => d.length === 0)).toBe(true);
   });
 
-  it('selectBackend prints the scripted-demo hint when it picks the agent runtime', async () => {
+  it('selectBackend prints what it runs', async () => {
     const logs: string[] = [];
     const backend = await selectBackend({
-      choice: 'auto',
+      choice: 'agent',
       offline: true,
       log: (l) => logs.push(l),
       createTravRuntime: fakeRuntime().create,
     });
     expect(backend.kind).toBe('agent');
     expect(logs).toEqual([AGENT_BACKEND_HINT]);
-    expect(AGENT_BACKEND_HINT).toContain('TRAV_SIM_BACKEND=scripted');
+    expect(AGENT_BACKEND_HINT).toContain('the real Trav runtime');
+    expect(AGENT_BACKEND_HINT).not.toMatch(/scripted/);
+  });
+
+  it('seed: the demo-state-1 lines go through the runtime (Trav stays quiet) and the clock lands on the demo start', async () => {
+    const { seen, create } = fakeRuntime();
+    const backend = await selectBackend({ choice: 'agent', offline: true, seed: true, createTravRuntime: create });
+    const bcn = backend.state().groups.find((g) => g.group.groupId === 'grp_barcelona')!;
+    const texts = bcn.thread.flatMap((e) => (e.kind === 'message' ? [e.text] : []));
+    expect(texts).toHaveLength(7);
+    expect(texts.at(-1)).toBe('on it');
+    expect(bcn.thread.some((e) => e.kind === 'message' && e.isTrav)).toBe(false);
+    // Every seeded line (Barcelona's 7 and the other trips' 5) reached handleInbound.
+    expect(seen.filter((e) => e.type === 'message')).toHaveLength(12);
+    expect(backend.now()).toBe('2026-03-14T21:39:30+01:00');
+    // A reset re-seeds; the replay's `seed: false` starts empty.
+    await backend.reset!();
+    expect(backend.state().groups[0]!.thread.filter((e) => e.kind === 'message')).toHaveLength(7);
+    await backend.reset!({ seed: false, startAt: '2026-03-14T17:00:00+01:00' });
+    expect(backend.state().groups[0]!.thread).toEqual([]);
+    expect(backend.now()).toBe('2026-03-14T17:00:00+01:00');
   });
 
   it('a failing turn shows an error banner and clears typing instead of crashing the server', async () => {

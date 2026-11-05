@@ -154,5 +154,67 @@
       "toolCalls": [{ "id": "toolu_bcn_settle_now_1", "name": "get_balances", "input": {} }]
     },
     "note": "T-021: \"@trav settle now\" in the group (the daily running-tab card tells the group to say it; fixtures/chats/barcelona.jsonl msg_bcn_0172). The model asks the ledger; the loop posts get_balances' settle-up text. pnpm demo:barcelona step 10 checks the reply."
+  },
+  {
+    "key": "e74686eb90b8efe246480594f0bdee17ef8e2abf7c3813075fff0b63ed191b92",
+    "model": "main",
+    "systemPromptId": "group_chat_v1",
+    "lastUserText": "Dean: ok now a place. @trav find a 6 person airbnb in eixample or gracia, under €1500 total, refundable",
+    "toolNames": [
+      "cancel_proposal",
+      "get_balances",
+      "get_group_memory",
+      "get_pending_proposals",
+      "get_roster",
+      "get_settings",
+      "log_expense",
+      "propose_booking",
+      "remember",
+      "request_settings_change",
+      "search_events",
+      "search_flights",
+      "search_lodging",
+      "set_attendance"
+    ],
+    "response": {
+      "kind": "completion",
+      "text": "",
+      "toolCalls": [
+        {
+          "id": "toolu_bcn_lodging_1",
+          "name": "search_lodging",
+          "input": { "adults": 6, "wholeUnit": true, "maxTotalMinor": 150000 }
+        }
+      ]
+    },
+    "note": "T-021 step 3: the lodging ask in pnpm demo:barcelona. The model searches the mock lodging provider for the trip dates (whole unit for 6, under €1,500); the next round (keyed on the tool result) writes the reply."
+  },
+  {
+    "key": "e4a17d2e3794211cef272629d4d4bf6d40927e9fb2059406a099787fe537aab1",
+    "model": "main",
+    "systemPromptId": "group_chat_v1",
+    "lastUserText": "[tool_result] {\"stays\":[{\"propertyId\":\"prop_bcn_eixample_3br\",\"rateId\":\"rate_bcn_eixample_3br_flex\",\"name\":\"Eixample 3BR with balcony\",\"kind\":\"vacation_rental\",\"area\":\"Carrer d'Aragó 255, Eixample\",\"sleeps\":6,\"bedrooms\":3,\"total\":\"€1,380\",\"totalMinor\":138000,\"currency\":\"EUR\",\"refundable\":true,\"refundableUntil\":\"2026-03-07T23:59:00+01:00\",\"reviewScore\":9.8},{\"propertyId\":\"prop_bcn_barceloneta_flat\",\"rateId\":\"rate_bcn_barceloneta_flex\",\"name\":\"Barceloneta flat by the beach\",\"kind\":\"vacation_rental\",\"area\":\"Carrer de Sant Carles 18, Barceloneta\",\"sleeps\":6,\"bedrooms\":3,\"total\":\"€1,420\",\"totalMinor\":142000,\"currency\":\"EUR\",\"refundable\":true,\"refundableUntil\":\"2026-03-08T23:59:00+01:00\",\"reviewScore\":8.9},{\"propertyId\":\"prop_bcn_poblenou_loft\",\"rateId\":\"rate_bcn_poblenou_nonref\",\"name\":\"Poblenou loft, 3 bedrooms\",\"kind\":\"vacation_rental\",\"area\":\"Carrer de Pujades 140, Poblenou\",\"sleeps\":6,\"bedrooms\":3,\"total\":\"€1,190\",\"totalMinor\":119000,\"currency\":\"EUR\",\"refundable\":false,\"refundableUntil\":null,\"reviewScore\":9.1},{\"propertyId\":\"prop_bcn_eixample_3br\",\"rateId\":\"rate_bcn_eixample_3br_nonref\",\"name\":\"Eixample 3BR with balcony\",\"kind\":\"vacation_rental\",\"area\":\"Carrer d'Aragó 255, Eixample\",\"sleeps\":6,\"bedrooms\":3,\"total\":\"€1,250\",\"totalMinor\":125000,\"currency\":\"EUR\",\"refundable\":false,\"refundableUntil\":null,\"reviewScore\":9.8}]}",
+    "toolNames": [
+      "cancel_proposal",
+      "get_balances",
+      "get_group_memory",
+      "get_pending_proposals",
+      "get_roster",
+      "get_settings",
+      "log_expense",
+      "propose_booking",
+      "remember",
+      "request_settings_change",
+      "search_events",
+      "search_flights",
+      "search_lodging",
+      "set_attendance"
+    ],
+    "response": {
+      "kind": "completion",
+      "text": "found the 6-bed: Eixample 3BR with balcony, 9.8 rated\n€1,380 for 5 nights · €230 each · free cancel until mar 7\nthere's a €1,190 one in Poblenou but it's non-refundable, so i'd go with this\nnothing's booked. lodging always goes through Dean before any charge",
+      "toolCalls": []
+    },
+    "note": "T-021 step 3, round 2: keyed on the search_lodging result for the 6-person ask above (mock lodging inventory, trip dates mar 12-17). The reply follows VOICE §4.1 example C: refundable first, price with refund terms, the cheaper non-refundable one named and passed over. Nothing is booked (v0 has no lodging proposal flow). If the mock inventory changes, this key misses and pnpm demo:barcelona step 3 fails."
   }
 ]

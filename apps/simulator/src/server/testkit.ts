@@ -29,6 +29,21 @@ import type { RenderContext, SafetyContext, TravAgent, TurnResult } from '@trav/
 import { renderRecap, renderWrappedForSend } from '@trav/agent';
 import { BARCELONA } from './groups.js';
 import type { SimRuntimeInput, SimRuntimeOutput } from './runtime.js';
+import { loadAgentBackend } from './runtime.js';
+import type { SimulatorBackend } from './backend.js';
+
+/** The simulator as `pnpm sim` serves it, offline: the real runtime, opened on demo state 1. */
+export function demoBackend(): Promise<SimulatorBackend> {
+  return loadAgentBackend({ offline: true, seed: true });
+}
+
+/** Mock purchases so far: one `receipt` card per completed booking, across every group thread. */
+export function bookingCount(backend: Pick<SimulatorBackend, 'state'>): number {
+  return backend
+    .state()
+    .groups.flatMap((g) => g.thread)
+    .filter((e) => e.kind === 'message' && e.card?.type === 'receipt').length;
+}
 
 export const SILENT_TURN: TurnResult = {
   outbound: [],

@@ -5,7 +5,7 @@
  *
  *   replay ▸ (step by step up to the Razzmatazz booking)
  *   → switch to Sam: "simulate a card charge" → the "looks shared?" Uber prompt → Share it
- *   → next morning → the Morning After card (T-015; the running settle-up on the scripted backend)
+ *   → next morning → the Morning After card (T-015)
  *   → end of trip  → the Wrapped card (T-016): trip name, dates, final settle
  *
  * Every step is a POST a button in the UI makes. Privacy is checked on the
@@ -18,7 +18,7 @@ import { BARCELONA } from './groups.js';
 import { loadBarcelonaScript, withReplay } from './replay.js';
 import { handleApi } from './routes.js';
 import { loadAgentBackend } from './runtime.js';
-import { createScriptedBackend } from './scripted.js';
+import { demoBackend } from './testkit.js';
 
 const SCRIPT = loadBarcelonaScript();
 /** Last line of the Razzmatazz moment (Sam's late Approve on a done proposal). */
@@ -80,14 +80,15 @@ async function replayTo(b: SimulatorBackend, cursor: number): Promise<SimState> 
   return s;
 }
 
-type Kind = 'scripted' | 'agent';
+/** `seeded`: what `pnpm sim` serves (opens on demo state 1). `bare`: no seed lines. */
+type Kind = 'seeded' | 'bare';
 
 async function servedBackend(kind: Kind) {
-  const inner = kind === 'scripted' ? await createScriptedBackend() : await loadAgentBackend({});
+  const inner = kind === 'seeded' ? await demoBackend() : await loadAgentBackend({ offline: true });
   return withReplay(inner, SCRIPT);
 }
 
-describe.each<Kind>(['scripted', 'agent'])('demo clicked in order (%s backend)', (kind) => {
+describe.each<Kind>(['seeded', 'bare'])('demo clicked in order (real runtime, %s)', (kind) => {
   it('replay → Sam shares the Uber → next morning → end of trip', async () => {
     const b = await servedBackend(kind);
     expect(b.state().controls).toMatchObject({
@@ -111,8 +112,8 @@ describe.each<Kind>(['scripted', 'agent'])('demo clicked in order (%s backend)',
     // The Razzmatazz booking adds nothing to Henry's tab (no ticket, no prompt).
     expect(bcn(s3).dms['mem_henry']!.length).toBe(henryBefore);
     expect(messages(bcn(s3).dms['mem_henry']!).some((m) => m.card?.type === 'ticket')).toBe(false);
-    // On both backends (the agent one since T-009): Dean's 👍 books, the receipt lands in the
-    // group, one ticket card per attendee in their DM tab, the late taps change nothing.
+    // Dean's 👍 books (T-009/T-030), the receipt lands in the group, one ticket card per
+    // attendee in their DM tab, the late taps change nothing.
     expect(proposal!.cardState?.label).toBe('Approved by Dean');
     const receipt = thread.find((m) => m.seq > proposal!.seq && m.card?.type === 'receipt');
     expect(receipt?.text).toMatch(/^booked ✅ razzmatazz, 5 tickets, €90/);
@@ -198,22 +199,15 @@ describe.each<Kind>(['scripted', 'agent'])('demo clicked in order (%s backend)',
     // T-015: one scheduled post, which speaks for itself (no status line).
     expect(posted5).toHaveLength(1);
     expect(bcn(s5).status).toBeUndefined();
-    if (kind === 'agent') {
-      // The Razzmatazz booking + Sam's 2:14am Uber (now shared) = a night out: the full recap,
-      // the 5 who went, "not Henry" as a fact and never the reason.
-      const recap = posted5[0]!;
-      expect(recap.card?.type).toBe('recap');
-      expect(recap.text.split('\n')[0]).toBe('morning after, day 4 ☀️');
-      expect(recap.text).toContain('(5 of you, not Henry)');
-      expect(recap.text).toMatch(/Razzmatazz/);
-      expect(recap.text).toMatch(/^tab: /m);
-      expect(recap.text).not.toMatch(/sick/i);
-    } else {
-      // The scripted Razzmatazz never reaches the embedded runtime's ledger, so
-      // only Sam's shared Uber moved the tab: the quiet running settle-up.
-      expect(posted5[0]!.card?.type).toBe('settle_up');
-      expect(posted5[0]!.text.split('\n')[0]).toBe('running tab, day 4');
-    }
+    // The Razzmatazz booking + Sam's 2:14am Uber (now shared) = a night out: the full recap,
+    // the 5 who went, "not Henry" as a fact and never the reason.
+    const recap = posted5[0]!;
+    expect(recap.card?.type).toBe('recap');
+    expect(recap.text.split('\n')[0]).toBe('morning after, day 4 ☀️');
+    expect(recap.text).toContain('(5 of you, not Henry)');
+    expect(recap.text).toMatch(/Razzmatazz/);
+    expect(recap.text).toMatch(/^tab: /m);
+    expect(recap.text).not.toMatch(/sick/i);
 
     // --- state 6: end of trip.
     const s6 = await post(b, '/api/clock', { step: 'end_of_trip', groupId: BARCELONA.groupId });
@@ -252,9 +246,8 @@ describe.each<Kind>(['scripted', 'agent'])('demo clicked in order (%s backend)',
       total: SCRIPT.length,
       running: false,
     });
-    // Never rewound (the scripted backend ticks 30s per inject, so it may be a bit later).
-    expect(Date.parse(end.now)).toBeGreaterThanOrEqual(Date.parse('2026-03-18T10:00:00+01:00'));
-    expect(end.now.startsWith('2026-03-18T10:')).toBe(true);
+    // Never rewound.
+    expect(end.now).toBe('2026-03-18T10:00:00+01:00');
     expect(bcn(end).intake['mem_sam']).toEqual([]);
   });
 
@@ -266,14 +259,12 @@ describe.each<Kind>(['scripted', 'agent'])('demo clicked in order (%s backend)',
     expect(s5.replay?.last).toBe('clock → sun mar 15 · 10am · day 4');
     // T-015: the 10am line drains the Morning After; it speaks for itself.
     expect(bcn(s5).status ?? '').not.toContain('T-015');
-    if (kind === 'agent') {
-      const day4 = messages(bcn(s5).thread).filter(
-        (m) => m.isTrav && m.card?.type === 'recap' && m.text.startsWith('morning after, day 4'),
-      );
-      expect(day4).toHaveLength(1);
-      expect(day4[0]!.text).toContain('not Henry');
-      expect(day4[0]!.text).not.toMatch(/sick/i);
-    }
+    const day4 = messages(bcn(s5).thread).filter(
+      (m) => m.isTrav && m.card?.type === 'recap' && m.text.startsWith('morning after, day 4'),
+    );
+    expect(day4).toHaveLength(1);
+    expect(day4[0]!.text).toContain('not Henry');
+    expect(day4[0]!.text).not.toMatch(/sick/i);
     const s6 = await replayTo(b, SCRIPT.length);
     expect(s6.now).toBe('2026-03-18T10:00:00+01:00');
     // The script's end-of-trip clock line drains the scheduled Wrapped (T-016).

@@ -79,6 +79,20 @@ describe('planButtons (VOICE §9.3: buttons only for members allowed to act)', (
       planButtons(proposal({ actions: open }), member('h_henry'), BARCELONA).buttons,
     ).toHaveLength(0);
   });
+
+  it('any-one approval from the whole group (what the runtime sends): Henry is never named as waited on', () => {
+    const open = actions.map(({ allowedMemberIds: _a, ...rest }) => rest);
+    const all6 = BARCELONA.members.map((m) => m.memberId);
+    const plan = planButtons(proposal({ actions: open }, all6), member('h_henry'), BARCELONA);
+    expect(plan.buttons).toEqual([]);
+    expect(plan.waitingOn).toBe('waiting on Dean, Maya +3');
+  });
+
+  it('approvers none of whom are charged are still named', () => {
+    const open = actions.map(({ allowedMemberIds: _a, ...rest }) => rest);
+    const plan = planButtons(proposal({ actions: open }, ['mem_henry']), member('h_henry'), BARCELONA);
+    expect(plan.waitingOn).toBe('waiting on Henry');
+  });
 });
 
 describe('splitMentions', () => {

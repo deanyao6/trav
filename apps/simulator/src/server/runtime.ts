@@ -1,41 +1,48 @@
 /**
- * Picks the simulator backend.
+ * The simulator's one backend: the real Trav runtime.
  *
- *   TRAV_SIM_BACKEND=scripted  the Barcelona demo script (scripted.ts)
- *   TRAV_SIM_BACKEND=agent     the real Trav runtime; fails loudly if it can't load
- *   (unset)                    the agent runtime if it loads, else the script
+ * `createTravRuntime` (packages/agent/src/compose.ts) over the simulator
+ * channel and a simulated clock, behind `createAgentBackend`. Every inbound
+ * event goes to `agent.handleInbound`, every Trav message goes out through
+ * the runtime's send path (screen, voice lint, lane, audit), and an Approve or
+ * 👍 on a proposal runs the approval handler, the policy and the mock booking
+ * executor: receipt in the group, one ticket DM each, ledger split, audit rows.
  *
- * `auto` prefers the real runtime because it is the product: the approval
- * handler (T-030) and the booking executor (T-009) are wired, so an
- * Approve/👍 on the Razzmatazz card books through the mock providers and
- * posts the receipt and the five ticket DMs. The scripted backend remains an
- * explicit choice for a canned replay.
+ * T-021 retired the scripted Barcelona responder that used to stand in for
+ * the runtime (it answered the Razzmatazz ask with fixture cards and bypassed
+ * the send path's audit). `TRAV_SIM_BACKEND` only accepts `agent` now (or
+ * `auto`, the old default, which means the same thing); `scripted` is refused
+ * with a message saying why.
  *
- * The agent runtime comes from `createTravRuntime` in `@trav/agent`
- * (packages/agent/src/compose.ts). It is looked up at runtime through a
- * dynamic import so this file typechecks and runs without it; if the export
- * is missing `loadAgentBackend` throws `TravError` with a `not_configured:`
- * message and the default mode falls back to the script.
+ * The runtime is looked up through a dynamic import so a missing export fails
+ * as `TravError` `not_configured:` with a readable message instead of a crash.
  */
 import { createSimulatorChannel } from '@trav/adapters';
 import type { SimulatorChannel } from '@trav/adapters';
 import { TravError, createSimulatedClock } from '@trav/core';
-import type { Clock, ScheduledJob } from '@trav/core';
+import type { Clock, ScheduledJob, Stores } from '@trav/core';
 import type { TravAgent, TurnResult } from '@trav/agent';
 import type { SimGroup } from '../shared/types.js';
 import type { ChannelBackend, ResetOptions, SimulatorBackend } from './backend.js';
 import { createAgentBackend, createSessionBackend, servicesOf } from './backend.js';
 import { SIM_GROUPS, toConversations } from './groups.js';
-import { createScriptedBackend } from './scripted.js';
+import { SEED_START, seedChat, seedFixtureGroups } from './seed.js';
 
-export type BackendChoice = 'scripted' | 'agent' | 'auto';
+export type BackendChoice = 'agent';
 
+/** `TRAV_SIM_BACKEND`: unset, `auto` or `agent`. Anything else is refused with a reason. */
 export function backendChoice(value: string | undefined): BackendChoice {
-  if (value === undefined || value === '' || value === 'auto') return 'auto';
-  if (value === 'scripted' || value === 'agent') return value;
+  if (value === undefined || value === '' || value === 'auto' || value === 'agent') return 'agent';
+  if (value === 'scripted') {
+    throw new TravError(
+      'invalid_argument',
+      'TRAV_SIM_BACKEND=scripted was retired (T-021): the simulator always runs the real Trav runtime. ' +
+        'Unset TRAV_SIM_BACKEND; TRAV_OFFLINE=1 keeps it offline',
+    );
+  }
   throw new TravError(
     'invalid_argument',
-    `TRAV_SIM_BACKEND must be scripted, agent or auto, got "${value}"`,
+    `TRAV_SIM_BACKEND must be agent (or unset), got "${value}"`,
   );
 }
 
@@ -61,13 +68,17 @@ export interface SimRuntimeOutput {
   drain?(): Promise<readonly TurnResult[]>;
   /** Close the stores (called when the simulator starts over). */
   close?(): void;
+  /** The runtime's stores: the simulator seeds the non-Barcelona groups into them (`seed.ts`). */
+  readonly stores?: Pick<Stores, 'group'>;
+  /** VOICE §8: posts the family-mode notice once if the group has a minor and wasn't told yet. */
+  announceFamilyMode?(groupId: string): Promise<readonly unknown[]>;
 }
 
-/** Printed at startup whenever the simulator runs the real agent runtime. */
+/** Printed at startup: what the simulator is running. */
 export const AGENT_BACKEND_HINT =
   'backend agent: the real Trav runtime over mock providers. ' +
-  'Approve or 👍 on a proposal books it (mock purchase, receipt in the group, one ticket DM each); ' +
-  'TRAV_SIM_BACKEND=scripted pnpm sim replays the canned Barcelona script instead';
+  'Approve or 👍 on a proposal books it (mock purchase, receipt in the group, one ticket DM each). ' +
+  'No real money or messages';
 
 type CreateTravRuntime = (input: SimRuntimeInput) => SimRuntimeOutput | Promise<SimRuntimeOutput>;
 
@@ -91,6 +102,13 @@ export interface LoadAgentOptions {
   readonly groups?: readonly SimGroup[];
   /** Simulated trip time to start at. Default: Barcelona, sat mar 14, 9:39pm. */
   readonly startAt?: string;
+  /**
+   * Open on demo state 1 (`seed.ts`): the seed lines go through the channel
+   * into the runtime, then the clock sits at `startAt`. Applies to the first
+   * session and to every `reset()` that doesn't pass `seed: false` (the
+   * replay's first step). Default false.
+   */
+  readonly seed?: boolean;
   /** Test seam: replaces the dynamic import. */
   readonly createTravRuntime?: CreateTravRuntime;
 }
@@ -107,7 +125,10 @@ export async function loadAgentBackend(options: LoadAgentOptions): Promise<Simul
   let pending: SimRuntimeOutput | undefined;
 
   const makeSession = async (reset: ResetOptions): Promise<ChannelBackend> => {
-    const clock = createSimulatedClock(reset.startAt ?? options.startAt ?? AGENT_DEMO_START);
+    const startAt = reset.startAt ?? options.startAt ?? AGENT_DEMO_START;
+    const seed = options.seed === true && reset.seed !== false;
+    // Seeding starts the clock at the first seed line; the session then sits at `startAt`.
+    const clock = createSimulatedClock(seed ? SEED_START : startAt);
     const channel = createSimulatorChannel({ clock, conversations: toConversations(groups) });
     // The one call into the real runtime. Adjust the input/output mapping
     // here (and only here) if compose.ts changes.
@@ -120,7 +141,7 @@ export async function loadAgentBackend(options: LoadAgentOptions): Promise<Simul
     // The badge follows the model client's real mode, not an env-var guess.
     const mode = runtime.model?.mode;
     const offline = mode !== undefined ? mode === 'offline' : forceOffline;
-    return createAgentBackend({
+    const backend = createAgentBackend({
       agent,
       channel,
       clock,
@@ -128,6 +149,30 @@ export async function loadAgentBackend(options: LoadAgentOptions): Promise<Simul
       offline,
       services: servicesOf(runtime, clock),
     });
+    // Lisbon and Turks and Caicos come from fixtures/groups (the runtime seeds Barcelona).
+    if (runtime.stores) seedFixtureGroups(runtime.stores, groups);
+    // The family-mode notice posts once per group with a minor (Turks and Caicos):
+    // first thing in that chat, before its seed lines, or right away unseeded.
+    const announce = async (groupId: string): Promise<void> => {
+      await runtime.announceFamilyMode?.(groupId);
+    };
+    if (seed) {
+      await seedChat(
+        channel,
+        clock,
+        new Set(groups.map((g) => g.conversationId)),
+        startAt,
+        async (conversationId) => {
+          const g = groups.find((x) => x.conversationId === conversationId);
+          if (g !== undefined) await announce(g.groupId);
+        },
+      );
+      // Groups without seed lines still get their notice.
+      for (const g of groups) await announce(g.groupId);
+    } else {
+      for (const g of groups) await announce(g.groupId);
+    }
+    return backend;
   };
 
   const first = await makeSession({});
@@ -144,39 +189,19 @@ export interface SelectBackendOptions {
   readonly choice: BackendChoice;
   /** Force offline mode for the agent runtime. Default: the runtime decides. */
   readonly offline?: boolean;
-  readonly responseDelayMs?: number;
+  /** Open on demo state 1 (see `LoadAgentOptions.seed`). */
+  readonly seed?: boolean;
   readonly log?: (line: string) => void;
   readonly createTravRuntime?: CreateTravRuntime;
 }
 
+/** The backend `pnpm sim` serves: the agent runtime, or a loud failure if it can't load. */
 export async function selectBackend(options: SelectBackendOptions): Promise<SimulatorBackend> {
-  const scripted = (): Promise<SimulatorBackend> =>
-    createScriptedBackend(
-      options.responseDelayMs !== undefined ? { responseDelayMs: options.responseDelayMs } : {},
-    );
-  if (options.choice === 'scripted') return scripted();
-  const agentOptions: LoadAgentOptions = {
+  const backend = await loadAgentBackend({
     ...(options.offline !== undefined ? { offline: options.offline } : {}),
+    ...(options.seed !== undefined ? { seed: options.seed } : {}),
     ...(options.createTravRuntime ? { createTravRuntime: options.createTravRuntime } : {}),
-  };
-  const agent = async (): Promise<SimulatorBackend> => {
-    const backend = await loadAgentBackend(agentOptions);
-    options.log?.(AGENT_BACKEND_HINT);
-    return backend;
-  };
-  if (options.choice === 'agent') return agent();
-  try {
-    return await agent();
-  } catch (e) {
-    if (
-      e instanceof TravError &&
-      (e.code === 'not_implemented' || e.code === 'offline_script_missing')
-    ) {
-      options.log?.(
-        `agent runtime not available (${e.message}); using the scripted Barcelona demo`,
-      );
-      return scripted();
-    }
-    throw e;
-  }
+  });
+  options.log?.(AGENT_BACKEND_HINT);
+  return backend;
 }

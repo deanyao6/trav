@@ -20,7 +20,7 @@ import {
   parsePort,
   staticUi,
 } from './http.js';
-import { createScriptedBackend } from './scripted.js';
+import { bookingCount, demoBackend } from './testkit.js';
 
 interface FakeRes {
   status: number;
@@ -99,15 +99,15 @@ async function call(
 
 describe('simulator HTTP handler', () => {
   it('serves /api/state as JSON', async () => {
-    const handler = createSimRequestHandler({ backend: await createScriptedBackend() });
+    const handler = createSimRequestHandler({ backend: await demoBackend() });
     const r = await call(handler, { url: '/api/state' });
     expect(r.status).toBe(200);
     expect(r.headers['content-type']).toMatch(/application\/json/);
-    expect((r.json() as SimState).backend).toBe('scripted');
+    expect((r.json() as SimState).backend).toBe('agent');
   });
 
   it('refuses non-local Host headers (DNS rebinding)', async () => {
-    const handler = createSimRequestHandler({ backend: await createScriptedBackend() });
+    const handler = createSimRequestHandler({ backend: await demoBackend() });
     const r = await call(handler, { url: '/api/state', host: 'evil.example:5179' });
     expect(r.status).toBe(403);
     expect(isLocalHost('localhost:5179')).toBe(true);
@@ -118,7 +118,7 @@ describe('simulator HTTP handler', () => {
   });
 
   it('requires application/json on POST and rejects bad JSON', async () => {
-    const handler = createSimRequestHandler({ backend: await createScriptedBackend() });
+    const handler = createSimRequestHandler({ backend: await demoBackend() });
     const form = await call(handler, {
       method: 'POST',
       url: '/api/messages',
@@ -143,7 +143,7 @@ describe('simulator HTTP handler', () => {
   });
 
   it('runs the Razzmatazz flow over POSTs', async () => {
-    const backend = await createScriptedBackend();
+    const backend = await demoBackend();
     const handler = createSimRequestHandler({ backend });
     const ask = await call(handler, {
       method: 'POST',
@@ -167,11 +167,11 @@ describe('simulator HTTP handler', () => {
       }),
     });
     expect(tap.status).toBe(200);
-    expect(backend.bookingCount()).toBe(1);
+    expect(bookingCount(backend)).toBe(1);
   });
 
   it('streams state over SSE and stops on close', async () => {
-    const backend = await createScriptedBackend();
+    const backend = await demoBackend();
     const handler = createSimRequestHandler({ backend, heartbeatMs: 0 });
     const { res, out } = fakeRes();
     const req = fakeReq({ url: '/api/events' });
@@ -192,7 +192,7 @@ describe('simulator HTTP handler', () => {
   });
 
   it('falls through to the UI handler for non-API paths, 404 without one', async () => {
-    const backend = await createScriptedBackend();
+    const backend = await demoBackend();
     const none = await call(createSimRequestHandler({ backend }), { url: '/' });
     expect(none.status).toBe(404);
     let hit = '';

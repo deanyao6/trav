@@ -10,9 +10,9 @@
  * Every chat line, tapback and button tap goes through the simulator channel
  * into `agent.handleInbound`; every clock move drains the scheduler through
  * `agent.runScheduled`; card and email documents go through
- * `agent.intakeDocument`. The two planning steps v0 has no chat flow for yet
- * (group flight options, lodging options) run the real core optimizer and the
- * mock lodging provider directly and say so in the transcript header.
+ * `agent.intakeDocument`. The two planning steps v0 has no booking flow for
+ * yet (group flights, lodging) also run the real core optimizer and the mock
+ * lodging provider directly and say so in the transcript header.
  *
  * `runBarcelonaDemo()` returns the transcript and the list of checks; it
  * never throws on a failed check (the CLI turns `ok: false` into exit 1).
@@ -70,7 +70,7 @@ const BASES: readonly string[] = ['ledger', 'booking', 'attendance', 'album'];
 /** The steps that have no chat flow in v0 (printed in the transcript header). */
 export const DEMO_NOTES: readonly string[] = [
   "step 2 (flights): v0 has no chat flow that posts group flight options or books flights (`booking/proposals.ts` answers `unsupported_kind` for flights), so Trav's chat reply is its offline fallback and the step runs the core multi-origin optimizer (`flights.optimizeGroupFlights`) over the mock flights provider directly. Nothing is booked.",
-  'step 3 (lodging): same gap, no chat flow posts or books a stay yet, so the step runs the mock lodging search (refundable first) directly. Nothing is booked.',
+  "step 3 (lodging): Trav's chat reply comes from its real `search_lodging` tool over the mock lodging provider (refundable first), but no chat flow proposes or books a stay yet, so the step also lists the mock search directly for the check. Nothing is booked.",
   'step 10 (settle-up): Trav answers "@trav settle now" with the transfers, but there is no "mark paid" flow yet, so the demo applies the transfers to the balances itself and checks that everyone ends at €0. No money moves.',
 ];
 
@@ -150,8 +150,7 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
     return runtime;
   };
 
-  const view = (): GroupView =>
-    backend.state().groups.find((g) => g.group.groupId === G.groupId)!;
+  const view = (): GroupView => backend.state().groups.find((g) => g.group.groupId === G.groupId)!;
   let groupSeen = 0;
   const dmSeen = new Map<MemberId, number>();
   /** Prints whatever appeared in the group thread and in each DM since the last flush. */
@@ -674,10 +673,7 @@ function expectedTransfers(rt: TravRuntime): ReturnType<typeof ledger.settle> {
   return ledger.settle(tripBalances(rt));
 }
 
-function sameTransfers(
-  a: SettleUpCard['transfers'],
-  b: ReturnType<typeof ledger.settle>,
-): boolean {
+function sameTransfers(a: SettleUpCard['transfers'], b: ReturnType<typeof ledger.settle>): boolean {
   const key = (t: { from: string; to: string; amount: { amountMinor: number } }): string =>
     `${t.from}>${t.to}:${String(t.amount.amountMinor)}`;
   const x = a.map(key).sort();
@@ -693,8 +689,12 @@ function settleUp(
   const expenses = rt.stores.group.expenses.listByTrip(TRIP_ID);
   const entries = rt.stores.group.expenses.listEntries(TRIP_ID);
   const total = ledger.totalSpent(expenses, 'EUR');
-  const paid = entries.filter((e) => e.kind === 'paid').reduce((s, e) => s + e.amount.amountMinor, 0);
-  const owed = entries.filter((e) => e.kind === 'owes').reduce((s, e) => s + e.amount.amountMinor, 0);
+  const paid = entries
+    .filter((e) => e.kind === 'paid')
+    .reduce((s, e) => s + e.amount.amountMinor, 0);
+  const owed = entries
+    .filter((e) => e.kind === 'owes')
+    .reduce((s, e) => s + e.amount.amountMinor, 0);
   check(
     'ledger adds up: paid = owed = trip total (integer cents)',
     paid === total.amountMinor && Math.abs(owed) === total.amountMinor,
@@ -713,7 +713,10 @@ function settleUp(
     after.set(t.from, (after.get(t.from) ?? 0) + t.amount.amountMinor);
     after.set(t.to, (after.get(t.to) ?? 0) - t.amount.amountMinor);
   }
-  check('everyone is at €0 after the transfers', [...after.values()].every((v) => v === 0));
+  check(
+    'everyone is at €0 after the transfers',
+    [...after.values()].every((v) => v === 0),
+  );
   const lines = [
     `> **settle-up** (\`ledger.settle\` over the trip ledger): ${String(expenses.length)} expenses, ${formatMoney(total)} total`,
     '>',
@@ -721,7 +724,9 @@ function settleUp(
   for (const b of balances) {
     const n = b.net.amountMinor;
     const amount = formatMoney(money(Math.abs(n), 'EUR'));
-    lines.push(`> - ${nameOf(b.memberId)}: ${n > 0 ? `is owed ${amount}` : n < 0 ? `owes ${amount}` : 'square'}`);
+    lines.push(
+      `> - ${nameOf(b.memberId)}: ${n > 0 ? `is owed ${amount}` : n < 0 ? `owes ${amount}` : 'square'}`,
+    );
   }
   lines.push('>');
   for (const t of transfers) {
@@ -732,7 +737,10 @@ function settleUp(
 }
 
 function formatSettleCard(card: SettleUpCard): string {
-  const lines = [`> **Wrapped card, final settle-up** (${String(card.transfers.length)} transfers):`, '>'];
+  const lines = [
+    `> **Wrapped card, final settle-up** (${String(card.transfers.length)} transfers):`,
+    '>',
+  ];
   for (const t of card.transfers) {
     lines.push(`> - ${nameOf(t.from)} → ${nameOf(t.to)} ${formatMoney(t.amount)}`);
   }
@@ -741,7 +749,11 @@ function formatSettleCard(card: SettleUpCard): string {
 
 // ---------------- transcript ----------------
 
-function renderTranscript(body: readonly string[], checks: readonly DemoCheck[], ok: boolean): string {
+function renderTranscript(
+  body: readonly string[],
+  checks: readonly DemoCheck[],
+  ok: boolean,
+): string {
   const passed = checks.filter((c) => c.ok).length;
   const failed = checks.filter((c) => !c.ok);
   return [

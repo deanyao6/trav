@@ -17,7 +17,8 @@ import type {
   ScheduledJobKind,
 } from '@trav/core';
 
-export type BackendKind = 'scripted' | 'agent';
+/** The real Trav runtime (the scripted stand-in was retired in T-021). */
+export type BackendKind = 'agent';
 
 export interface SimMember {
   readonly memberId: MemberId;
@@ -181,7 +182,7 @@ export interface SimState {
   /** Increments on every change; the UI ignores stale SSE frames. */
   readonly version: number;
   readonly backend: BackendKind;
-  /** True when no live model call can happen (`TRAV_OFFLINE=1`, or the scripted backend). */
+  /** True when no live model call can happen (`TRAV_OFFLINE=1`, or no API key). */
   readonly offline: boolean;
   readonly now: IsoDateTime;
   readonly travHandle: string;

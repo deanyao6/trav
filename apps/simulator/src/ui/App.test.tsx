@@ -1,5 +1,5 @@
 /**
- * Server-renders the UI against real `SimState` payloads from the scripted
+ * Server-renders the UI against real `SimState` payloads from the real offline
  * backend (demo states 1–3) and against one fixture of every card type. This
  * is the no-browser half of the UI check; e2e/smoke.spec.ts clicks through
  * the same states in Chromium.
@@ -16,7 +16,7 @@ import type {
 } from '@trav/core';
 import type { SimState, ThreadMessage } from '../shared/types.js';
 import { BARCELONA, RAZZMATAZZ_ASK } from '../server/groups.js';
-import { createScriptedBackend } from '../server/scripted.js';
+import { demoBackend } from '../server/testkit.js';
 import { AppView } from './App.js';
 import type { AppViewProps } from './App.js';
 import { Card } from './components/Cards.js';
@@ -50,7 +50,7 @@ function count(html: string, needle: string): number {
 }
 
 async function states() {
-  const b = await createScriptedBackend();
+  const b = await demoBackend();
   const s1 = b.state();
   await b.inject({
     type: 'message',
@@ -77,7 +77,7 @@ describe('AppView renders demo states 1–3', () => {
     const { s1 } = await states();
     const html = render(s1, 'h_dean');
     expect(html).toContain('data-testid="offline-badge"');
-    expect(html).toContain('data-testid="scripted-badge"');
+    expect(html).not.toContain('scripted');
     for (const g of ['grp_barcelona', 'grp_lisbon', 'grp_turks_caicos'])
       expect(html).toContain(`trip-${g}`);
     for (const m of BARCELONA.members) expect(html).toContain(`data-testid="sendas-${m.handle}"`);
@@ -102,6 +102,7 @@ describe('AppView renders demo states 1–3', () => {
     expect(dean).not.toContain('data-testid="hint"');
     const henry = render(s2, 'h_henry');
     expect(henry).not.toContain('data-testid="action-approve"');
+    // Any one of the 5 charged can ok it under the cap; Henry is not charged, so not named.
     expect(henry).toContain('waiting on Dean, Maya +3');
   });
 
@@ -135,7 +136,7 @@ describe('AppView renders demo states 1–3', () => {
     expect(henryView).toContain('nothing here yet');
   });
 
-  it('a silent tap shows the muted status line (approval handler not wired)', async () => {
+  it('a silent tap shows the muted status line', async () => {
     const { s2 } = await states();
     expect(render(s2, 'h_dean')).not.toContain('data-testid="sim-status"');
     const html = render(
@@ -143,14 +144,14 @@ describe('AppView renders demo states 1–3', () => {
         ...s2,
         groups: s2.groups.map((g, i) =>
           i === 0
-            ? { ...g, status: 'approval handler not wired yet (T-030), use TRAV_SIM_BACKEND=scripted' }
+            ? { ...g, status: 'trav stayed quiet on that tap (approval:not_an_approver)' }
             : g,
         ),
       },
       'h_dean',
     );
     expect(html).toContain('data-testid="sim-status"');
-    expect(html).toContain('TRAV_SIM_BACKEND=scripted');
+    expect(html).toContain('approval:not_an_approver');
     // It is chrome, never a Trav bubble.
     expect(count(html, 'data-testid="bubble-trav"')).toBe(
       count(render(s2, 'h_dean'), 'data-testid="bubble-trav"'),

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SimState, ThreadMessage } from '../shared/types.js';
 import { RAZZMATAZZ_ASK } from './groups.js';
 import { MAX_TEXT_LENGTH, handleApi, parseInbound } from './routes.js';
-import { createScriptedBackend } from './scripted.js';
+import { bookingCount, demoBackend } from './testkit.js';
 
 function bcnThread(state: SimState): ThreadMessage[] {
   return state.groups[0]!.thread.filter((e): e is ThreadMessage => e.kind === 'message');
@@ -10,7 +10,7 @@ function bcnThread(state: SimState): ThreadMessage[] {
 
 describe('simulator API routes', () => {
   it('GET /api/state returns the payload', async () => {
-    const b = await createScriptedBackend();
+    const b = await demoBackend();
     const res = await handleApi(b, { method: 'GET', path: '/api/state' });
     expect(res.status).toBe(200);
     expect((res.body as SimState).groups.map((g) => g.group.groupId)).toEqual([
@@ -21,7 +21,7 @@ describe('simulator API routes', () => {
   });
 
   it('drives demo states 1–3 through the HTTP-shaped API', async () => {
-    const b = await createScriptedBackend();
+    const b = await demoBackend();
     const sent = await handleApi(b, {
       method: 'POST',
       path: '/api/messages',
@@ -52,7 +52,7 @@ describe('simulator API routes', () => {
   });
 
   it('POST /api/reactions routes a tapback', async () => {
-    const b = await createScriptedBackend();
+    const b = await demoBackend();
     await handleApi(b, {
       method: 'POST',
       path: '/api/messages',
@@ -65,11 +65,11 @@ describe('simulator API routes', () => {
       body: { from: 'h_dean', targetMessageId: proposal.messageId, reaction: '👍' },
     });
     expect(res.status).toBe(200);
-    expect(b.bookingCount()).toBe(1);
+    expect(bookingCount(b)).toBe(1);
   });
 
   it('400 on bad input and on channel identity errors, never a crash', async () => {
-    const b = await createScriptedBackend();
+    const b = await demoBackend();
     const cases: [string, unknown][] = [
       ['/api/messages', { text: 'hi' }],
       ['/api/messages', { from: 'h_dean', text: '   ' }],
@@ -91,7 +91,7 @@ describe('simulator API routes', () => {
   });
 
   it('404 / 405 for unknown routes and wrong methods', async () => {
-    const b = await createScriptedBackend();
+    const b = await demoBackend();
     expect((await handleApi(b, { method: 'GET', path: '/api/nope' })).status).toBe(404);
     expect((await handleApi(b, { method: 'GET', path: '/api/messages' })).status).toBe(405);
     expect((await handleApi(b, { method: 'GET', path: '/api/reset' })).status).toBe(405);
@@ -99,7 +99,7 @@ describe('simulator API routes', () => {
   });
 
   it('POST /api/reset goes back to state 1', async () => {
-    const b = await createScriptedBackend();
+    const b = await demoBackend();
     await handleApi(b, {
       method: 'POST',
       path: '/api/messages',

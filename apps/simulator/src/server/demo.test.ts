@@ -9,7 +9,8 @@
  *
  * The Morning After / Wrapped rendering hooks are in `ui/scheduled.test.tsx`.
  *
- * Plus the privacy invariants: no private card or DM text in the group
+ * All on the real offline runtime (`createTravRuntime`), the backend `pnpm sim`
+ * serves. Plus the privacy invariants: no private card or DM text in the group
  * payload, Henry's DM empty after the Razzmatazz proposal and booking.
  */
 import { describe, expect, it } from 'vitest';
@@ -19,7 +20,7 @@ import { KEPT_PRIVATE_STATUS } from './backend.js';
 import { BARCELONA, LISBON, RAZZMATAZZ_ASK } from './groups.js';
 import { handleApi } from './routes.js';
 import { loadAgentBackend } from './runtime.js';
-import { createScriptedBackend } from './scripted.js';
+import { bookingCount, demoBackend } from './testkit.js';
 
 function bcn(state: SimState): GroupView {
   return state.groups.find((g) => g.group.groupId === BARCELONA.groupId)!;
@@ -54,8 +55,9 @@ async function post(backend: SimulatorBackend, path: string, body: unknown = {})
   return (res.body as { state: SimState }).state;
 }
 
-async function scriptedToState3() {
-  const b = await createScriptedBackend();
+/** Demo state 3 on the backend `pnpm sim` serves: seeded chat, the ask, Dean's Approve. */
+async function toState3() {
+  const b = await demoBackend();
   await post(b, '/api/messages', { from: 'h_dean', text: RAZZMATAZZ_ASK, groupId: BARCELONA.groupId });
   const proposal = messages(bcn(b.state()).thread).find((m) => m.card?.type === 'booking_proposal')!;
   await post(b, '/api/button-taps', {
@@ -66,9 +68,9 @@ async function scriptedToState3() {
   return b;
 }
 
-describe('demo states 4–6, scripted backend, in order', () => {
+describe('demo states 4–6 on the real runtime, opened on demo state 1, in order', () => {
   it('3 → 4: Henry has no DM after the booking; Sam feeds his card and gets the uber prompt; Share it', async () => {
-    const b = await scriptedToState3();
+    const b = await toState3();
     const s3 = b.state();
     expect(s3.controls).toMatchObject({ clock: true, scheduler: true, intake: true, reset: true });
     expect(bcn(s3).dms['mem_henry']).toEqual([]);
@@ -149,7 +151,7 @@ describe('demo states 4–6, scripted backend, in order', () => {
   });
 
   it('4, the other answer: Keep private stays private, Trav says nothing, the status line says so', async () => {
-    const b = await scriptedToState3();
+    const b = await toState3();
     const s4 = await post(b, '/api/intake', { docId: 'doc_bcn_sam_card_1' });
     const prompt = messages(bcn(s4).dms['mem_sam']!).find((m) => m.card?.type === 'expense_confirm')!;
     const dmBefore = bcn(s4).dms['mem_sam']!.length;
@@ -169,17 +171,19 @@ describe('demo states 4–6, scripted backend, in order', () => {
   });
 
   it('4 → 5 → 6: next morning and end of trip move the clock and drain; Wrapped posts at the end', async () => {
-    const b = await scriptedToState3();
+    const b = await toState3();
     await post(b, '/api/intake', { docId: 'doc_bcn_sam_card_1' });
     const s5 = await post(b, '/api/clock', { step: 'morning', groupId: BARCELONA.groupId });
     expect(s5.now).toBe('2026-03-15T10:00:00+01:00');
-    // T-015: Sam left his Uber unanswered and the scripted booking never reaches the
-    // embedded runtime's tab, so nothing moved overnight: the Morning After stays silent
-    // (silence is a feature) and the muted line says so. Never a fake recap.
-    expect(messages(bcn(s5).thread).some((m) => m.card?.type === 'recap')).toBe(false);
-    expect(bcn(s5).status).toContain('sun mar 15 · 10am · day 4');
-    expect(bcn(s5).status).toContain('scheduled:morning_after:silent');
-    expect(bcn(s5).status).not.toContain('T-015');
+    // T-015: the Razzmatazz booking is the only thing on the tab overnight (Sam left his
+    // Uber unanswered, so it is still private), so the Morning After posts the quiet running
+    // tab: Dean is owed the 4 × €18. Never the private €23.40. A Trav post needs no status line.
+    const posted = messages(bcn(s5).thread).filter((m) => m.isTrav && m.card?.type === 'settle_up');
+    expect(posted).toHaveLength(1);
+    expect(posted[0]!.text.split('\n').slice(0, 2)).toEqual(['running tab, day 4', 'Dean is owed €72']);
+    expect(posted[0]!.text).not.toContain('Henry');
+    expect(JSON.stringify(bcn(s5).thread)).not.toContain('23.40');
+    expect(bcn(s5).status).toBeUndefined();
 
     const s6 = await post(b, '/api/clock', { step: 'end_of_trip', groupId: BARCELONA.groupId });
     expect(s6.now).toBe('2026-03-18T10:00:00+01:00');
@@ -200,37 +204,31 @@ describe('demo states 4–6, scripted backend, in order', () => {
     expectGroupClean(s7);
   });
 
-  it('+1 hour lets the scripted proposal hold lapse: the card shows Expired', async () => {
-    const b = await createScriptedBackend();
-    await post(b, '/api/messages', { from: 'h_dean', text: RAZZMATAZZ_ASK, groupId: BARCELONA.groupId });
-    const s = await post(b, '/api/clock', { step: 'hour', groupId: BARCELONA.groupId });
-    const proposal = messages(bcn(s).thread).find((m) => m.card?.type === 'booking_proposal')!;
-    expect(proposal.cardState?.status).toBe('expired');
-    expect(proposal.cardState?.liveActionIds).toEqual([]);
-  });
-
-  it('reset starts over: clock, transcript and fed documents', async () => {
-    const b = await scriptedToState3();
+  it('reset starts over: clock, transcript (back to the seeded chat) and fed documents', async () => {
+    const b = await toState3();
     await post(b, '/api/intake', { docId: 'doc_bcn_sam_card_1' });
     await post(b, '/api/clock', { step: 'end_of_trip' });
     const s = await post(b, '/api/reset');
     expect(s.now).toBe('2026-03-14T21:39:30+01:00');
+    expect(messages(bcn(s).thread).map((m) => m.text).at(-1)).toBe('on it');
+    expect(bookingCount(b)).toBe(0);
     expect(bcn(s).intake['mem_sam']).toEqual([{ docId: 'doc_bcn_sam_card_1', kind: 'card' }]);
     expect(messages(bcn(s).thread).some((m) => m.isTrav)).toBe(false);
     expect(bcn(s).dms['mem_sam']).toEqual([]);
   });
 });
 
-describe('agent backend (real offline runtime)', () => {
+describe('real runtime without the seeded chat', () => {
   it("Henry's DM stays empty after the Razzmatazz proposal and Dean's approve; Sam's uber prompt; group clean", async () => {
-    const b = await loadAgentBackend({});
+    const b = await loadAgentBackend({ offline: true });
     await post(b, '/api/messages', { from: 'h_dean', text: RAZZMATAZZ_ASK, groupId: BARCELONA.groupId });
     const proposal = messages(bcn(b.state()).thread).find((m) => m.card?.type === 'booking_proposal');
     expect(proposal, 'the offline runtime proposes').toBeDefined();
     expect(bcn(b.state()).dms['mem_henry']).toEqual([]);
     await post(b, '/api/button-taps', { from: 'h_dean', cardMessageId: proposal!.messageId, actionId: 'approve' });
     const s = b.state();
-    // Whatever approve did (booked once T-009 lands, or "couldn't book, no charge"), Henry got nothing.
+    // Booked (receipt in the group, 5 ticket DMs); Henry got nothing.
+    expect(bookingCount(b)).toBe(1);
     expect(bcn(s).dms['mem_henry']).toEqual([]);
     expectGroupClean(s);
 
@@ -243,7 +241,7 @@ describe('agent backend (real offline runtime)', () => {
   });
 
   it('+1 hour drains the real proposal_expiry job: the expiry line posts and the card shows Expired', async () => {
-    const b = await loadAgentBackend({});
+    const b = await loadAgentBackend({ offline: true });
     await post(b, '/api/messages', { from: 'h_dean', text: RAZZMATAZZ_ASK, groupId: BARCELONA.groupId });
     const s = await post(b, '/api/clock', { step: 'hour', groupId: BARCELONA.groupId });
     const thread = messages(bcn(s).thread);
@@ -256,7 +254,7 @@ describe('agent backend (real offline runtime)', () => {
   });
 
   it('reset gives a fresh runtime (new stores, clock back at the demo start)', async () => {
-    const b = await loadAgentBackend({});
+    const b = await loadAgentBackend({ offline: true });
     await post(b, '/api/intake', { docId: 'doc_bcn_sam_card_1' });
     await post(b, '/api/clock', { step: 'morning' });
     const s = await post(b, '/api/reset');
