@@ -31,7 +31,10 @@ import type {
   SettleUpCard,
 } from '@trav/core';
 import { audit as auditChain, formatMoney, ledger, money, parseIso } from '@trav/core';
+import type { RelayVendorId } from '@trav/adapters';
 import type { SimulatorBackend } from '../server/backend.js';
+import type { RelaySessions } from '../server/relay.js';
+import { createRelaySessions } from '../server/relay.js';
 import { clockLabel } from '../server/clock.js';
 import { BARCELONA } from '../server/groups.js';
 import type { SimRuntimeInput, SimRuntimeOutput } from '../server/runtime.js';
@@ -57,6 +60,14 @@ export interface DemoResult {
 export interface DemoOptions {
   /** Called with each transcript chunk as it is produced (the CLI prints live). */
   readonly onChunk?: (text: string) => void;
+  /**
+   * T-169: play the whole journey over the iMessage relay adapter and this
+   * vendor's mock relay (signed webhooks in, vendor HTTP requests out, T-071
+   * pacing), in the loopback's overlay view so taps become 👍 tapbacks or
+   * text replies. Default: the plain simulator channel. Pass `RelaySessions`
+   * to inspect the loopback (wire requests, webhook stats) afterwards.
+   */
+  readonly relay?: RelayVendorId | RelaySessions;
 }
 
 const G = BARCELONA;
@@ -154,11 +165,16 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
     });
     return runtime;
   };
+  const relay: RelaySessions | undefined =
+    typeof options.relay === 'string'
+      ? createRelaySessions({ vendor: options.relay })
+      : options.relay;
   const backend: SimulatorBackend = await loadAgentBackend({
     offline: true,
     groups: [G],
     startAt: DEMO_START,
     createTravRuntime: capture,
+    ...(relay !== undefined ? { channelFactory: relay.channelFactory } : {}),
   });
   const rt = (): TravRuntime => {
     if (runtime === undefined) throw new Error('demo: runtime was not created');
@@ -166,9 +182,26 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
   };
 
   const view = (): GroupView => backend.state().groups.find((g) => g.group.groupId === G.groupId)!;
-  /** T-165 ledger notices in the group thread (the grey subscript lines). */
-  const notices = (): ThreadMessage[] =>
-    messages(view().thread).filter((m) => m.systemNotice === true);
+  /**
+   * A T-165 ledger notice in the group thread. On the simulator it is the grey
+   * subscript line. iMessage has no such style, so over the relay the agent
+   * sends it as a plain one-line text (`noticeDowngraded`); it is then the Trav
+   * message whose Trav id the audit log records as a sent notice.
+   */
+  const isNotice = (m: ThreadMessage): boolean => {
+    if (m.systemNotice === true) return true;
+    const loopback = relay?.current();
+    if (loopback === undefined || !m.isTrav) return false;
+    const travId = loopback.relay.travIdOf(m.messageId) ?? m.messageId;
+    return auditLog().some(
+      (e) =>
+        e.type === 'message.sent' &&
+        e.payload['systemNotice'] === true &&
+        e.payload['messageId'] === travId,
+    );
+  };
+  /** T-165 ledger notices in the group thread. */
+  const notices = (): ThreadMessage[] => messages(view().thread).filter(isNotice);
   let groupSeen = 0;
   const dmSeen = new Map<MemberId, number>();
   /** Prints whatever appeared in the group thread and in each DM since the last flush. */
@@ -672,7 +705,7 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
     check(
       'after the share the group gets exactly one notice line and no card detail: "Crowley added Uber €23.40 · 5 ways (not Henry)"',
       cardNotices.length === 1 &&
-        cardNotices[0]!.systemNotice === true &&
+        isNotice(cardNotices[0]!) &&
         cardNotices[0]!.text === 'Crowley added Uber €23.40 · 5 ways (not Henry)',
       cardNotices.map((m) => m.text).join(' | '),
     );
@@ -862,7 +895,12 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
   }
 
   const ok = checks.length > 0 && checks.every((c) => c.ok);
-  return { ok, transcript: renderTranscript(body, checks, ok), checks, notes: DEMO_NOTES };
+  return {
+    ok,
+    transcript: renderTranscript(body, checks, ok, relay?.vendor),
+    checks,
+    notes: DEMO_NOTES,
+  };
 }
 
 // ---------------- helpers ----------------
@@ -1024,6 +1062,7 @@ function renderTranscript(
   body: readonly string[],
   checks: readonly DemoCheck[],
   ok: boolean,
+  relayVendor?: RelayVendorId,
 ): string {
   const passed = checks.filter((c) => c.ok).length;
   const failed = checks.filter((c) => !c.ok);
@@ -1034,6 +1073,12 @@ function renderTranscript(
     '',
     'Every chat line, tapback and tap below went through the simulator channel into the real Trav runtime (`createTravRuntime`, the same one `pnpm sim` serves); every clock move ran due scheduled jobs through `agent.runScheduled`; the email and card items went through `agent.intakeDocument`.',
     '',
+    ...(relayVendor !== undefined
+      ? [
+          `Channel: the iMessage relay adapter over the mock ${relayVendor} relay (T-169, docs/RELAY.md). Each member action arrived as a signed ${relayVendor} webhook, and each Trav send went out as a ${relayVendor}-shaped HTTP request to the in-process mock, through T-071 pacing. iMessage has no buttons, so each tap below was sent as the member's 👍 tapback or text reply. No real vendor was called.`,
+          '',
+        ]
+      : []),
     `Result: **${ok ? 'PASS' : 'FAIL'}**, ${String(passed)}/${String(checks.length)} checks.`,
     '',
     'Steps that did not run entirely through the chat (v0 gaps):',

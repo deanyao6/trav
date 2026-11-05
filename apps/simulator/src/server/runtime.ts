@@ -131,7 +131,19 @@ export interface LoadAgentOptions {
   readonly seed?: boolean;
   /** Test seam: replaces the dynamic import. */
   readonly createTravRuntime?: CreateTravRuntime;
+  /**
+   * T-169: builds each session's channel. Default: the in-memory simulator
+   * channel. `pnpm relay:dev` passes the relay loopback (`relay.ts`), so the
+   * same UI and runtime run over the iMessage relay adapter and mock vendor.
+   */
+  readonly channelFactory?: SimChannelFactory;
 }
+
+/** One session's channel, on that session's clock. */
+export type SimChannelFactory = (input: {
+  readonly clock: Clock;
+  readonly conversations: ReturnType<typeof toConversations>;
+}) => SimulatorChannel;
 
 /**
  * T-200 (SAFETY §2.6, G2): a member's photos show in a recap or Wrapped only
@@ -184,7 +196,10 @@ export async function loadAgentBackend(options: LoadAgentOptions): Promise<Simul
     const firstGroupId = groups[0]!.groupId;
     // While the session is built, turns run on the clock as the seed lines set it.
     clocks.pin();
-    const channel = createSimulatorChannel({ clock, conversations: toConversations(groups) });
+    const conversations = toConversations(groups);
+    const channel =
+      options.channelFactory?.({ clock, conversations }) ??
+      createSimulatorChannel({ clock, conversations });
     // The one call into the real runtime. Adjust the input/output mapping
     // here (and only here) if compose.ts changes.
     // A fresh album per session, on the session clock (T-200).
@@ -266,6 +281,8 @@ export interface SelectBackendOptions {
   readonly seed?: boolean;
   readonly log?: (line: string) => void;
   readonly createTravRuntime?: CreateTravRuntime;
+  /** T-169: see `LoadAgentOptions.channelFactory`. */
+  readonly channelFactory?: SimChannelFactory;
 }
 
 /** The backend `pnpm sim` serves: the agent runtime, or a loud failure if it can't load. */
@@ -274,6 +291,7 @@ export async function selectBackend(options: SelectBackendOptions): Promise<Simu
     ...(options.offline !== undefined ? { offline: options.offline } : {}),
     ...(options.seed !== undefined ? { seed: options.seed } : {}),
     ...(options.createTravRuntime ? { createTravRuntime: options.createTravRuntime } : {}),
+    ...(options.channelFactory ? { channelFactory: options.channelFactory } : {}),
   });
   options.log?.(AGENT_BACKEND_HINT);
   return backend;

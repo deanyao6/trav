@@ -1,0 +1,134 @@
+{
+  "vendor": "photon",
+  "provenance": "Reconstructed request and reply shapes for Photon's send and tapback endpoints (see webhooks.json provenance). Auth uses the placeholder key \"fixture-key\"; never put a real key here.",
+  "line": "+16175550100",
+  "auth": { "apiKey": "fixture-key" },
+  "requests": [
+    {
+      "name": "group text with an inline reply",
+      "send": {
+        "kind": "message",
+        "chat": { "kind": "group", "chatId": "iMessage;+;chat640219872311" },
+        "text": "booked ✅ razzmatazz, 5 tickets, €90",
+        "media": [],
+        "replyToVendorId": "PH-6F1A-0001",
+        "idempotencyKey": "msg_rz_receipt"
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.photon.codes/v1/messages",
+        "headers": {
+          "authorization": "Bearer fixture-key",
+          "content-type": "application/json",
+          "idempotency-key": "msg_rz_receipt"
+        },
+        "body": {
+          "chat_guid": "iMessage;+;chat640219872311",
+          "text": "booked ✅ razzmatazz, 5 tickets, €90",
+          "reply_to_guid": "PH-6F1A-0001"
+        }
+      }
+    },
+    {
+      "name": "DM with a QR image",
+      "send": {
+        "kind": "message",
+        "chat": { "kind": "dm", "address": "+16175550101" },
+        "text": "your razzmatazz ticket for tonight 🎟️",
+        "media": [
+          {
+            "url": "https://media.mock-relay.invalid/m/0123456789abcdef01234567.png",
+            "mimeType": "image/png"
+          }
+        ],
+        "idempotencyKey": "msg_rz_ticket_dean"
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.photon.codes/v1/messages",
+        "headers": {
+          "authorization": "Bearer fixture-key",
+          "content-type": "application/json",
+          "idempotency-key": "msg_rz_ticket_dean"
+        },
+        "body": {
+          "chat_guid": "iMessage;-;+16175550101",
+          "text": "your razzmatazz ticket for tonight 🎟️",
+          "attachments": [
+            {
+              "url": "https://media.mock-relay.invalid/m/0123456789abcdef01234567.png",
+              "mime_type": "image/png"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "thumbs-up tapback",
+      "send": {
+        "kind": "reaction",
+        "chat": { "kind": "group", "chatId": "iMessage;+;chat640219872311" },
+        "targetVendorId": "PH-6F1A-0003",
+        "tapback": "like",
+        "remove": false,
+        "idempotencyKey": "rx_ack_0003"
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.photon.codes/v1/messages/PH-6F1A-0003/reactions",
+        "headers": {
+          "authorization": "Bearer fixture-key",
+          "content-type": "application/json",
+          "idempotency-key": "rx_ack_0003"
+        },
+        "body": { "chat_guid": "iMessage;+;chat640219872311", "type": "like", "remove": false }
+      }
+    }
+  ],
+  "responses": [
+    {
+      "name": "message accepted",
+      "response": {
+        "status": 200,
+        "body": {
+          "message": {
+            "guid": "PH-TRAV-0100",
+            "chat_guid": "iMessage;+;chat640219872311",
+            "status": "queued"
+          }
+        }
+      },
+      "expect": { "ok": true, "value": { "vendorMessageId": "PH-TRAV-0100" } }
+    },
+    {
+      "name": "tapback accepted",
+      "response": { "status": 200, "body": { "reaction": { "guid": "PH-RX-0200" } } },
+      "expect": { "ok": true, "value": { "vendorMessageId": "PH-RX-0200" } }
+    },
+    {
+      "name": "rate limited with Retry-After",
+      "response": {
+        "status": 429,
+        "headers": { "retry-after": "2" },
+        "body": { "error": { "code": "rate_limited" } }
+      },
+      "expect": {
+        "ok": false,
+        "status": 429,
+        "retryable": true,
+        "message": "photon: HTTP 429 (rate_limited)",
+        "retryAfterSeconds": 2
+      }
+    },
+    {
+      "name": "bad request is not retried",
+      "response": { "status": 400, "body": { "error": { "code": "invalid_chat" } } },
+      "expect": {
+        "ok": false,
+        "status": 400,
+        "retryable": false,
+        "message": "photon: HTTP 400 (invalid_chat)"
+      }
+    }
+  ]
+}

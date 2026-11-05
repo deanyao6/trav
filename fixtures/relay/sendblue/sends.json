@@ -1,0 +1,127 @@
+{
+  "vendor": "sendblue",
+  "provenance": "Reconstructed request and reply shapes for Sendblue's send-message, send-group-message and send-reaction endpoints (see webhooks.json provenance). Auth uses placeholder values; never put a real key here.",
+  "line": "+16175550100",
+  "auth": { "apiKey": "fixture-key-id", "apiSecret": "fixture-secret" },
+  "requests": [
+    {
+      "name": "group text (no inline replies on this vendor)",
+      "send": {
+        "kind": "message",
+        "chat": { "kind": "group", "chatId": "sbg_9a41f0c2" },
+        "text": "booked ✅ razzmatazz, 5 tickets, €90",
+        "media": [],
+        "idempotencyKey": "msg_rz_receipt"
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.sendblue.co/api/send-group-message",
+        "headers": {
+          "sb-api-key-id": "fixture-key-id",
+          "sb-api-secret-key": "fixture-secret",
+          "content-type": "application/json"
+        },
+        "body": {
+          "group_id": "sbg_9a41f0c2",
+          "from_number": "+16175550100",
+          "content": "booked ✅ razzmatazz, 5 tickets, €90"
+        }
+      }
+    },
+    {
+      "name": "DM with a QR image",
+      "send": {
+        "kind": "message",
+        "chat": { "kind": "dm", "address": "+16175550101" },
+        "text": "your razzmatazz ticket for tonight 🎟️",
+        "media": [
+          {
+            "url": "https://media.mock-relay.invalid/m/0123456789abcdef01234567.png",
+            "mimeType": "image/png"
+          }
+        ],
+        "idempotencyKey": "msg_rz_ticket_dean"
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.sendblue.co/api/send-message",
+        "headers": {
+          "sb-api-key-id": "fixture-key-id",
+          "sb-api-secret-key": "fixture-secret",
+          "content-type": "application/json"
+        },
+        "body": {
+          "number": "+16175550101",
+          "from_number": "+16175550100",
+          "content": "your razzmatazz ticket for tonight 🎟️",
+          "media_url": "https://media.mock-relay.invalid/m/0123456789abcdef01234567.png"
+        }
+      }
+    },
+    {
+      "name": "thumbs-up tapback",
+      "send": {
+        "kind": "reaction",
+        "chat": { "kind": "group", "chatId": "sbg_9a41f0c2" },
+        "targetVendorId": "sb-7c1e2d40-0001",
+        "tapback": "like",
+        "remove": false,
+        "idempotencyKey": "rx_ack_0001"
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://api.sendblue.co/api/send-reaction",
+        "headers": {
+          "sb-api-key-id": "fixture-key-id",
+          "sb-api-secret-key": "fixture-secret",
+          "content-type": "application/json"
+        },
+        "body": {
+          "from_number": "+16175550100",
+          "message_handle": "sb-7c1e2d40-0001",
+          "reaction": "like"
+        }
+      }
+    }
+  ],
+  "responses": [
+    {
+      "name": "message queued",
+      "response": {
+        "status": 200,
+        "body": {
+          "accountEmail": "ops@trav.example.test",
+          "status": "QUEUED",
+          "message_handle": "sb-trav-0100",
+          "is_outbound": true
+        }
+      },
+      "expect": { "ok": true, "value": { "vendorMessageId": "sb-trav-0100" } }
+    },
+    {
+      "name": "HTTP 200 with status ERROR is a failure, not retried",
+      "response": { "status": 200, "body": { "status": "ERROR", "error_message": "bad number" } },
+      "expect": {
+        "ok": false,
+        "status": 200,
+        "retryable": false,
+        "message": "sendblue: status ERROR"
+      }
+    },
+    {
+      "name": "rate limited",
+      "response": {
+        "status": 429,
+        "headers": { "retry-after": "5" },
+        "body": { "status": "ERROR" }
+      },
+      "expect": {
+        "ok": false,
+        "status": 429,
+        "retryable": true,
+        "message": "sendblue: HTTP 429",
+        "retryAfterSeconds": 5
+      }
+    }
+  ]
+}

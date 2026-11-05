@@ -15,3 +15,5 @@ export * from './fallbackText.js';
 export * from './timers.js';
 export * from './pacing.js';
 export * from './debounce.js';
+// T-169: iMessage relay channel (core, vendors, webhook receiver, env guard).
+export * from './relay/index.js';

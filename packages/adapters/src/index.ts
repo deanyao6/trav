@@ -34,6 +34,18 @@ export { createMockLodging } from './mock/lodging/index.js';
 export type { MockLodging, MockLodgingOptions } from './mock/lodging/index.js';
 export { createMockSettleUp } from './mock/settleup/index.js';
 export type { MockSettleUp, MockSettleUpOptions } from './mock/settleup/index.js';
+// T-169: the mock iMessage relay and the simulator-over-relay loopback.
+export { createMockRelay } from './mock/relay/index.js';
+export type {
+  MockMemberMessage,
+  MockRelay,
+  MockRelayFault,
+  MockRelayOptions,
+  MockRelaySend,
+  SignedWebhook,
+} from './mock/relay/index.js';
+export { createRelayLoopback, fictionalAddress } from './mock/relay/loopback.js';
+export type { RelayLoopback, RelayLoopbackOptions } from './mock/relay/loopback.js';
 // T-167: read-only places for suggestions.
 export { createMockVenues, parseVenueCatalog } from './mock/places/index.js';
 export type { MockVenuesOptions, VenueCatalog } from './mock/places/index.js';

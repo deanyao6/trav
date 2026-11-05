@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.ui.json --noEmit",
     "test": "vitest run",
     "sim": "node --import tsx src/server/main.ts --dev",
+    "relay:dev": "node --import tsx src/server/main.ts --dev --relay",
     "start": "node --import tsx src/server/main.ts",
     "dev:ui": "vite --config vite.config.ts",
     "build": "vite build --config vite.config.ts",
