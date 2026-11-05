@@ -12,14 +12,14 @@
  * `agent.runScheduled` (the Morning Afters, Wrapped, and every consenting
  * owner's card import at 10:00 and 20:00, T-067); Sam's card syncing at 9am
  * is the real `agent.importCardTransactions` on the simulated clock, and the
- * email documents go through `agent.intakeDocument`. The two planning steps v0 has no booking flow for
- * yet (group flights, lodging) also run the real core optimizer and the mock
- * lodging provider directly and say so in the transcript header.
+ * email documents go through `agent.intakeDocument`. Group flights (T-074)
+ * are the chat flow too: `search_flights` runs the core multi-origin
+ * optimizer over the mock airline and posts the options card, and "book
+ * option 1" goes through the approval policy like every booking.
  *
  * `runBarcelonaDemo()` returns the transcript and the list of checks; it
  * never throws on a failed check (the CLI turns `ok: false` into exit 1).
  */
-import { loadMockFlightInventory, toFlightChoice } from '@trav/adapters';
 import type { TravRuntime } from '@trav/agent';
 import { createTravRuntime } from '@trav/agent';
 import type {
@@ -30,7 +30,7 @@ import type {
   RichCard,
   SettleUpCard,
 } from '@trav/core';
-import { audit as auditChain, flights, formatMoney, ledger, money, parseIso } from '@trav/core';
+import { audit as auditChain, formatMoney, ledger, money, parseIso } from '@trav/core';
 import type { SimulatorBackend } from '../server/backend.js';
 import { clockLabel } from '../server/clock.js';
 import { BARCELONA } from '../server/groups.js';
@@ -78,7 +78,6 @@ export const OFFLINE_FALLBACK = "i'm not sure what you mean";
 
 /** The steps that have no chat flow in v0 (printed in the transcript header). */
 export const DEMO_NOTES: readonly string[] = [
-  "step 2 (flights): v0 has no chat flow that posts group flight options or books flights (`booking/proposals.ts` answers `unsupported_kind` for flights). Trav's chat reply is scripted to say exactly that (it can't line up or book group flights in chat yet) and quotes no optimizer numbers; the step then runs the core multi-origin optimizer (`flights.optimizeGroupFlights`) over the mock flights provider directly, in a labeled block. Nothing is booked.",
   'step 10 (settle-up): Trav answers "@trav settle now" with the transfers; Maya\'s 👍 on the card (or her [Paid] tap) records that she says she paid and re-posts the card with her row ticked (T-141). Payee confirmation, disputes and nudges are not built (T-037), so the demo applies the remaining transfers to the balances itself and checks that everyone ends at €0. No money moves.',
 ];
 
@@ -260,17 +259,102 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
       "@trav we're 6, flying BOS SFO ORD JFK LAX MIA into BCN thurs mar 12, home tues mar 17 to JFK LAX ORD IAD SEA ATL. find flights that land around the same time",
     );
     const flightsText = flightsReply.map((m) => m.text).join(' | ');
+    const optionsMsg = flightsReply.find((m) => m.card?.type === 'options');
+    const optionsCard = optionsMsg?.card?.type === 'options' ? optionsMsg.card : undefined;
     check(
-      "Trav answers the flights ask honestly (not the offline fallback): it can't book flights in chat yet",
-      flightsReply.length > 0 &&
+      "Trav posts the optimizer's group options in chat (one per-person card, refundable first, nothing booked)",
+      optionsCard !== undefined &&
         !flightsText.includes(OFFLINE_FALLBACK) &&
-        /can't line up or book group flights/.test(flightsText) &&
-        /nothing's booked/.test(flightsText),
+        /^flights for 6 into BCN thu mar 12, home tue mar 17/.test(optionsMsg?.text ?? '') &&
+        optionsCard.options.length >= 2 &&
+        optionsCard.options[0]!.refundable &&
+        optionsCard.options.every((o) => o.details?.length === 6) &&
+        /nothing's booked yet/.test(optionsMsg?.text ?? ''),
       flightsText,
     );
-    const plan = await planFlights(rt());
-    emit(plan.text);
-    check('the optimizer found one itinerary covering all 6 origins', plan.ok, plan.detail);
+    if (optionsCard !== undefined) {
+      emit(
+        [
+          '> option 1, per person (the options card):',
+          ...(optionsCard.options[0]!.details ?? []).map((line) => `> - ${line}`),
+        ].join('\n'),
+      );
+    }
+    check(
+      'no flight is bought by the search',
+      rt()
+        .stores.group.bookings.listByTrip(TRIP_ID)
+        .every((b) => b.kind !== 'flight'),
+    );
+
+    await say(
+      'Priya',
+      'option 1 looks good, everyone lands within like an hour',
+      '2026-02-03T20:15:00+01:00',
+    );
+    const bookReply = await say('Dean', '@trav book option 1', '2026-02-03T20:16:00+01:00');
+    const flightCard = bookReply.find((m) => m.card?.type === 'booking_proposal');
+    const flightProposal =
+      flightCard?.card?.type === 'booking_proposal'
+        ? rt().stores.group.bookings.getProposal(flightCard.card.proposalId)
+        : undefined;
+    const flightDecision =
+      flightProposal === undefined
+        ? undefined
+        : rt().stores.group.bookings.getDecision(flightProposal.proposalId)?.decision;
+    check(
+      '"book option 1" proposes those 6 flights through the approval policy: each on their own card, every payer 👍s',
+      flightCard !== undefined &&
+        flightProposal?.kind === 'flight' &&
+        flightProposal.attendees.length === 6 &&
+        flightProposal.paidBy.kind === 'per_person_cards' &&
+        flightProposal.totalMinor === optionsCard?.options[0]?.price.amountMinor &&
+        flightDecision?.approvalMode === 'each_payer' &&
+        flightDecision.requiredApprovers.length === 6 &&
+        /each pays their own fare/.test(flightCard.text),
+      bookReply.map((m) => m.text).join(' | '),
+    );
+    if (flightCard !== undefined && flightProposal !== undefined) {
+      const flightBookings = (): number =>
+        rt()
+          .stores.group.bookings.listByTrip(TRIP_ID)
+          .filter((b) => b.kind === 'flight').length;
+      // Flights are on every payer (SAFETY C2/C9): nothing books until the 6th 👍.
+      const order = ['Dean', 'Maya', 'Priya', 'Jordan', 'Sam', 'Henry'];
+      for (const [i, name] of order.entries()) {
+        const live = messageById(view(), flightCard.messageId);
+        if (live?.cardState?.liveActionIds.includes('approve') !== true) break;
+        if (i === order.length - 1) {
+          check('five of six 👍s book nothing', flightBookings() === 0);
+        }
+        await tap(name, live, 'approve');
+      }
+      const booked = rt()
+        .stores.group.bookings.listByTrip(TRIP_ID)
+        .filter((b) => b.kind === 'flight');
+      const flightReceipt = messages(view().thread).find(
+        (m) => m.seq > flightCard.seq && m.card?.type === 'receipt',
+      );
+      const log = auditLog().filter((e) => e.proposalId === flightProposal.proposalId);
+      check(
+        'the last 👍 books all 6 through the mock airline once, audited, each on their own card, nothing on the tab',
+        booked.length === 1 &&
+          booked[0]!.attendees.length === 6 &&
+          booked[0]!.totalMinor === flightProposal.totalMinor &&
+          booked[0]!.orderRef.split(', ').length === 6 &&
+          flightReceipt !== undefined &&
+          /booked ✅/.test(flightReceipt.text) &&
+          /each on your own card, nothing to split/.test(flightReceipt.text) &&
+          log.filter((e) => e.type === 'approval.granted').length === 6 &&
+          log.some((e) => e.type === 'policy.evaluated') &&
+          log.filter((e) => e.type === 'booking.completed').length === 1 &&
+          !log.some((e) => e.type === 'ledger.written') &&
+          rt()
+            .stores.group.expenses.listByTrip(TRIP_ID)
+            .every((x) => x.category !== 'flights'),
+        JSON.stringify({ booked: booked.length, receipt: flightReceipt?.text }),
+      );
+    }
 
     // ---------------- 3. lodging ----------------
     await section('3. lodging', '2026-02-03T20:31:00+01:00');
@@ -735,67 +819,6 @@ function ticketDmsFor(v: GroupView, event: RegExp): Map<MemberId, number> {
     if (n > 0) out.set(id, n);
   }
   return out;
-}
-
-// ---------------- planning steps without a chat flow (v0) ----------------
-
-interface PlanResult {
-  readonly ok: boolean;
-  readonly text: string;
-  readonly detail?: string;
-}
-
-/** Each traveler's offers from the mock flights provider → the core multi-origin optimizer. */
-async function planFlights(rt: TravRuntime): Promise<PlanResult> {
-  const inv = loadMockFlightInventory('barcelona');
-  const members: flights.MemberTravel[] = inv.travelers.map((t) => ({
-    memberId: t.memberId,
-    origin: t.origin,
-    returnTo: t.returnTo,
-    ...(t.name !== undefined ? { name: t.name } : {}),
-  }));
-  const choices: flights.FlightChoice[] = [];
-  for (const m of members) {
-    const res = await rt.providers.flights.search({
-      slices: [
-        { origin: m.origin, destination: 'BCN', departureDate: '2026-03-12' },
-        { origin: 'BCN', destination: m.returnTo, departureDate: '2026-03-17' },
-      ],
-      passengers: [{ memberId: m.memberId, type: 'adult' }],
-    });
-    if (!res.ok) continue;
-    for (const offer of res.value) choices.push(toFlightChoice(offer, m.memberId));
-  }
-  const result = flights.optimizeGroupFlights({
-    destination: 'BCN',
-    members,
-    choices,
-    weights: flights.DEFAULT_WEIGHTS,
-    constraints: {},
-    maxResults: 3,
-  });
-  const lines = [
-    '> **[planner step, no chat flow yet]** `flights.optimizeGroupFlights` over the mock flights provider:',
-    `> ${String(choices.length)} round-trip offers from ${String(members.length)} origins`,
-    '>',
-  ];
-  for (const it of result.itineraries) lines.push(`> option ${String(it.rank)}: ${it.rationale}`);
-  const best = result.itineraries[0];
-  if (best !== undefined) {
-    lines.push('>', '> option 1, per person:');
-    for (const p of best.picks) {
-      const out = p.outbound;
-      lines.push(
-        `> - ${nameOf(p.memberId)}: ${out.origin}→${out.destination} ${out.flightNumbers.join('/')}, lands ${out.arriveAt.slice(11, 16)}, home to ${p.inbound?.destination ?? '?'} · ${formatMoney(p.price)}`,
-      );
-    }
-  }
-  const ok = best !== undefined && result.missing.length === 0 && best.picks.length === 6;
-  return {
-    ok,
-    text: lines.join('\n'),
-    ...(ok ? {} : { detail: `missing ${result.missing.join(', ')}` }),
-  };
 }
 
 // ---------------- settle-up ----------------

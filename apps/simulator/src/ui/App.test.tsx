@@ -413,6 +413,31 @@ describe('Card renders every RichCard type', () => {
     expect(html).toContain('non-refundable');
   });
 
+  it('group flight options (T-074): each option lists who flies when for how much', () => {
+    const flights: OptionsCard = {
+      ...options,
+      context: 'flights for 2 into BCN thu mar 12',
+      options: [
+        {
+          id: 'card_f#1',
+          index: 1,
+          label: 'everyone lands within 1h',
+          price: eur(95000),
+          refundable: true,
+          tradeoff: '',
+          details: [
+            'Dean BOS 7:10am → BCN 7:35pm · home 11am to JFK · €412',
+            'Maya SFO wed 10:30pm → BCN 9:40pm, 1 stop · home 10am to LAX · €538',
+          ],
+        },
+      ],
+    };
+    const html = r(flights);
+    expect(html).toContain('data-testid="option-details-1"');
+    expect(html).toContain('Dean BOS 7:10am → BCN 7:35pm · home 11am to JFK · €412');
+    expect(html).toContain('Maya SFO wed 10:30pm');
+  });
+
   it('an unknown card type renders its text fallback inside the panel, not an empty box', () => {
     const unknown = {
       cardId: 'card_future',

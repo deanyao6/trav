@@ -29,7 +29,9 @@ describe('pnpm demo:barcelona (T-021)', () => {
     expect(chat).toContain("Henry's sick");
     expect(notHuman.filter((l) => /sick/i.test(l))).toEqual([]);
 
-    // Step 2: Trav's flights reply is the honest scripted line, never the offline fallback.
+    // Step 2 (T-074): the optimizer's options in chat, "book option 1" through
+    // the approval policy, every payer's 👍, one booking. The demo no longer
+    // calls the optimizer itself.
     const tc = (prefix: string) =>
       chat
         .split('\n### ')
@@ -37,12 +39,23 @@ describe('pnpm demo:barcelona (T-021)', () => {
         ?.split('\n')
         .filter((l) => l.startsWith('- **trav**') || l.startsWith('      ')) ?? [];
     const step2 = tc('2.').join('\n');
-    expect(step2).toMatch(/can't line up or book group flights in chat yet/);
+    expect(step2).toMatch(/flights for 6 into BCN thu mar 12, home tue mar 17\. best 3:/);
+    expect(step2).toMatch(/say "@trav book option 1"/);
+    expect(step2).toMatch(/each pays their own fare on their own card, nothing to split/);
+    expect(step2).toMatch(/booked ✅ flights to BCN/);
     expect(step2).not.toContain(OFFLINE_FALLBACK);
     expect(chat).not.toContain(OFFLINE_FALLBACK);
-    expect(result.checks.find((c) => c.step.startsWith('2.'))?.name).toMatch(
-      /not the offline fallback/,
+    expect(chat).not.toMatch(/can't line up or book group flights/);
+    expect(result.transcript).not.toMatch(/planner step, no chat flow yet/);
+    const step2Checks = result.checks.filter((c) => c.step.startsWith('2.'));
+    expect(step2Checks.map((c) => c.name)).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/posts the optimizer's group options in chat/),
+        expect.stringMatching(/"book option 1" proposes those 6 flights/),
+        expect.stringMatching(/the last 👍 books all 6/),
+      ]),
     );
+    expect(step2Checks.every((c) => c.ok)).toBe(true);
 
     // Step 6 (T-135 / T-075): the Uber goes to the email's 4 riders, card and ledger both.
     const step6 = result.checks.filter((c) => c.step.startsWith('6.'));

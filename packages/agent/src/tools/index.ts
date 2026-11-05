@@ -5,6 +5,7 @@
  * matches `FORBIDDEN_TOOL_NAME_PATTERN`) cannot reach the model.
  */
 import type { FlightsAdapter, LodgingAdapter, TicketsAdapter } from '@trav/adapters';
+import type { FlightPlanStore } from '../booking/flights.js';
 import type { ProposalService } from '../booking/proposals.js';
 import type { GroupMemory, MemberMemory } from '../memory/index.js';
 import { getBalancesTool, logExpenseTool } from './ledger.js';
@@ -37,6 +38,8 @@ export interface ToolDeps {
   readonly proposals: ProposalService;
   readonly tickets: TicketsAdapter;
   readonly flights: FlightsAdapter;
+  /** Where `search_flights`' group options are kept for "book option N" (T-074); absent ⇒ no group form. */
+  readonly flightPlans?: FlightPlanStore;
   readonly lodging: LodgingAdapter;
   readonly groupMemory: GroupMemory;
   readonly memberMemory: MemberMemory;
@@ -49,7 +52,7 @@ export function createV0Tools(deps: ToolDeps): readonly ToolDefinition[] {
     getPendingProposalsTool as ToolDefinition,
     createCancelProposalTool(deps.proposals) as ToolDefinition,
     createSearchEventsTool(deps.tickets) as ToolDefinition,
-    createSearchFlightsTool(deps.flights) as ToolDefinition,
+    createSearchFlightsTool(deps.flights, deps.flightPlans) as ToolDefinition,
     createSearchLodgingTool(deps.lodging) as ToolDefinition,
     getRosterTool as ToolDefinition,
     setAttendanceTool as ToolDefinition,

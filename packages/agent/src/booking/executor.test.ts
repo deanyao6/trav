@@ -932,7 +932,7 @@ function baseProposal(r: Rig, over: Partial<BookingProposal>): BookingProposal {
 }
 
 describe('flights and lodging go through the same executor (A1: one createOrder, one book)', () => {
-  it('a flight on per-person cards: one provider order, no payments charge, an expense that nets to zero', async () => {
+  it('a flight on per-person cards: one provider order, no payments charge, nothing on the ledger (D-040)', async () => {
     const r = rig();
     const offers = await r.flights.search({
       slices: [
@@ -966,17 +966,13 @@ describe('flights and lodging go through the same executor (A1: one createOrder,
     expect(r.payments.chargeCount()).toBe(0);
     expect(res.booking).toMatchObject({ kind: 'flight', totalMinor: total, tickets: [] });
     expect(res.booking.orderRef).toMatch(/^[A-Z2-9]{6}$/);
-    expect(res.expense.paidBy).toEqual([{ memberId: 'mem_dean', amount: money(total, 'EUR') }]);
-    const order = r.members.map((m) => m.memberId);
-    const entries = ledger.buildLedgerEntries(res.expense, {
-      memberOrder: order,
-      participantsUniverse: order,
-    });
-    const net = entries.reduce(
-      (sum, e) => sum + (e.kind === 'paid' ? e.amount.amountMinor : -e.amount.amountMinor),
-      0,
-    );
-    expect(net).toBe(0);
+    // Each on their own card: nobody fronted anyone's fare, so no expense
+    // and no ledger.written (the domain's `per_person_cards`, D-040).
+    expect(res.expense).toBeNull();
+    expect(r.stores.group.expenses.listByTrip(T)).toHaveLength(0);
+    expect(
+      r.stores.group.audit.listByGroup(G).filter((e) => e.type === 'ledger.written'),
+    ).toHaveLength(0);
     expect(auditCore.verifyAuditChain(r.stores.group.audit.listByGroup(G)).ok).toBe(true);
     // A retry buys nothing.
     const again = await r.executor.execute(proposal.proposalId, grant.grantId);
@@ -1010,8 +1006,8 @@ describe('flights and lodging go through the same executor (A1: one createOrder,
       amount: { amountMinor: 138000, currency: 'EUR' },
     });
     expect(res.booking.orderRef).toMatch(/^EIX/);
-    expect(res.expense.split).toEqual({ method: 'equal', participants: six });
-    expect(res.expense.category).toBe('lodging');
+    expect(res.expense?.split).toEqual({ method: 'equal', participants: six });
+    expect(res.expense?.category).toBe('lodging');
   });
 
   it('a stay whose charge failed once is retried by replaying the standing order, not re-checking the rate (T-009 r2 review #2)', async () => {

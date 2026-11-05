@@ -62,6 +62,7 @@ import {
   type BookingExecutor,
   type ProviderRegistry,
 } from './booking/executor.js';
+import { createFlightPlanStore } from './booking/flights.js';
 import { createProposalService, type ProposalService } from './booking/proposals.js';
 import {
   createTravAgent,
@@ -220,10 +221,14 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
   for (const job of recapJobsFor(stores, clock.now())) scheduler.schedule(job);
   const groupMemory = createGroupMemory({ repo: stores.group.groupMemory, ids });
   const memberMemory = createMemberMemory({ store: stores.private, ids });
+  // The latest group flight options per group (T-074): what "book option N" picks from.
+  const flightPlans = createFlightPlanStore();
   const proposals = createProposalService({
     stores,
     tickets: providers.tickets,
     lodging: providers.lodging,
+    flights: providers.flights,
+    flightPlans,
     clock,
     ids,
   });
@@ -231,6 +236,7 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
     proposals,
     tickets: providers.tickets,
     flights: providers.flights,
+    flightPlans,
     lodging: providers.lodging,
     groupMemory,
     memberMemory,

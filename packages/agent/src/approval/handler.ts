@@ -81,7 +81,7 @@ import type {
   Trip,
   TripId,
 } from '@trav/core';
-import { approval, formatMoney, money, safety, TravError } from '@trav/core';
+import { approval, formatMoney, isReaction, money, safety, TravError } from '@trav/core';
 import type { BookingExecutor, ExecuteResult } from '../booking/executor.js';
 import {
   bookedAttendees,
@@ -149,6 +149,22 @@ export function chargeFailedText(description: string, hasCard = true): string {
   return hasCard
     ? `${head}\ntap Approve again in a few and i'll retry`
     : `${head}\nsay yes in a few and i'll retry`;
+}
+
+/**
+ * VOICE §4.10 for a group flight set where some orders landed and the rest
+ * did not (T-074): who isn't booked, that they weren't charged, what's next.
+ * `who` is already a name list ("Sam, Henry").
+ */
+export function partialFlightsText(who: string, count: number): string {
+  return count === 1
+    ? `${who}'s flight didn't go through, so it's not booked and nothing was charged for it\n@ me and i'll look again`
+    : `flights for ${who} didn't go through, so they're not booked and nothing was charged for them\n@ me and i'll look again`;
+}
+
+/** Each traveler paid their own fare: no ledger expense belongs to the booking (D-040). */
+function perPerson(booking: Pick<Booking, 'paidBy'>): boolean {
+  return booking.paidBy.kind === 'per_person_cards';
 }
 
 export const EXECUTOR_REFUSED_TEXT =
@@ -615,7 +631,24 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
         ) {
           group.bookings.updateProposal({ ...current, status: 'completed' });
         }
-        return renderCompleted(ctx, result.booking, result.expense);
+        const done = renderCompleted(ctx, result.booking, result.expense);
+        if (result.partial === undefined) return done;
+        // One group message per booking turn (VOICE §3.7): who isn't booked
+        // goes under the receipt, in the same bubble.
+        const missing = result.partial.missing;
+        const note = partialFlightsText(names(ctx.members, missing), missing.length);
+        let noted = false;
+        return done.map((o) => {
+          if (noted || isReaction(o) || o.to.kind !== 'group') return o;
+          noted = true;
+          const text = `${o.text}\n${note}`;
+          // The card's fallback is the bubble's text (VOICE §5).
+          return {
+            ...o,
+            text,
+            ...(o.card !== undefined ? { card: { ...o.card, fallbackText: text } } : {}),
+          };
+        });
       }
       case 'duplicate': {
         // The key already bought this (a retry after a crash, or a second tap
@@ -624,8 +657,8 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
         // the receipt and DMs never went out.
         scheduler.cancel(expiryJobId(proposal.proposalId));
         setStatus(proposal.proposalId, 'completed');
-        if (result.repaired && result.expense !== undefined) {
-          return renderCompleted(ctx, result.booking, result.expense);
+        if (result.repaired && (result.expense !== undefined || perPerson(result.booking))) {
+          return renderCompleted(ctx, result.booking, result.expense ?? null);
         }
         return [];
       }
@@ -678,7 +711,8 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
   function bookingIncomplete(booking: Booking): boolean {
     if (booking.status !== 'confirmed') return false;
     const expense = group.expenses.getBySourceRef({ kind: 'booking', id: booking.bookingId });
-    if (expense === undefined) return true;
+    // Each on their own card: there is no expense to write (D-040).
+    if (expense === undefined && !perPerson(booking)) return true;
     if (booking.kind !== 'ticket') return false;
     return booking.attendees.some((id) => !booking.tickets.some((t) => t.holderMemberId === id));
   }
@@ -703,9 +737,10 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
     } catch {
       return undefined;
     }
-    if (result.kind !== 'duplicate' || result.expense === undefined) return undefined;
+    if (result.kind !== 'duplicate') return undefined;
+    if (result.expense === undefined && !perPerson(result.booking)) return undefined;
     if (bookingIncomplete(result.booking)) return undefined;
-    return renderCompleted(ctx, result.booking, result.expense);
+    return renderCompleted(ctx, result.booking, result.expense ?? null);
   }
 
   /** Who the roster says is on it right now (minus ticket holders); the proposal's own list when there is no activity. */
@@ -767,7 +802,7 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
   function renderCompleted(
     ctx: Loaded,
     booking: Extract<ExecuteResult, { kind: 'completed' }>['booking'],
-    expense: Expense,
+    expense: Expense | null,
   ): readonly Outbound[] {
     const rctx: RenderContext = {
       groupId: ctx.group.groupId,
@@ -776,7 +811,11 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
       now: ctx.now,
       ids,
     };
-    const headline = shortEventName(booking.description);
+    // "flights to BCN" keeps its airport code (VOICE: IATA codes stay upper case).
+    const headline =
+      booking.kind === 'flight'
+        ? sanitizeInline(booking.description, 60)
+        : shortEventName(booking.description);
     try {
       const dms: OutboundMessage[] = [];
       const tickets: { memberId: MemberId; ticketCardId: string }[] = [];
@@ -803,7 +842,7 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
       return [
         text(
           ctx.group.groupId,
-          `booked ✅ ${headline}, ${formatMoney(money(booking.totalMinor, booking.currency))}. tickets are on the way`,
+          `booked ✅ ${headline}, ${formatMoney(money(booking.totalMinor, booking.currency))}${booking.kind === 'ticket' ? '. tickets are on the way' : ''}`,
         ),
       ];
     }

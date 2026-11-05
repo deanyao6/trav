@@ -118,11 +118,17 @@ describe('runScenario', () => {
     expect(r?.pass).toBe(false);
     expect(r?.skipped).toBeUndefined();
     expect(r?.evidence.join('\n')).toMatch(/\[msg_bcn_0019\].*expected propose_booking; observed/);
-    // Graded end to end: still a failure, and the evidence names the open task it waits on.
+    // Trav says there are no flight options to book (T-074), nothing is proposed.
+    expect((line.turn?.outbound ?? []).map((m) => m.text).join('\n')).toMatch(
+      /^there are no flight options up right now, so nothing's booked/,
+    );
+    // Graded end to end: still a failure. Flights are built (T-074), so it is
+    // no known gap: the line only fails because it is replayed without its options.
     const o = await evaluateScenario(s, { mode: 'offline', grade: OFFLINE });
     expect(scenarioPassed(o)).toBe(false);
     const evidence = o.results.find((x) => x.graderId === 'turn_expectations')?.evidence ?? [];
-    expect(evidence.every((ev) => ev.includes('[known gap: waits on T-074'))).toBe(true);
+    expect(evidence.length).toBeGreaterThan(0);
+    expect(evidence.some((ev) => ev.includes('[known gap: waits on'))).toBe(false);
     // Fields no grader checks are reported as skipped, never as passes.
     const ungraded = o.results.find((x) => x.graderId === 'turn_expectations:ungraded');
     expect(ungraded?.skipped).toMatch(/proposal\.kind \(1\)/);

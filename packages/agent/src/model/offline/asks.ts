@@ -70,8 +70,6 @@ const ZERO_USAGE = { inputTokens: 0, outputTokens: 0 } as const;
 
 // ---------- the honest lines (VOICE §1, §4.10, §4.12) ----------
 
-export const OPTION_NUMBER_TEXT =
-  "i can't book a numbered option from the chat yet, so nothing's booked. grab it on the site and tell me what it cost, i'll put it on the tab";
 export const RESTAURANT_TEXT =
   "i can't look up restaurants yet, so no pick from me. after you eat, tell me what it cost and who was in and i'll split it";
 export const TABLE_TEXT =
@@ -1494,7 +1492,7 @@ export const privateBudgetResponder: FallbackResponder = {
 // ---------- what Trav can't do yet ----------
 
 const OPTION_RE =
-  /^(?:(?:ok|yeah|lets|let's)\s+)?(?:book|get|grab|do|go with|take|pick)\s+(?:option|opt|#|number)\s*(?:\d|one|two|three)\b/;
+  /^(?:(?:ok|yeah|lets|let's)\s+)?(?:book|get|grab|do|go with|take|pick)\s+(?:option|opt|#|number)\s*([1-9]|one|two|three)\b/;
 const TABLE_RE =
   /\b(?:book|reserve|get|grab|make)\b.*\b(?:a )?(?:table|reservation|rez)\b|\breservation for\b/;
 const RESTAURANT_RE =
@@ -1516,7 +1514,22 @@ export const honestGapsResponder: FallbackResponder = {
     const t = foldText(ask.text)
       .replace(/[?!.]+$/, '')
       .trim();
-    if (OPTION_RE.test(t)) return response(req, OPTION_NUMBER_TEXT, []);
+    // "book option 1" picks from the flight options card (T-074): a flight
+    // proposal through the approval policy; no options up ⇒ the proposal
+    // service says so. Nothing is bought here.
+    const picked = OPTION_RE.exec(t);
+    if (picked !== null) {
+      if (!offered(req, 'propose_booking')) return undefined;
+      const word = picked[1]!;
+      const option = /^\d$/.test(word) ? Number(word) : ['one', 'two', 'three'].indexOf(word) + 1;
+      return response(req, '', [
+        call(req, 'toolu_offline_option_', 1, 'propose_booking', {
+          kind: 'flight',
+          option,
+          requestText: ask.text,
+        }),
+      ]);
+    }
     // "dinner, i paid, Priya didn't drink": the expense flow found no amount.
     // Nothing is logged; ask for the whole thing in one line (VOICE §4.11).
     if (PAID_NO_AMOUNT_RE.test(t) && !/\d/.test(t)) return response(req, EXPENSE_RESTATE_TEXT, []);

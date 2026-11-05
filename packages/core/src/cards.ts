@@ -332,6 +332,8 @@ export interface OptionsCard extends CardBase {
     readonly perPerson?: Money;
     readonly refundable: boolean;
     readonly tradeoff: string;
+    /** Per-person lines for the card body (T-074 group flights: "Dean BOS 7:10am → BCN 7:35pm · home to JFK · €412"). */
+    readonly details?: readonly string[];
   }[];
   readonly pickAction: Action;
   readonly status: 'pending' | 'picked' | 'dropped' | 'expired';

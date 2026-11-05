@@ -59,6 +59,7 @@ import {
   zoneOffsetMinutes,
 } from '@trav/core';
 import type {
+  FlightsAdapter,
   LodgingAdapter,
   LodgingRate,
   LodgingSearchResult,
@@ -69,6 +70,7 @@ import type {
 } from '@trav/adapters';
 import { sanitizeInline } from '../context/groupContext.js';
 import { keptOffFor } from '../roster/index.js';
+import { proposeFlights, type FlightPlanStore } from './flights.js';
 import { cardHolderFor, carrierOf, payersFor, type PayerRule } from './payers.js';
 import { askedMinutes, CATEGORY_WORDS, foldText, resolveNight, weekdayName } from './request.js';
 
@@ -77,6 +79,9 @@ export interface ProposalDeps {
   readonly tickets: TicketsAdapter;
   /** Lodging proposals (T-132); absent ⇒ "can't book places to stay from the chat yet". */
   readonly lodging?: LodgingAdapter;
+  /** Group flights (T-074): "book option N" from the latest `search_flights` plan; absent ⇒ "can't book flights from the chat yet". */
+  readonly flights?: FlightsAdapter;
+  readonly flightPlans?: FlightPlanStore;
   readonly clock: Clock;
   readonly ids: IdGenerator;
 }
@@ -95,6 +100,8 @@ export interface ProposeInput {
   readonly maxTotalMinor?: number;
   /** Lodging: the neighbourhoods the member asked for; the non-refundable trade-off line stays inside them (T-132 r1 #5). */
   readonly areas?: readonly string[];
+  /** Flights: the option number on the latest flight options card ("book option 1"), T-074. */
+  readonly option?: number;
   /** Exactly who is going; wins over quantity and roster. */
   readonly attendeeMemberIds?: readonly MemberId[];
   /** Named out ("Henry's sick"), by id or by display name. */
@@ -708,6 +715,17 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
     }
     if (input.kind === 'lodging' && deps.lodging !== undefined) {
       return proposeLodging(deps.lodging, input, ctx, grp, trip, now);
+    }
+    if (input.kind === 'flight' && deps.flights !== undefined && deps.flightPlans !== undefined) {
+      return proposeFlights({
+        deps: { flights: deps.flights, plans: deps.flightPlans, ids, stores },
+        input,
+        ctx,
+        grp,
+        trip,
+        now,
+        record: recordProposal,
+      });
     }
     if (input.kind !== 'ticket') {
       return {
@@ -1713,8 +1731,11 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
       attendeeMemberIds: attendees,
       ...(previous.activityId !== undefined ? { activityId: previous.activityId } : {}),
       ...(previous.eventDate !== '' ? { date: previous.eventDate } : {}),
-      // A stay is re-quoted on the same rate (T-132); the provider re-prices it.
-      ...(previous.kind === 'lodging' ? { itemRef: previous.itemRef } : {}),
+      // A stay is re-quoted on the same rate (T-132), a flight set on the same
+      // flights (T-074); the provider re-prices it.
+      ...(previous.kind === 'lodging' || previous.kind === 'flight'
+        ? { itemRef: previous.itemRef }
+        : {}),
     };
     if (trip === undefined || previous.kind !== 'ticket') return propose(input, ctx);
     // Same event: match by night and (sanitized) name, which is what `description` holds.

@@ -304,7 +304,10 @@ export function cardTexts(card: RichCard): string[] {
       );
       break;
     case 'options':
-      out.push(card.context, ...card.options.flatMap((o) => [o.label, o.tradeoff]));
+      out.push(
+        card.context,
+        ...card.options.flatMap((o) => [o.label, o.tradeoff, ...(o.details ?? [])]),
+      );
       break;
   }
   return out.filter((s) => s.length > 0);

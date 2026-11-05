@@ -32,7 +32,14 @@ export function parseProposeInput(raw: unknown): ProposeInput {
   const offerId = optString(r, 'offerId', 80);
   if (offerId !== undefined) out.offerId = offerId;
   const itemRef = optString(r, 'itemRef', 80);
-  if (itemRef !== undefined) out.itemRef = itemRef;
+  // A flight set is only ever picked by its option number from the posted
+  // card (T-074); its item ref is Trav's own, never the model's.
+  if (itemRef !== undefined && out.kind !== 'flight') out.itemRef = itemRef;
+  const option = optInt(r, 'option');
+  if (option !== undefined) {
+    if (option < 1 || option > 9) bad('option is the number on the flight options card');
+    out.option = option;
+  }
   const maxTotalMinor = optInt(r, 'maxTotalMinor');
   if (maxTotalMinor !== undefined) {
     if (maxTotalMinor <= 0) bad('maxTotalMinor must be positive');
@@ -82,7 +89,7 @@ export function createProposeBookingTool(
   return {
     name: 'propose_booking',
     description:
-      'Propose a booking (event tickets, or a place to stay) for named members. Tickets: finds the event and the best refundable offer and locks the price. Lodging: kind "lodging" with itemRef = the rateId you picked from search_lodging (prefer refundable); the rate is re-checked and everyone staying approves. Posts a proposal card that members must confirm; nothing is bought by this tool. Name exactly who is going in attendeeMemberIds (or everyone minus excludedMemberIds/excludedNames); if you cannot tell who is in, ask the group instead of guessing from a headcount.',
+      'Propose a booking (event tickets, a place to stay, or group flights) for named members. Tickets: finds the event and the best refundable offer and locks the price. Lodging: kind "lodging" with itemRef = the rateId you picked from search_lodging (prefer refundable); the rate is re-checked and everyone staying approves. Flights: kind "flight" with option = the number a member picked from the flight options card search_flights posted ("book option 1"); each traveler pays their own fare and every payer approves. Posts a proposal card that members must confirm; nothing is bought by this tool. Name exactly who is going in attendeeMemberIds (or everyone minus excludedMemberIds/excludedNames); if you cannot tell who is in, ask the group instead of guessing from a headcount.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -95,6 +102,11 @@ export function createProposeBookingTool(
         eventId: { type: 'string' },
         offerId: { type: 'string' },
         itemRef: { type: 'string', description: 'lodging: the rateId from search_lodging' },
+        option: {
+          type: 'integer',
+          minimum: 1,
+          description: 'flight: the option number on the flight options card',
+        },
         maxTotalMinor: {
           type: 'integer',
           minimum: 1,

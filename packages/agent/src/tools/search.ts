@@ -8,8 +8,14 @@ import { formatMoney, formatTime, localDate, safety, TravError } from '@trav/cor
 import type { FlightsAdapter, LodgingAdapter, TicketsAdapter, EventCategory } from '@trav/adapters';
 import { sanitizeInline } from '../context/groupContext.js';
 import { adultsOnlyEvent, nightOf, refundableNow } from '../booking/proposals.js';
+import {
+  planGroupFlights,
+  type FlightOptionsResult,
+  type FlightPlanStore,
+  type GroupFlightAsk,
+} from '../booking/flights.js';
 import { seatPlainWords } from '../booking/seats.js';
-import type { ToolDefinition } from './registry.js';
+import type { ToolContext, ToolDefinition } from './registry.js';
 import {
   activeMembers,
   asRecord,
@@ -18,6 +24,7 @@ import {
   optInt,
   optString,
   optStringArray,
+  requireMember,
   requireTrip,
   resolveMemberRef,
 } from './shared.js';
@@ -256,49 +263,127 @@ export interface FlightResult {
   readonly expiresAt: string;
 }
 
+/** One traveler of a group flight search: who, from where, and home to where (default: back to `origin`). */
+export interface GroupTravelerInput {
+  readonly member: string;
+  readonly origin: string;
+  readonly returnTo?: string;
+}
+
+export interface SearchGroupFlightsInput {
+  readonly travelers: readonly GroupTravelerInput[];
+  readonly destination: string;
+  readonly date: IsoDate;
+  readonly returnDate?: IsoDate;
+}
+
+/** Travelers one group search may plan for (one provider search each). */
+const MAX_GROUP_TRAVELERS = 12;
+
+const IATA_RE = /^[A-Z]{3}$/;
+
+/** A `search_flights` call: one origin's offers, or (with `travelers`) the whole group's options card. */
+export type SearchFlightsCall =
+  | ({ readonly form: 'single' } & SearchFlightsInput)
+  | ({ readonly form: 'group' } & SearchGroupFlightsInput);
+
 export function createSearchFlightsTool(
   flights: FlightsAdapter,
+  plans?: FlightPlanStore,
 ): ToolDefinition<
-  SearchFlightsInput,
-  { readonly offers: readonly FlightResult[]; readonly note?: string }
+  SearchFlightsCall,
+  | { readonly offers: readonly FlightResult[]; readonly note?: string }
+  | FlightOptionsResult
+  | { readonly kind: 'unavailable'; readonly reason: string; readonly text: string }
 > {
   return {
     name: 'search_flights',
     description:
-      'Search one-way flight offers for one origin on one date (IATA codes). For a multi-origin group, call once per origin. Read-only; flights are always booked with a lead confirming.',
+      'Search flights (IATA codes). For a group, pass travelers (each member with their origin, and returnTo when they fly home somewhere else) plus returnDate: Trav ranks whole-group options (refundable first, landing close together) and posts them as an options card; members then say "book option N" (propose_booking kind flight with option N). Without travelers: one-way offers for one origin on one date. Read-only; nothing is booked.',
     inputSchema: {
       type: 'object',
       properties: {
-        origin: { type: 'string', description: 'IATA, e.g. BOS' },
+        origin: { type: 'string', description: 'IATA, e.g. BOS (single search)' },
         destination: { type: 'string', description: 'IATA, e.g. BCN' },
-        date: { type: 'string', description: 'YYYY-MM-DD' },
+        date: { type: 'string', description: 'YYYY-MM-DD, the flight out' },
+        returnDate: { type: 'string', description: 'YYYY-MM-DD, the flight home (group search)' },
         members: {
           type: 'array',
           items: { type: 'string' },
-          description: 'who flies; default: the sender',
+          description: 'single search: who flies; default: the sender',
+        },
+        travelers: {
+          type: 'array',
+          description: 'group search: one entry per member flying',
+          items: {
+            type: 'object',
+            properties: {
+              member: { type: 'string', description: 'member id or name' },
+              origin: { type: 'string', description: 'IATA they fly out of' },
+              returnTo: { type: 'string', description: 'IATA they fly home to (default origin)' },
+            },
+            required: ['member', 'origin'],
+            additionalProperties: false,
+          },
         },
       },
-      required: ['origin', 'destination', 'date'],
+      required: ['destination', 'date'],
       additionalProperties: false,
     },
     parse(raw) {
       const r = asRecord(raw);
-      const iata = (k: string): string => {
-        const v = optString(r, k, 3)?.toUpperCase();
-        if (v === undefined || !/^[A-Z]{3}$/.test(v)) bad(`${k} must be a 3-letter IATA code`);
-        return v;
+      const code = (v: unknown, what: string): string => {
+        const s = typeof v === 'string' ? v.trim().toUpperCase() : undefined;
+        if (s === undefined || !IATA_RE.test(s)) bad(`${what} must be a 3-letter IATA code`);
+        return s;
       };
+      const destination = code(r['destination'], 'destination');
       const date = isoDate(optString(r, 'date', 10), 'date');
       if (date === undefined) bad('date is required');
+      const rawTravelers = r['travelers'];
+      if (rawTravelers !== undefined) {
+        if (!Array.isArray(rawTravelers) || rawTravelers.length === 0) {
+          bad('travelers must list at least one member');
+        }
+        if (rawTravelers.length > MAX_GROUP_TRAVELERS) bad('too many travelers for one search');
+        const travelers = rawTravelers.map((t, i): GroupTravelerInput => {
+          const o = asRecord(t);
+          const member = optString(o, 'member', 80);
+          if (member === undefined || member.trim().length === 0) {
+            bad(`travelers[${String(i)}].member is required`);
+          }
+          const origin = code(o['origin'], `travelers[${String(i)}].origin`);
+          const returnTo =
+            o['returnTo'] === undefined
+              ? undefined
+              : code(o['returnTo'], `travelers[${String(i)}].returnTo`);
+          if (origin === destination || returnTo === destination) {
+            bad(`travelers[${String(i)}] flies from or to the destination`);
+          }
+          return { member, origin, ...(returnTo !== undefined ? { returnTo } : {}) };
+        });
+        const returnDate = isoDate(optString(r, 'returnDate', 10), 'returnDate');
+        if (returnDate !== undefined && returnDate < date) bad('returnDate is before date');
+        return {
+          form: 'group',
+          travelers,
+          destination,
+          date,
+          ...(returnDate !== undefined ? { returnDate } : {}),
+        };
+      }
       const members = optStringArray(r, 'members');
       return {
-        origin: iata('origin'),
-        destination: iata('destination'),
+        form: 'single',
+        origin: code(r['origin'], 'origin'),
+        destination,
         date,
         ...(members !== undefined ? { members } : {}),
       };
     },
-    async handler(input, ctx) {
+    async handler(call, ctx) {
+      if (call.form === 'group') return groupFlights(flights, plans, call, ctx);
+      const input = call;
       const members = activeMembers(ctx);
       const ids: MemberId[] = [];
       for (const ref of input.members ?? []) {
@@ -335,6 +420,67 @@ export function createSearchFlightsTool(
       return { offers };
     },
   };
+}
+
+/**
+ * The group form of `search_flights` (T-074): every named traveler resolved
+ * to an active member (once each), then `planGroupFlights` (one provider
+ * search per traveler → `flights.optimizeGroupFlights`) keeps the ranked
+ * plan and returns the options card. Read-only; the group lane only, since
+ * the card is the group's.
+ */
+async function groupFlights(
+  flights: FlightsAdapter,
+  plans: FlightPlanStore | undefined,
+  input: SearchGroupFlightsInput,
+  ctx: ToolContext,
+): Promise<FlightOptionsResult | { kind: 'unavailable'; reason: string; text: string }> {
+  const me = requireMember(ctx);
+  if (plans === undefined) {
+    return {
+      kind: 'unavailable',
+      reason: 'unsupported_kind',
+      text: "i can't line up group flights here yet, so nothing's booked",
+    };
+  }
+  if (ctx.lane !== 'group') {
+    return {
+      kind: 'unavailable',
+      reason: 'wrong_lane',
+      text: "group flight options go in the group chat, so nothing's posted\n@ me there and i'll line them up",
+    };
+  }
+  const trip = requireTrip(ctx);
+  const members = activeMembers(ctx);
+  const seen = new Set<MemberId>();
+  const travelers: GroupFlightAsk['travelers'][number][] = [];
+  for (const t of input.travelers) {
+    const id = resolveMemberRef(members, t.member);
+    if (id === undefined) throw new TravError('not_found', `no member "${t.member}" on this trip`);
+    if (seen.has(id)) bad(`${t.member} is listed twice`);
+    seen.add(id);
+    travelers.push({
+      memberId: id,
+      origin: t.origin,
+      ...(t.returnTo !== undefined && t.returnTo !== t.origin ? { returnTo: t.returnTo } : {}),
+    });
+  }
+  return planGroupFlights(
+    { flights, plans, ids: ctx.ids },
+    {
+      travelers,
+      destination: input.destination,
+      departDate: input.date,
+      ...(input.returnDate !== undefined ? { returnDate: input.returnDate } : {}),
+    },
+    {
+      groupId: ctx.groupId,
+      trip,
+      members: ctx.stores.group.members.listByGroup(ctx.groupId),
+      requestedBy: me.memberId,
+      now: ctx.now,
+    },
+  );
 }
 
 export interface SearchLodgingInput {

@@ -18,7 +18,6 @@ import {
   HEALTH_MEMORY_TEXT,
   NOTHING_LIKE_THAT_TEXT,
   NOTHING_PENDING_TEXT,
-  OPTION_NUMBER_TEXT,
   RESTAURANT_TEXT,
   cancelResponder as rawCancel,
   VENUE_NOT_ALL_AGES_TEXT,
@@ -1195,10 +1194,25 @@ describe('lodging, remember, honest gaps', () => {
     expect(health.text).toBe(HEALTH_MEMORY_TEXT);
   });
 
+  it('"book option N" picks from the flight options card through propose_booking (T-074)', () => {
+    for (const [text, option] of [
+      ['Dean: @trav book option 1', 1],
+      ["Dean: @trav let's go with option 2", 2],
+      ['Dean: @trav book option three', 3],
+    ] as const) {
+      const res = honestGapsResponder.complete(ask(text))!;
+      expect(res.text).toBe('');
+      expect(res.toolCalls).toHaveLength(1);
+      expect(res.toolCalls[0]).toMatchObject({
+        name: 'propose_booking',
+        input: { kind: 'flight', option },
+      });
+    }
+    // No option 0, and option words past three are not a pick.
+    expect(honestGapsResponder.complete(ask('Dean: @trav book option 0'))).toBeUndefined();
+  });
+
   it("can't-do lines are honest and never answer a money statement", () => {
-    expect(honestGapsResponder.complete(ask('Dean: @trav book option 1'))!.text).toBe(
-      OPTION_NUMBER_TEXT,
-    );
     expect(honestGapsResponder.complete(ask('Dean: @trav dinner spot for 6 tonight'))!.text).toBe(
       RESTAURANT_TEXT,
     );

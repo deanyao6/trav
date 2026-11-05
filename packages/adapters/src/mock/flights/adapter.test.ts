@@ -567,6 +567,8 @@ describe('createOrder', () => {
       [traveler('mem_henry')],
       [traveler('mem_dean'), traveler('mem_henry')],
       [{ memberId: 'mem_dean', givenName: '', familyName: 'X' }],
+      [{ memberId: 'mem_dean', givenName: '   ' }],
+      [{ memberId: 'mem_dean', givenName: 'Dean', familyName: ' ' }],
     ]) {
       expect(errorCode(await flights.createOrder({ ...base, travelers }))).toBe('invalid_request');
     }
@@ -580,6 +582,22 @@ describe('createOrder', () => {
       ),
     ).toBe('invalid_request');
     expect(flights.purchaseCount()).toBe(0);
+  });
+
+  it('D-040: the mock books under the given name alone (a v0 member has no family name); the order keeps exactly that', async () => {
+    const offer = await searchOne();
+    const order = unwrap(
+      await flights.createOrder({
+        groupId: 'grp_barcelona',
+        offerId: offer.offerId,
+        travelers: [{ memberId: 'mem_dean', givenName: 'Dean' }],
+        expectedTotal: offer.totalAmount,
+        idempotencyKey: 'k-given-only',
+        approval: proofFor(clock, eur(50000), { approvalId: 'grant_given_only' }),
+      }),
+    );
+    expect(order.travelers).toEqual([{ memberId: 'mem_dean', givenName: 'Dean' }]);
+    expect(flights.purchaseCount()).toBe(1);
   });
 });
 

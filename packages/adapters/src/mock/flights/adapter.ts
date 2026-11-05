@@ -25,7 +25,6 @@ import type {
   ApprovalProof,
   IdempotencyKey,
   Result,
-  Traveler,
 } from '../../interfaces/common.js';
 import type {
   CancellationQuote,
@@ -34,6 +33,7 @@ import type {
   FlightOffer,
   FlightOrder,
   FlightSearchRequest,
+  FlightTraveler,
   FlightsAdapter,
 } from '../../interfaces/flights.js';
 import {
@@ -523,17 +523,23 @@ export function createMockFlights(options: MockFlightsOptions): MockFlightsAdapt
 
 /** Same traveler set (by memberId and name) as the recorded order; a replay naming anyone else is `duplicate`. */
 function sameTravelers(
-  recorded: readonly Traveler[],
-  requested: readonly Traveler[] | undefined,
+  recorded: readonly FlightTraveler[],
+  requested: readonly FlightTraveler[] | undefined,
 ): boolean {
   if (!Array.isArray(requested) || requested.length !== recorded.length) return false;
-  const key = (t: Traveler): string => `${t.memberId}|${t.givenName ?? ''}|${t.familyName ?? ''}`;
+  const key = (t: FlightTraveler): string =>
+    `${t.memberId}|${t.givenName ?? ''}|${t.familyName ?? ''}`;
   const want = new Set(recorded.map(key));
   return requested.every((t) => typeof t === 'object' && t !== null && want.has(key(t)));
 }
 
+/**
+ * One traveler per passenger, each with a given name. The family name is
+ * optional here only (D-040): the mock books under the name a v0 member has
+ * (never an invented one); a real adapter must require it.
+ */
 function checkTravelers(
-  travelers: readonly Traveler[] | undefined,
+  travelers: readonly FlightTraveler[] | undefined,
   passengerIds: readonly string[],
 ): string | undefined {
   if (!Array.isArray(travelers)) return 'travelers required';
@@ -543,7 +549,12 @@ function checkTravelers(
     return 'travelers must match the offer passengers exactly';
   }
   for (const t of travelers) {
-    if (!t.givenName?.trim() || !t.familyName?.trim()) return 'traveler name required';
+    if (typeof t.givenName !== 'string' || t.givenName.trim().length === 0) {
+      return 'traveler name required';
+    }
+    if (t.familyName !== undefined && t.familyName.trim().length === 0) {
+      return 'traveler family name is empty';
+    }
   }
   return undefined;
 }

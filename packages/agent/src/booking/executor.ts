@@ -82,6 +82,8 @@ import type {
   AdapterError,
   ApprovalProof,
   BookingPaymentsAdapter,
+  FlightOrder,
+  FlightTraveler,
   FlightsAdapter,
   IssuedTicket,
   LeadGuest,
@@ -93,7 +95,8 @@ import type {
 import { mockQrDataUrl } from '@trav/adapters';
 import { sanitizeInline } from '../context/groupContext.js';
 import { bookingParty, rosterOf } from '../roster/index.js';
-import { payerRuleFor } from './payers.js';
+import { decodeFlightSet } from './flights.js';
+import { carrierOf, payerRuleFor, payersFor } from './payers.js';
 import { bookedAttendees } from './proposals.js';
 
 export interface ProviderRegistry {
@@ -114,8 +117,15 @@ export type ExecuteResult =
   | {
       readonly kind: 'completed';
       readonly booking: Booking;
-      readonly expense: Expense;
+      /** `null` for `per_person_cards` (each paid their own fare): nothing goes on the ledger. */
+      readonly expense: Expense | null;
       readonly auditEventIds: readonly AuditEventId[];
+      /**
+       * A group flight set where some orders landed and the rest did not
+       * (T-074, D-040): the booking covers only who is booked; `missing` were
+       * not booked and not charged.
+       */
+      readonly partial?: { readonly missing: readonly MemberId[]; readonly errorCode: string };
     }
   | {
       readonly kind: 'duplicate';
@@ -217,6 +227,90 @@ interface Purchased {
   readonly purchasedAt: IsoDateTime;
   /** For ticket orders: what the DM ticket cards say about the event (no barcodes here). */
   readonly ticketEvent?: TicketArtifact['event'];
+  /**
+   * A flight set where an order failed after others landed: who is booked
+   * (the totals above are theirs alone), who is not, and why.
+   */
+  readonly partial?: {
+    readonly booked: readonly MemberId[];
+    readonly missing: readonly MemberId[];
+    readonly errorCode: string;
+  };
+}
+
+/** One provider flight order of a proposal: the offer, who flies on it, the fare approved for it. */
+interface FlightPart {
+  readonly offerId: string;
+  readonly memberIds: readonly MemberId[];
+  readonly totalMinor: number;
+}
+
+/**
+ * The orders a flight proposal books: one per traveler for a group set
+ * (`flights:` itemRef, T-074), else the one offer for every attendee.
+ */
+function flightParts(proposal: BookingProposal): readonly FlightPart[] | undefined {
+  if (!proposal.itemRef.startsWith('flights:')) {
+    return [
+      {
+        offerId: proposal.itemRef,
+        memberIds: proposal.attendees,
+        totalMinor: proposal.totalMinor,
+      },
+    ];
+  }
+  const set = decodeFlightSet(proposal.itemRef);
+  if (set === undefined) return undefined;
+  // The set must be exactly the proposal: its travelers, its total.
+  const members = set.map((p) => p.memberId);
+  const sum = set.reduce((s, p) => s + p.totalMinor, 0);
+  if (
+    members.length !== proposal.attendees.length ||
+    !proposal.attendees.every((id) => members.includes(id)) ||
+    sum !== proposal.totalMinor
+  ) {
+    return undefined;
+  }
+  return set.map((p) => ({
+    offerId: p.offerId,
+    memberIds: [p.memberId],
+    totalMinor: p.totalMinor,
+  }));
+}
+
+/**
+ * What a flight set's orders came to: every order's id and booking reference
+ * (comma-separated, in order), the carriers, and the sum of the fares that
+ * landed. A partial set says who is and isn't booked.
+ */
+function flightPurchase(
+  landed: readonly { readonly part: FlightPart; readonly order: FlightOrder }[],
+  partial?: Purchased['partial'],
+): Purchased {
+  const first = landed[0]!.order;
+  const carriers = [...new Set(landed.map((l) => sanitizeInline(l.order.offer.owner.name, 40)))];
+  return {
+    providerRef: landed.map((l) => l.order.orderId).join(','),
+    orderRef: landed.map((l) => l.order.bookingReference).join(', '),
+    merchant: sanitizeInline(carriers.join(', '), 80),
+    totalMinor: landed.reduce((s, l) => s + l.order.totalAmount.amountMinor, 0),
+    currency: first.totalAmount.currency,
+    purchasedAt: landed.reduce(
+      (latest, l) => (parseIso(l.order.createdAt) > parseIso(latest) ? l.order.createdAt : latest),
+      first.createdAt,
+    ),
+    ...(partial !== undefined ? { partial } : {}),
+  };
+}
+
+/**
+ * A flight passenger from a member's display name (D-040): given and family
+ * name when it has both, else the given name alone. Nothing is invented; the
+ * mock books under it, a real adapter must refuse a traveler without a family
+ * name.
+ */
+export function flightTravelerOf(member: Member): FlightTraveler | undefined {
+  return leadGuestOf(member);
 }
 
 /** The live party for the proposal's activity (or the proposal's own list without one). */
@@ -414,12 +508,65 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
         });
       }
       case 'flight': {
-        const offer = await providers.flights.getOffer(proposal.itemRef);
-        if (!offer.ok) return offer;
+        const parts = flightParts(proposal);
+        if (parts === undefined) {
+          return {
+            ok: false,
+            error: {
+              code: 'invalid_request',
+              message: 'flight set does not match the proposal',
+              retryable: false,
+            },
+          };
+        }
+        // Every order's offer, right before any money moves. A group set is
+        // re-priced part by part: one fare going up and another down by the
+        // same amount is still a changed set (T-074).
+        const isSet = proposal.itemRef.startsWith('flights:');
+        let totalMinor = 0;
+        let currency = proposal.currency;
+        let changed = false;
+        for (const part of parts) {
+          const offer = await providers.flights.getOffer(part.offerId);
+          if (!offer.ok) return offer;
+          const v = offer.value;
+          currency = v.totalAmount.currency;
+          if (!isSet) {
+            totalMinor += v.totalAmount.amountMinor;
+            continue;
+          }
+          if (
+            v.totalAmount.currency !== proposal.currency ||
+            v.passengerIds.length !== part.memberIds.length ||
+            !part.memberIds.every((id) => v.passengerIds.includes(id))
+          ) {
+            return {
+              ok: false,
+              error: {
+                code: 'invalid_request',
+                message: 'flight offer is for other passengers',
+                retryable: false,
+              },
+            };
+          }
+          if (v.totalAmount.amountMinor !== part.totalMinor) changed = true;
+          totalMinor += v.totalAmount.amountMinor;
+        }
+        if (changed) {
+          return {
+            ok: false,
+            error: {
+              code: 'price_changed',
+              message: 'a fare in the flight set changed',
+              retryable: true,
+              newAmount: money(totalMinor, proposal.currency),
+            },
+          };
+        }
         return ok({
-          totalMinor: offer.value.totalAmount.amountMinor,
-          currency: offer.value.totalAmount.currency,
-          quoteRef: offer.value.offerId,
+          totalMinor,
+          currency,
+          quoteRef: isSet ? proposal.itemRef : parts[0]!.offerId,
         });
       }
       case 'lodging': {
@@ -564,28 +711,56 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
         });
       }
       case 'flight': {
-        const travelers = proposal.attendees.map((id) => {
-          const member = members.find((m) => m.memberId === id);
-          return member === undefined ? undefined : travelerOf(member);
-        });
-        if (travelers.some((t) => t === undefined)) {
-          return notSupported('a traveler has no family name on file');
+        const parts = flightParts(proposal);
+        if (parts === undefined) return notSupported('flight set does not match the proposal');
+        const isSet = proposal.itemRef.startsWith('flights:');
+        const plan = parts.map((part) => ({
+          part,
+          travelers: part.memberIds.map((id) => {
+            const member = members.find((m) => m.memberId === id);
+            return member === undefined ? undefined : flightTravelerOf(member);
+          }),
+        }));
+        if (plan.some((p) => p.travelers.some((t) => t === undefined))) {
+          return notSupported('a traveler has no name on file');
         }
-        const res = await providers.flights.createOrder({
-          ...base,
-          offerId: repriced.quoteRef,
-          travelers: travelers as Traveler[],
-        });
-        if (!res.ok) return res;
-        const order = res.value;
-        return ok({
-          providerRef: order.orderId,
-          orderRef: order.bookingReference,
-          merchant: sanitizeInline(order.offer.owner.name, 80),
-          totalMinor: order.totalAmount.amountMinor,
-          currency: order.totalAmount.currency,
-          purchasedAt: order.createdAt,
-        });
+        // One order per part, in order (T-074, D-040). A group set orders
+        // each traveler's fare under its own key (`<key>#n`, so a retry
+        // replays the same order) and its own proof, capped at exactly the
+        // fare the group approved for it: the one grant funds the set, and no
+        // order can take more than its share of it.
+        const landed: { part: FlightPart; order: FlightOrder }[] = [];
+        for (const [i, { part, travelers }] of plan.entries()) {
+          const n = String(i + 1);
+          const res = await providers.flights.createOrder({
+            groupId: proposal.groupId,
+            offerId: isSet ? part.offerId : repriced.quoteRef,
+            travelers: travelers as FlightTraveler[],
+            expectedTotal: money(part.totalMinor, proposal.currency),
+            idempotencyKey: isSet ? `${proposal.idempotencyKey}#${n}` : proposal.idempotencyKey,
+            approval: isSet
+              ? {
+                  ...proof,
+                  approvalId: `${proof.approvalId}#${n}`,
+                  maxAmount: money(part.totalMinor, proposal.currency),
+                }
+              : proof,
+          });
+          if (!res.ok) {
+            if (landed.length === 0) return res;
+            // Some fares are bought: they stand, and the booking covers only
+            // them; the rest were not booked and not charged.
+            return ok(
+              flightPurchase(landed, {
+                booked: landed.flatMap((l) => l.part.memberIds),
+                missing: parts.slice(i).flatMap((p) => p.memberIds),
+                errorCode: res.error.code,
+              }),
+            );
+          }
+          landed.push({ part, order: res.value });
+        }
+        return ok(flightPurchase(landed));
       }
       case 'lodging': {
         const leadId =
@@ -865,7 +1040,17 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
     ctx: Loaded,
     booking: Booking,
     auditIds: AuditEventId[],
-  ): Promise<{ readonly booking: Booking; readonly expense: Expense; readonly repaired: boolean }> {
+  ): Promise<{
+    readonly booking: Booking;
+    readonly expense: Expense | null;
+    readonly repaired: boolean;
+  }> {
+    // Each on their own card (`per_person_cards`, flights): nobody fronted
+    // anyone's money, so nothing goes on the tab (D-005, D-040).
+    if (booking.paidBy.kind === 'per_person_cards') {
+      const ticketed = await ensureTickets(ctx, booking);
+      return { booking: ticketed.booking, expense: null, repaired: ticketed.changed };
+    }
     const written = ensureExpense(booking, ctx, auditIds);
     const ticketed = await ensureTickets(ctx, written.booking);
     return {
@@ -914,7 +1099,7 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
       return {
         kind: 'duplicate',
         booking: done.booking,
-        expense: done.expense,
+        ...(done.expense !== null ? { expense: done.expense } : {}),
         repaired: done.repaired,
       };
     }
@@ -1015,6 +1200,11 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
     const bought = await purchase(ctx, repriced, proof);
     if (!bought.ok) return providerFailure(ctx, bookingId, bought.error, 'purchase', repriced);
     const purchased = bought.value;
+    // A partial flight set: the booking (and its audit) covers who is booked.
+    const bookedParty =
+      purchased.partial === undefined
+        ? { attendees: proposal.attendees, payers: proposal.payers }
+        : partialParty(ctx, purchased.partial.booked);
     let paymentRef: string | undefined;
     if (proposal.paidBy.kind === 'member_card') {
       const charged = await providers.payments.charge({
@@ -1072,8 +1262,8 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
         orderRef: purchased.orderRef,
         totalMinor: purchased.totalMinor,
         currency: purchased.currency,
-        payers: proposal.payers,
-        attendees: proposal.attendees,
+        payers: bookedParty.payers,
+        attendees: bookedParty.attendees,
         refundable: proposal.refundable,
         kind: proposal.kind,
         provider: proposal.provider,
@@ -1082,6 +1272,15 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
         // What the DM ticket cards say about the event (no barcodes), so a
         // later step-9 repair renders the same cards without `getOrder`.
         ...(purchased.ticketEvent !== undefined ? { ticketEvent: purchased.ticketEvent } : {}),
+        ...(purchased.partial !== undefined
+          ? {
+              partial: {
+                missing: purchased.partial.missing,
+                errorCode: purchased.partial.errorCode,
+                approvedTotalMinor: proposal.totalMinor,
+              },
+            }
+          : {}),
       },
     });
     auditIds.push(completedId);
@@ -1101,8 +1300,8 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
       merchant: purchased.merchant,
       totalMinor: purchased.totalMinor,
       currency: purchased.currency,
-      payers: proposal.payers,
-      attendees: proposal.attendees,
+      payers: bookedParty.payers,
+      attendees: bookedParty.attendees,
       paidBy: proposal.paidBy,
       refundable: proposal.refundable,
       ...(proposal.refundDeadline !== undefined ? { refundDeadline: proposal.refundDeadline } : {}),
@@ -1135,6 +1334,40 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
       booking: done.booking,
       expense: done.expense,
       auditEventIds: auditIds,
+      ...(purchased.partial !== undefined
+        ? {
+            partial: {
+              missing: purchased.partial.missing,
+              errorCode: purchased.partial.errorCode,
+            },
+          }
+        : {}),
+    };
+  }
+
+  /**
+   * Who a partial flight set booked and what each carrier paid: each booked
+   * traveler's own approved fare, a minor's on the same carrier as in the
+   * proposal (`carrierOf`).
+   */
+  function partialParty(
+    ctx: Loaded,
+    booked: readonly MemberId[],
+  ): { attendees: MemberId[]; payers: { memberId: MemberId; shareMinor: number }[] } {
+    const { proposal, trip, members, now } = ctx;
+    const parts = flightParts(proposal) ?? [];
+    const rule = payerRuleFor(proposal, trip, members, now);
+    const attendees = proposal.attendees.filter((id) => booked.includes(id));
+    const carriers = payersFor(attendees, rule);
+    const byCarrier = new Map<MemberId, number>(carriers.map((id) => [id, 0]));
+    for (const id of attendees) {
+      const fare = parts.find((p) => p.memberIds.includes(id))?.totalMinor ?? 0;
+      const to = carrierOf(id, carriers, rule);
+      byCarrier.set(to, (byCarrier.get(to) ?? 0) + fare);
+    }
+    return {
+      attendees,
+      payers: carriers.map((memberId) => ({ memberId, shareMinor: byCarrier.get(memberId) ?? 0 })),
     };
   }
 

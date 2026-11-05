@@ -174,6 +174,28 @@ Each template: trigger → text (exact style) → card type (§5) → notes. Exa
 > there's a €1,190 one in Poblenou but it's non-refundable, so i'd go with this
 > 👍 from @Dean to book
 
+**Example D (group flights, T-074): the options first, then the pick.**
+
+> **trav:** (card: `options`, one per-person line per traveler in each option's `details`)
+> flights for 6 into BCN thu mar 12, home tue mar 17. best 3:
+> 1. €2,956 · everyone lands within 3h 15m · refundable
+> 2. €2,939 · lands within 4h 20m · refundable · €17 less
+> 3. €2,765 · lands within 2h 20m · 4 non-refundable · €191 less
+> each person pays their own fare. who flies when is in the card
+> say "@trav book option 1" (or 2 or 3). nothing's booked yet
+
+> **Dean:** @trav book option 1
+
+> **trav:**
+> option 1, flights for 6: into BCN thu mar 12, home tue mar 17
+> Dean €412 · Henry €474 · Maya €538 · +3 more in the card
+> €2,956 total · refundable before departure, fees apply
+> each pays their own fare on their own card, nothing to split
+> flights are on everyone paying, so all 6 of you have to 👍
+> 👍 to book, or say "not me" first. price held for 15 min
+
+Notes: refundable sets lead; a non-refundable set appears only when it scores better, and says how many fares are locked and what it saves. Fares in the text name at most three people ("+N more in the card"). The receipt says "6 airline orders, refs in the card" and "each on your own card, nothing to split"; flights never go on the tab.
+
 Card: `booking_proposal`. Notes: the "not Henry" aside is allowed; "feel better" style asides are fine but never mention the reason if it's health-related beyond what the user said. Never list a price without refundability. Never say "great deal".
 
 ### 4.2 Purchase confirmation + receipt
@@ -677,7 +699,7 @@ interface WrappedCard extends CardBase {
 interface OptionsCard extends CardBase {
   type: "options";
   context: string;              // "nothing under €60 for barça sunday"
-  options: { id: string; index: number; label: string; price: Money; perPerson?: Money; refundable: boolean; tradeoff: string }[];
+  options: { id: string; index: number; label: string; price: Money; perPerson?: Money; refundable: boolean; tradeoff: string; details?: string[] }[]; // details: per-person lines (group flights, T-074)
   pickAction: Action;           // id "pick", textAliases ["1","2","3"]
   status: "pending" | "picked" | "dropped" | "expired";
 }

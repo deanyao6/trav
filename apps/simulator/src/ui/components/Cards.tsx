@@ -159,6 +159,16 @@ function ProposalBody({
   at: string;
 }) {
   const tz = group.timeZone;
+  // Group flights (T-074): one fare per traveler, so the card lists who flies
+  // when for how much instead of an "each" price.
+  const flights = card.category === 'flight';
+  const unit = flights
+    ? card.quantity === 1
+      ? 'traveler'
+      : 'travelers'
+    : card.quantity === 1
+      ? 'ticket'
+      : 'tickets';
   return (
     <>
       <div className="card-item">{card.item.name}</div>
@@ -166,8 +176,15 @@ function ProposalBody({
         {[card.item.venue, card.item.startsAt ? formatTime(card.item.startsAt, tz, at) : undefined]
           .filter(Boolean)
           .join(' · ')}
-        {` · ${card.quantity} ${card.quantity === 1 ? 'ticket' : 'tickets'}`}
+        {` · ${card.quantity} ${unit}`}
       </div>
+      {flights && card.item.details !== undefined && card.item.details.length > 0 ? (
+        <ul className="muted small" data-testid="proposal-details">
+          {card.item.details.map((d) => (
+            <li key={d}>{d}</li>
+          ))}
+        </ul>
+      ) : null}
       <div className="chips" data-testid="proposal-charged">
         {card.charged.map((p) => (
           <Chip key={p.memberId} group={group} memberId={p.memberId} />
@@ -177,7 +194,9 @@ function ProposalBody({
         <div className="muted">not: {card.excluded.map((e) => e.name).join(', ')}</div>
       ) : null}
       <div className="price">
-        {formatMoney(card.pricePerPerson)} each · {formatMoney(card.total)} total
+        {flights
+          ? `${formatMoney(card.total)} total`
+          : `${formatMoney(card.pricePerPerson)} each · ${formatMoney(card.total)} total`}
       </div>
       <div className="chips">
         <RefundChip
@@ -559,6 +578,13 @@ function OptionsBody(props: CardProps & { card: OptionsCard }) {
             <RefundChip refundable={o.refundable} tz={props.group.timeZone} />
             <span className="muted small">{o.tradeoff}</span>
           </div>
+          {o.details !== undefined && o.details.length > 0 ? (
+            <ul className="muted small" data-testid={`option-details-${o.index}`}>
+              {o.details.map((d) => (
+                <li key={d}>{d}</li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       ))}
       {canPick ? (

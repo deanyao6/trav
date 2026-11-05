@@ -178,7 +178,13 @@ export function renderReceipt(
       ? `refundable until ${deadlinePhrase(booking.refundDeadline, ctx.timeZone, ctx.now)}`
       : 'refundable'
     : 'non-refundable';
-  const line2 = `order ${booking.orderRef} · ${refund}`;
+  // A group flight set is one airline order per traveler (T-074): the count
+  // here, every reference in the card.
+  const orderCount = booking.kind === 'flight' ? booking.orderRef.split(', ').length : 1;
+  const line2 =
+    orderCount > 1
+      ? `${String(orderCount)} airline orders, refs in the card · ${refund}`
+      : `order ${booking.orderRef} · ${refund}`;
 
   const lines = [line1, line2];
   if (booking.tickets.length > 0) {

@@ -97,6 +97,18 @@ export interface FlightOffer {
   readonly expiresAt: IsoDateTime;
 }
 
+/**
+ * A passenger on a flight order (D-040). v0 keeps no legal names, so the
+ * family name is sent only when the member's display name has one; nothing
+ * is ever invented. The MOCK provider books under the given name alone (a
+ * demo, nobody flies); a real adapter must refuse a traveler without a
+ * family name (`invalid_request`): an airline ticket needs the full name as
+ * on the passport (docs/QUESTIONS.md, traveler profile).
+ */
+export interface FlightTraveler extends Omit<Traveler, 'familyName'> {
+  readonly familyName?: string;
+}
+
 export interface CreateFlightOrderRequest {
   /**
    * The group the flights are booked for. Must equal `approval.groupId`;
@@ -105,7 +117,7 @@ export interface CreateFlightOrderRequest {
   readonly groupId: GroupId;
   readonly offerId: string;
   /** One traveler per passengerId on the offer. */
-  readonly travelers: readonly Traveler[];
+  readonly travelers: readonly FlightTraveler[];
   /** The total the group approved; must equal the re-priced offer total. */
   readonly expectedTotal: Money;
   readonly idempotencyKey: IdempotencyKey;
@@ -120,7 +132,7 @@ export interface FlightOrder {
   readonly bookingReference: string;
   readonly status: FlightOrderStatus;
   readonly totalAmount: Money;
-  readonly travelers: readonly Traveler[];
+  readonly travelers: readonly FlightTraveler[];
   /** Snapshot of the offer as booked. */
   readonly offer: FlightOffer;
   readonly createdAt: IsoDateTime;

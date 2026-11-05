@@ -98,6 +98,7 @@ import {
 } from './approval/text.js';
 import type { ProposalService, ProposeResult } from './booking/proposals.js';
 import { nightOf, shortEventName } from './booking/proposals.js';
+import { optionIndexOf } from './booking/flights.js';
 import type { BookingExecutor, ProviderRegistry } from './booking/executor.js';
 import { buildGroupContext, renderGroupPrompt, sanitizeInline } from './context/groupContext.js';
 import { createChatExpenseFlow } from './ingest/chatExpense.js';
@@ -395,6 +396,8 @@ const TERMINAL_KINDS = new Set([
   'remembered',
   'settings_turn',
   'needs_confirmation',
+  // T-074: the group flight options card, posted as computed (never paraphrased).
+  'flight_options',
 ]);
 
 const PROPOSAL_ACTIONS: readonly Action[] = [
@@ -1266,6 +1269,45 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     return finish(sent, 'approval:handled');
   }
 
+  /**
+   * [Option N] on the flight options card (T-074): the same proposal as
+   * "@trav book option N" (`propose_booking` kind flight), requested by the
+   * tapper, rendered like any terminal proposal result. A guest, a minor's
+   * policy, a stale card (another search replaced it) and an unknown option
+   * all end in the proposal service's own answer; nothing is bought here.
+   */
+  async function pickFlightOption(
+    r: Resolved,
+    ref: PendingCardRef,
+    value: string | undefined,
+    messageId: MessageId,
+  ): Promise<TurnResult> {
+    const me = r.me;
+    if (me === null || me.role === 'guest' || r.lane !== 'group') return silent('pick:not_member');
+    const option = optionIndexOf(value, ref.cardId);
+    if (option === undefined) return silent('pick:no_option');
+    const before = snapshotAudit(r.group.groupId);
+    const res = await deps.proposals.propose(
+      { kind: 'flight', option, requestText: `tapped option ${String(option)}` },
+      {
+        groupId: r.group.groupId,
+        tripId: r.trip?.tripId ?? null,
+        requestedBy: me.memberId,
+        sourceMessageId: messageId,
+      },
+    );
+    const drafts = await renderTerminal(r, res, me, messageId, before);
+    const sent = await send(r, drafts);
+    return {
+      outbound: sent,
+      toolCalls: [],
+      auditEventIds: auditIdsSince(r.group.groupId, before),
+      silent: sent.length === 0,
+      modelSources: [],
+      note: `pick:${res.kind}`,
+    };
+  }
+
   // ---------- the model loop ----------
 
   async function modelTurn(
@@ -1615,6 +1657,14 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       const text = resultText(value) ?? 'logged';
       const card = resultCard(value);
       return message(r, text, { ...(card !== undefined ? { card } : {}), actions: UNDO_ACTION });
+    }
+    if (kind === 'flight_options') {
+      // The ranked group flights (T-074): picked by "book option N", which
+      // goes through propose_booking and the approval policy like any booking.
+      const text = resultText(value);
+      const card = resultCard(value);
+      if (text === undefined) return undefined;
+      return message(r, text, card !== undefined && card.type === 'options' ? { card } : {});
     }
     const text = resultText(value);
     return text === undefined ? undefined : message(r, text);
@@ -2872,6 +2922,10 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
         // [Paid] on a transfer row (T-141, the T-037 button): value is `from:to`.
         if (event.actionId === 'paid' && ref !== undefined && isFinalSettleCard(r, ref))
           return markPaidTurn(r, ref, 'button', event.messageId, event.value);
+        // A tap on a group flight option (T-074) is "book option N" from the
+        // tapper: a proposal through the approval policy, never a purchase.
+        if (event.actionId === 'pick' && ref?.card.type === 'options')
+          return pickFlightOption(r, ref, event.value, event.messageId);
         const intent: ApprovalIntent | undefined =
           event.actionId === 'approve' ||
           event.actionId === 'decline' ||
