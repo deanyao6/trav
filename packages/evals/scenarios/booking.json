@@ -197,6 +197,34 @@
         "from": "h_piotr",
         "text": "@trav we want razz tickets but henry wants apolo",
         "expect": { "toolCalls": [], "purchases": 0 }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-14T21:51:00+01:00",
+        "from": "h_dean",
+        "text": "@trav we need razz tickets tonight, crowley's buying",
+        "expect": { "toolCalls": [], "purchases": 0 }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-14T21:52:00+01:00",
+        "from": "h_chase",
+        "text": "@trav crowley got razz tickets for all 6",
+        "expect": { "toolCalls": [], "purchases": 0 }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-14T21:53:00+01:00",
+        "from": "h_arjun",
+        "text": "@trav get razz tickets for all 6 once henry confirms",
+        "expect": { "toolCalls": [], "purchases": 0 }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-14T21:54:00+01:00",
+        "from": "h_dean",
+        "text": "@trav crowley, get razz tickets for everyone",
+        "expect": { "toolCalls": [], "purchases": 0 }
       }
     ]
   },

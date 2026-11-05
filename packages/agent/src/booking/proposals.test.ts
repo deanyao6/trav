@@ -307,6 +307,27 @@ describe('T-158: a clarify roster never lists someone the member excluded', () =
     );
   });
 
+  it('T-173 (SAFETY A9): a party of only members who are out is never a party', () => {
+    for (const input of [
+      { attendeeNames: ['Henry'], excludedNames: ['Henry'] },
+      { attendeeNames: ['Henry', 'Chase'], excludedNames: ['Chase', 'Henry'] },
+    ]) {
+      const r = party(input);
+      expect(r.kind).toBe('clarify');
+      expect(question(r)).not.toMatch(/henry|chase/i);
+    }
+    // Marked out for the activity (not just named out) is the same.
+    const r = resolveParty({
+      input: { attendeeNames: ['Henry'] },
+      active: members,
+      byId,
+      order,
+      base: order,
+      markedOut: new Set(['mem_henry']),
+    });
+    expect(r.kind).toBe('clarify');
+  });
+
   it('nobody left: a plain question, never an empty list', () => {
     const q = question(
       party({ quantity: 1, excludedNames: ['Dean', 'Crowley', 'Ava', 'Chase', 'Leo', 'Henry'] }),
@@ -383,5 +404,55 @@ describe('T-158: the ticket path through the runtime (offline)', () => {
     await h.say('h_dean', text);
     expect(h.pending()).toHaveLength(0);
     expect(h.tickets.purchaseCount()).toBe(0);
+  });
+});
+
+describe('T-173: the precision repros through the runtime (offline)', () => {
+  const groupText = (turn: TurnResult): string =>
+    turn.outbound
+      .filter((o): o is OutboundMessage => !isReaction(o) && o.to.kind === 'group')
+      .map((m) => m.text)
+      .join('\n');
+
+  it('r2 #1: "for chase, zed and me" asks about Zed instead of booking without them', async () => {
+    const h = harness();
+    const turn = await h.say('h_dean', '@trav get razz tickets for chase, zed and me');
+    expect(h.pending()).toHaveLength(0);
+    const said = groupText(turn);
+    expect(said).toContain("who's in?");
+    expect(said).toContain('Dean, Chase');
+    expect(h.tickets.purchaseCount()).toBe(0);
+  });
+
+  it('r2 #2: "i need razz tickets" proposes the sender alone', async () => {
+    const h = harness();
+    const turn = await h.say('h_arjun', '@trav i need razz tickets tonight');
+    const p = h.pending()[0];
+    expect(p, turn.note).toBeDefined();
+    expect(p!.attendees).toEqual(['mem_arjun']);
+  });
+
+  it.each([
+    "@trav we need razz tickets tonight, crowley's buying",
+    '@trav crowley got razz tickets for all 6',
+    "@trav we can't get razz tickets for all 6",
+    '@trav get razz tickets for all 6 once henry confirms',
+    '@trav worth getting razz tickets for all 6?',
+    '@trav crowley, get razz tickets for everyone',
+    '@trav get the whole crew razz tickets, sparing for henry',
+    '@trav get razz tickets for henry, henry is sick',
+  ])('"%s" holds nothing and proposes nothing', async (text) => {
+    const h = harness();
+    await h.say('h_dean', text);
+    expect(h.pending()).toHaveLength(0);
+    expect(h.tickets.purchaseCount()).toBe(0);
+  });
+
+  it('SAFETY A9: "the whole crew save for henry" proposes the five, never Henry alone', async () => {
+    const h = harness();
+    const turn = await h.say('h_dean', '@trav get the whole crew razz tickets save for henry');
+    const p = h.pending()[0];
+    expect(p, turn.note).toBeDefined();
+    expect(new Set(p!.attendees)).toEqual(new Set(RUNTIME_FIVE));
   });
 });

@@ -38,6 +38,7 @@
 import type { GroupMessageSummary, IsoDateTime, Member, MemberId } from '@trav/core';
 import { parseIso } from '@trav/core';
 import { ridersQuestion } from '../render/expenseConfirm.js';
+import { isVerbUse } from '../roster/nameVerbs.js';
 import type { SharePlan } from './pending.js';
 
 /** A rider count outside 1..this is not believed (the parser and `rideDetail` use the same cap). */
@@ -309,11 +310,22 @@ export function parseRiderNames(
   const slots: MemberId[] = [];
   for (const name of [...byName.keys()].sort((a, b) => b.length - a.length)) {
     const re = new RegExp(`(?<![\\p{L}\\p{N}'])${escapeRe(name)}(?:'s)?(?![\\p{L}\\p{N}])`, 'gu');
-    if (!re.test(low)) continue;
+    // "i'll chase him for it": the verb, never the member (T-173, `isVerbUse`).
+    const hits = [...low.matchAll(re)].filter(
+      (x) => !isVerbUse(low, x.index, x.index + x[0].length),
+    );
+    if (hits.length === 0) continue;
     const ids = byName.get(name)!;
     if (ids.length !== 1) return none;
     slots.push(ids[0]!);
-    low = low.replace(re, ` #${String(slots.length - 1)} `);
+    const slot = ` #${String(slots.length - 1)} `;
+    let next = '';
+    let at = 0;
+    for (const x of hits) {
+      next += low.slice(at, x.index) + slot;
+      at = x.index + x[0].length;
+    }
+    low = next + low.slice(at);
   }
 
   const words = low.split(' ').filter((w) => w !== '');

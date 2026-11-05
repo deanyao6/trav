@@ -23,6 +23,7 @@
 import type { IsoDate } from '@trav/core';
 import { addDays } from '@trav/core';
 import { parseRosterUpdate } from '../roster/index.js';
+import { isVerbWord } from '../roster/nameVerbs.js';
 
 /** The slice of a ticket inventory the parser reads (structurally `TicketInventory`). */
 export interface InventoryLike {
@@ -514,7 +515,7 @@ const CANCEL_CUE = /\b(?:cancel|drop|nvm|never ?mind|don'?t book|scrap|forget)\b
  * removed (`withoutNameNegations`) before this is tested.
  */
 const NEGATION_CUE =
-  /\b(?:don'?t|dont|do not|doesn'?t|no need|not (?:yet|now|getting|buying|booking)|hold off|wait on|no (?:tickets|tix)|never)\b/;
+  /\b(?:don'?t|dont|do not|doesn'?t|no need|not (?:yet|now|getting|buying|booking|gonna|going to)|hold off|wait on|no (?:tickets|tix)|never|can'?t|cant|cannot|can not|couldn'?t|won'?t|wont|wouldn'?t|didn'?t|isn'?t|aren'?t|wasn'?t|weren'?t|shouldn'?t|haven'?t|hasn'?t|no way)\b/;
 /** "never been (here)": about the venue, not the booking (T-148 #3). A whole clause only. */
 const NEVER_BEEN = /(?:^|[,.;!?]\s*)never been(?:\s+(?:here|there|before))?\s*(?=[,.;!?]|$)/g;
 /**
@@ -523,7 +524,7 @@ const NEVER_BEEN = /(?:^|[,.;!?]\s*)never been(?:\s+(?:here|there|before))?\s*(?
  * "doesn't matter which night", "no need for vip", "don't wait (on henry)".
  */
 const HARMLESS_NEGATIONS =
-  /\b(?:(?:don'?t|dont|do not)\s+(?:count|leave)\s+(?:[a-z][a-z'-]*\s+(?:and|or|&)\s+)?[a-z][a-z'-]*\s+out|(?:(?:we'?ve|i'?ve|we have|i have|weve|ive)\s+)?never been(?:\s+(?:here|there|before))?|(?:don'?t|dont|do not)\s+care(?:\s+(?:about|which|what))?|(?:doesn'?t|does not|don'?t|dont)\s+matter|no need for|(?:don'?t|dont|do not)\s+wait(?:\s+(?:on|for)\s+[a-z][a-z'-]*)?)\b/g;
+  /\b(?:(?:don'?t|dont|do not)\s+(?:count|leave)\s+(?:[a-z][a-z'-]*\s+(?:and|or|&)\s+)?[a-z][a-z'-]*\s+out|(?:(?:we'?ve|i'?ve|we have|i have|weve|ive)\s+)?never been(?:\s+(?:here|there|before))?|(?:don'?t|dont|do not)\s+care(?:\s+(?:about|which|what))?|(?:doesn'?t|does not|don'?t|dont)\s+matter|no need for|(?:can'?t|cant|cannot)\s+wait|(?:don'?t|dont|do not)\s+wait(?:\s+(?:on|for)\s+[a-z][a-z'-]*)?)\b/g;
 /** `folded` without the negated phrases that never take an ask back. */
 function withoutHarmlessNegations(folded: string): string {
   return folded.replace(HARMLESS_NEGATIONS, ' ');
@@ -657,6 +658,15 @@ const NOT_NAME_FILLER = new Set([
 ]);
 
 const NAME = String.raw`([a-z][a-z'-]{1,29})`;
+/** Words for the whole group (T-173): "everyone", "all of us", "the whole crew", "all 6". */
+const GROUP_WORD = String.raw`(?:everyone|everybody|all of us|us all|all (?:\d{1,2}|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)(?: of us)?|all|us|the group|(?:the )?whole (?:group|crew|gang|squad|lot)|the (?:crew|gang|squad|lot of us)|(?:the )?rest of us)`;
+/** The same, as a test on a whole message ("everyone else" is the rest, not the group). */
+const GROUP_WORD_RE = new RegExp(
+  String.raw`\b(?:everyone|everybody|all of us|us all|all (?:\d{1,2}|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b|(?:the )?whole (?:group|crew|gang|squad|lot)|the (?:group|crew|gang|squad|lot of us))\b(?!\s+else)`,
+);
+/** A word that, right before "for", makes the "for …" an exclusion, never the party ("save for henry"). */
+const CONNECTIVE_BEFORE_FOR =
+  /\b(?:except|save|bar|but|aside|apart|besides|other than|minus|without|excluding|sans|not|leaving|leave|skip|skipping|ignoring|barring)\s+$/;
 
 /**
  * Could `word` (folded) be a member's name in an exclusion (T-148 r1 #2)?
@@ -683,7 +693,7 @@ function exclusionName(word: string | undefined, sender: string | undefined): st
 const NAME_NEGATIONS: readonly string[] = [
   String.raw`\b(?:don'?t|dont|do not)\s+(?:count|include|add)\s+${NAME}(?:\s+(?:and|or|&)\s+${NAME})?(?:\s+(?:in|out))?`,
   String.raw`\bnot\s+(?:counting|including)\s+${NAME}(?:\s+(?:and|or|&)\s+${NAME})?`,
-  String.raw`\b${NAME}\s+(?:doesn'?t|does not|won'?t|will not|can'?t|cannot|isn'?t)\s+(?:want to\s+|wanna\s+|going to\s+|gonna\s+)?(?:come|go|join|make it|coming|going|joining)\b`,
+  String.raw`\b${NAME}\s+(?:doesn'?t|does not|didn'?t|won'?t|will not|can'?t|cant|cannot|isn'?t|is not|aren'?t)\s+(?:want to\s+|wanna\s+|going to\s+|gonna\s+)?(?:come|go|join|make it|coming|going|joining|be there|be coming|be joining|feeling (?:it|well|great|good|100|up to it)|up for it)\b`,
 ];
 
 /**
@@ -743,6 +753,18 @@ function headcount(t: string): number | undefined {
     const n = toCount(re.exec(t)?.[1]);
     if (n !== undefined) return n;
   }
+  // "razz tickets x5", "get razz x 5", "5x razz tickets" (T-173): a count
+  // suffix, only next to a ticket word or a buy verb ("water 1L x2" is a
+  // receipt line, never a headcount).
+  if (TICKET_WORD.test(t) || BOOK_VERB.test(t)) {
+    for (const re of [
+      /(?:^|[\s,])x\s?(\d{1,2})(?!\d|[:/x]|[.,]\d)/,
+      /(?:^|\s)(\d{1,2})\s?x\s+(?=[a-z])/,
+    ]) {
+      const n = toCount(re.exec(t)?.[1]);
+      if (n !== undefined) return n;
+    }
+  }
   return undefined;
 }
 
@@ -762,6 +784,7 @@ function exclusions(
   rawFolded: string,
   sender: string | undefined,
   skip: ReadonlySet<string>,
+  roster?: ReadonlyMap<string, string>,
 ): string[] {
   // "don't count me out" includes the sender (T-148 r2 #1).
   const folded = withoutHarmlessNegations(rawFolded);
@@ -791,7 +814,10 @@ function exclusions(
     new RegExp(
       // "but" excludes only after a whole-group word ("everyone but Henry");
       // "Henry's out but Chase might join" names no one else out (T-081 r1 #9).
-      String.raw`(?:\b(?:everyone|everybody|all(?: of us)?|all \d{1,2}|us|the group|whole group)\s+but|\b(?:except(?: for)?|minus|without|excluding|sans|other than|apart from))\s+${NAME}(?:\s+(?:and|or|&)\s+${NAME})?`,
+      // T-173: every common exclusion connective, so an unknown one can't
+      // leave the excluded member as the party ("save for henry", "bar
+      // henry" after a whole-group word, "aside from", "besides").
+      String.raw`(?:\b${GROUP_WORD}\s+but|\b${GROUP_WORD}(?:\s+[a-z']+){0,4}?,?\s+(?:bar|save)(?:\s+for)?|\b(?:except(?: for)?|save for|minus|without|excluding|sans|other than|apart from|aside from|besides))\s+${NAME}(?:\s+(?:and|or|&)\s+${NAME})?`,
       'g',
     ),
   )) {
@@ -850,6 +876,26 @@ function exclusions(
       }
     }
   }
+  // "…, crowley already has one": they don't need one bought (T-173, T-158 r2 #6).
+  for (const m of folded.matchAll(
+    new RegExp(
+      String.raw`\b${NAME}(?:'s|\s+has|\s+have)?\s+(?:already\s+(?:has|have|got|bought|booked)|already got|got|has got)\s+(?:one|a ticket|a pass|a spot|theirs|his|hers|their own|his own|her own)\b`,
+      'g',
+    ),
+  )) {
+    const w = m[1]!.replace(/'s$/, '');
+    if (exclusionName(w, sender) !== undefined && !NOT_IN_LIST.has(w)) add(w);
+  }
+  // "for chase and crowley henry sick": a member right before why they're
+  // out, no verb (T-173, T-158 r2 #5). Only a known member: "tickets sold
+  // out" has no name in it.
+  if (roster !== undefined) {
+    for (const m of folded.matchAll(
+      /\b([a-z][a-z'-]*)\s+(?:sick|ill|unwell|hungover|out sick)(?=\s*(?:[,.;!?]|$))/g,
+    )) {
+      if (roster.has(m[1]!)) add(roster.get(m[1]!));
+    }
+  }
   // Names keep the member's own capitalization when they typed one.
   return out.map((n) => {
     const hit = new RegExp(`\\b(${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})\\b`, 'i').exec(
@@ -879,7 +925,8 @@ function attendeeList(
       t,
     );
   const single = /\b(?:me one|one for me|get me (?:a |one\b|in\b)|for myself|just me)\b/.test(t);
-  if (head === null) {
+  // "everyone except for me": the sender is out, never the party (T-173).
+  if (head === null || CONNECTIVE_BEFORE_FOR.test(t.slice(0, head.index))) {
     if (single && sender !== undefined) return { names: [sender] };
     return namedList(clause, ctx);
   }
@@ -893,7 +940,10 @@ function attendeeList(
     const word = m[2]!;
     const after = rest.slice(m[0].length);
     // "for me, henry is sick": a comma into a new clause ends the list (T-158 r1 #1).
-    if (!personWord(word, after, ctx)) {
+    // "for me, zed and chase": a non-member mid-list is kept so the service asks (T-173).
+    if (!personWord(word, after, ctx) && !unknownMember(word, after, ctx, comma)) {
+      // "… and chase henry for his share": a verb starts a new clause; the list ended.
+      if (isVerbWord(word, '', after)) break;
       if (andSep && !comma && !LIST_STOP.has(word) && parseDayWord(word) === undefined) {
         return 'ambiguous';
       }
@@ -1033,6 +1083,10 @@ const NOT_IN_LIST: ReadonlySet<string> = new Set([
 const CLAUSE_VERB =
   /^(?:is|are|was|were|has|have|had|isn'?t|aren'?t|can'?t|cannot|won'?t|doesn'?t|didn'?t|will|would|should|might|may|feels?|feeling|needs?|wants?|says|said|got|gets|seems|looks|went|stays|staying|left|bailed|bailing|skipping|passed|passing|prefers|already)$/;
 
+/** A reason someone is out, right after a word: that word is the subject of "henry sick" (no verb). */
+const REASON_NEXT =
+  /^\s+(?:sick|ill|unwell|poorly|rough|hungover|wrecked|knackered|exhausted|tired|under the weather|out|home|bailing|bailed|skipping)(?![a-z'])/;
+
 function nextWord(after: string): string | undefined {
   return /^\s*([a-z][a-z'’]*)/.exec(after)?.[1];
 }
@@ -1051,6 +1105,11 @@ function personWord(word: string, after: string, ctx: Reading): boolean {
   if (!/^[a-z][a-z-]{1,29}$/.test(word)) return false;
   // "for may 15": a word right before a number is a date, never a name.
   if (startsClause(after) || /^\s*\d/.test(after)) return false;
+  // "for chase and crowley henry sick": a name right before why they're out
+  // is that clause's subject, never an attendee (T-173, T-158 r2 #5).
+  if (REASON_NEXT.test(after)) return false;
+  // "… and chase henry for his share": the verb, not member Chase (T-173).
+  if (isVerbWord(word, '', after)) return false;
   if (ctx.roster !== undefined) return ctx.roster.has(word);
   return (
     !NOT_IN_LIST.has(word) &&
@@ -1062,6 +1121,26 @@ function personWord(word: string, after: string, ctx: Reading): boolean {
     NUMBER_WORDS[word] === undefined &&
     exclusionName(word, ctx.sender) !== undefined
   );
+}
+
+/**
+ * With the roster known, a name-like word that isn't a member, in a list
+ * (T-173, T-158 r2 #1): "for chase, zed and me", "for zed and chase", "for
+ * chase, piotr, zed". It is kept so the proposal service asks who that is
+ * (`resolveParty` ⇒ `unknown_name`), never dropped (the rest booked without
+ * them) and never read as "no list" (the whole group booked). Only where the
+ * list carries on into a member or "me" after it, or, when `endOk` (after a
+ * comma or right after "for"), where the sentence ends.
+ */
+function unknownMember(word: string, after: string, ctx: Reading, endOk: boolean): boolean {
+  if (ctx.roster === undefined || ctx.roster.has(word)) return false;
+  if (/ly$/.test(word) || !personWord(word, after, { ...ctx, roster: undefined })) return false;
+  const next = /^(?:\s*,\s*(?:and\s+)?|\s+and\s+|\s*&\s*|\s*\+\s*)([a-z][a-z'-]*)/.exec(after);
+  if (next !== null) {
+    const w = next[1]!;
+    return w === 'me' || w === 'myself' || ctx.roster.has(w);
+  }
+  return endOk && /^\s*(?:[.!?;]|$)/.test(after);
 }
 
 /** Words after "for" that are never a person ("for real", "for later", "for march"). */
@@ -1125,6 +1204,7 @@ const NOT_A_PERSON = new Set([
   'tho',
   'though',
   'guys',
+  'yall',
   'people',
   'ppl',
   'everyone',
@@ -1181,6 +1261,8 @@ function namedList(
 ): { readonly names: readonly string[] } | 'ambiguous' | undefined {
   const { sender, skip } = ctx;
   for (const at of t.matchAll(/\bfor\s+(?:just\s+|only\s+)?/g)) {
+    // "except for henry", "save for henry": who's out, never the party (T-173).
+    if (CONNECTIVE_BEFORE_FOR.test(t.slice(0, at.index))) continue;
     let rest = t.slice(at.index + at[0].length);
     let names: string[] = [];
     let me = false;
@@ -1202,6 +1284,9 @@ function namedList(
         me = true;
       } else if (personWord(word, after, ctx)) {
         if (!names.includes(word)) names.push(word);
+      } else if ((first || comma || joined) && unknownMember(word, after, ctx, first || comma)) {
+        // "for chase, zed and me": kept, so the service asks who Zed is (T-173).
+        if (!names.includes(word)) names.push(word);
       } else {
         if (comma) {
           // ", henry is sick", ", he's out": a new clause, the list ended at the comma.
@@ -1209,7 +1294,13 @@ function namedList(
           me = kept.me;
           break;
         }
-        if (!first && joined && !LIST_STOP.has(word) && parseDayWord(word) === undefined) {
+        if (
+          !first &&
+          joined &&
+          !isVerbWord(word, '', after) &&
+          !LIST_STOP.has(word) &&
+          parseDayWord(word) === undefined
+        ) {
           return 'ambiguous';
         }
         break;
@@ -1481,7 +1572,10 @@ function fromSomeone(clause: string, ctx: Reading): boolean {
   // tickets" is about who is asking, not where tickets come from.
   const at = firstIndex(TICKET_WORD, clause);
   if (at < 0) return false;
-  for (const m of clause.slice(at).matchAll(/\b(?:from|off)\s+([a-z][a-z'-]*)/g)) {
+  // "apart from henry", "aside from henry" exclude him (T-173), they hand nothing over.
+  for (const m of clause
+    .slice(at)
+    .matchAll(/\b(?<!(?:apart|aside)\s)(?:from|off)\s+([a-z][a-z'-]*)/g)) {
     const w = m[1]!;
     if (w === 'me' || w === 'him' || w === 'her' || w === 'them') return true;
     if (!ctx.skip.has(w) && personWord(w, '', ctx)) return true;
@@ -1516,6 +1610,238 @@ function notAnAsk(folded: string): boolean {
   // claim about a card, never a fresh ask (SAFETY E3: the loop audits it).
   return APPROVAL_CLAIM.test(folded);
 }
+
+// ---------- not a decision to buy (T-173) ----------
+//
+// T-168 buys an explicit ask under the cap, so everything below errs toward
+// "no ask": missing one costs a retype, buying on one of these costs money.
+
+/**
+ * A condition on the buy (T-173): "once henry confirms", "unless henry
+ * objects", "if it's not sold out", "after we eat", "later". "if possible" and
+ * "if you can" are manners, not conditions (`POLITE_IF`).
+ */
+const CONDITION_CUE =
+  /\b(?:if|unless|once|when|whenever|after|in case|as long as|provided|assuming|later|until|till)\b/;
+const POLITE_IF = /\bif (?:possible|poss|you can|u can|you could|u could)\b/g;
+/**
+ * Not a real ask (T-173): "imagine if trav could…", "we could get…", "worth
+ * getting…?", "the plan was to get…". "we could use razz tickets" is the
+ * soft verb "could use", not "we could".
+ */
+const HYPOTHETICAL_CUE =
+  /\b(?:imagine|imagining|hypothetically|in theory|theoretically|(?:we|you|u) could(?! use)|could(?:'ve| have)|would(?:'ve| have)|should(?:'ve| have)|wish|wishing|the plan (?:was|is)|plan was|idea was|(?:was|were) (?:going to|gonna)|supposed to|meant to|worth (?:it|getting|buying|booking|grabbing)|considering|tempted|pretend|what if)\b/;
+/**
+ * Someone else is buying, or the buy is up for grabs (T-173, T-158 r2 #3):
+ * "crowley's buying", "crowley is on it", "who wants to buy", "someone
+ * should book them", "i'm on it".
+ */
+const HANDOFF_CUE = new RegExp(
+  [
+    String.raw`\b(?:[a-z][a-z'-]*'s|[a-z][a-z'-]*\s+(?:is|will|can|could|should|has))\s+(?:buying|booking|paying|getting (?:them|those|these|it|the)|grabbing (?:them|those|it|the)|sorting (?:it|them|that|this)|handling (?:it|them|that|this)|on it|on that|on this|got (?:it|this|that)|buy (?:them|those|it)|book (?:them|those|it))\b`,
+    String.raw`\b(?:i'?m|im|i'?ll|ill|i will|i'?ve got|ive got|i got)\s+(?:buying|booking|paying|on it|got it|got this|it|this|buy (?:them|those|it)|book (?:them|those|it)|get (?:them|those|it)|grab (?:them|those|it))(?![a-z'])`,
+    String.raw`\bwho(?:'?s| is| wants to| will| can| should| gets to)\s+(?:buy|book|get|grab|sort|pay|order|buying|booking|getting|grabbing|sorting|paying|handling|on it|in charge)\b`,
+    String.raw`\b(?:someone|somebody|anyone|anybody)\s+(?:else\s+)?(?:should|needs? to|has to|can|could|wanna|want to|pls|please|go)\s+(?:buy|book|get|grab|sort|pay|order|pick)\b`,
+  ].join('|'),
+);
+/**
+ * The member takes it back or isn't sure (T-173, T-158 r2 #3): a trailing
+ * "… not" / "sarcasm" / "whatever" / "nah", "/s", "scratch that", or a choice
+ * left open ("… or tomorrow", "for 5 or 6", "or something").
+ */
+const RETRACT_CUE = new RegExp(
+  [
+    String.raw`(?:^|[,.;!?…\s])(?:not|sarcasm|yeah right|as if|said no ?one(?: ever)?|nah|nope|scratch that|whatever|whatevs|meh|idc|or not)\s*[.!?…]*\s*$`,
+    String.raw`\b(?:sarcasm|sarcastic|scratch that|on second thought|said no ?one|yeah right)\b|(?:^|\s)\/s(?![a-z])`,
+    String.raw`\bor\s+(?:maybe\s+|on\s+)?(?:tonight|tonite|today|tomorrow|tmrw|tmr|another (?:night|day|time)|next (?:week|time)|not|something|whatever|so|sun(?:day)?|mon(?:day)?|tue(?:s|sday)?|wed(?:nesday)?|thu(?:r|rs|rsday)?|fri(?:day)?|sat(?:urday)?)\b`,
+    String.raw`\b${NUM}\s+or\s+${NUM}\b`,
+  ].join('|'),
+);
+/** A buy that already happened, or a state of the tickets (T-173): "crowley got razz tickets for all 6", "i booked razz", "sold out". */
+const PAST_CUE =
+  /\b(?:got|booked|bought|grabbed|reserved|snagged|scored|ordered|secured|purchased|picked up|locked in|already|have(?! to)|has(?! to)|had|sold out)\b/;
+/** A clause with no buy verb whose own verb says it's a description ("razz tickets for all 6 are sold out"). */
+const DESCRIPTIVE_VERB =
+  /\b(?:is|are|was|were|been|be|sold|cost|costs|look|looks|looked|seem|seems|went|go|goes|going|gone|love|loved|like|liked|hate|hated|said|says|think|thought|know|knew|lands?)\b/;
+/** Telling another member to buy (T-173): "i told crowley to get…", "ask henry to book…". */
+const TOLD_TO = new RegExp(
+  String.raw`\b(?:told|tell|telling|asked|ask|asking|get|getting|got|have|having|had|let|letting|make|made|want|wanted|need|needed|remind|reminded)\s+([a-z][a-z'-]+)\s+to\s+(?:${BOOK_VERBS}|${SOFT_VERB}|pay|sort|deal|handle|pick)\b`,
+  'g',
+);
+/** A sentence that opens by addressing someone and goes straight to a buy verb: "crowley, get…", "chase can you book…". */
+const VOCATIVE = new RegExp(
+  String.raw`^(?:(?:hey|hi|yo|oi|ok|okay|so|and|also)[\s,]+)*@?([a-z][a-z'-]+)(\s*[,:]\s*|\s+)((?:can|could|would|will) (?:you|u) |pls |please |just )?(?:${BOOK_VERBS}|${SOFT_VERB})\b`,
+);
+/** Words that open a sentence with a comma without addressing anyone ("ok, get…", "guys, get…"). */
+const VOCATIVE_FILLER: ReadonlySet<string> = new Set([
+  'trav',
+  'ok',
+  'okay',
+  'so',
+  'right',
+  'alright',
+  'guys',
+  'folks',
+  'everyone',
+  'everybody',
+  'all',
+  'yes',
+  'yeah',
+  'yep',
+  'yup',
+  'cool',
+  'great',
+  'perfect',
+  'fine',
+  'sure',
+  'please',
+  'pls',
+  'also',
+  'and',
+  'btw',
+  'actually',
+  'honestly',
+  'anyway',
+  'anyways',
+  'um',
+  'hmm',
+  'oh',
+  'wait',
+  'then',
+  'k',
+  'kk',
+  'done',
+  'deal',
+  'team',
+  'lads',
+  'fam',
+  'babe',
+  'mate',
+  'bro',
+  'dude',
+  'yo',
+  'hey',
+  'hi',
+]);
+
+/** Is a member (not Trav) told to do the buying, by name? */
+function toldSomeoneElse(t: string, ctx: Reading): boolean {
+  for (const m of t.matchAll(TOLD_TO)) {
+    if (!['trav', 'you', 'u', 'ya'].includes(m[1]!)) return true;
+  }
+  for (const raw of t.split(SENTENCE_SPLIT)) {
+    const m = VOCATIVE.exec(raw.trim());
+    if (m === null) continue;
+    const who = m[1]!;
+    // Without the roster a name needs a comma or a "can you" after it ("crowley can you book…").
+    const marked = /[,:]/.test(m[2]!) || /^(?:can|could|would|will)/.test(m[3] ?? '');
+    if (VOCATIVE_FILLER.has(who)) continue;
+    if (ctx.roster !== undefined ? ctx.roster.has(who) : marked && personWord(who, '', ctx)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** The checks above, on the folded text (times removed) and the ask's own clause. */
+function uncommitted(t: string, clause: string, ctx: Reading): boolean {
+  if (CONDITION_CUE.test(t.replace(POLITE_IF, ' '))) return true;
+  if (HYPOTHETICAL_CUE.test(t) || HANDOFF_CUE.test(t) || RETRACT_CUE.test(t)) return true;
+  if (/\bsold out\b/.test(t) || toldSomeoneElse(t, ctx)) return true;
+  if (PAST_CUE.test(clause)) return true;
+  return verbIndex(clause, ctx) < 0 && DESCRIPTIVE_VERB.test(clause);
+}
+
+/**
+ * `t` without a guess at why someone is out, right after saying so (T-173,
+ * T-158 r2 #4): "henry's sick, probably the paella". Only a short noun phrase
+ * after a hedge, never a deferral ("henry's sick, maybe later" stays a hedge).
+ */
+function withoutReasonGuesses(t: string): string {
+  const parts = t.split(/(,)/);
+  for (let i = 2; i < parts.length; i += 2) {
+    const prev = parts[i - 2]!.trim();
+    const cur = parts[i]!.trim();
+    if (OUT_CLAUSE.exec(prev) === null && !/'s\s+(?:sick|ill|unwell|hungover|out)$/.test(prev)) {
+      continue;
+    }
+    const m =
+      /^(?:probably|prob|maybe|possibly|must be|might be|likely|i think|i guess)\s+((?:[a-z']+\s+){0,2}[a-z']+)$/.exec(
+        cur.replace(/[.!?]+$/, ''),
+      );
+    if (m === null) continue;
+    const words = m[1]!.split(/\s+/);
+    if (
+      words.some(
+        (w) =>
+          parseDayWord(w) !== undefined ||
+          /^(?:later|not|no|next|another|wait|instead|tickets?|tix|passes|book|get|buy|go|come|join|soon)$/.test(
+            w,
+          ),
+      )
+    ) {
+      continue;
+    }
+    parts[i] = ' ';
+  }
+  return parts.join('');
+}
+
+// The SAFETY A9 safeguards on who an ask is for (T-173): an exclusion worded
+// in a way this reader doesn't know must never come back as the party, so
+// "the whole group except X" can't propose (or, with T-168, buy) X alone.
+
+/** Everyone named is also said to be out ("for henry, henry is sick"): no party. */
+function onlyTheOut(attendees: readonly string[], excludedNames: readonly string[]): boolean {
+  const out = new Set(excludedNames.map((n) => foldText(n)));
+  return attendees.length > 0 && attendees.every((a) => out.has(foldText(a)));
+}
+
+/**
+ * A connective-like word before "for <name>" ("save for henry", "leaving
+ * aside for henry") is skipped as a party (`namedList`). If the exclusion
+ * reader didn't turn that name into an exclusion either, the reading is
+ * unsure, so no ask (T-173, SAFETY A9): never a party that silently keeps
+ * someone the member may have left out.
+ */
+function connectiveUnread(
+  t: string,
+  excludedNames: readonly string[],
+  sender: string | undefined,
+  skip: ReadonlySet<string>,
+): boolean {
+  const out = new Set(excludedNames.map((n) => foldText(n)));
+  const re = new RegExp(String.raw`${CONNECTIVE_BEFORE_FOR.source.slice(0, -1)}for\s+${NAME}`, 'g');
+  for (const m of t.matchAll(re)) {
+    const w = m[1]!;
+    // "we leave for razz", "save it for tonight": not a person.
+    if (skip.has(w) || exclusionName(w, sender) === undefined) continue;
+    const who = w === 'me' || w === 'myself' ? sender : w;
+    if (who === undefined || !out.has(foldText(who))) return true;
+  }
+  return false;
+}
+
+/**
+ * The message speaks of the whole group ("everyone", "all of us", "the whole
+ * crew", "all 6") but the named list is a strict minority of it (no roster:
+ * two names or fewer): the two readings disagree, so no ask, never a
+ * confident guess. `named` is false for the sender-alone "i need razz tickets".
+ */
+function minorityOfGroup(
+  t: string,
+  named: boolean,
+  attendees: readonly string[],
+  ctx: Reading,
+): boolean {
+  if (!named || !GROUP_WORD_RE.test(t)) return false;
+  const size = ctx.roster === undefined ? undefined : new Set(ctx.roster.values()).size;
+  return size === undefined ? attendees.length <= 2 : attendees.length * 2 < size;
+}
+
+/** First-person soft asks (T-173, T-158 r2 #2): "i need…", "i could use…", "hook me up with…". */
+const FIRST_PERSON_SOFT =
+  /\b(?:i\s+(?:really\s+|just\s+|also\s+|still\s+|kinda\s+)?(?:need|could use|want|wanna|would like)|i'?d like|(?:pick|sort|line|set|hook) me\b)/;
 
 export interface VenueQuestion {
   /** What the ticket search matches ("snorkel tour tickets"). */
@@ -1577,8 +1903,14 @@ export function parseBookingRequest(
   // apolo"): which one is the member's call, never a mixed query (T-158 r1 #3).
   if (v.specificCount > 1) return undefined;
   // "lol jk", "crowley has them already", "maybe later": not an ask, whatever the verb (r1 #2).
-  if (JOKE_CUE.test(t) || HELD_CUE.test(t) || HEDGE_CUE.test(withoutMemberHedges(t)))
+  // A guess at why someone is out ("henry's sick, probably the paella") is no hedge (T-173).
+  if (
+    JOKE_CUE.test(t) ||
+    HELD_CUE.test(t) ||
+    HEDGE_CUE.test(withoutReasonGuesses(withoutMemberHedges(t)))
+  ) {
     return undefined;
+  }
   const ctx: Reading = { skip: venueWords(v), sender, roster: rosterMap(options.roster) };
 
   // ---- questions and negations (r1 #3, T-148 #3) ----
@@ -1589,6 +1921,10 @@ export function parseBookingRequest(
   const anchor = anchorOf(t, terms, ctx);
   if (anchor === undefined || isQuestion(anchor.sentence)) return undefined;
   if (NEGATION_CUE.test(withoutNameNegations(t, sender))) return undefined;
+  // Not (yet) a decision to buy, or not Trav's to make (T-173): a condition,
+  // a hypothetical, a handoff or retraction, an instruction to another
+  // member, or a buy that already happened.
+  if (uncommitted(t, anchor.clause, ctx)) return undefined;
 
   // ---- a booking signal ----
   // A booking verb, a headcount, "for all of us" or "for me (and X)": a
@@ -1607,6 +1943,8 @@ export function parseBookingRequest(
   if (list === 'ambiguous') return undefined;
   const everyone =
     /\b(?:all of us|everyone|everybody|us all|the group|whole group|all of you)\b/.test(t) ||
+    // "the whole crew", "the gang", "the squad" (T-173: the same group words as `GROUP_WORD_RE`).
+    /\b(?:(?:the )?whole (?:crew|gang|squad|lot)|the (?:crew|gang|squad|lot of us))\b/.test(t) ||
     /\b(?:get|grab|book|buy|reserve|snag)\s+us\b/.test(t);
   // A soft verb ("we need razz entry") alone, ending in "?" ("we need razz
   // tickets?"), is a question unless it is a request ("can you pick up …?").
@@ -1624,7 +1962,30 @@ export function parseBookingRequest(
     return undefined;
   }
 
-  const excludedNames = exclusions(original, folded, sender, ctx.skip);
+  // "i need razz tickets", "hook me up with razz tickets": the sender alone,
+  // unless they named the party (T-173, T-158 r2 #2). No sender, no ask.
+  const groupParty =
+    everyone ||
+    /\b(?:for us|us all|for (?:the )?(?:group|crew|rest|lot of us))\b/.test(t) ||
+    /\b(?:pick|sort|line|set|hook) us\b/.test(t);
+  let attendees = list?.names;
+  if (
+    attendees === undefined &&
+    quantity === undefined &&
+    !groupParty &&
+    FIRST_PERSON_SOFT.test(anchor.clause)
+  ) {
+    if (sender === undefined) return undefined;
+    attendees = [sender];
+  }
+  const excludedNames = exclusions(original, folded, sender, ctx.skip, ctx.roster);
+  if (connectiveUnread(t, excludedNames, sender, ctx.skip)) return undefined;
+  if (
+    attendees !== undefined &&
+    (onlyTheOut(attendees, excludedNames) || minorityOfGroup(t, list !== undefined, attendees, ctx))
+  ) {
+    return undefined;
+  }
   const day = parseDayWord(t);
   const tier = tierWords(t, venue);
   const time = askedTime(folded);
@@ -1635,7 +1996,7 @@ export function parseBookingRequest(
     excludedNames,
     // Named attendees go to the service, which resolves every name before any
     // roster write and asks when one doesn't match (never a guess).
-    ...(list !== undefined ? { attendeeNames: list.names } : {}),
+    ...(attendees !== undefined ? { attendeeNames: attendees } : {}),
     ...(day !== undefined ? { day } : {}),
     ...(tier.length > 0 ? { tier } : {}),
     ...(time !== undefined ? { time } : {}),

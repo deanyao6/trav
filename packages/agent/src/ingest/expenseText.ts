@@ -109,6 +109,7 @@ import type {
   SplitSpec,
 } from '@trav/core';
 import { convertMoney, convertSplit, formatMoney, ledger, money, parseDecimal } from '@trav/core';
+import { isVerbUse } from '../roster/nameVerbs.js';
 import { stripInvisible } from '../untrusted.js';
 
 // ---------- inputs and outputs ----------
@@ -370,12 +371,18 @@ function memberPattern(m: ParseMember): RegExp | undefined {
   return new RegExp(`(?<![\\w])${escapeRe(name)}(?:'s|s')?(?![\\w])`, 'g');
 }
 
-function findNames(low: string, members: readonly ParseMember[]): NameHit[] {
+/**
+ * Every member name in `low`, in order. A name that is also a verb in its
+ * frame ("don't chase me for it", T-173) is not the member (`isVerbUse`);
+ * `typed` (same offsets) keeps a capitalized "Chase" mid-sentence the name.
+ */
+function findNames(low: string, members: readonly ParseMember[], typed?: string): NameHit[] {
   const hits: NameHit[] = [];
   for (const m of members) {
     const re = memberPattern(m);
     if (re === undefined) continue;
     for (const x of low.matchAll(re)) {
+      if (isVerbUse(low, x.index, x.index + x[0].length, typed)) continue;
       hits.push({ memberId: m.memberId, start: x.index, end: x.index + x[0].length });
     }
   }
@@ -1291,7 +1298,7 @@ function parseExpenseTextInner(text: string, ctx: ExpenseTextContext): ExpenseTe
   const orig = cleanText(text);
   const low = orig.toLowerCase();
   if (low.length === 0 || low.length > 600) return { kind: 'none' };
-  const names = findNames(low, ctx.members);
+  const names = findNames(low, ctx.members, orig.length === low.length ? orig : undefined);
   const amounts = scanAmounts(low, ctx.members);
   const scan: Scan = { orig, low, ctx, names, amounts };
   const noParens = low.replace(/\([^)]*\)/g, ' ');
@@ -2022,7 +2029,13 @@ export function mergeAnswer(
   if (fresh.kind === 'drafts' && fresh.drafts.some((d) => d.description !== 'expense')) {
     return undefined;
   }
-  const scan: Scan = { orig, low, ctx, names: findNames(low, ctx.members), amounts: [] };
+  const scan: Scan = {
+    orig,
+    low,
+    ctx,
+    names: findNames(low, ctx.members, orig.length === low.length ? orig : undefined),
+    amounts: [],
+  };
   // In an answer any number is money unless it is a headcount.
   const amounts = scanAmounts(low, ctx.members);
   for (const m of low.matchAll(/(?<![\w.,/])(\d+(?:[.,]\d+)*)(?![\w/]|[.,]\d)/g)) {
