@@ -225,6 +225,30 @@ describe('lodging ask in chat (T-132)', () => {
     expect(stays(h)).toHaveLength(1);
   });
 
+  // T-132 r2 review #1 (blocker), #2: with the other five in, none of these may book the stay.
+  it.each([
+    "i don't approve for the group",
+    'should i approve for all of us',
+    'no way i approve for all of us',
+    'henry approves for me too',
+    'maya confirmed for the group',
+  ])('"%s" from Dean never counts as his approval', async (text) => {
+    const h = planning();
+    const { card } = await ask(h);
+    const cardId = card!.id;
+    for (const who of ['h_henry', 'h_maya', 'h_jordan', 'h_priya', 'h_sam']) {
+      await h.react(who, cardId, '👍');
+    }
+    await h.say('h_dean', text, { replyToMessageId: cardId });
+    expect(stays(h)).toHaveLength(0);
+    expect(
+      h
+        .audit()
+        .filter((e) => e.type === 'approval.granted')
+        .map((e) => String((e.payload as Record<string, unknown>)['memberId'])),
+    ).not.toContain('mem_dean');
+  });
+
   it('asking again while it waits does not post a second card', async () => {
     const h = planning();
     await ask(h);

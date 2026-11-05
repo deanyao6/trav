@@ -1134,6 +1134,10 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
         invalid('claimed_for_other', proposalId, {
           claimedFor,
           ...(claim?.kind === 'proxy' ? { claimedForAll: claim.others } : {}),
+          // T-132 r2 review #4: a with-self claim from a non-approver keeps who it was for.
+          ...(claim?.kind === 'with_self'
+            ? { claimedForAll: claim.others, group: claim.group }
+            : {}),
           claimKind: claim?.kind ?? null,
           addressed,
         });
@@ -1183,7 +1187,15 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       invalid(
         gate.cause,
         boundProposalId ?? pending[0]?.proposalId,
-        claim === undefined ? {} : { claimKind: claim.kind },
+        claim === undefined
+          ? {}
+          : {
+              claimKind: claim.kind,
+              ...(claim.kind === 'proxy' || claim.kind === 'with_self'
+                ? { claimedForAll: claim.others }
+                : {}),
+              ...(claim.kind === 'with_self' ? { group: claim.group } : {}),
+            },
       );
       return finish([], `approval:${gate.cause}`);
     }

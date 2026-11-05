@@ -267,6 +267,30 @@ describe('detectClaimedApproval', () => {
     }
   });
 
+  // T-132 r2 review #1 (blocker), #2: negations and questions are no approval;
+  // someone else as the subject is a report, never the sender's own approval.
+  it('T-132 r2: "i don\'t approve for the group" and "should i approve…" are no approval; "henry approves for me too" is not the sender\'s', () => {
+    for (const text of [
+      "i don't approve for the group",
+      'should i approve for all of us',
+      'do i approve for the group',
+      'no way i approve for all of us',
+      'i never approve for the group',
+      'i approve for all of us?',
+    ]) {
+      expect(detectClaimedApproval(text, members, 'mem_dean'), text).toBeUndefined();
+    }
+    for (const text of [
+      'henry approves for me too',
+      'maya confirmed for the group',
+      'maya approved for all of us',
+      'she approved for the group',
+    ]) {
+      const got = detectClaimedApproval(text, members, 'mem_dean');
+      expect(got?.kind, text).not.toBe('with_self');
+    }
+  });
+
   it("T-132 r1 #2: a guardian approving for their own minor is the guardian's own approval (D-028)", () => {
     const lily = { ...minor('mem_lily', 'Lily', 'h_lily'), guardianMemberId: 'mem_dean' };
     const family = [...members, lily];

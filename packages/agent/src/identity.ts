@@ -166,6 +166,17 @@ const RELAY_BEHALF = new RegExp(
 /** A bare verb asked of someone else ("can you confirm for everyone …") is no approval. */
 const ASKED_OF_OTHERS =
   /\b(?:you|u|they|he|she|to|should|would|could|can|will|did|does|do|pls|please)\s*$/i;
+/** A "no" anywhere before the approval verb: "i don't approve", "no way i approve", "never". */
+const RELAY_NEGATION =
+  /\b(?:don'?t|dont|do not|does not|doesn'?t|not|never|no way|won'?t|wont|can'?t|cant|cannot|didn'?t|wouldn'?t|shouldn'?t|refuse|no)\b/;
+/** A question: "should i approve for all of us", "do i approve …", or a trailing "?". */
+const RELAY_QUESTION =
+  /^\s*(?:@trav\s+)?(?:should|do|does|did|can|could|would|will|shall|may|am)\s+(?:i|we)\b|\?\s*$/i;
+/** Someone other than the sender as the subject of the approval verb. */
+const RELAY_THIRD_PERSON = /\b(?:he|she|they|he's|she's|they're|hes|shes|theyre)\s*$/;
+/** What may come before a subject-less verb that still speaks for the sender. */
+const RELAY_OPENER =
+  /^\s*(?:@trav[\s,:]*)?(?:(?:yes|yep|yeah|ok|okay|sure|alright|so|and|then|cool|great)[\s,!.]*)*$/;
 /** Who "for …" can mean without a name. */
 const SELF_WORDS = new Set(['me', 'myself', 'mine']);
 const GROUP_PHRASES =
@@ -202,6 +213,24 @@ function relayedApproval(
   const tail = (match.groups?.['who'] ?? '').toLowerCase();
   if (tail.length === 0) return undefined;
   const people = members.filter((m) => m.displayName.trim().length > 0);
+  // T-132 r2 review #1 (blocker): a negated or questioning sentence ("i don't
+  // approve for the group", "should i approve for all of us", "… ?") is no
+  // approval at all, for anyone.
+  // The match opens with a boundary character unless it starts the text.
+  const before = t.slice(0, match.index + (/^[\s,.!:;(]/u.test(match[0]) ? 1 : 0)).toLowerCase();
+  const subj = (match.groups?.['subj'] ?? '').toLowerCase();
+  if (RELAY_NEGATION.test(`${before} ${subj}`) || RELAY_QUESTION.test(t)) return undefined;
+  // r2 review #2: someone else as the subject ("henry approves for me too",
+  // "maya confirmed for the group") reports their approval; it never counts as
+  // the sender's own. Only an explicit first-person subject, or the verb opening
+  // the message ("yes for henry too", "👍 for me and henry"), speaks for the sender.
+  const othersName = people.some(
+    (m) =>
+      m.memberId !== sender &&
+      new RegExp(`\\b${escapeRegExp(m.displayName.trim().toLowerCase())}\\b`).test(before),
+  );
+  const reported =
+    subj === '' && (othersName || RELAY_THIRD_PERSON.test(before) || !RELAY_OPENER.test(before));
   const nameOf = (w: string): Member | undefined =>
     people.find((m) => m.displayName.trim().toLowerCase() === w.replace(/'s$/, ''));
   let group = false;
@@ -258,6 +287,9 @@ function relayedApproval(
     }
     others.push(id);
   }
+  // A reported approval is a claim for whoever it names, never the sender's own.
+  if (reported) self = false;
+  if (!self && others.length === 0 && !group && !pronoun) return undefined;
   return { others, self, group, unresolved };
 }
 
