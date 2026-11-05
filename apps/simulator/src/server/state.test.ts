@@ -73,6 +73,7 @@ function msg(over: Partial<TranscriptMessage> & { card?: RichCard }): Transcript
     attachments: [],
     renderedAsCard: false,
     degraded: false,
+    systemNotice: false,
     ...over,
   };
 }

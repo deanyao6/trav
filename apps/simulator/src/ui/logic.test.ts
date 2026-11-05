@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 import type { Action, BookingProposalCard } from '@trav/core';
 import type { ThreadEntry, ThreadMessage } from '../shared/types.js';
 import { BARCELONA } from '../server/groups.js';
-import { avatarColor, initials, layoutThread, planButtons, splitMentions } from './logic.js';
+import {
+  avatarColor,
+  initials,
+  isBubble,
+  layoutThread,
+  planButtons,
+  splitMentions,
+} from './logic.js';
 
 const member = (handle: string) => BARCELONA.members.find((m) => m.handle === handle)!;
 const FIVE = ['mem_dean', 'mem_chase', 'mem_piotr', 'mem_arjun', 'mem_crowley'];
@@ -155,5 +162,32 @@ describe('avatars', () => {
     expect(new Set(labels).size).toBe(6);
     expect(avatarColor(BARCELONA, 'h_dean')).toBe(avatarColor(BARCELONA, 'h_dean'));
     expect(avatarColor(BARCELONA, 'h_dean')).not.toBe(avatarColor(BARCELONA, 'h_henry'));
+  });
+});
+
+describe('layoutThread: system notices (T-165)', () => {
+  const m = (seq: number, from: string, at: string, notice = false): ThreadEntry => {
+    const { card: _card, ...plain } = proposal();
+    return {
+      ...plain,
+      seq,
+      from,
+      isTrav: from === 'trav',
+      at,
+      ...(notice ? { systemNotice: true } : {}),
+    };
+  };
+
+  it('a notice is not a bubble and breaks the run of Trav bubbles around it', () => {
+    const at = '2026-03-14T17:30:00+01:00';
+    const entries = [m(1, 'trav', at), m(2, 'trav', at, true), m(3, 'trav', at)];
+    expect(isBubble(entries[0])).toBe(true);
+    expect(isBubble(entries[1])).toBe(false);
+    expect(isBubble(undefined)).toBe(false);
+    expect(layoutThread(entries, BARCELONA).map((l) => [l.first, l.last])).toEqual([
+      [true, true],
+      [true, true],
+      [true, true],
+    ]);
   });
 });

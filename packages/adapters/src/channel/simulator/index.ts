@@ -115,6 +115,11 @@ export interface TranscriptMessage extends EntryBase {
   readonly renderedAsCard: boolean;
   /** True if a card or buttons were dropped because the channel can't render them. */
   readonly degraded: boolean;
+  /**
+   * T-165: rendered as a centered grey subscript (an `OutboundMessage{ kind:
+   * 'system_notice' }` on a channel with `systemNotices`), not a Trav bubble.
+   */
+  readonly systemNotice: boolean;
   /** Outbound only: the original envelope as handed to the channel. */
   readonly outbound?: OutboundMessage;
 }
@@ -207,7 +212,19 @@ const DEFAULT_CAPABILITIES: ChannelCapabilities = {
   privateDm: true,
   threadedReplies: true,
   canAddMembers: true,
+  systemNotices: true,
 };
+
+/** T-165: a notice is one line of bare text; a card, buttons, images, mentions or a line break make it a message. */
+function hasNoticeExtras(message: OutboundMessage): boolean {
+  return (
+    message.card !== undefined ||
+    (message.actions ?? []).length > 0 ||
+    (message.images ?? []).length > 0 ||
+    (message.mentions ?? []).length > 0 ||
+    /[\r\n]/.test(message.text)
+  );
+}
 
 /** The DM-lane conversation id for a participant's private thread with Trav. */
 export function dmConversationId(handle: ChannelHandle): ConversationId {
@@ -314,7 +331,10 @@ export function createSimulatorChannel(options: SimulatorChannelOptions): Simula
       : undefined;
     const renderedAsCard =
       opts?.renderAsCard === true && message.card === undefined && capabilities.richCards;
-    const degraded = cardDropped || actionsDropped;
+    const notice = message.kind === 'system_notice';
+    // A notice on a channel without the subscript style posts as an ordinary bubble.
+    const systemNotice = notice && capabilities.systemNotices;
+    const degraded = cardDropped || actionsDropped || (notice && !systemNotice);
 
     const entry = record<TranscriptMessage>({
       type: 'message',
@@ -338,6 +358,7 @@ export function createSimulatorChannel(options: SimulatorChannelOptions): Simula
       ...(replyTo !== undefined ? { replyToMessageId: replyTo } : {}),
       renderedAsCard,
       degraded,
+      systemNotice,
       outbound: message,
     });
     const sent: SentMessage = { messageId: message.id, sentAt: at, degraded };
@@ -370,12 +391,18 @@ export function createSimulatorChannel(options: SimulatorChannelOptions): Simula
           `card ${message.card.type} is DM-only and cannot be posted to the group`,
         );
       }
+      if (message.kind === 'system_notice' && hasNoticeExtras(message)) {
+        return fail('invalid_request', 'a system notice is one line of text, nothing attached');
+      }
       return recordOutbound('group', conversationId, message, opts);
     },
 
     async sendDirect(to, message, opts?: ChannelSendOptions) {
       if (message.to.kind !== 'member') {
         return fail('invalid_request', 'sendDirect requires a message addressed to one member');
+      }
+      if (message.kind === 'system_notice') {
+        return fail('invalid_request', 'system notices are group-lane only');
       }
       if (!capabilities.privateDm) {
         return fail('not_supported', 'this channel cannot send private messages');
@@ -494,6 +521,7 @@ export function createSimulatorChannel(options: SimulatorChannelOptions): Simula
           : {}),
         renderedAsCard: false,
         degraded: false,
+        systemNotice: false,
       });
       const event: InboundMessage = {
         type: 'message',

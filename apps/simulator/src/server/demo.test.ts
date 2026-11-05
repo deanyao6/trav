@@ -131,7 +131,7 @@ describe('demo states 4–6 on the real runtime, opened on demo state 1, in orde
     expect(bcn(s4).dms['mem_henry']).toEqual([]);
 
     // Share it, as Crowley (T-013): on the tab, split with the 5 who went. Crowley's DM gets the
-    // logged line; the group is not pinged now, it sees it in the next recap (VOICE §3.7).
+    // logged line; the group gets one notice line (T-165, VOICE §4.13), nothing more.
     const groupBefore = messages(bcn(s4).thread).length;
     const s5 = await post(b, '/api/button-taps', {
       from: 'h_crowley',
@@ -161,9 +161,17 @@ describe('demo states 4–6 on the real runtime, opened on demo state 1, in orde
       status: 'resolved',
       liveActionIds: [],
     });
-    expect(messages(bcn(s5).thread)).toHaveLength(groupBefore);
+    // T-165: the group gets exactly one new entry, the grey notice built from the
+    // tab entry (no 2:14am, no descriptor, no card detail).
+    const groupNew = messages(bcn(s5).thread).slice(groupBefore);
+    expect(groupNew.map((m) => [m.systemNotice, m.isTrav, m.text, m.card, m.actions])).toEqual([
+      [true, true, 'Crowley added Uber €23.40 · 5 ways (not Henry)', undefined, []],
+    ]);
     expectGroupClean(s5);
-    expect(groupPayload(s5)).not.toContain('23.40');
+    expect(
+      JSON.stringify(messages(bcn(s5).thread).filter((m) => m.systemNotice !== true)),
+    ).not.toContain('23.40');
+    expect(groupPayload(s5)).not.toMatch(/2:14|txn_crowley|card_transaction/);
     // The status is Barcelona's only.
     expect(s5.groups.find((g) => g.group.groupId === LISBON.groupId)!.status).toBeUndefined();
 

@@ -543,7 +543,7 @@ describe('email import: instruction-like text is data, flagged, never quoted', (
 // ---------- the answer ----------
 
 describe('email import: the owner answers', () => {
-  it("Arjun's Share it puts €18.60 on the tab as an email_receipt expense; the group is not pinged", async () => {
+  it("Arjun's Share it puts €18.60 on the tab as an email_receipt expense; the group gets one notice line (T-165)", async () => {
     const h = await afterNight(SAT_MORNING);
     const r = await importFor(h, ARJUN);
     const groupBefore = h.channel.groupTranscript(BARCELONA.conversationId).length;
@@ -570,7 +570,12 @@ describe('email import: the owner answers', () => {
         .map((s) => [s.memberId, s.amount.amountMinor])
         .sort(),
     ).toEqual(RIDERS.map((id) => [id, 465]).sort());
-    expect(h.channel.groupTranscript(BARCELONA.conversationId)).toHaveLength(groupBefore);
+    // T-165: after the share, exactly one group notice from the tab entry
+    // (never the email itself: no route, no pickup time).
+    const groupAfter = h.channel.groupTranscript(BARCELONA.conversationId).slice(groupBefore);
+    expect(
+      groupAfter.map((e) => (e.type === 'message' ? [e.systemNotice, e.text] : e.type)),
+    ).toEqual([[true, 'Arjun added Uber €18.60 · 4 ways (not Henry, Chase)']]);
     expect(msg(res.outbound[0]).to).toEqual({ kind: 'member', memberId: ARJUN });
     expect(h.audit().find((e) => e.type === 'private.item_promoted')).toBeDefined();
     // A replayed tap changes nothing.
@@ -1069,8 +1074,12 @@ describe('T-135: a ride receipt is split by its rider count, or the card asks wh
       .filter((s) => s.amount.amountMinor !== 0);
     expect(shares.map((s) => s.amount.amountMinor)).toEqual([465, 465, 465, 465]);
     expect(items(h, ARJUN, 'promoted')[0]!.suggestedParticipants).toEqual(RIDERS);
-    // Nothing in the group until the next recap.
-    expect(h.channel.groupTranscript(BARCELONA.conversationId)).toEqual([]);
+    // T-165: the group's only line is the notice, sent after Arjun named the riders.
+    expect(
+      h.channel
+        .groupTranscript(BARCELONA.conversationId)
+        .map((e) => (e.type === 'message' ? [e.systemNotice, e.text] : e.type)),
+    ).toEqual([[true, 'Arjun added Uber €18.60 · 4 ways (not Henry, Chase)']]);
   });
 
   it('a quote-reply naming nobody Trav knows gets one line back and writes nothing', async () => {

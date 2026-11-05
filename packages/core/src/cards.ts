@@ -26,6 +26,17 @@ export type OutboundTarget =
   { readonly kind: 'group' } | { readonly kind: 'member'; readonly memberId: MemberId };
 
 export interface OutboundMessage {
+  /**
+   * Omitted = an ordinary Trav message. `system_notice` (T-165, VOICE §4.13):
+   * a one-line group-lane ledger notice ("Chase added Uber €18.60 · 4 ways
+   * (not Henry, Crowley)"). Channels with `capabilities.systemNotices` render
+   * it like iMessage's centered grey "Dean added Chase to the conversation"
+   * subscript; everything else gets it as a normal short message from Trav.
+   * Never carries a card, actions, images or mentions, and never goes to a DM.
+   */
+  readonly kind?: 'system_notice';
+  /** `system_notice` only: the expenses the line announces (audited on `message.sent`). */
+  readonly noticeExpenseIds?: readonly ExpenseId[];
   readonly id: MessageId;
   readonly groupId: GroupId;
   readonly to: OutboundTarget;
@@ -61,6 +72,13 @@ export type Outbound = OutboundMessage | OutboundReaction;
 
 export function isReaction(o: Outbound): o is OutboundReaction {
   return 'kind' in o && o.kind === 'reaction';
+}
+
+/** T-165: a group-lane ledger notice (`OutboundMessage.kind === 'system_notice'`). */
+export function isSystemNotice(
+  o: Outbound,
+): o is OutboundMessage & { readonly kind: 'system_notice' } {
+  return 'kind' in o && o.kind === 'system_notice';
 }
 
 export type ActionId =

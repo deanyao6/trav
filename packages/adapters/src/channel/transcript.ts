@@ -105,6 +105,11 @@ export function printTranscript(
     const priv = e.lane === 'dm' ? ' (private)' : '';
     switch (e.type) {
       case 'message': {
+        if (e.systemNotice) {
+          // T-165: the centered grey subscript, printed without a speaker.
+          out.push(`${time}(notice) ${e.text}`);
+          break;
+        }
         const outbound = e.direction === 'outbound';
         const dmName = e.dmName ?? e.dmHandle ?? '';
         const speaker = outbound

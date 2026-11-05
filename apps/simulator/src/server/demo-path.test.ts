@@ -49,12 +49,23 @@ function expectGroupClean(state: SimState): void {
   const group = JSON.stringify(state.groups.map((g) => g.thread));
   // Crowley's private Uber charge and Arjun's DM-only diet note never reach the group
   // as themselves. Once Crowley taps Share it, the €23.40 is on the group tab, so the
-  // end-of-trip recap / Wrapped totals may carry it (VOICE §3.7: "the group sees
-  // it in the next recap"); no other group message ever does.
+  // end-of-trip recap / Wrapped totals may carry it, and the group gets exactly
+  // one T-165 notice built from the tab entry (VOICE §4.13: no time, no card
+  // detail); no other group message ever does.
   const live = state.groups.map((g) =>
-    messages(g.thread).filter((m) => m.card?.type !== 'recap' && m.card?.type !== 'wrapped'),
+    messages(g.thread).filter(
+      (m) => m.card?.type !== 'recap' && m.card?.type !== 'wrapped' && m.systemNotice !== true,
+    ),
   );
   expect(JSON.stringify(live)).not.toContain('23.40');
+  for (const g of state.groups) {
+    const notices = messages(g.thread).filter(
+      (m) => m.systemNotice === true && m.text.includes('23.40'),
+    );
+    expect(notices.map((m) => m.text)).toEqual(
+      notices.length === 0 ? [] : ['Crowley added Uber €23.40 · 5 ways (not Henry)'],
+    );
+  }
   expect(group).not.toContain('vegetarian');
 }
 
@@ -168,7 +179,7 @@ describe.each<Kind>(['seeded', 'bare'])('demo clicked in order (real runtime, %s
       actionId: 'confirm',
     });
     // Shared (T-013): the card in Crowley's DM is now `logged`, split with the 5 who went;
-    // the group is not pinged now, it sees it in the next recap (VOICE §3.7, §4.5).
+    // the group gets exactly one T-165 notice line (VOICE §4.13), no Trav bubble.
     const logged = messages(bcn(s4b).dms['mem_crowley']!).find(
       (m) => m.seq > prompt.seq && m.card?.type === 'expense_confirm' && m.card.status === 'logged',
     );
@@ -177,10 +188,12 @@ describe.each<Kind>(['seeded', 'bare'])('demo clicked in order (real runtime, %s
     const participants = card?.type === 'expense_confirm' ? card.split.participants : [];
     expect(participants.map((p) => p.memberId)).not.toContain('mem_henry');
     expect(participants).toHaveLength(5);
-    const named = messages(bcn(s4b).thread).some(
+    const named = messages(bcn(s4b).thread).filter(
       (m) => m.isTrav && m.seq > prompt.seq && /uber/i.test(m.text),
     );
-    expect(named).toBe(false);
+    expect(named.map((m) => [m.systemNotice, m.text])).toEqual([
+      [true, 'Crowley added Uber €23.40 · 5 ways (not Henry)'],
+    ]);
     expect(bcn(s4b).status).toBeUndefined();
 
     // --- state 4, email (T-012): the replay fed Arjun's Uber receipt (sys_bcn_0113) and Arjun's
@@ -196,7 +209,7 @@ describe.each<Kind>(['seeded', 'bare'])('demo clicked in order (real runtime, %s
     expect(emailPrompt, 'Arjun got the "looks shared?" receipt in a DM').toBeDefined();
     expect(emailPrompt.text).toMatch(/^Uber receipt from .+: €18\.60/);
     expect(emailPrompt.actions.map((a) => a.label)).toEqual(['Share it', 'Keep private']);
-    // Shared: a `logged` expense card in Arjun's DM for €18.60; the group was not pinged.
+    // Shared: a `logged` expense card in Arjun's DM for €18.60.
     const emailLogged = messages(bcn(s4d).dms['mem_arjun']!).find(
       (m) =>
         m.seq > emailPrompt.seq && m.card?.type === 'expense_confirm' && m.card.status === 'logged',
@@ -206,14 +219,22 @@ describe.each<Kind>(['seeded', 'bare'])('demo clicked in order (real runtime, %s
       amountMinor: 1860,
       currency: 'EUR',
     });
-    // Shared items reach the group only through a scheduled recap (T-015), never as a ping.
+    // Shared items reach the group as one T-165 notice line built from the tab
+    // entry (no route, no pickup time) and in scheduled recaps; nothing else.
     expect(
       JSON.stringify(
         bcn(s4d).thread.filter(
-          (e) => !('card' in e && (e.card?.type === 'recap' || e.card?.type === 'settle_up')),
+          (e) =>
+            !('card' in e && (e.card?.type === 'recap' || e.card?.type === 'settle_up')) &&
+            !('systemNotice' in e && e.systemNotice === true),
         ),
       ),
     ).not.toContain('18.60');
+    expect(
+      messages(bcn(s4d).thread)
+        .filter((m) => m.systemNotice === true && m.text.includes('18.60'))
+        .map((m) => m.text),
+    ).toEqual(['Arjun added Uber €18.60 · 4 ways (not Henry, Chase)']);
     for (const id of ['mem_dean', 'mem_chase', 'mem_piotr', 'mem_crowley', 'mem_henry']) {
       expect(JSON.stringify(bcn(s4d).dms[id]), id).not.toContain('18.60');
     }

@@ -641,7 +641,7 @@ describe('card import: descriptors are untrusted data', () => {
 // ---------- the answer ----------
 
 describe('looks shared answer: only the owner, only in the DM', () => {
-  it("Crowley's Share it puts it on the tab, split with the 5 who went; the group is not pinged (VOICE §3.7)", async () => {
+  it("Crowley's Share it puts it on the tab, split with the 5 who went; the group gets one notice line, no card detail (T-165)", async () => {
     const h = setup();
     const r = await crowleyImported(h);
     const card = msg(r.outbound[0]);
@@ -672,11 +672,19 @@ describe('looks shared answer: only the owner, only in the DM', () => {
       expect.arrayContaining(['last4', 'accountId', 'merchantRaw']),
     );
     expect(h.auditTypes()).toContain('ledger.entry_created');
-    // The answer goes to Crowley's DM only; the group thread got nothing new.
-    expect(res.outbound).toHaveLength(1);
+    // The answer goes to Crowley's DM; then the group gets exactly one T-165
+    // notice built from the tab entry: no time, no descriptor, no card digits.
+    expect(res.outbound).toHaveLength(2);
     const reply = msg(res.outbound[0]);
     expect('to' in reply && reply.to).toEqual({ kind: 'member', memberId: CROWLEY });
-    expect(h.channel.groupTranscript(BARCELONA.conversationId)).toHaveLength(groupBefore);
+    const groupAfter = h.channel.groupTranscript(BARCELONA.conversationId).slice(groupBefore);
+    expect(groupAfter).toHaveLength(1);
+    const notice = groupAfter[0]!;
+    expect(notice.type === 'message' && notice.systemNotice).toBe(true);
+    expect(notice.type === 'message' && notice.text).toBe(
+      'Crowley added Uber €23.40 · 5 ways (not Henry)',
+    );
+    expect(msg(res.outbound[1])).toMatchObject({ kind: 'system_notice', to: { kind: 'group' } });
     expect(crowleyItems(h, 'promoted')).toHaveLength(1);
     // Raw descriptor purged once answered.
     const row = h.runtime.stores.private.getCardTransaction(

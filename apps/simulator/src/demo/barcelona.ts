@@ -111,6 +111,8 @@ function isPendingPrompt(m: ThreadMessage): boolean {
 
 /** One message as markdown list lines; `dmOf` marks a private DM thread. */
 export function formatMessage(m: ThreadMessage, dmOf?: string): string {
+  // T-165: the ledger notice is the centered grey subscript, not a Trav bubble.
+  if (m.systemNotice === true) return `- _(notice) ${m.text}_`;
   const who = m.isTrav ? 'trav' : m.fromName;
   const lane = dmOf !== undefined ? `🔒 dm ${m.isTrav ? `→ ${dmOf}` : `from ${dmOf}`} · ` : '';
   const text = m.text.length > 0 ? m.text : m.card ? `[${m.card.type} card]` : '';
@@ -164,6 +166,9 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
   };
 
   const view = (): GroupView => backend.state().groups.find((g) => g.group.groupId === G.groupId)!;
+  /** T-165 ledger notices in the group thread (the grey subscript lines). */
+  const notices = (): ThreadMessage[] =>
+    messages(view().thread).filter((m) => m.systemNotice === true);
   let groupSeen = 0;
   const dmSeen = new Map<MemberId, number>();
   /** Prints whatever appeared in the group thread and in each DM since the last flush. */
@@ -493,6 +498,16 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
     if (emailPrompt) await tap('Arjun', emailPrompt, 'confirm');
     const uber = expenseWith(rt(), 1860);
     check("Arjun's €18.60 Uber is on the tab once Arjun shares it", uber !== undefined);
+    // T-165: only now, after Arjun's share, the group gets one grey notice line
+    // built from the tab entry (never the email: no route, no time, no inbox).
+    const uberNotices = notices().filter((m) => m.text.includes('18.60'));
+    check(
+      'after Arjun\'s share the group gets exactly one notice: "Arjun added Uber €18.60 · 4 ways (not Henry, Chase)"',
+      uberNotices.length === 1 &&
+        uberNotices[0]!.text === 'Arjun added Uber €18.60 · 4 ways (not Henry, Chase)' &&
+        messages(view().thread).filter((m) => m.text.includes('18.60')).length === 1,
+      uberNotices.map((m) => m.text).join(' | '),
+    );
     const uberShares = shareAmounts(rt(), uber);
     check(
       'the Uber is split among the 4 riders at €4.65 each (Chase and Henry owe nothing)',
@@ -629,14 +644,24 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
         cardPrompt.text.startsWith('saw €23.40 from Uber at 2:14am'),
       cardPrompt?.text,
     );
+    check(
+      'the group sees nothing of the card charge before Crowley answers',
+      !messages(view().thread).some((m) => m.text.includes('23.40')),
+    );
     if (cardPrompt) await tap('Crowley', cardPrompt, 'confirm');
     check(
       "Crowley's €23.40 Uber is shared with the 5 who went",
       sameSet(sharesOf(rt(), expenseWith(rt(), 2340)), FIVE),
     );
+    // T-165: the share produces one grey notice from the tab entry, nothing from
+    // the card itself (no 2:14am, no statement descriptor).
+    const cardNotices = messages(view().thread).filter((m) => m.text.includes('23.40'));
     check(
-      'the group never saw the card charge',
-      !messages(view().thread).some((m) => m.text.includes('23.40')),
+      'after the share the group gets exactly one notice line and no card detail: "Crowley added Uber €23.40 · 5 ways (not Henry)"',
+      cardNotices.length === 1 &&
+        cardNotices[0]!.systemNotice === true &&
+        cardNotices[0]!.text === 'Crowley added Uber €23.40 · 5 ways (not Henry)',
+      cardNotices.map((m) => m.text).join(' | '),
     );
 
     // ---------------- 9. Morning After ----------------
@@ -740,6 +765,31 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
     check(
       'no private card ever rendered in the group thread',
       messages(view().thread).every((m) => !isPrivateCard(m.card)),
+    );
+    // T-165: every expense on the tab reached the group exactly once, either as
+    // the group card that logged it (chat "logged:", a booking receipt) or as
+    // one grey notice line (the shared email and card items), never both.
+    const announcedIn = new Map<string, number>();
+    const bump = (id: string): void => {
+      announcedIn.set(id, (announcedIn.get(id) ?? 0) + 1);
+    };
+    for (const m of messages(view().thread)) {
+      if (m.card?.type === 'receipt') bump(m.card.ledger.expenseId);
+      if (m.card?.type === 'expense_confirm' && m.card.status === 'logged') bump(m.card.expenseId);
+    }
+    for (const e of auditLog()) {
+      if (e.type !== 'message.sent' || e.payload['systemNotice'] !== true) continue;
+      const ids = e.payload['expenseIds'];
+      if (Array.isArray(ids)) for (const id of ids) bump(String(id));
+    }
+    const tab = rt().stores.group.expenses.listByTrip(TRIP_ID);
+    const unannounced = tab.filter((x) => announcedIn.get(x.expenseId) !== 1);
+    check(
+      `every expense on the tab reached the group exactly once (${String(tab.length)} expenses, ${String(notices().length)} as notices)`,
+      tab.length > 0 && unannounced.length === 0 && notices().length === 2,
+      unannounced
+        .map((x) => `${x.description} ${String(announcedIn.get(x.expenseId) ?? 0)}x`)
+        .join(', '),
     );
     check('no live model call was possible (offline)', rt().model.mode === 'offline');
     const chain = auditChain.verifyAuditChain(auditLog());

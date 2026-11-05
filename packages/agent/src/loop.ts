@@ -182,6 +182,7 @@ import {
 import type { ToolRegistry } from './tools/registry.js';
 import type { TurnToolContext } from './tools/shared.js';
 import { detectInjection, stripInvisible } from './untrusted.js';
+import { createExpenseNotices } from './notices/expenseNotices.js';
 
 // ---------- dependencies ----------
 
@@ -654,7 +655,17 @@ function hasAtTrav(text: string): boolean {
 
 // ---------- the agent ----------
 
-export function createTravAgent(deps: AgentDeps): TravAgent {
+export function createTravAgent(input: AgentDeps): TravAgent {
+  // T-165: every expense committed during an operation gets one group notice
+  // (`notices/expenseNotices.ts`); the wrapped send path notes which ones a
+  // group card already announced. Every send below goes through it.
+  const notices = createExpenseNotices({
+    stores: input.stores,
+    clock: input.clock,
+    ids: input.ids,
+    sendTurn: input.sendTurn,
+  });
+  const deps: AgentDeps = { ...input, sendTurn: notices.sendTurn };
   const { stores, model, tools, clock, ids, scheduler } = deps;
   const prompts = deps.prompts ?? { group: GROUP_CHAT_PROMPT, dm: DM_CHAT_PROMPT };
   const maxRounds = Math.max(1, deps.maxToolRounds ?? DEFAULT_MAX_TOOL_ROUNDS);
@@ -3470,12 +3481,14 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
 
   scheduleCardImports();
 
+  // T-165: each public entry point is one operation; the notices it caused go
+  // out after its own messages and are appended to its `outbound`.
   return {
-    handleInbound,
-    runScheduled,
-    intakeDocument,
-    importCardTransactions,
-    importEmailReceipts,
+    handleInbound: notices.around(handleInbound),
+    runScheduled: notices.around(runScheduled),
+    intakeDocument: notices.around(intakeDocument),
+    importCardTransactions: notices.around(importCardTransactions),
+    importEmailReceipts: notices.around(importEmailReceipts),
     pendingCards,
   };
 }

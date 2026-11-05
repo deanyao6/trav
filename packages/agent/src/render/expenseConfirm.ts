@@ -254,13 +254,16 @@ export function renderExpenseLogged(
   );
 }
 
-/** VOICE §3.7: a private item the owner shared reaches the group with the next recap, not as a ping. */
-export const SHARED_NEXT_RECAP_LINE = "it'll show up in the group with the next recap";
+/**
+ * VOICE §3.7, §4.13 (T-165): once the owner shares it, the group gets the one
+ * ledger notice line (who, what, how much, the split) and nothing else.
+ */
+export const SHARED_GROUP_NOTICE_LINE = 'the group sees one line about it, nothing else';
 
 /**
  * The owner's 👍 on a "looks shared?" DM (T-013): the VOICE §4.4 logged line
- * for the new tab entry, sent to the OWNER's DM only (VOICE §3.7: no group
- * ping), plus where it will surface. The card is the ordinary `logged`
+ * for the new tab entry, sent to the OWNER's DM, plus what the group will see
+ * (the T-165 notice, sent by `notices/expenseNotices.ts` after this). The card is the ordinary `logged`
  * expense card (group-safe data: the promoted expense), so 👎 / Undo on it
  * undoes the tab entry through the same path as a chat-logged expense.
  */
@@ -270,7 +273,7 @@ export function renderSharedToTab(
 ): OutboundMessage & { readonly card: ExpenseConfirmCard } {
   const base = renderExpenseLogged(input, ctx);
   const lines = base.text.split('\n');
-  lines.splice(Math.max(1, lines.length - 1), 0, SHARED_NEXT_RECAP_LINE);
+  lines.splice(Math.max(1, lines.length - 1), 0, SHARED_GROUP_NOTICE_LINE);
   const text = lines.join('\n');
   return { ...base, to: dm(input.ownerMemberId), text, card: { ...base.card, fallbackText: text } };
 }

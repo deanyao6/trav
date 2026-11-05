@@ -94,6 +94,8 @@ export function createFakeGroupStore(d: FakeGroupData): GroupStore {
           (e) => e.tripId === t && (o?.includeUndone === true || e.status === 'logged'),
         ),
       listEntries: (t) => d.entries.filter((e) => e.tripId === t),
+      // Read-only fake: nothing is ever created, so nothing is ever announced.
+      onCreate: () => () => {},
     },
     settlements: {
       record: () => unused('settlements.record'),

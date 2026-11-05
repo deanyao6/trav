@@ -49,7 +49,7 @@ import type {
   OutboundReaction,
   Trip,
 } from '@trav/core';
-import { TravError, isReaction, safety } from '@trav/core';
+import { TravError, isReaction, isSystemNotice, safety } from '@trav/core';
 import type { ChannelAdapter, ChannelHandle, SentMessage } from '@trav/adapters';
 import { dmConversationId } from '@trav/adapters';
 import type { LintKind } from '../render/lint.js';
@@ -228,6 +228,24 @@ function suppressLane(
   });
 }
 
+/** T-165: group lane, one line, no card/buttons/images/@tags. */
+function isWellFormedNotice(message: OutboundMessage): boolean {
+  return (
+    message.to.kind === 'group' &&
+    message.card === undefined &&
+    (message.actions ?? []).length === 0 &&
+    (message.images ?? []).length === 0 &&
+    (message.mentions ?? []).length === 0 &&
+    !/[\r\n]/.test(message.text)
+  );
+}
+
+/** The notice as an ordinary message, for channels without `systemNotices`. */
+function plainMessage(message: OutboundMessage): OutboundMessage {
+  const { kind: _kind, ...rest } = message;
+  return rest;
+}
+
 function outcome(outbound: Outbound, fields: Partial<Omit<SendOutcome, 'outbound'>>): SendOutcome {
   return {
     outbound,
@@ -282,6 +300,13 @@ export async function sendOutbound(
     throw new TravError('invalid_argument', 'sendOutbound: message is for another group', {
       messageId: outbound.id,
     });
+  }
+  if (isSystemNotice(outbound) && !isWellFormedNotice(outbound)) {
+    throw new TravError(
+      'invalid_argument',
+      'sendOutbound: a system notice is one group-lane line with nothing attached',
+      { messageId: outbound.id },
+    );
   }
   const now = deps.clock.now();
 
@@ -354,9 +379,13 @@ export async function sendOutbound(
     options.replyToMessageId !== undefined
       ? { replyToMessageId: options.replyToMessageId }
       : undefined;
+  // T-165: a channel without the subscript style gets the notice as an ordinary short message.
+  const notice = isSystemNotice(message);
+  const downgraded = notice && !deps.channel.capabilities.systemNotices;
   let result;
   if (message.to.kind === 'group') {
-    result = await deps.channel.sendGroup(deps.group.conversationId, message, sendOpts);
+    const wire = downgraded ? plainMessage(message) : message;
+    result = await deps.channel.sendGroup(deps.group.conversationId, wire, sendOpts);
   } else {
     const handle = deps.handleFor(message.to.memberId);
     if (!deps.channel.capabilities.privateDm) {
@@ -399,12 +428,13 @@ export async function sendOutbound(
 
   // 4. audit. A proposal card's send carries its proposal id, so approvals can
   // tell a delivered card from one the screen held back (T-081 r1 #1).
-  const sentEvent = auditInput(
-    deps,
-    message,
-    'message.sent',
-    sentPayload(message, result.value, violations),
-  );
+  const payload = sentPayload(message, result.value, violations);
+  if (notice) {
+    payload['systemNotice'] = true;
+    payload['expenseIds'] = [...(message.noticeExpenseIds ?? [])];
+    if (downgraded) payload['noticeDowngraded'] = true;
+  }
+  const sentEvent = auditInput(deps, message, 'message.sent', payload);
   deps.audit.append(
     message.card?.type === 'booking_proposal'
       ? { ...sentEvent, proposalId: message.card.proposalId }

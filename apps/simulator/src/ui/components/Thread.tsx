@@ -225,6 +225,15 @@ export function Thread(props: {
               <div className="system-line">
                 {e.name} {e.type === 'member_joined' ? 'joined' : 'left'} the conversation
               </div>
+            ) : e.systemNotice === true ? (
+              // T-165: iMessage's centered grey subscript ("Dean added Chase to the conversation").
+              <div
+                className="system-line system-notice"
+                data-testid="system-notice"
+                data-message-id={e.messageId}
+              >
+                {e.text}
+              </div>
             ) : (
               <MessageRow
                 msg={e}
