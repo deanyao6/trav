@@ -39,6 +39,7 @@ import {
   formatMoney,
   formatTime,
   safety,
+  isOnboardingPending,
   STRIPPED_FIELDS,
   TravError,
   tripDayNumber,
@@ -164,7 +165,9 @@ export function buildGroupContext(
 
   return {
     group,
-    members,
+    // T-170: a newcomer still in setup is nobody the model may name or act
+    // for (their row has no name yet); roast/family checks above still see them.
+    members: members.filter((m) => !isOnboardingPending(m)),
     trip,
     activities,
     rosters,

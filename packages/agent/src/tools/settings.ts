@@ -13,7 +13,14 @@
  * awards opt-out. Caps and reply mode then change nothing.
  */
 import type { Group, Member } from '@trav/core';
-import { currencyExponent, formatMoney, money, safety, TravError } from '@trav/core';
+import {
+  currencyExponent,
+  formatMoney,
+  isOnboardingPending,
+  money,
+  safety,
+  TravError,
+} from '@trav/core';
 import type { SettingsCommand } from '../settings/parse.js';
 import {
   ADULTS_CONFIRM_TYPED_TEXT,
@@ -21,6 +28,7 @@ import {
   ROAST_LEAD_ONLY_TEXT,
   ROAST_MINOR_TEXT,
   ROAST_OFF_TEXT,
+  ROAST_ON_NEWCOMER_TEXT,
   ROAST_ON_TEXT,
 } from '../settings/text.js';
 import type { ToolContext, ToolDefinition } from './registry.js';
@@ -333,6 +341,8 @@ function directBoolean(
       return refuse(ROAST_MINOR_TEXT);
     }
     if (!lead) return refuse(ROAST_LEAD_ONLY_TEXT);
+    // T-170 (D-055): a newcomer still in setup; no attestation covers them.
+    if (members.some(isOnboardingPending)) return refuse(ROAST_ON_NEWCOMER_TEXT);
     if (safety.groupAgeUnconfirmed(group, members)) return refuse(ROAST_AGE_QUESTION_TEXT);
   }
   if (input.setting === 'allAdultsConfirmed') {

@@ -83,6 +83,8 @@ export interface Evictable {
   evictOwner(memberId: MemberId): void;
   /** Drops every entry filed under `tripId`, from the cache and the store. */
   evictTrip(tripId: TripId): void;
+  /** T-170 ("@trav leave"): drops every entry filed under `groupId` (group or private), cache and store. */
+  evictGroup(groupId: GroupId): void;
 }
 
 /** Every persisted structure of one runtime, so one call evicts them all. */
@@ -101,6 +103,9 @@ export function createRuntimeStateRegistry(): RuntimeStateRegistry {
     },
     evictTrip: (tripId) => {
       for (const e of all) e.evictTrip(tripId);
+    },
+    evictGroup: (groupId) => {
+      for (const e of all) e.evictGroup(groupId);
     },
   };
 }
@@ -274,6 +279,17 @@ export class PersistedMap<V> implements MapLike<string, V>, Evictable {
     this.deleteWhere((_k, _v, s) => tripOf(s) === tripId);
   }
 
+  /**
+   * Filed under the group (either store), or a memory-only lane entry keyed
+   * `<groupId>:…` (a DM lane with no member, `laneKey`).
+   */
+  evictGroup(groupId: GroupId): void {
+    const prefix = `${groupId}:`;
+    this.deleteWhere(
+      (k, _v, s) => (s.kind !== 'memory' && s.groupId === groupId) || k.startsWith(prefix),
+    );
+  }
+
   private trim(): void {
     while (this.slots.size > this.cap) {
       const oldest = this.slots.keys().next();
@@ -335,6 +351,10 @@ export class PersistedSet {
 
   evictTrip(tripId: TripId): void {
     this.map.evictTrip(tripId);
+  }
+
+  evictGroup(groupId: GroupId): void {
+    this.map.evictGroup(groupId);
   }
 }
 
@@ -416,6 +436,12 @@ export function persistLaneTextGuard(guard: LaneTextGuard, deps: RuntimeStateDep
           notes.delete(key);
           list.splice(i, 1);
         }
+      }
+    },
+    forgetGroup(groupId) {
+      guard.forgetGroup(groupId);
+      for (const kind of ['private', 'public'] as const) {
+        for (const key of orderOf(groupId, kind).splice(0)) notes.delete(key);
       }
     },
   };

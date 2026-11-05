@@ -44,6 +44,9 @@ export * from './approval/whitelist.js';
 export * from './booking/autoBuy.js';
 export { venueIndexFrom, type VenueIndex } from './booking/request.js';
 export * from './tiers/index.js';
+// T-170 (D-055): newcomer setup, "@trav leave", Trav's contact card.
+export * as onboarding from './onboarding/index.js';
+export { travContactCard, HOW_TO_ADD_TRAV, type ContactCardInput } from './onboarding/vcard.js';
 // T-183 (D-047): model-first interpretation, its strict tools and its eval cases.
 export {
   INTERPRET_PROMPT_ID,

@@ -103,6 +103,18 @@ export function createRuntimeStateRepository(backend: Backend): RuntimeStateRepo
       };
     },
 
+    deleteSeenKeys(namespace, prefix) {
+      requireId(namespace, 'namespace');
+      requireId(prefix, 'prefix');
+      return backend.transaction(() => {
+        let n = 0;
+        for (const row of seen.find({ state_ns: namespace })) {
+          if (row.key.startsWith(prefix) && seen.deleteKey(seenKeysSpec.key(row))) n += 1;
+        }
+        return n;
+      });
+    },
+
     putJob(job) {
       requireId(job.jobId, 'jobId');
       // Delete then insert: a re-scheduled job moves to the back of the

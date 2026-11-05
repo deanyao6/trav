@@ -276,5 +276,46 @@ describe('eviction (T-185 r1 #2)', () => {
     registry.evictTrip('trip_a');
     expect(m.size).toBe(0);
     expect(s.has('k')).toBe(true); // runtime-wide, no owner or trip
+    m.setIn('z', 'v', groupScope(G));
+    s.add(`${G}:k`);
+    registry.evictGroup(G);
+    expect(m.size).toBe(0);
+    expect(s.has(`${G}:k`)).toBe(false);
+    expect(s.has('k')).toBe(true);
+  });
+
+  it('T-170 evictGroup drops everything filed under the group (both stores) and its memory-only lane keys; other groups stay', () => {
+    const { stores, deps } = rig();
+    const recent = new PersistedMap<string>(deps, 'recent', () => GROUP_WIDE);
+    recent.setIn(`${G}:group`, 'group lines', groupScope(G));
+    recent.setIn(`${G}:dm:${DEAN}`, 'dean dm', privateScope(DEAN, G));
+    recent.setIn(`${G}:dm:?`, 'no member', { kind: 'memory' });
+    recent.setIn(`${G}:group:trip`, 'on a trip', groupScope(G, 'trip_a'));
+    recent.setIn(`${G2}:group`, 'lisbon', groupScope(G2));
+    recent.setIn(`${G}0:group`, 'a group whose id starts the same', groupScope(`${G}0`));
+    recent.evictGroup(G);
+    expect([...recent.keys()]).toEqual([`${G2}:group`, `${G}0:group`]);
+    expect(stores.group.runtime.list('recent').map((e) => e.key)).toEqual([
+      `${G2}:group`,
+      `${G}0:group`,
+    ]);
+    expect(stores.private.listRuntimeState(DEAN, 'recent')).toEqual([]);
+  });
+
+  it('T-170 forgetGroup on the lane guard drops the group corpus, stored and cached; another group keeps its own', () => {
+    const { stores, deps } = rig();
+    const a = persistLaneTextGuard(createLaneTextGuard(), deps);
+    a.notePrivate(G, DEAN, 'his sister is visiting on thursday');
+    a.notePrivate(G2, DEAN, 'my flight home lands at gatwick terminal north');
+    a.notePublic(G, 'we land at nine');
+    a.forgetGroup(G);
+    expect(a.leaks(G, 'his sister is visiting on thursday')).toEqual([]);
+    const b = persistLaneTextGuard(createLaneTextGuard(), deps);
+    expect(b.leaks(G, 'his sister is visiting on thursday')).toEqual([]);
+    expect(b.leaks(G2, 'lands at gatwick terminal north').length).toBeGreaterThan(0);
+    expect(stores.group.runtime.list('lane_text', { groupId: G })).toEqual([]);
+    expect(stores.private.listRuntimeState(DEAN, 'lane_text').every((e) => e.groupId === G2)).toBe(
+      true,
+    );
   });
 });

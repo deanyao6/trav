@@ -133,6 +133,8 @@ export interface LaneTextGuard {
   redactDeep<T>(groupId: GroupId, value: T): T;
   /** Drop a member's private texts (they left, or asked Trav to forget them). */
   forgetMember(groupId: GroupId, ownerId: MemberId): void;
+  /** T-170: drop everything noted for a group (Trav left it and its data was deleted). */
+  forgetGroup(groupId: GroupId): void;
 }
 
 export const REDACTED = '[private]';
@@ -273,6 +275,9 @@ export function createLaneTextGuard(opts: LaneTextGuardOptions = {}): LaneTextGu
         if (c.texts[i]!.ownerId === ownerId) c.texts.splice(i, 1);
       }
       for (const t of mine) unlink(c, ownerId, t.keys);
+    },
+    forgetGroup(groupId) {
+      groups.delete(groupId);
     },
   };
 }

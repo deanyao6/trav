@@ -211,6 +211,12 @@ export interface SimulatorChannel extends ChannelAdapter {
   injectButtonTap(input: InjectButtonTapInput): Promise<InboundButtonTap>;
   injectMemberJoined(input: InjectMembershipInput): Promise<InboundMembership>;
   injectMemberLeft(input: InjectMembershipInput): Promise<InboundMembership>;
+  /**
+   * T-170: Trav leaves the conversation (a grey "Trav left" line); later group
+   * sends fail. Optional like on `ChannelAdapter`: the relay loopback, like a
+   * real relay line, has no leave call.
+   */
+  leaveConversation?(conversationId: ConversationId): Promise<Result<void>>;
 }
 
 function capabilitiesFor(options: SimulatorChannelOptions): ChannelCapabilities {
@@ -252,6 +258,8 @@ export function createSimulatorChannel(options: SimulatorChannelOptions): Simula
   const info: AdapterInfo = { provider: 'simulator', mode: 'mock' };
 
   const conversations = new Map<ConversationId, SimulatorParticipant[]>();
+  /** T-170: conversations Trav left ("@trav leave"); group sends to them fail. */
+  const left = new Set<ConversationId>();
   for (const c of options.conversations) {
     if (conversations.has(c.conversationId)) {
       throw new Error(`createSimulatorChannel: duplicate conversation ${c.conversationId}`);
@@ -388,7 +396,7 @@ export function createSimulatorChannel(options: SimulatorChannelOptions): Simula
     },
 
     async sendGroup(conversationId, message, opts?: ChannelSendOptions) {
-      if (!conversations.has(conversationId)) {
+      if (!conversations.has(conversationId) || left.has(conversationId)) {
         return fail('not_found', `unknown conversation ${conversationId}`);
       }
       if (message.to.kind !== 'group') {
@@ -472,6 +480,26 @@ export function createSimulatorChannel(options: SimulatorChannelOptions): Simula
         { handle: travHandle, displayName: 'Trav', isTrav: true },
       ];
       return { ok: true, value: result };
+    },
+
+    async leaveConversation(conversationId) {
+      if (!conversations.has(conversationId) || left.has(conversationId)) {
+        return fail('not_found', `unknown conversation ${conversationId}`);
+      }
+      left.add(conversationId);
+      // Shown like iMessage's grey "Trav left the conversation" line.
+      record<TranscriptMembership>({
+        type: 'member_left',
+        at: clock.now(),
+        lane: 'group',
+        conversationId,
+        direction: 'outbound',
+        from: travHandle,
+        fromName: 'Trav',
+        handle: travHandle,
+        name: 'Trav',
+      });
+      return { ok: true, value: undefined };
     },
 
     transcript() {

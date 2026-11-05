@@ -406,6 +406,47 @@ describe('simulator channel: inbound injection', () => {
     expect(sim.participants().map((p) => p.handle)).toContain('h_alex');
   });
 
+  it('T-170: Trav leaves a conversation: a grey "Trav left" line, then group sends fail; DMs still go; a second leave is not_found', async () => {
+    const { sim } = setup();
+    expect(await sim.leaveConversation!(BCN_CONVERSATION)).toEqual({ ok: true, value: undefined });
+    const last = sim.groupTranscript(BCN_CONVERSATION).at(-1);
+    expect(last).toMatchObject({
+      type: 'member_left',
+      handle: sim.travHandle,
+      direction: 'outbound',
+    });
+    const after = await sim.sendGroup(BCN_CONVERSATION, groupMsg('still here?'));
+    expect(after.ok).toBe(false);
+    expect((await sim.sendDirect('h_dean', dmMsg('mem_dean', 'hi'))).ok).toBe(true);
+    const again = await sim.leaveConversation!(BCN_CONVERSATION);
+    expect(again.ok).toBe(false);
+    expect((await sim.leaveConversation!('conv_nope')).ok).toBe(false);
+  });
+
+  it('T-170: the budget, pacing and debounce decorators pass leaveConversation through only when the channel has it', async () => {
+    const { withMessageBudget } = await import('../budget.js');
+    const { withOutboundPacing } = await import('../pacing.js');
+    const { withInboundDebounce } = await import('../debounce.js');
+    const clock = manualClock(START);
+    const make = () => createSimulatorChannel({ clock, conversations: [barcelona] });
+    const wrapped = [
+      withMessageBudget(make(), { clock, audit: { append: () => undefined } }),
+      withOutboundPacing(make(), { clock }),
+      withInboundDebounce(make(), { clock }),
+    ];
+    for (const ch of wrapped) {
+      expect(typeof ch.leaveConversation).toBe('function');
+      expect((await ch.leaveConversation!(BCN_CONVERSATION)).ok).toBe(true);
+    }
+    const bare = make() as { leaveConversation?: unknown };
+    delete bare.leaveConversation;
+    const noLeave = withMessageBudget(bare as ReturnType<typeof make>, {
+      clock,
+      audit: { append: () => undefined },
+    });
+    expect('leaveConversation' in noLeave).toBe(false);
+  });
+
   it('unsubscribe stops delivery', async () => {
     const clock = manualClock(START);
     const sim = createSimulatorChannel({ clock, conversations: [barcelona] });

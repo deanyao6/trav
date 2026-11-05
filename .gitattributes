@@ -1,0 +1,2 @@
+# T-170: vCards are CRLF by spec (RFC 2426); keep the bytes as written.
+*.vcf -text

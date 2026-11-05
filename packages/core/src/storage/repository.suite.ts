@@ -500,6 +500,27 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
           'invalid_argument',
         );
       });
+
+      it('T-170: remove deletes one row (a newcomer who never finished setup) and frees the sender id', () => {
+        stores.group.members.upsert(makeMember(DEAN));
+        stores.group.members.upsert(
+          makeMember('mem_new', {
+            senderId: '+16175550199',
+            role: 'guest',
+            active: false,
+            ageBand: 'unknown',
+            onboarding: 'pending',
+          }),
+        );
+        expect(stores.group.members.remove('mem_new')).toBe(true);
+        expect(stores.group.members.remove('mem_new')).toBe(false);
+        expect(stores.group.members.getBySenderId(G, '+16175550199')).toBeUndefined();
+        expect(stores.group.members.listByGroup(G).map((m) => m.memberId)).toEqual([DEAN]);
+        // The handle can come back as a new row.
+        stores.group.members.upsert(makeMember('mem_new2', { senderId: '+16175550199' }));
+        expect(stores.group.members.getBySenderId(G, '+16175550199')?.memberId).toBe('mem_new2');
+        expectTravError(() => stores.group.members.remove(''), 'invalid_argument');
+      });
     });
 
     // ---------- trips ----------
@@ -1676,6 +1697,114 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         expectTravError(() => stores.deleteTrip(''), 'invalid_argument');
       });
 
+      it('T-170 deleteGroup ("@trav leave"): every row of the group in both stores goes, audit is tombstoned, another group is untouched', () => {
+        stores.group.groups.create(makeGroup());
+        stores.group.groups.create(makeGroup({ groupId: G2 }));
+        stores.group.members.upsert(makeMember(DEAN));
+        stores.group.members.upsert(makeMember(CHASE));
+        stores.group.members.upsert(
+          makeMember('mem_new', {
+            senderId: '+16175550199',
+            role: 'guest',
+            active: false,
+            ageBand: 'unknown',
+            onboarding: 'pending',
+          }),
+        );
+        stores.group.members.upsert(makeMember('mem_lis', { groupId: G2 }));
+        seedTrip(TRIP, 'a');
+        seedTrip(TRIP2, 'b');
+        stores.group.trips.create(makeTrip('trip_lis', { groupId: G2 }));
+        // Group-level rows not tied to any trip, in both stores.
+        stores.group.groupMemory.upsert(makeGroupFact('gf_group', { sourceTripId: null }));
+        stores.group.runtime.put({ namespace: 'recent', groupId: G, key: `${G}:group`, value: 1 });
+        stores.group.runtime.putJob({
+          jobId: 'digest:g',
+          groupId: G,
+          tripId: null,
+          kind: 'morning_after',
+          runAt: T0,
+          payload: {},
+        });
+        stores.private.putConsent(DEAN, defaultConsent(DEAN, G, T0));
+        stores.private.putPrefs(CHASE, {
+          memberId: CHASE,
+          perBookingShareCapMinor: 5000,
+          dailyShareCapMinor: null,
+        });
+        stores.private.putPaymentProfile(DEAN, {
+          memberId: DEAN,
+          apps: ['venmo'],
+          handles: { venmo: '@dean' },
+          updatedAt: T0,
+        });
+        stores.private.putRuntimeState('mem_new', {
+          namespace: 'onboarding',
+          groupId: G,
+          key: 'state',
+          value: { step: 'name' },
+        });
+        stores.private.putMemberMemory(
+          DEAN,
+          makeMemberFact('mf_group', DEAN, { sourceTripId: null }),
+        );
+        stores.group.audit.append(auditInput({ tripId: null, payload: { note: 'group-level' } }));
+        // The other group's rows.
+        stores.private.putConsent('mem_lis', defaultConsent('mem_lis', G2, T0));
+        stores.group.runtime.put({
+          namespace: 'recent',
+          groupId: G2,
+          key: `${G2}:group`,
+          value: 2,
+        });
+        stores.group.audit.append(auditInput({ groupId: G2, tripId: null, payload: { n: 1 } }));
+
+        const counts = stores.deleteGroup(G);
+        expect(counts.groups).toBe(1);
+        expect(counts.members).toBe(3);
+        expect(counts.trips).toBe(2);
+        expect(counts.expenses).toBe(2);
+        expect(counts.consent).toBe(1);
+        expect(counts.payment_profiles).toBe(1);
+        expect(counts.member_prefs).toBe(1);
+        expect(counts[AUDIT_REDACTED_COUNT_KEY]).toBe(5);
+
+        expect(stores.group.groups.get(G)).toBeUndefined();
+        expect(stores.group.groups.getByConversation(`conv_${G}`)).toBeUndefined();
+        expect(stores.group.members.listByGroup(G)).toEqual([]);
+        expect(stores.group.trips.get(TRIP)).toBeUndefined();
+        expect(stores.group.trips.get(TRIP2)).toBeUndefined();
+        expect(stores.group.groupMemory.listByGroup(G)).toEqual([]);
+        expect(stores.group.runtime.list('recent', { groupId: G })).toEqual([]);
+        expect(stores.group.runtime.listJobs().filter((j) => j.groupId === G)).toEqual([]);
+        for (const owner of [DEAN, CHASE, 'mem_new']) {
+          expect(stores.private.getConsent(owner, G)).toBeUndefined();
+          expect(stores.private.getPrefs(owner)).toBeUndefined();
+          expect(stores.private.getPaymentProfile(owner)).toBeUndefined();
+          expect(stores.private.listMemberMemory(owner, G)).toEqual([]);
+          expect(stores.private.listRuntimeState(owner, 'onboarding')).toEqual([]);
+          expect(stores.private.listRuntimeState(owner, 'card')).toEqual([]);
+          expect(stores.private.listPendingItems(owner, G)).toEqual([]);
+        }
+        // Audit stays (append-only), every payload of the group tombstoned, chain intact.
+        const audit = stores.group.audit.listByGroup(G);
+        expect(audit.length).toBeGreaterThan(0);
+        expect(audit.every((e) => e.payload.redacted === true)).toBe(true);
+        expect(verifyAuditChain(audit).ok).toBe(true);
+
+        // The other group is untouched.
+        expect(stores.group.groups.get(G2)).toBeDefined();
+        expect(stores.group.members.listByGroup(G2).map((m) => m.memberId)).toEqual(['mem_lis']);
+        expect(stores.group.trips.get('trip_lis')).toBeDefined();
+        expect(stores.private.getConsent('mem_lis', G2)).toBeDefined();
+        expect(stores.group.runtime.list('recent', { groupId: G2 })).toHaveLength(1);
+        expect(stores.group.audit.listByGroup(G2)[0]?.payload).toEqual({ n: 1 });
+
+        // Idempotent; an empty id is refused.
+        expect(Object.values(stores.deleteGroup(G)).every((n) => n === 0)).toBe(true);
+        expectTravError(() => stores.deleteGroup(''), 'invalid_argument');
+      });
+
       it('a tombstoned incomplete grant cannot launder a purchase (lifecycle header survives redaction)', () => {
         const flow = (complete: boolean): void => {
           stores.group.audit.append(
@@ -1830,6 +1959,21 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         expect(seen.has('e2')).toBe(false);
         expectTravError(() => stores.group.runtime.seenKeys('agent', 0), 'invalid_argument');
         expectTravError(() => stores.group.runtime.seenKeys('', 3), 'invalid_argument');
+      });
+
+      it('T-170: deleteSeenKeys drops one set’s keys with a prefix, nothing else', () => {
+        const seen = stores.group.runtime.seenKeys('agent', 10);
+        for (const k of ['conv_a:message:1', 'conv_a:reaction:2', 'conv_b:message:1', 'dm:+1:m'])
+          seen.add(k);
+        const relay = stores.group.runtime.seenKeys('relay', 10);
+        relay.add('conv_a:message:1');
+        expect(stores.group.runtime.deleteSeenKeys('agent', 'conv_a:')).toBe(2);
+        expect(stores.group.runtime.deleteSeenKeys('agent', 'conv_a:')).toBe(0);
+        expect(seen.has('conv_a:message:1')).toBe(false);
+        expect(seen.has('conv_b:message:1')).toBe(true);
+        expect(seen.has('dm:+1:m')).toBe(true);
+        expect(relay.has('conv_a:message:1')).toBe(true);
+        expectTravError(() => stores.group.runtime.deleteSeenKeys('agent', ''), 'invalid_argument');
       });
 
       it('jobs: put replaces by id and moves it to the back; delete of an unknown id is a no-op', () => {

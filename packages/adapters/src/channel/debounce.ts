@@ -228,6 +228,10 @@ export function withInboundDebounce(
     sendDirect: (to, message, opts) => channel.sendDirect(to, message, opts),
     react: (conversationId, reaction, remove) => channel.react(conversationId, reaction, remove),
     listParticipants: (conversationId) => channel.listParticipants(conversationId),
+    // T-170: present only when the wrapped channel can leave a group.
+    ...(channel.leaveConversation !== undefined
+      ? { leaveConversation: channel.leaveConversation.bind(channel) }
+      : {}),
 
     tick: () =>
       serial(async () => {

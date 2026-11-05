@@ -74,6 +74,17 @@ iMessage has no bot mentions. Trav is addressed when a message:
 
 "ask Trav Bot later" (the name mid-sentence) or "Trav Bot is asleep" is talking *about* Trav, and `"Trav Bot," she said` is quoting someone, so none of them is a mention. A mention is only addressing. It is never an approval, and every booking still goes through `ApprovalPolicy` and the audit log.
 
+## 6a. Adding Trav to a group, and who's who (T-170)
+
+**How to add Trav:** save the Trav contact card, add Trav to your group chat like any friend, then say "@trav hi"; Trav DMs anyone new once to set them up.
+
+- **The contact card** is `docs/trav-contact.vcf` (vCard 3.0, placeholder line `+15555550100`). For a real line, make one with `travContactCard({ line: TRAV_RELAY_LINE, contactName })` from `@trav/agent` and send it to the group lead. Its note says Trav can read the group chat.
+- **Every handle is a member.** Each phone number or Apple ID email in the group maps to exactly one member by the address the relay reports (emails lowercased). A contact name is only a label: someone renamed in a phone's contacts is still the same member, and nobody becomes someone else by changing their name.
+- **Someone Trav doesn't know speaks (or is added mid-trip):** they are held as a newcomer, on no split, plan or approval, and roast mode is off while they're in the chat with no age. The first time they speak, Trav DMs them once: that it can read the group chat, what to call them (pre-filled if someone in the group said "welcome Sam"), and whether they're 18 or over (their own answer, kept out of the group). Then they're a member, and Trav asks once which payment apps they use and their favourite. Nothing from that DM is posted in the group. If a newcomer says they're under 18, family mode starts and its group notice names nobody.
+- **Someone leaves the chat:** a member stops being on new splits and plans; what they already share stays on the tab. A newcomer who never finished setup is deleted.
+- **"@trav leave"** (a lead, or any adult when the group has no lead): Trav says what will be deleted and whether the tab is still open, and the same person replies "delete it" within 10 minutes. Trav says goodbye, deletes the group's tab, plans, memory, every member's private data for it and its queued jobs (the audit log keeps its rows with every detail erased), then leaves. Relay lines have no "leave this group" call yet, so Trav asks the group to remove it.
+- Onboarding is on by default for `TRAV_CHANNEL=imessage_relay` and off in the simulator, where rosters are seeded (`createTravRuntime({ onboarding })` overrides it). D-055 has the design.
+
 ## 7. Before the first live message
 
 1. **Re-record the fixtures.** `fixtures/relay/bluebubbles/` was reconstructed from the server's public docs, not from real traffic. From the real server, capture one webhook of each kind (a message, a photo, a tapback, a tapback removal, an inline reply, a join, a leave, Trav's own echo) and the reply to one text, one attachment and one react call. Replace the fixture bodies, then run `pnpm test` and fix any field the contract tests flag.

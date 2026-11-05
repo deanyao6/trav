@@ -125,6 +125,32 @@ describe('group predicates', () => {
     expect(groupAgeUnconfirmed(group(), [])).toBe(false);
   });
 
+  it('T-170: a newcomer still in setup counts as unconfirmed, whatever the attestation says', () => {
+    const newcomer = {
+      ...member({
+        memberId: 'n',
+        displayName: 'new',
+        role: 'guest',
+        active: false,
+        ageBand: 'unknown',
+      }),
+      onboarding: 'pending' as const,
+    };
+    expect(groupAgeUnconfirmed(group({ allAdultsConfirmed: true }), [dad, newcomer])).toBe(true);
+    expect(groupAgeUnconfirmed(group(), [dad, newcomer])).toBe(true);
+    // Once they left (or finished setup) they no longer count.
+    const gone = { ...newcomer, leftAt: NOW };
+    expect(groupAgeUnconfirmed(group({ allAdultsConfirmed: true }), [dad, gone])).toBe(false);
+    const { onboarding: _done, ...finished } = newcomer;
+    void _done;
+    expect(
+      groupAgeUnconfirmed(group({ allAdultsConfirmed: true }), [
+        dad,
+        { ...finished, role: 'member', active: true, ageBand: 'adult' },
+      ]),
+    ).toBe(false);
+  });
+
   it('audienceIncludesMinor fails closed on unknown ids', () => {
     expect(audienceIncludesMinor(['dad'], [dad, lily], NOW)).toBe(false);
     expect(audienceIncludesMinor(['dad', 'lily'], [dad, lily], NOW)).toBe(true);

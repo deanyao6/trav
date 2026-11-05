@@ -127,6 +127,8 @@ export interface TravRuntimeOptions {
   readonly travelFacts?: AgentDeps['travelFacts'];
   /** T-183 (D-047): default `model_first` with a live client, `parser_first` offline. */
   readonly interpretation?: AgentDeps['interpretation'];
+  /** T-170 (D-055): newcomer setup over DM; default on for iMessage relay lines only. */
+  readonly onboarding?: AgentDeps['onboarding'];
   readonly scheduler?: Scheduler;
   /** Default: `outbound/send.ts` (screen → voice lint → lane → audit). */
   readonly sendTurn?: TurnSender;
@@ -291,6 +293,7 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
     ...(places !== undefined ? { places } : {}),
     ...(options.travelFacts !== undefined ? { travelFacts: options.travelFacts } : {}),
     ...(options.interpretation !== undefined ? { interpretation: options.interpretation } : {}),
+    ...(options.onboarding !== undefined ? { onboarding: options.onboarding } : {}),
   };
   const agent = createTravAgent(deps);
 

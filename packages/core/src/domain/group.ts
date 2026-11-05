@@ -41,6 +41,25 @@ export interface Member {
   readonly homeAirport?: string;
   readonly joinedAt: IsoDateTime;
   readonly leftAt?: IsoDateTime;
+  /**
+   * T-170 (D-055): someone in the chat Trav has not set up yet (an unknown
+   * phone number or Apple ID email spoke or joined). Always `active: false`
+   * and `role: 'guest'` while set, so they are on no split, roster or
+   * approval; but they can read the chat, so their unknown age blocks roast
+   * mode (`groupAgeUnconfirmed`) until they answer Trav's DM.
+   */
+  readonly onboarding?: 'pending';
+  /**
+   * T-170 (D-055): `ageBand` came from the member's own answer in Trav's
+   * setup DM. Their age is theirs: the group lane never names them as the
+   * reason for family mode (the notice goes out without names).
+   */
+  readonly ageSelfAttested?: true;
+}
+
+/** T-170: a newcomer still answering Trav's setup DM (never active, never on a split). */
+export function isOnboardingPending(member: Member): boolean {
+  return member.onboarding === 'pending' && member.leftAt === undefined;
 }
 
 export interface GroupSettings {

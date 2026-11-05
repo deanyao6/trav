@@ -68,6 +68,13 @@ export interface MemberRepository {
   getBySenderId(groupId: GroupId, senderId: SenderId): Member | undefined;
   /** In join order; this is the "member order" used by splits and lists. */
   listByGroup(groupId: GroupId, opts?: { readonly activeOnly?: boolean }): readonly Member[];
+  /**
+   * T-170 (D-055): deletes a member row outright. Only for someone who never
+   * finished Trav's setup DM (`onboarding: 'pending'`), so nothing on the
+   * ledger points at them; everyone else leaves with `leftAt` and keeps their
+   * ledger lines. Returns whether a row was deleted.
+   */
+  remove(memberId: MemberId): boolean;
 }
 
 export interface TripRepository {
@@ -239,6 +246,11 @@ export interface RuntimeStateRepository extends ScheduledJobStore {
   delete(namespace: string, groupId: GroupId | null, key: string): boolean;
   /** The seen-key set named `namespace` (e.g. `'agent'`, `'relay'`), at most `cap` keys. */
   seenKeys(namespace: string, cap: number): SeenKeyStore;
+  /**
+   * T-170: deletes the keys of a seen-key set that start with `prefix` (a
+   * left group's conversation, a member's DM lane). Returns how many went.
+   */
+  deleteSeenKeys(namespace: string, prefix: string): number;
 }
 
 export interface GroupStore {
@@ -339,6 +351,15 @@ export interface Stores {
   readonly private: PrivateStore;
   /** "forget this trip": one transaction across both stores; returns per-table counts. */
   deleteTrip(tripId: TripId): Readonly<Record<string, number>>;
+  /**
+   * T-170 (D-055) "@trav leave": the whole group, in one transaction across
+   * both stores: every trip (as `deleteTrip`), every member's private
+   * partition, then the group's own rows (members, the group, its memory, its
+   * runtime state and queued jobs, anything not tied to a trip). Audit rows
+   * stay, every payload tombstoned (append-only, SAFETY §2.9). Returns
+   * per-table counts.
+   */
+  deleteGroup(groupId: GroupId): Readonly<Record<string, number>>;
   /** Rewrites audit payloads for a trip to the tombstone `{ redacted: true, payloadHash }` (D-016) without touching hashes. */
   redactAuditPayloads(tripId: TripId): number;
   close(): void;

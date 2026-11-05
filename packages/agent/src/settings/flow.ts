@@ -41,6 +41,7 @@ import type {
 import {
   currencyExponent,
   formatMoney,
+  isOnboardingPending,
   localDate,
   money,
   parseDecimal,
@@ -169,7 +170,8 @@ export function settingsText(
   }
   const line1 = `${roast} · replies ${group.settings.quietMode ? 'quiet' : 'normal'}${family ? ' · family mode on' : ''}`;
   const line2 = `per-person cap ${capText(p, p.perPersonAutoCapMinor)} · daily cap ${capText(p, p.dailyGroupCapMinor)} · trip cap ${capText(p, p.tripGroupCapMinor)}`;
-  const auto = p.autoApproveCapMinor > 0 ? ` · auto-approve under ${capText(p, p.autoApproveCapMinor)}` : '';
+  const auto =
+    p.autoApproveCapMinor > 0 ? ` · auto-approve under ${capText(p, p.autoApproveCapMinor)}` : '';
   const line3 = `per-booking max ${capText(p, p.hardMaxPerBookingMinor)} · trip currency ${currency}${auto}`;
   const step = 20 * 10 ** currencyExponent(p.currency);
   const example = formatMoney(money(p.perPersonAutoCapMinor + step, p.currency));
@@ -196,6 +198,9 @@ export function familyModeNotice(
 ): { readonly text: string; readonly minors: readonly MemberId[] } | undefined {
   if (!safety.isFamilyMode(group, members, now)) return undefined;
   const minors = members.filter((m) => m.active && safety.isMinor(m, now));
+  // T-170 (D-055): an age a member told Trav in their setup DM is theirs; the
+  // notice never names them (or anyone, if it would single them out).
+  const selfAttested = minors.some((m) => m.ageSelfAttested === true);
   const guardians = [
     ...new Set(
       minors
@@ -206,7 +211,7 @@ export function familyModeNotice(
   ];
   return {
     text: T.familyModeOnText(
-      minors.map((m) => m.displayName),
+      selfAttested ? [] : minors.map((m) => m.displayName),
       // Every minor's tickets go to a named guardian, or the line does not promise it.
       minors.every((m) => members.some((g) => g.memberId === m.guardianMemberId && g.active))
         ? guardians
@@ -264,7 +269,12 @@ export async function announceFamilyMode(
     return [];
   }
   if (announced) return [];
-  const draft: OutboundMessage = { id: ids.next('msg'), groupId, to: { kind: 'group' }, text: notice.text };
+  const draft: OutboundMessage = {
+    id: ids.next('msg'),
+    groupId,
+    to: { kind: 'group' },
+    text: notice.text,
+  };
   const outcomes = await deps.sendTurn([draft], {
     group,
     members,
@@ -285,7 +295,11 @@ export function createSettingsFlow(deps: SettingsFlowDeps): SettingsFlow {
   const target = (ctx: SettingsTurnContext): OutboundMessage['to'] =>
     ctx.lane === 'dm' ? { kind: 'member', memberId: ctx.me.memberId } : { kind: 'group' };
 
-  const line = (ctx: SettingsTurnContext, text: string, extra: Partial<OutboundMessage> = {}): OutboundMessage => ({
+  const line = (
+    ctx: SettingsTurnContext,
+    text: string,
+    extra: Partial<OutboundMessage> = {},
+  ): OutboundMessage => ({
     id: ids.next('msg'),
     groupId: ctx.group.groupId,
     to: target(ctx),
@@ -316,11 +330,16 @@ export function createSettingsFlow(deps: SettingsFlowDeps): SettingsFlow {
     ctx: SettingsTurnContext,
     input: Omit<Parameters<Stores['group']['audit']['append']>[0], 'groupId' | 'tripId'>,
   ): void {
-    stores.group.audit.append({ groupId: ctx.group.groupId, tripId: ctx.trip?.tripId ?? null, ...input });
+    stores.group.audit.append({
+      groupId: ctx.group.groupId,
+      tripId: ctx.trip?.tripId ?? null,
+      ...input,
+    });
   }
 
   /** Fresh group row: a command earlier in the same turn may have changed it. */
-  const groupNow = (ctx: SettingsTurnContext): Group => stores.group.groups.get(ctx.group.groupId) ?? ctx.group;
+  const groupNow = (ctx: SettingsTurnContext): Group =>
+    stores.group.groups.get(ctx.group.groupId) ?? ctx.group;
 
   function writeSetting(
     ctx: SettingsTurnContext,
@@ -353,12 +372,18 @@ export function createSettingsFlow(deps: SettingsFlowDeps): SettingsFlow {
 
   // ---------- roast mode ----------
 
-  function roastMode(ctx: SettingsTurnContext, on: boolean, text: string): SettingsOutcome | undefined {
+  function roastMode(
+    ctx: SettingsTurnContext,
+    on: boolean,
+    text: string,
+  ): SettingsOutcome | undefined {
     const group = groupNow(ctx);
     if (!on) {
       if (!group.settings.roastMode) {
         // "trav chill" with nothing to turn off is not a settings command.
-        return commandText(text) === 'chill' ? undefined : say(ctx, T.ROAST_ALREADY_OFF_TEXT, 'settings:roast_off:already');
+        return commandText(text) === 'chill'
+          ? undefined
+          : say(ctx, T.ROAST_ALREADY_OFF_TEXT, 'settings:roast_off:already');
       }
       writeSetting(ctx, 'roastMode', false);
       return say(ctx, T.ROAST_OFF_TEXT, 'settings:roast_off');
@@ -380,7 +405,11 @@ export function createSettingsFlow(deps: SettingsFlowDeps): SettingsFlow {
       return { drafts: [msg], note: 'settings:roast_on:minor' };
     }
     if (!isLead(ctx.me)) return say(ctx, T.ROAST_LEAD_ONLY_TEXT, 'settings:roast_on:not_lead');
-    if (group.settings.roastMode) return say(ctx, T.ROAST_ALREADY_ON_TEXT, 'settings:roast_on:already');
+    if (group.settings.roastMode)
+      return say(ctx, T.ROAST_ALREADY_ON_TEXT, 'settings:roast_on:already');
+    // T-170: a lead's "everyone's 18+" can't cover someone still in setup.
+    if (ctx.members.some(isOnboardingPending))
+      return say(ctx, T.ROAST_ON_NEWCOMER_TEXT, 'settings:roast_on:newcomer');
     if (safety.groupAgeUnconfirmed(group, ctx.members)) {
       const msg = line(ctx, T.ROAST_AGE_QUESTION_TEXT);
       pending.set(key(ctx.group.groupId, ctx.me.memberId), {
@@ -444,14 +473,22 @@ export function createSettingsFlow(deps: SettingsFlowDeps): SettingsFlow {
         );
         return say(
           ctx,
-          r.changed ? T.minorPhotosText(owner.displayName, cmd.on) : cmd.on ? T.ALREADY_ON_TEXT : T.ALREADY_OFF_TEXT,
+          r.changed
+            ? T.minorPhotosText(owner.displayName, cmd.on)
+            : cmd.on
+              ? T.ALREADY_ON_TEXT
+              : T.ALREADY_OFF_TEXT,
           `consent:photos:guardian:${r.changed ? 'changed' : 'unchanged'}`,
         );
       }
       if (cmd.flag === 'photos' && minor) {
         const guardian = ctx.members.find((m) => m.memberId === owner.guardianMemberId);
         return guardian !== undefined
-          ? say(ctx, T.guardianCallText(guardian.displayName, owner.displayName), 'consent:not_guardian')
+          ? say(
+              ctx,
+              T.guardianCallText(guardian.displayName, owner.displayName),
+              'consent:not_guardian',
+            )
           : say(ctx, T.ownerOnlyText(owner.displayName), 'consent:owner_only');
       }
       return say(ctx, T.ownerOnlyText(owner.displayName), 'consent:owner_only');
@@ -467,7 +504,9 @@ export function createSettingsFlow(deps: SettingsFlowDeps): SettingsFlow {
         const guardian = ctx.members.find((m) => m.memberId === owner.guardianMemberId);
         return say(
           ctx,
-          guardian !== undefined ? T.guardianCallText(guardian.displayName, owner.displayName) : T.MINOR_SETTINGS_TEXT,
+          guardian !== undefined
+            ? T.guardianCallText(guardian.displayName, owner.displayName)
+            : T.MINOR_SETTINGS_TEXT,
           'consent:photos:needs_guardian',
         );
       }
@@ -495,7 +534,11 @@ export function createSettingsFlow(deps: SettingsFlowDeps): SettingsFlow {
     }
     switch (cmd.flag) {
       case 'roast':
-        return say(ctx, groupNow(ctx).settings.roastMode ? T.ROAST_ME_ON_TEXT : T.ROAST_ME_ON_MODE_OFF_TEXT, note);
+        return say(
+          ctx,
+          groupNow(ctx).settings.roastMode ? T.ROAST_ME_ON_TEXT : T.ROAST_ME_ON_MODE_OFF_TEXT,
+          note,
+        );
       case 'photos':
         return say(ctx, cmd.on ? T.PHOTOS_ON_TEXT : T.PHOTOS_OFF_TEXT, note);
       case 'cardImport':
@@ -507,7 +550,9 @@ export function createSettingsFlow(deps: SettingsFlowDeps): SettingsFlow {
       case 'emailImport':
         return importAck(
           ctx,
-          cmd.on ? T.EMAIL_IMPORT_ON_TEXT : T.droppedPendingText(T.EMAIL_IMPORT_OFF_TEXT, r.dropped),
+          cmd.on
+            ? T.EMAIL_IMPORT_ON_TEXT
+            : T.droppedPendingText(T.EMAIL_IMPORT_OFF_TEXT, r.dropped),
           note,
         );
       case 'memoryAcrossTrips':
@@ -519,8 +564,10 @@ export function createSettingsFlow(deps: SettingsFlowDeps): SettingsFlow {
 
   function adultsConfirmed(ctx: SettingsTurnContext): SettingsOutcome {
     if (!isLead(ctx.me)) return say(ctx, T.LEAD_ONLY_TEXT, 'settings:adults:not_lead');
-    if (safety.groupHasMinor(ctx.members, ctx.now)) return say(ctx, T.ADULTS_HAS_MINOR_TEXT, 'settings:adults:minor');
-    if (groupNow(ctx).settings.allAdultsConfirmed) return say(ctx, T.ALREADY_SET_TEXT, 'settings:adults:already');
+    if (safety.groupHasMinor(ctx.members, ctx.now))
+      return say(ctx, T.ADULTS_HAS_MINOR_TEXT, 'settings:adults:minor');
+    if (groupNow(ctx).settings.allAdultsConfirmed)
+      return say(ctx, T.ALREADY_SET_TEXT, 'settings:adults:already');
     writeSetting(ctx, 'allAdultsConfirmed', true);
     return say(ctx, T.ADULTS_CONFIRMED_TEXT, 'settings:adults');
   }
@@ -533,9 +580,11 @@ export function createSettingsFlow(deps: SettingsFlowDeps): SettingsFlow {
   ): { ok: ResolvedChange; question: string } | { refuse: string; note: string } {
     const group = groupNow(ctx);
     const policy = group.spendingPolicy;
-    if (safety.isMinor(ctx.me, ctx.now)) return { refuse: T.MINOR_SETTINGS_TEXT, note: 'settings:set:minor' };
+    if (safety.isMinor(ctx.me, ctx.now))
+      return { refuse: T.MINOR_SETTINGS_TEXT, note: 'settings:set:minor' };
     if (change.setting === 'replyMode') {
-      if (group.settings.quietMode === change.quiet) return { refuse: T.ALREADY_SET_TEXT, note: 'settings:set:already' };
+      if (group.settings.quietMode === change.quiet)
+        return { refuse: T.ALREADY_SET_TEXT, note: 'settings:set:already' };
       const from = group.settings.quietMode ? 'quiet' : 'normal';
       const to = change.quiet ? 'quiet' : 'normal';
       return {
@@ -555,7 +604,8 @@ export function createSettingsFlow(deps: SettingsFlowDeps): SettingsFlow {
       if (currencyExponent(change.currency) !== currencyExponent(policy.currency)) {
         return { refuse: T.UNREADABLE_CURRENCY_TEXT, note: 'settings:currency:exponent' };
       }
-      if (trip.currency === change.currency) return { refuse: T.ALREADY_SET_TEXT, note: 'settings:set:already' };
+      if (trip.currency === change.currency)
+        return { refuse: T.ALREADY_SET_TEXT, note: 'settings:set:already' };
       if (currencyLocked(ctx, trip)) {
         return { refuse: T.currencyLockedText(trip.currency), note: 'settings:currency:locked' };
       }
@@ -618,7 +668,9 @@ export function createSettingsFlow(deps: SettingsFlowDeps): SettingsFlow {
       writeSetting(ctx, 'quietMode', change.quiet);
       return say(
         ctx,
-        change.quiet ? "quiet mode on. i'll only speak when @'d or when money needs a decision" : 'quiet mode off',
+        change.quiet
+          ? "quiet mode on. i'll only speak when @'d or when money needs a decision"
+          : 'quiet mode off',
         'settings:set:replyMode',
       );
     }
@@ -636,10 +688,18 @@ export function createSettingsFlow(deps: SettingsFlowDeps): SettingsFlow {
         trip.budget === undefined
           ? undefined
           : {
-              ...(trip.budget.total !== undefined ? { total: money(trip.budget.total.amountMinor, code) } : {}),
-              ...(trip.budget.perDay !== undefined ? { perDay: money(trip.budget.perDay.amountMinor, code) } : {}),
+              ...(trip.budget.total !== undefined
+                ? { total: money(trip.budget.total.amountMinor, code) }
+                : {}),
+              ...(trip.budget.perDay !== undefined
+                ? { perDay: money(trip.budget.perDay.amountMinor, code) }
+                : {}),
             };
-      stores.group.trips.update({ ...trip, currency: code, ...(budget !== undefined ? { budget } : {}) });
+      stores.group.trips.update({
+        ...trip,
+        currency: code,
+        ...(budget !== undefined ? { budget } : {}),
+      });
       const after: GroupSpendingPolicy = { ...before, currency: code };
       stores.group.groups.update({ ...group, currency: code, spendingPolicy: after });
       audit(ctx, {
@@ -798,7 +858,11 @@ export function createSettingsFlow(deps: SettingsFlowDeps): SettingsFlow {
 
   // ---------- public ----------
 
-  function command(ctx: SettingsTurnContext, text: string, addressed: boolean): SettingsOutcome | undefined {
+  function command(
+    ctx: SettingsTurnContext,
+    text: string,
+    addressed: boolean,
+  ): SettingsOutcome | undefined {
     const cmd = parseSettingsCommand(text);
     if (!addressed) {
       // SAFETY §2.8 kill switch: "stop roasting" said to the room still works while roast mode is on.
@@ -806,7 +870,12 @@ export function createSettingsFlow(deps: SettingsFlowDeps): SettingsFlow {
       if (cmd.kind === 'roast_mode' && !cmd.on && commandText(text) !== 'chill') {
         return roastMode(ctx, false, text);
       }
-      if (cmd.kind === 'consent' && cmd.flag === 'roast' && !cmd.on && cmd.subject.kind === 'self') {
+      if (
+        cmd.kind === 'consent' &&
+        cmd.flag === 'roast' &&
+        !cmd.on &&
+        cmd.subject.kind === 'self'
+      ) {
         return consent(ctx, cmd);
       }
       return undefined;
@@ -865,7 +934,10 @@ export function createSettingsFlow(deps: SettingsFlowDeps): SettingsFlow {
     );
   }
 
-  function pendingQuestion(groupId: string, memberId: MemberId): PendingSettingsQuestion | undefined {
+  function pendingQuestion(
+    groupId: string,
+    memberId: MemberId,
+  ): PendingSettingsQuestion | undefined {
     const p = pending.get(key(groupId, memberId));
     if (p === undefined) return undefined;
     if (parseIso(clock.now()) - parseIso(p.askedAt) > SETTINGS_CONFIRM_TTL_MS) {
@@ -875,10 +947,14 @@ export function createSettingsFlow(deps: SettingsFlowDeps): SettingsFlow {
     return { messageId: p.messageId, askedAt: p.askedAt, proposalsAtAsk: p.proposalsAtAsk };
   }
 
-  function answer(ctx: SettingsTurnContext, intent: 'approve' | 'decline'): SettingsOutcome | undefined {
+  function answer(
+    ctx: SettingsTurnContext,
+    intent: 'approve' | 'decline',
+  ): SettingsOutcome | undefined {
     const k = key(ctx.group.groupId, ctx.me.memberId);
     const p = pending.get(k);
-    if (p === undefined || pendingQuestion(ctx.group.groupId, ctx.me.memberId) === undefined) return undefined;
+    if (p === undefined || pendingQuestion(ctx.group.groupId, ctx.me.memberId) === undefined)
+      return undefined;
     pending.delete(k);
     if (intent === 'decline') {
       return say(
@@ -891,6 +967,9 @@ export function createSettingsFlow(deps: SettingsFlowDeps): SettingsFlow {
     // "everyone's 18+?" → yes: confirm ages, then the roast mode the lead asked for.
     if (familyOrMinor(ctx)) return say(ctx, T.ROAST_MINOR_TEXT, 'settings:roast_on:minor');
     if (!isLead(ctx.me)) return say(ctx, T.ROAST_LEAD_ONLY_TEXT, 'settings:roast_on:not_lead');
+    // T-170: someone new arrived between the question and the "yes".
+    if (ctx.members.some(isOnboardingPending))
+      return say(ctx, T.ROAST_ON_NEWCOMER_TEXT, 'settings:roast_on:newcomer');
     if (!groupNow(ctx).settings.allAdultsConfirmed) writeSetting(ctx, 'allAdultsConfirmed', true);
     if (!groupNow(ctx).settings.roastMode) writeSetting(ctx, 'roastMode', true);
     return say(ctx, T.ROAST_ON_TEXT, 'settings:roast_on');

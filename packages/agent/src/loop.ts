@@ -68,6 +68,7 @@ import type {
 import {
   approval,
   formatMoney,
+  isOnboardingPending,
   isReaction,
   isSettlementPending,
   ledger,
@@ -216,6 +217,17 @@ import {
 } from './settings/flow.js';
 import { balancesFor, renderSettleUpFor } from './tools/ledger.js';
 import { createSettleFlow } from './settle/flow.js';
+import {
+  answerSetup,
+  ensureNewcomer,
+  memberLeft,
+  memberRejoined,
+  noteNameHint,
+  setupDm,
+} from './onboarding/flow.js';
+import { createLeaveAsks, groupHasOpenBalances, mayDeleteGroup } from './onboarding/leave.js';
+import { isLeaveCancel, isLeaveCommand, isLeaveConfirm, parseRename } from './onboarding/parse.js';
+import * as OB from './onboarding/text.js';
 import { settleReplyAction, type SettleAction } from './settle/actions.js';
 import { WHICH_ROW_TEXT, type PendingAsk } from './settle/profiles.js';
 import {
@@ -316,6 +328,15 @@ export interface AgentDeps {
    * Default: `model_first` with a live client, `parser_first` offline.
    */
   readonly interpretation?: 'model_first' | 'parser_first';
+  /**
+   * T-170 (D-055): real-member onboarding. An unknown handle that speaks in
+   * the group gets one setup DM (consent line, name, 18+) instead of the
+   * guest line; joins and leaves change the roster; a member can rename
+   * themselves in DM. Needs a DM lane. Default: on for `imessage_relay`
+   * channels (a phone-number group where anyone can be added), off elsewhere
+   * (the simulator's rosters are seeded). "@trav leave" works either way.
+   */
+  readonly onboarding?: boolean;
 }
 
 export interface TurnResult {
@@ -975,6 +996,13 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     clock,
     ...(deps.fx !== undefined ? { fx: deps.fx } : {}),
   });
+  /** T-170 (D-055): newcomer setup over DM; needs a DM lane. Rules only. */
+  const onboardingOn =
+    (deps.onboarding ?? deps.channel.capabilities.kind === 'imessage_relay') &&
+    deps.channel.capabilities.privateDm;
+  const obDeps = { stores, ids };
+  /** T-170: open "@trav leave" questions (one per group). */
+  const leaveAsks = createLeaveAsks();
 
   /** Place suggestions shaped by spending tier, and the one "fancy or casual?" (T-167). Rules only. */
   const suggestions = createSuggestFlow({
@@ -2693,6 +2721,10 @@ export function createTravAgent(input: AgentDeps): TravAgent {
           },
         });
       }
+      // T-170: on a phone-number channel an unknown handle is a newcomer: one
+      // setup DM, nothing in the group (their DM answers are read here too).
+      const setup = await newcomerTurn(r, event.sender, rawText, before);
+      if (setup !== undefined) return setup;
       const ruled = detectMentionRules(rawText, mentionCtx);
       const mention: MentionResult =
         ruled === 'ambiguous' ? { addressed: false, confidence: 0, reason: 'third_person' } : ruled;
@@ -3973,6 +4005,300 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     };
   }
 
+  // ---------- T-170 (D-055): newcomers, roster changes, "@trav leave" ----------
+
+  const wentOut = (sent: readonly Outbound[], id: MessageId): boolean =>
+    sent.some((o) => !isReaction(o) && o.id === id);
+
+  const turnOf = (
+    r: Resolved,
+    sent: readonly Outbound[],
+    note: string,
+    before: ReadonlySet<string>,
+  ): TurnResult => ({
+    outbound: sent,
+    toolCalls: [],
+    auditEventIds: auditIdsSince(r.group.groupId, before),
+    silent: sent.length === 0,
+    modelSources: [],
+    note,
+  });
+
+  /** The turn context again, after this turn changed the roster. */
+  const reresolve = (r: Resolved, event: InboundEvent): Resolved => resolve(event) ?? r;
+
+  /** Drops a member's runtime state from the caches and the stores (as `forgetRuntimeState`). */
+  function forgetMemberState(memberId: MemberId): void {
+    // The lane guard first: its own order lists must see the notes it drops.
+    for (const g of stores.group.groups.list()) laneText.forgetMember(g.groupId, memberId);
+    stateRegistry.evictOwner(memberId);
+  }
+
+  /**
+   * "@trav leave", once confirmed: every row of the group in both stores
+   * (`Stores.deleteGroup`), the agent's caches and queued jobs for it, and the
+   * dedupe keys that name its conversation (or a member's DM lane no other
+   * group shares). Returns the per-table counts.
+   */
+  function forgetGroup(group: Group): Readonly<Record<string, number>> {
+    const groupId = group.groupId;
+    const members = stores.group.members.listByGroup(groupId);
+    for (const job of scheduler.list()) if (job.groupId === groupId) scheduler.cancel(job.jobId);
+    laneText.forgetGroup(groupId);
+    for (const m of members) stateRegistry.evictOwner(m.memberId);
+    stateRegistry.evictGroup(groupId);
+    for (const [id, g] of [...memoryCardGroup]) {
+      if (g !== groupId) continue;
+      cards.delete(id);
+      memoryCardGroup.delete(id);
+    }
+    const counts = stores.deleteGroup(groupId);
+    stores.group.runtime.deleteSeenKeys('agent', `${group.conversationId}:`);
+    const elsewhere = new Set(
+      stores.group.groups
+        .list()
+        .flatMap((g) => stores.group.members.listByGroup(g.groupId).map((m) => m.senderId)),
+    );
+    for (const m of members) {
+      if (!elsewhere.has(m.senderId))
+        stores.group.runtime.deleteSeenKeys('agent', `dm:${m.senderId}:`);
+    }
+    return counts;
+  }
+
+  /**
+   * Roster changes on a phone-number channel, before the event's own turn: a
+   * join adds a pending newcomer (or brings back a member who left), a leave
+   * deactivates a member (or deletes a newcomer who never finished setup). A
+   * known handle under a new contact name is the same member: names are
+   * labels (SAFETY §2.5), so nothing changes. A member's "welcome Sam" in the
+   * group pre-fills the newcomer's name question.
+   */
+  function rosterBeforeTurn(r: Resolved, event: InboundEvent): Resolved {
+    if (!onboardingOn || event.lane !== 'group') return r;
+    if (event.type === 'member_joined') {
+      if (event.participant.isTrav) return r;
+      const handle = event.participant.handle;
+      const known = stores.group.members.getBySenderId(r.group.groupId, handle);
+      if (known === undefined)
+        ensureNewcomer(obDeps, r.group, handle, event.participant.displayName, r.now);
+      else if (known.leftAt !== undefined && known.onboarding === undefined)
+        memberRejoined(obDeps, r.group, known, r.now);
+      return reresolve(r, event);
+    }
+    if (event.type === 'member_left') {
+      if (event.participant.isTrav) return r;
+      const out = memberLeft(obDeps, r.group, event.participant.handle, r.now);
+      if (out.kind === 'pending_removed') forgetMemberState(out.memberId);
+      if (out.kind !== 'none' && leaveAsks.openFor(r.group.groupId, r.now) === out.memberId)
+        leaveAsks.clear(r.group.groupId);
+      return reresolve(r, event);
+    }
+    if (event.type === 'message' && r.me !== null && r.members.some(isOnboardingPending))
+      noteNameHint(obDeps, r.members, stripInvisible(event.text), r.now);
+    return r;
+  }
+
+  /**
+   * A newcomer's turn (`me === null`, onboarding on): in the group, their
+   * first line gets them a pending row and the one setup DM, and nothing is
+   * said in the group; in DM, their answer to the open setup question. On the
+   * last answer they are a member: the done line carries T-166's one
+   * payment-apps ask (adults only), and a self-attested minor turns family
+   * mode on with the unnamed notice. Undefined: not a newcomer (a member who
+   * left keeps the guest rules).
+   */
+  async function newcomerTurn(
+    r: Resolved,
+    sender: string,
+    text: string,
+    before: ReadonlySet<string>,
+  ): Promise<TurnResult | undefined> {
+    if (!onboardingOn) return undefined;
+    const groupId = r.group.groupId;
+    const row = stores.group.members.getBySenderId(groupId, sender);
+    if (row !== undefined && !isOnboardingPending(row)) return undefined;
+    if (r.lane === 'group' && row === undefined) {
+      ensureNewcomer(obDeps, r.group, sender, undefined, r.now);
+    } else if (row === undefined) {
+      return undefined;
+    }
+    const newcomer = stores.group.members.getBySenderId(groupId, sender)!;
+    const rr: Resolved = { ...r, members: stores.group.members.listByGroup(groupId) };
+    const hello = setupDm(obDeps, r.group, newcomer, r.now);
+    if (hello !== undefined) {
+      const sent = await send(rr, [hello.message]);
+      if (wentOut(sent, hello.message.id)) hello.commit();
+      return turnOf(rr, sent, 'onboarding:dm_sent', before);
+    }
+    // Already DMed once: their group lines change nothing.
+    if (r.lane === 'group') return turnOf(rr, [], 'onboarding:waiting', before);
+    const answer = answerSetup(obDeps, r.group, newcomer, text, r.now);
+    const done = answer.completed;
+    if (done === undefined) {
+      return turnOf(rr, await send(rr, answer.drafts), answer.note, before);
+    }
+    const members = stores.group.members.listByGroup(groupId);
+    const asMember: Resolved = {
+      ...r,
+      members,
+      identity: { kind: 'member', member: done },
+      me: done,
+    };
+    const ask = settleFlow.askOnJoin({ groupId, trip: r.trip, member: done, now: r.now })[0];
+    const last: OutboundMessage =
+      ask !== undefined
+        ? { ...ask.message, text: OB.doneWithAppsAskText(done.displayName) }
+        : {
+            id: ids.next('msg'),
+            groupId,
+            to: { kind: 'member', memberId: done.memberId },
+            text: OB.doneText(done.displayName),
+          };
+    const sent = await send(asMember, [last]);
+    if (ask !== undefined && wentOut(sent, last.id)) ask.commit();
+    // A self-attested minor starts family mode: VOICE §8 notice, once, naming nobody.
+    const notice = await familyNotice({ ...asMember, lane: 'group' });
+    return turnOf(asMember, [...sent, ...notice], answer.note, before);
+  }
+
+  /** "my name is Sammy" in a member's DM (onboarding on): a new label, same member. */
+  async function renameTurn(
+    r: Resolved,
+    me: Member,
+    text: string,
+  ): Promise<TurnResult | undefined> {
+    if (!onboardingOn || r.lane !== 'dm') return undefined;
+    const name = parseRename(text);
+    if (name === undefined) return undefined;
+    const before = snapshotAudit(r.group.groupId);
+    const lower = name.toLocaleLowerCase();
+    const taken = r.members.some(
+      (m) =>
+        m.memberId !== me.memberId &&
+        m.leftAt === undefined &&
+        !isOnboardingPending(m) &&
+        m.displayName.toLocaleLowerCase() === lower,
+    );
+    if (taken)
+      return turnOf(r, await send(r, [message(r, OB.nameTakenText(name))]), 'rename:taken', before);
+    if (name !== me.displayName) {
+      stores.group.members.upsert({ ...me, displayName: name });
+      audit(r, {
+        type: 'member.role_changed',
+        actor: { kind: 'member', id: me.memberId },
+        visibility: 'group',
+        payload: { memberId: me.memberId, change: 'display_name' },
+      });
+    }
+    return turnOf(r, await send(r, [message(r, OB.renamedText(name))]), 'rename:done', before);
+  }
+
+  /**
+   * "@trav leave" in the group: a lead's ask gets what goes (and whether the
+   * tab is open) and a "delete it" question; the same lead's "delete it"
+   * within 10 minutes deletes the group's data and Trav leaves; "no" /
+   * "cancel" calls it off. Undefined: not a leave message.
+   */
+  async function leaveTurn(r: Resolved, me: Member, text: string): Promise<TurnResult | undefined> {
+    if (r.lane !== 'group') return undefined;
+    const groupId = r.group.groupId;
+    const asker = leaveAsks.openFor(groupId, r.now);
+    const isAsk = isLeaveCommand(text);
+    if (!isAsk && asker !== me.memberId) return undefined;
+    const before = snapshotAudit(groupId);
+    if (isAsk) {
+      if (!mayDeleteGroup(me, r.members, r.now))
+        return turnOf(
+          r,
+          await send(r, [message(r, OB.LEAVE_LEAD_ONLY_TEXT)]),
+          'leave:lead_only',
+          before,
+        );
+      leaveAsks.ask(groupId, me.memberId, r.now);
+      audit(r, {
+        type: 'data.deletion_requested',
+        actor: { kind: 'member', id: me.memberId },
+        visibility: 'group',
+        payload: { scope: 'group', step: 'asked' },
+      });
+      const open = groupHasOpenBalances(stores, groupId, r.members, r.now);
+      return turnOf(
+        r,
+        await send(r, [message(r, OB.leaveConfirmText(open))]),
+        'leave:asked',
+        before,
+      );
+    }
+    if (isLeaveCancel(text)) {
+      leaveAsks.clear(groupId);
+      return turnOf(
+        r,
+        await send(r, [message(r, OB.LEAVE_CANCELLED_TEXT)]),
+        'leave:cancelled',
+        before,
+      );
+    }
+    if (!isLeaveConfirm(text)) return undefined;
+    leaveAsks.clear(groupId);
+    audit(r, {
+      type: 'data.deletion_requested',
+      actor: { kind: 'member', id: me.memberId },
+      visibility: 'group',
+      payload: { scope: 'group', step: 'confirmed' },
+    });
+    const leave = deps.channel.leaveConversation?.bind(deps.channel);
+    // The goodbye goes out first: after the delete there is no group to send as.
+    const sent = await send(r, [message(r, OB.leaveGoodbyeText(leave !== undefined))]);
+    const counts = forgetGroup(r.group);
+    stores.group.audit.append({
+      groupId,
+      tripId: null,
+      type: 'data.deleted',
+      actor: { kind: 'trav', id: 'trav' },
+      visibility: 'group',
+      payload: { scope: 'group', requestedBy: me.memberId, tables: { ...counts } },
+    });
+    let left = false;
+    if (leave !== undefined) {
+      try {
+        left = (await leave(r.group.conversationId)).ok;
+      } catch {
+        left = false;
+      }
+    }
+    return turnOf(r, sent, left ? 'leave:done' : 'leave:done_still_in_chat', before);
+  }
+
+  /**
+   * Before the event's own turn: roster changes, a newcomer's 👍 / 👎 on the
+   * setup DM, "@trav leave", and a member's rename in DM. `turn` set ⇒ that
+   * is the whole turn.
+   */
+  async function beforeDispatch(
+    r0: Resolved,
+    event: InboundEvent,
+  ): Promise<{ readonly r: Resolved; readonly turn?: TurnResult }> {
+    const r = rosterBeforeTurn(r0, event);
+    if (event.type === 'reaction' && r.me === null && r.lane === 'dm' && !event.removed) {
+      const intent = reactionIntent(event.reaction);
+      if (intent === 'approve' || intent === 'decline') {
+        const before = snapshotAudit(r.group.groupId);
+        const turn = await newcomerTurn(
+          r,
+          event.sender,
+          intent === 'approve' ? 'yes' : 'no',
+          before,
+        );
+        if (turn !== undefined) return { r, turn };
+      }
+    }
+    if (event.type !== 'message' || r.me === null) return { r };
+    const text = stripInvisible(event.text);
+    const turn = (await leaveTurn(r, r.me, text)) ?? (await renameTurn(r, r.me, text));
+    return turn === undefined ? { r } : { r, turn };
+  }
+
   // ---------- public ----------
 
   async function dispatch(r: Resolved, event: InboundEvent): Promise<TurnResult> {
@@ -4134,6 +4460,10 @@ export function createTravAgent(input: AgentDeps): TravAgent {
       r = resolve(event);
       if (r === undefined) return silent('unknown_conversation');
       before = snapshotAudit(r.group.groupId);
+      // T-170: roster changes, newcomer setup answers, "@trav leave", renames.
+      const pre = await beforeDispatch(r, event);
+      if (pre.turn !== undefined) return pre.turn;
+      r = pre.r;
       return await withProfileAsks(r, event, await dispatch(r, event));
     } catch (e) {
       return failTurn(r, e, 'messageId' in event ? event.messageId : undefined, before);

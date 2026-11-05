@@ -70,6 +70,7 @@ export function createFakeGroupStore(d: FakeGroupData): GroupStore {
       getBySenderId: (g, s) => d.members.find((m) => m.groupId === g && m.senderId === s),
       listByGroup: (g, o) =>
         d.members.filter((m) => m.groupId === g && (o?.activeOnly !== true || m.active)),
+      remove: () => unused('members.remove'),
     },
     trips: {
       create: () => unused('trips.create'),
@@ -146,6 +147,7 @@ export function createFakeGroupStore(d: FakeGroupData): GroupStore {
       list: () => unused('runtime.list'),
       delete: () => unused('runtime.delete'),
       seenKeys: () => unused('runtime.seenKeys'),
+      deleteSeenKeys: () => unused('runtime.deleteSeenKeys'),
       putJob: () => unused('runtime.putJob'),
       deleteJob: () => unused('runtime.deleteJob'),
       listJobs: () => unused('runtime.listJobs'),

@@ -33,6 +33,7 @@ import {
   daysBetween,
   formatClockTime,
   formatMoney,
+  isOnboardingPending,
   localDate,
   ledger,
   localHour,
@@ -55,6 +56,7 @@ import {
   REFUSE_OPTED_OUT_TEXT,
   REFUSE_PERSONAL_TEXT,
   ROAST_AGE_UNCONFIRMED_REQUEST_TEXT,
+  ROAST_NEWCOMER_REQUEST_TEXT,
   ROAST_MINOR_TEXT,
   ROAST_TRIP_OVER_TEXT,
   SELF_NOT_OPTED_IN_TEXT,
@@ -253,6 +255,9 @@ export function answerRoast(req: RoastRequest, ctx: RoastContext): RoastAnswer {
   }
   if (groupBlock === 'mode_off') return refuse(REFUSE_MODE_OFF_TEXT, 'mode_off');
   if (groupBlock === 'age_unconfirmed') {
+    // T-170: "everyone's 18+" can't cover a newcomer still in setup, so don't suggest it.
+    if (ctx.members.some(isOnboardingPending))
+      return refuse(ROAST_NEWCOMER_REQUEST_TEXT, 'age_unconfirmed');
     return refuse(ROAST_AGE_UNCONFIRMED_REQUEST_TEXT, 'age_unconfirmed');
   }
   if (groupBlock === 'trip_over') return refuse(ROAST_TRIP_OVER_TEXT, 'trip_over');

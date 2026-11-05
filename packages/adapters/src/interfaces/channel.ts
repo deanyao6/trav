@@ -228,6 +228,14 @@ export interface ChannelAdapter {
 
   /** List current participants of a conversation, including Trav. */
   listParticipants(conversationId: ConversationId): Promise<Result<readonly ChannelParticipant[]>>;
+
+  /**
+   * T-170 ("@trav leave", D-055): Trav leaves a group conversation. Optional:
+   * the iMessage relay lines have no "leave this group" call today, so when
+   * it is absent (or fails) Trav's goodbye asks the group to remove it. After
+   * a successful call, `sendGroup` to that conversation fails.
+   */
+  leaveConversation?(conversationId: ConversationId): Promise<Result<void>>;
 }
 
 /**

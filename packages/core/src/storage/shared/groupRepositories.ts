@@ -105,6 +105,10 @@ function createMemberRepository(backend: Backend): MemberRepository {
         .filter((m) => opts?.activeOnly !== true || m.active);
       return sortByInstant(rows, (m) => m.joinedAt);
     },
+    remove(memberId) {
+      requireId(memberId, 'memberId');
+      return members.deleteKey(memberId);
+    },
   };
 }
 

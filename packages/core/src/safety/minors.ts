@@ -10,6 +10,7 @@
  */
 import type { IsoDateTime, MemberId } from '../primitives.js';
 import type { Group, Member } from '../domain/group.js';
+import { isOnboardingPending } from '../domain/group.js';
 import type { ContentTag } from '../domain/trip.js';
 import { TravError } from '../errors.js';
 import { normalizeText, termRegex, termsRegex } from './text.js';
@@ -105,8 +106,14 @@ export function groupHasMinor(members: readonly Member[], now: IsoDateTime): boo
   return activeMembers(members).some((m) => isMinor(m, now));
 }
 
-/** True if any member's age is unknown and the group has not confirmed everyone is 18+. */
+/**
+ * True if any member's age is unknown and the group has not confirmed everyone
+ * is 18+. A newcomer still in Trav's setup DM (T-170, `isOnboardingPending`)
+ * is in the chat with an age nobody has stated, and a lead's attestation only
+ * covers the roster it was given for (§2.7), so they count whatever it says.
+ */
 export function groupAgeUnconfirmed(group: Group, members: readonly Member[]): boolean {
+  if (members.some((m) => isOnboardingPending(m))) return true;
   if (group.settings.allAdultsConfirmed) return false;
   return activeMembers(members).some((m) => isAgeUnknown(m));
 }

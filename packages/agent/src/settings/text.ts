@@ -25,6 +25,15 @@ export const ROAST_TRIP_OVER_TEXT = "the trip's over, so roast mode stays off";
 /** A roast request while someone's age is still unknown (a member joined after roast mode went on). */
 export const ROAST_AGE_UNCONFIRMED_REQUEST_TEXT =
   "roasts wait until everyone's confirmed 18+. a lead can say '@trav everyone's 18+'";
+/**
+ * T-170 (D-055): someone new is in the chat and still in Trav's setup DM. A
+ * lead's "everyone's 18+" can't cover them, so these never point at it, and
+ * never name the newcomer.
+ */
+export const ROAST_ON_NEWCOMER_TEXT =
+  'roast mode stays off until everyone new in the chat is set up with me';
+export const ROAST_NEWCOMER_REQUEST_TEXT =
+  'roasts wait until everyone new in the chat is set up with me';
 
 /**
  * SAFETY SC-13: a model tool call never marks the group 18+; a lead types it.
