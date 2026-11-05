@@ -103,6 +103,7 @@ import {
   bookingParty,
   renderAttendanceLine,
   rosterDiverged,
+  rosterLabel,
   rosterOf,
   setAttendance,
 } from '../roster/index.js';
@@ -1040,7 +1041,17 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
     if (!charged) {
       if (write?.changed === true && activity !== null) {
         return [
-          text(proposal.groupId, renderAttendanceLine(activity, write.roster, members, me, 'out')),
+          text(
+            proposal.groupId,
+            renderAttendanceLine(
+              activity,
+              write.roster,
+              members,
+              me,
+              'out',
+              rosterLabel(group, activity, members, now),
+            ),
+          ),
         ];
       }
       return [

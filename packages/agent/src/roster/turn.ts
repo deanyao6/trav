@@ -37,6 +37,7 @@ import {
   renderRollCall,
   resolveActivity,
   resolveMemberName,
+  rosterLabel,
   rosterOf,
   type RosterUpdate,
   setAttendance,
@@ -209,6 +210,7 @@ export function handleRosterMessage(input: RosterTurnInput): RosterTurn | undefi
         trip.timeZone,
         now,
         keptOffFor(group, activity, members, now),
+        rosterLabel(group, activity, members, now),
       ),
     };
   }
@@ -259,7 +261,14 @@ export function handleRosterMessage(input: RosterTurnInput): RosterTurn | undefi
       activity,
       memberId,
       status,
-      text: renderAttendanceLine(activity, write.roster, members, memberId, status),
+      text: renderAttendanceLine(
+        activity,
+        write.roster,
+        members,
+        memberId,
+        status,
+        rosterLabel(group, activity, members, now),
+      ),
       notice: {
         groupId: activity.groupId,
         activityId: activity.activityId,
@@ -274,7 +283,7 @@ export function handleRosterMessage(input: RosterTurnInput): RosterTurn | undefi
       members.find((m) => m.memberId === memberId)?.displayName ?? memberId,
       40,
     );
-    const label = sanitizeInline(activity.name, 40).toLowerCase();
+    const label = rosterLabel(group, activity, members, now);
     const state = status === 'maybe' ? 'a maybe' : status;
     return {
       kind: 'unchanged',
@@ -289,7 +298,14 @@ export function handleRosterMessage(input: RosterTurnInput): RosterTurn | undefi
     activity,
     memberId,
     status,
-    text: renderAttendanceLine(activity, write.roster, members, memberId, status),
+    text: renderAttendanceLine(
+      activity,
+      write.roster,
+      members,
+      memberId,
+      status,
+      rosterLabel(group, activity, members, now),
+    ),
     notice: {
       groupId: activity.groupId,
       activityId: activity.activityId,
@@ -315,14 +331,15 @@ function ticketHeld(input: RosterTurnInput, activity: Activity): RosterTurn | 'n
     .listPendingProposals(activity.groupId)
     .filter((p) => p.activityId === activity.activityId);
   if (booked.size === 0 && pending.length === 0) return 'none';
-  const label = sanitizeInline(activity.name, 40).toLowerCase();
+  const label = rosterLabel(group, activity, input.members, input.now);
   const name = sanitizeInline(me.displayName, 40);
+  const card = label.startsWith('the ') ? label : `the ${label}`;
   const base = { kind: 'unchanged', activity, memberId: me.memberId, status: 'in' } as const;
   if (booked.has(me.memberId)) {
     return { ...base, text: `you've already got a ticket for ${label}, ${name}` };
   }
   if (pending.some((p) => p.attendees.includes(me.memberId))) {
-    return { ...base, text: `you're already on the ${label} card, ${name}` };
+    return { ...base, text: `you're already on ${card} card, ${name}` };
   }
   return 'no';
 }
@@ -480,7 +497,7 @@ function handleCombined(input: RosterTurnInput, parsed: CombinedRoster): RosterT
     kind: 'party',
     activity,
     changes: changed,
-    text: `${renderRollCall(activity, after, members, tz, now, new Set(stillUnsaid))}${keptOff}`,
+    text: `${renderRollCall(activity, after, members, tz, now, new Set(stillUnsaid), rosterLabel(group, activity, members, now))}${keptOff}`,
     ...(changed.length > 0 ? { notice: noticeOf(input, activity, changed) } : {}),
     ...(venue !== undefined ? { venue } : {}),
   };

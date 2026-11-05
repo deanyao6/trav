@@ -514,14 +514,17 @@ describe('handleRosterMessage: combined sentences', () => {
       expect(r?.kind).toBe('party');
       if (r?.kind !== 'party') return;
       expect(r.text.split('\n')).toEqual([
-        'last night out (apolo) tonight: 5 in · Dean, Henry, Maya, Jordan, Priya',
+        "the adults' plan tonight: 5 in · Dean, Henry, Maya, Jordan, Priya", // T-154: the 18+ plan is not named in a family group
         LINE,
       ]);
       expect(r.changes.map((c) => c.memberId)).toEqual(ADULTS);
       expect(statuses(stores, CLUB_D5.activityId)).toEqual(
         Object.fromEntries(ADULTS.map((id) => [id, 'in'])),
       );
-      expect(r.text).not.toMatch(/\b(?:1[0-7]|under|age|minor|kid|child|adults?)\b/i);
+      // No age or reason; "the adults' plan" (T-154, VOICE §4.12 C "if the adults
+      // want something later") is the plan's label, never "adults only" (screened).
+      expect(r.text).not.toMatch(/\b(?:1[0-7]|under|age|minor|kid|child|adults only)\b/i);
+      expect(safety.isRestrictedText(r.text)).toBe(false);
       expect(lint(r.text)).toEqual([]);
     });
 
@@ -593,7 +596,7 @@ describe('handleRosterMessage: combined sentences', () => {
       expect(r?.kind).toBe('party');
       if (r?.kind !== 'party') return;
       expect(r.text.split('\n')).toEqual([
-        'last night out (apolo) tonight: 5 in · Dean, Henry, Maya, Jordan, Priya',
+        "the adults' plan tonight: 5 in · Dean, Henry, Maya, Jordan, Priya", // T-154: the 18+ plan is not named in a family group
         'out: Sam',
         LINE,
       ]);
@@ -758,7 +761,7 @@ describe('combined sentences through the loop (offline, no model)', () => {
     expect(h.model.completions).toHaveLength(0);
     const texts = messages(r).map((m) => m.text);
     expect(texts[0]!.split('\n')).toEqual([
-      'razzmatazz tonight: 5 in · Dean, Henry, Maya, Jordan, Priya',
+      "the adults' plan tonight: 5 in · Dean, Henry, Maya, Jordan, Priya", // T-154
       'out: Sam',
       "Sam stays off this plan, it's not all-ages",
     ]);

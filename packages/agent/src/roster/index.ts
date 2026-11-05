@@ -66,14 +66,43 @@ export function keptOffMembers(
   now: IsoDateTime,
   allAdultsConfirmed: boolean,
 ): ReadonlySet<MemberId> {
-  const adultOnly =
-    (activity.ageRestriction ?? 0) >= 18 || safety.isRestrictedContent(activity.contentTags);
-  if (!adultOnly) return new Set();
+  if (!isAdultOnlyActivity(activity)) return new Set();
   return new Set(
     members
       .filter((m) => safety.isMinor(m, now) || (!allAdultsConfirmed && safety.isAgeUnknown(m)))
       .map((m) => m.memberId),
   );
+}
+
+/** An 18+ plan, or one tagged alcohol/nightlife (SAFETY §2.7): minors stay off it. */
+export function isAdultOnlyActivity(activity: Activity): boolean {
+  return (activity.ageRestriction ?? 0) >= 18 || safety.isRestrictedContent(activity.contentTags);
+}
+
+/** What a roster line calls an adult-only plan in a family group (T-154). */
+export const ADULT_PLAN_LABEL = "the adults' plan";
+
+/**
+ * The plan's name on a roster line. In family mode (a minor on the trip, or
+ * forced) an adult-only plan is "the adults' plan": the minor reads the group
+ * thread, so its name or venue is never said there (VOICE §8), and the
+ * outbound screen would drop a line naming nightlife or alcohol, leaving the
+ * adult who asked with no answer (T-154). The screen itself is unchanged.
+ * An unknown group fails closed to "has a minor".
+ */
+export function rosterLabel(
+  group: GroupStore,
+  activity: Activity,
+  members: readonly Member[],
+  now: IsoDateTime,
+): string {
+  if (isAdultOnlyActivity(activity)) {
+    const g = group.groups.get(activity.groupId);
+    const family =
+      g === undefined ? safety.groupHasMinor(members, now) : safety.isFamilyMode(g, members, now);
+    if (family) return ADULT_PLAN_LABEL;
+  }
+  return sanitizeInline(activity.name, 40).toLowerCase();
 }
 
 /** `keptOffMembers` with the group's own attestation read from the store. */
@@ -258,6 +287,9 @@ export function upcomingActivities(activities: readonly Activity[], now: IsoDate
   return activities.filter(stillOn).sort((a, b) => parseIso(a.startsAt!) - parseIso(b.startsAt!));
 }
 
+/** Hint words that name no activity: never required in its name or venue. */
+const HINT_STOP_WORDS: ReadonlySet<string> = new Set(['the']);
+
 /**
  * The activity a roll call or "I'm out" refers to: by name/venue when a hint
  * is given; else by the night the message names ("tonight", "tomorrow"),
@@ -280,7 +312,8 @@ export function resolveActivity(
     .replace(/\btickets?\b/g, '')
     .trim();
   if (h !== undefined && h.length > 0) {
-    const words = h.split(/\s+/).filter((w) => w.length > 2);
+    // "the" names nothing ("who's in for the adults nightcap", T-154).
+    const words = h.split(/\s+/).filter((w) => w.length > 2 && !HINT_STOP_WORDS.has(w));
     const match = (a: Activity): boolean => {
       const hay = `${a.name} ${a.venue ?? ''}`.toLowerCase();
       return words.length > 0 && words.every((w) => hay.includes(w));
@@ -504,8 +537,10 @@ export function renderRollCall(
   now: IsoDateTime,
   /** Members a following line already says stay off this plan (T-153): not listed as "haven't said". */
   keptOff?: ReadonlySet<MemberId>,
+  /** The plan's name on the line (`rosterLabel`); default the activity name. */
+  planLabel?: string,
 ): string {
-  const label = sanitizeInline(activity.name, 40).toLowerCase();
+  const label = planLabel ?? sanitizeInline(activity.name, 40).toLowerCase();
   const lines: string[] = [];
   const inCount = roster.inMemberIds.length;
   if (inCount === 0) lines.push(`${label}${whenPhrase(activity, tz, now)}: nobody marked in yet`);
@@ -530,9 +565,11 @@ export function renderAttendanceLine(
   members: readonly Member[],
   memberId: MemberId,
   status: AttendanceStatus,
+  /** The plan's name on the line (`rosterLabel`); default the activity name. */
+  planLabel?: string,
 ): string {
   const who = names([memberId], members);
-  const label = sanitizeInline(activity.name, 40).toLowerCase();
+  const label = planLabel ?? sanitizeInline(activity.name, 40).toLowerCase();
   const n = String(roster.inMemberIds.length);
   if (status === 'in') return `${who} is in for ${label}. that's ${n} now`;
   if (status === 'out') return `${who} is out for ${label}. that leaves ${n}`;
