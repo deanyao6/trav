@@ -19,7 +19,12 @@ import { keepMinorOffText, privateDataRefusalText } from '../settings/text.js';
 
 // ---------- someone else's private data (VOICE §4.12 D) ----------
 
-const PRIVATE_NOUNS = String.raw`(?:card|cards|credit card|debit card|bank|bank account|account|statement|statements|email|emails|inbox|transactions?|charges?|venmo|card charges?|purchases)`;
+/**
+ * Things only their owner sees. A member's budget lives in their private
+ * memory ("keep my share under 80 a day", told to Trav in a DM), so "what's
+ * dad's daily budget" is someone else's private data too.
+ */
+const PRIVATE_NOUNS = String.raw`(?:card|cards|credit card|debit card|bank|bank account|account|statement|statements|email|emails|inbox|transactions?|charges?|venmo|card charges?|purchases|budget|budgets|spending limit|limit)`;
 
 function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');

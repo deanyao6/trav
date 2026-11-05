@@ -56,6 +56,7 @@ import {
 import { changeConsent, optedOutOfRoasts, readConsent } from './consent.js';
 import type { CapSetting, SettingChange, SettingsCommand } from './parse.js';
 import { commandText, parseSettingsCommand } from './parse.js';
+import type { TurnSender } from '../loop.js';
 import * as T from './text.js';
 
 /** How long Trav's "yes to confirm?" stays answerable by a reply to it. */
@@ -99,6 +100,8 @@ export interface SettingsFlow {
    * ever taken for the roast kill switches while roast mode is on.
    */
   command(ctx: SettingsTurnContext, text: string, addressed: boolean): SettingsOutcome | undefined;
+  /** An already-parsed command (the model's `request_settings_change`): same gates and confirmation. */
+  run(ctx: SettingsTurnContext, cmd: SettingsCommand): SettingsOutcome;
 }
 
 export interface SettingsFlowDeps {
@@ -172,6 +175,106 @@ export function settingsText(
   const example = formatMoney(money(p.perPersonAutoCapMinor + step, p.currency));
   const line4 = `to change one: '@trav set the per-person cap to ${example}'`;
   return [line1, line2, line3, line4].join('\n');
+}
+
+// ---------- family mode notice (VOICE §8) ----------
+
+/** Is the group's last family-mode notice an "on" (from the audit log, so it survives a restart)? */
+export function familyModeNoticeOn(stores: Pick<Stores, 'group'>, groupId: string): boolean {
+  const last = stores.group.audit
+    .listByGroup(groupId)
+    .filter((e) => e.type === 'settings.changed' && e.payload['setting'] === 'familyMode')
+    .at(-1);
+  return last !== undefined && last.payload['after'] === true;
+}
+
+/** "family mode is on since Lily's on the trip: ..." for this group right now, or undefined if it is not in family mode. */
+export function familyModeNotice(
+  group: Group,
+  members: readonly Member[],
+  now: IsoDateTime,
+): { readonly text: string; readonly minors: readonly MemberId[] } | undefined {
+  if (!safety.isFamilyMode(group, members, now)) return undefined;
+  const minors = members.filter((m) => m.active && safety.isMinor(m, now));
+  const guardians = [
+    ...new Set(
+      minors
+        .map((m) => members.find((g) => g.memberId === m.guardianMemberId && g.active))
+        .filter((g): g is Member => g !== undefined)
+        .map((g) => g.displayName),
+    ),
+  ];
+  return {
+    text: T.familyModeOnText(
+      minors.map((m) => m.displayName),
+      // Every minor's tickets go to a named guardian, or the line does not promise it.
+      minors.every((m) => members.some((g) => g.memberId === m.guardianMemberId && g.active))
+        ? guardians
+        : [],
+    ),
+    minors: minors.map((m) => m.memberId),
+  };
+}
+
+export interface FamilyNoticeDeps {
+  readonly stores: Pick<Stores, 'group'>;
+  readonly clock: Clock;
+  readonly ids: IdGenerator;
+  readonly sendTurn: TurnSender;
+}
+
+/**
+ * VOICE §8 "shown once in the group when it kicks in": posts the family-mode
+ * notice as its own one-message turn (never bolted onto a reply, VOICE §3.7
+ * allows one group message per turn). Idempotent: the "on" is audited as
+ * `settings.changed` familyMode by trav, so a second call or a restart does
+ * not repeat it. When family mode has ended since the last notice, the "off"
+ * is audited instead, so a later return is a new notice. Callers run it when
+ * a group is set up or its roster changes (seeding, joins, age updates).
+ */
+export async function announceFamilyMode(
+  deps: FamilyNoticeDeps,
+  groupId: string,
+): Promise<readonly Outbound[]> {
+  const { stores, clock, ids } = deps;
+  const group = stores.group.groups.get(groupId);
+  if (group === undefined) return [];
+  const now = clock.now();
+  const members = stores.group.members.listByGroup(groupId);
+  const trip = stores.group.trips.current(groupId, now) ?? null;
+  const announced = familyModeNoticeOn(stores, groupId);
+  const notice = familyModeNotice(group, members, now);
+  const record = (on: boolean): void => {
+    stores.group.audit.append({
+      groupId,
+      tripId: trip?.tripId ?? null,
+      type: 'settings.changed',
+      actor: { kind: 'trav', id: 'trav' },
+      visibility: 'group',
+      payload: {
+        setting: 'familyMode',
+        before: !on,
+        after: on,
+        ...(notice !== undefined ? { minors: [...notice.minors] } : {}),
+      },
+    });
+  };
+  if (notice === undefined) {
+    if (announced) record(false);
+    return [];
+  }
+  if (announced) return [];
+  const draft: OutboundMessage = { id: ids.next('msg'), groupId, to: { kind: 'group' }, text: notice.text };
+  const outcomes = await deps.sendTurn([draft], {
+    group,
+    members,
+    trip,
+    lane: 'group',
+    handleFor: (memberId) => stores.group.members.get(memberId)?.senderId,
+  });
+  const sent = outcomes.filter((o) => !o.suppressed && o.sent !== null).map((o) => o.outbound);
+  if (sent.length > 0) record(true);
+  return sent;
 }
 
 export function createSettingsFlow(deps: SettingsFlowDeps): SettingsFlow {
@@ -676,39 +779,58 @@ export function createSettingsFlow(deps: SettingsFlowDeps): SettingsFlow {
       }
       return undefined;
     }
-    if (cmd !== undefined) {
-      switch (cmd.kind) {
-        case 'show': {
-          const flags = readConsent(stores, ctx.me.memberId, ctx.group.groupId, ctx.now);
-          return say(
-            ctx,
-            settingsText(groupNow(ctx), ctx.members, ctx.trip, ctx.lane, flags, ctx.now),
-            'settings:show',
-          );
-        }
-        case 'roast_mode':
-          return roastMode(ctx, cmd.on, text);
-        case 'consent':
-          return consent(ctx, cmd);
-        case 'adults_confirmed':
-          return adultsConfirmed(ctx);
-        case 'set':
-          return setRequest(ctx, cmd.change);
-        case 'set_unreadable':
-          return say(
-            ctx,
-            cmd.setting === 'tripCurrency'
-              ? T.UNREADABLE_CURRENCY_TEXT
-              : cmd.setting === 'replyMode'
-                ? T.UNREADABLE_REPLY_MODE_TEXT
-                : cmd.offNotAllowed === true
-                  ? T.ONLY_TRIP_CAP_OFF_TEXT
-                  : T.UNREADABLE_CAP_TEXT,
-            'settings:set:unreadable',
-          );
-      }
-    }
+    if (cmd !== undefined) return dispatch(ctx, cmd, text);
     return roastRequest(ctx, text) ?? refusals(ctx, text);
+  }
+
+  function dispatch(
+    ctx: SettingsTurnContext,
+    cmd: SettingsCommand,
+    text: string,
+  ): SettingsOutcome | undefined {
+    switch (cmd.kind) {
+      case 'show': {
+        const flags = readConsent(stores, ctx.me.memberId, ctx.group.groupId, ctx.now);
+        return say(
+          ctx,
+          settingsText(groupNow(ctx), ctx.members, ctx.trip, ctx.lane, flags, ctx.now),
+          'settings:show',
+        );
+      }
+      case 'roast_mode':
+        return roastMode(ctx, cmd.on, text);
+      case 'consent':
+        return consent(ctx, cmd);
+      case 'adults_confirmed':
+        return adultsConfirmed(ctx);
+      case 'set':
+        return setRequest(ctx, cmd.change);
+      case 'set_unreadable':
+        return say(
+          ctx,
+          cmd.setting === 'tripCurrency'
+            ? T.UNREADABLE_CURRENCY_TEXT
+            : cmd.setting === 'replyMode'
+              ? T.UNREADABLE_REPLY_MODE_TEXT
+              : cmd.offNotAllowed === true
+                ? T.ONLY_TRIP_CAP_OFF_TEXT
+                : T.UNREADABLE_CAP_TEXT,
+          'settings:set:unreadable',
+        );
+    }
+  }
+
+  /**
+   * The model's `request_settings_change` lands here, so a change the model
+   * inferred takes the same road as a typed command: the same gates, the same
+   * "yes to confirm?" for caps, currency and reply mode, the same audit.
+   */
+  function run(ctx: SettingsTurnContext, cmd: SettingsCommand): SettingsOutcome {
+    return (
+      dispatch(ctx, cmd, '') ??
+      // Only "trav chill" with nothing to turn off is undefined; '' never is.
+      say(ctx, T.ROAST_ALREADY_OFF_TEXT, 'settings:roast_off:already')
+    );
   }
 
   function pendingQuestion(groupId: string, memberId: MemberId): PendingSettingsQuestion | undefined {
@@ -742,5 +864,5 @@ export function createSettingsFlow(deps: SettingsFlowDeps): SettingsFlow {
     return say(ctx, T.ROAST_ON_TEXT, 'settings:roast_on');
   }
 
-  return { pendingQuestion, answer, command };
+  return { pendingQuestion, answer, command, run };
 }

@@ -40,7 +40,7 @@ import {
   safety,
 } from '@trav/core';
 import { neutralDescription } from '../recaps/wrapped.js';
-import { commandText } from '../settings/parse.js';
+import { commandText, parseSettingsCommand } from '../settings/parse.js';
 import {
   NOPE_TEXT,
   NOTHING_TO_ROAST_TEXT,
@@ -79,8 +79,10 @@ export function parseRoastRequest(text: string): RoastRequest | undefined {
   const m = /^(?:(?:can you|go|pls|please)\s+)?roast\s+(.+)$/u.exec(t);
   if (m === null) return undefined;
   const rest = m[1]!.trim();
-  // "roast mode on" / "roast me" are settings and consent (settings/parse.ts).
-  if (/^(?:mode|me$|ing mode)/u.test(rest)) return undefined;
+  // "roast mode on" / "roast me (i can take it)" are settings and consent (settings/parse.ts).
+  if (/^(?:mode|me$|ing mode)/u.test(rest) || parseSettingsCommand(text) !== undefined) {
+    return undefined;
+  }
   const group = GROUP_TARGET.exec(rest);
   if (group !== null) {
     return {

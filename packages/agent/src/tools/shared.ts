@@ -6,12 +6,23 @@
 import type { IsoDateTime, Member, MemberId, MessageId, Trip } from '@trav/core';
 import { TravError } from '@trav/core';
 import { sanitizeInline } from '../context/groupContext.js';
+import type { SettingsCommand } from '../settings/parse.js';
 import type { ToolContext } from './registry.js';
 
 /** `ToolContext` plus what the loop knows about the message that caused the turn. */
 export interface TurnToolContext extends ToolContext {
   /** The inbound message id: `Attendance.sourceMessageId`, `Expense.sourceRef`, audit payloads. */
   readonly messageId: MessageId;
+  /**
+   * The settings flow for this turn (T-017, `settings/flow.ts`). With it,
+   * `request_settings_change` takes the typed-command road: same gates, the
+   * requester's "yes to confirm?" for caps and reply mode, same audit.
+   */
+  readonly settings?: SettingsGateway;
+}
+
+export interface SettingsGateway {
+  run(cmd: SettingsCommand): { readonly text: string; readonly note: string };
 }
 
 export function messageIdOf(ctx: ToolContext): MessageId {

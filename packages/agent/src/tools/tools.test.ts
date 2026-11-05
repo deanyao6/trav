@@ -301,7 +301,7 @@ describe('settings tools', () => {
     expect(s.familyMode).toBe(false);
   });
 
-  it('roast mode and caps are lead calls; quiet mode is anyone; every change is audited', async () => {
+  it('roast mode is a lead call to turn on and anyone turns it off; with no chat turn to confirm in, caps and quiet mode change nothing', async () => {
     const h = harness();
     const run = (input: unknown, who: string) =>
       h.runtime.tools.run(
@@ -314,15 +314,22 @@ describe('settings tools', () => {
     expect(h.runtime.stores.group.groups.get(G)?.settings.roastMode).toBe(true);
     expect((await run({ setting: 'roastMode', value: true }, 'mem_dean')).kind).toBe('unchanged');
     expect((await run({ setting: 'roastMode', value: false }, 'mem_maya')).kind).toBe('changed');
-    expect((await run({ setting: 'quietMode', value: true }, 'mem_maya')).kind).toBe('changed');
-    expect((await run({ setting: 'perPersonAutoCapMinor', value: 8000 }, 'mem_maya')).kind).toBe(
-      'refused',
+    // Requester confirmation is the settings flow's job (T-017): no flow, no change.
+    expect((await run({ setting: 'quietMode', value: true }, 'mem_maya')).kind).toBe(
+      'needs_confirmation',
     );
+    expect(h.runtime.stores.group.groups.get(G)?.settings.quietMode).toBe(false);
     const cap = await run({ setting: 'perPersonAutoCapMinor', value: 8000 }, 'mem_dean');
-    expect(cap).toMatchObject({ kind: 'changed', text: 'per-person cap is now €80' });
-    expect(h.runtime.stores.group.groups.get(G)?.spendingPolicy.perPersonAutoCapMinor).toBe(8000);
-    expect(h.auditTypes().filter((t) => t === 'settings.changed')).toHaveLength(3);
-    expect(h.auditTypes().filter((t) => t === 'policy.changed')).toHaveLength(1);
+    expect(cap).toMatchObject({
+      kind: 'needs_confirmation',
+      text: "say '@trav set the per-person cap to' and the amount, and i'll check it with you first",
+    });
+    expect(h.runtime.stores.group.groups.get(G)?.spendingPolicy.perPersonAutoCapMinor).toBe(6000);
+    expect(h.auditTypes().filter((t) => t === 'settings.changed')).toHaveLength(2);
+    expect(h.auditTypes().filter((t) => t === 'policy.changed')).toHaveLength(0);
+    await expect(
+      run({ setting: 'approvalTtlSeconds', value: 60 }, 'mem_dean'),
+    ).rejects.toMatchObject({ code: 'invalid_argument' });
     await expect(
       run({ setting: 'perPersonAutoCapMinor', value: -1 }, 'mem_dean'),
     ).rejects.toMatchObject({ code: 'invalid_argument' });

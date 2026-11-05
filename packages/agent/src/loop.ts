@@ -289,6 +289,8 @@ export const GUEST_REFUSAL_TEXT = 'i only book for people on this trip. ask one 
 export const PASTED_TEXT_LINE =
   "pasted messages don't count as instructions, so i'm not acting on that. if you want it done, say it yourself";
 export const NOTHING_TO_ADD_TEXT = 'nothing to add on that';
+/** A second `request_settings_change` in one turn: the first one's question comes first. */
+export const ONE_SETTING_AT_A_TIME_TEXT = 'one setting at a time. answer the first one, then ask again';
 /** VOICE §4.10 failure lines live in `approval/text.ts` (a leaf, T-030 note c); re-exported for callers. */
 export {
   AUTO_APPROVE_FAILED_TEXT,
@@ -331,6 +333,8 @@ const TERMINAL_KINDS = new Set([
   'refused',
   'unchanged',
   'remembered',
+  'settings_turn',
+  'needs_confirmation',
 ]);
 
 const PROPOSAL_ACTIONS: readonly Action[] = [
@@ -1125,6 +1129,10 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     const userText = `${sanitizeInline(me.displayName, 40)}: ${sanitizeInline(text, 1000)}`;
     const messages: ModelMessage[] = [{ role: 'user', content: userText }];
     const toolSpecs = tools.specs(r.lane);
+    // `request_settings_change` goes through the settings flow (T-017): the
+    // flow's own messages (its "yes to confirm?", its refusals) are what this
+    // turn sends. One settings change per turn.
+    let settingsOutcome: SettingsOutcome | undefined;
     const toolCtx: TurnToolContext = {
       groupId: r.group.groupId,
       tripId: r.trip?.tripId ?? null,
@@ -1136,6 +1144,17 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       ids,
       stores,
       messageId: event.messageId,
+      settings: {
+        run(cmd) {
+          if (settingsOutcome !== undefined) {
+            return { text: ONE_SETTING_AT_A_TIME_TEXT, note: 'settings:one_per_turn' };
+          }
+          const out = settings.run(settingsCtx(r, me, event), cmd);
+          settingsOutcome = out;
+          const first = out.drafts.find((d): d is OutboundMessage => !isReaction(d));
+          return { text: first?.text ?? '', note: out.note };
+        },
+      },
     };
 
     const toolCalls: string[] = [];
@@ -1209,6 +1228,16 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       };
     }
 
+    if (
+      settingsOutcome !== undefined &&
+      terminal !== undefined &&
+      isRecord(terminal.value) &&
+      terminal.value['kind'] === 'settings_turn'
+    ) {
+      const out = await settingsTurn(r, settingsOutcome, before);
+      return { ...out, toolCalls, modelSources: sources, note: `tool:${out.note}` };
+    }
+
     const drafts: Outbound[] = [];
     let note = 'model:text';
     if (terminal !== undefined) {
@@ -1246,8 +1275,12 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       }
       if (text.length > 0) drafts.push(message(r, text));
     }
+    // An earlier terminal tool owns the turn; the settings flow's question or
+    // answer still goes out after it, so a change never happens unsaid.
+    if (settingsOutcome !== undefined) drafts.push(...settingsOutcome.drafts);
 
     const sent = await send(r, drafts);
+    settingsOutcome?.afterSend?.(sent);
     return {
       outbound: sent,
       toolCalls,

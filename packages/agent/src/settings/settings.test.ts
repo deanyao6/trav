@@ -27,7 +27,12 @@ import {
   safety,
 } from '@trav/core';
 import { createMemoryStores } from '@trav/core/storage';
-import { createMockTransactions, createSimulatorChannel } from '@trav/adapters';
+import {
+  createMockEmailReceiptSource,
+  createMockTransactions,
+  createOfflineReceiptEmailParser,
+  createSimulatorChannel,
+} from '@trav/adapters';
 import { BARCELONA, createTravRuntime } from '../compose.js';
 import type { TurnResult } from '../loop.js';
 import { repoRoot } from '../model/paths.js';
@@ -512,6 +517,36 @@ describe('consent flags (SAFETY §2.6)', () => {
       h.runtime.stores.group.expenses.listByTrip(TRIP).filter((e) => e.source === 'card_transaction'),
     ).toEqual([]);
   });
+
+  it('email import off drops pending items at once too: off-then-on before a tap shares nothing (T-013 note)', async () => {
+    const h = harness();
+    h.clock.set('2026-03-14T10:00:00+01:00');
+    await h.dm('h_priya', 'turn on email import');
+    const imported = await h.runtime.agent.importEmailReceipts({
+      groupId: G,
+      ownerMemberId: 'mem_priya',
+      source: createMockEmailReceiptSource(),
+      parser: createOfflineReceiptEmailParser(),
+    });
+    const card = imported.outbound.find(
+      (o): o is OutboundMessage => !isReaction(o) && o.card?.type === 'expense_confirm',
+    );
+    expect(card).toBeDefined();
+    const pending = h.runtime.stores.private.listPendingItems('mem_priya', G, 'pending');
+    expect(pending.length).toBeGreaterThan(0);
+
+    const off = await h.dm('h_priya', 'email import off');
+    expect(only(off).text).toBe(T.droppedPendingText(T.EMAIL_IMPORT_OFF_TEXT, pending.length));
+    expect(h.runtime.stores.private.listPendingItems('mem_priya', G, 'pending')).toEqual([]);
+
+    await h.dm('h_priya', 'email import on');
+    expect(consent(h, 'mem_priya')?.emailImport).toBe(true);
+    const tap = await h.tap('h_priya', card!.id, 'confirm');
+    expect(tap.note).not.toBe('looks_shared:shared');
+    expect(
+      h.runtime.stores.group.expenses.listByTrip(TRIP).filter((e) => e.source === 'email_receipt'),
+    ).toEqual([]);
+  });
 });
 
 // ---------- refusals ----------
@@ -638,6 +673,36 @@ describe('family mode (VOICE §8): Turks and Caicos', () => {
       expect.objectContaining({ cause: 'minor_nightlife', messageDraftId: msg.id }),
     ]);
     expect(r.modelSources).toEqual([]);
+  });
+
+  it('the family-mode notice posts once as its own message, and again only after family mode ends and returns', async () => {
+    const w = tci();
+    const first = await w.runtime.announceFamilyMode(TCI.group.groupId);
+    expect(first).toHaveLength(1);
+    const notice = first[0] as OutboundMessage;
+    expect(notice.to).toEqual({ kind: 'group' });
+    expect(notice.text).toBe(
+      "family mode is on since Lily's on the trip: all-ages plans only, no roasts, their tickets go to Dad",
+    );
+    expect(safety.isRestrictedText(notice.text)).toBe(false);
+    expect(safety.extractEmoji(notice.text)).toEqual([]);
+    const changes = () =>
+      w.audit().filter((e) => e.type === 'settings.changed' && e.payload['setting'] === 'familyMode');
+    expect(changes().map((e) => [e.actor, e.payload['after'], e.payload['minors']])).toEqual([
+      [{ kind: 'trav', id: 'trav' }, true, ['mem_tci_lily']],
+    ]);
+    // Once: a second call (or a restart reading the same audit) says nothing.
+    expect(await w.runtime.announceFamilyMode(TCI.group.groupId)).toEqual([]);
+    // Ordinary turns stay one group message each.
+    expect(only(await w.say('h_mom', '@trav settings')).text.split('\n')[0]).toContain('family mode on');
+
+    const lily = TCI.members.find((m) => m.memberId === 'mem_tci_lily')!;
+    w.runtime.stores.group.members.upsert({ ...lily, active: false });
+    expect(await w.runtime.announceFamilyMode(TCI.group.groupId)).toEqual([]);
+    expect(changes().map((e) => e.payload['after'])).toEqual([true, false]);
+    w.runtime.stores.group.members.upsert({ ...lily, active: true });
+    expect(await w.runtime.announceFamilyMode(TCI.group.groupId)).toHaveLength(1);
+    expect(changes().map((e) => e.payload['after'])).toEqual([true, false, true]);
   });
 
   it('settings show family mode on', async () => {

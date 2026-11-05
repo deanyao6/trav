@@ -23,6 +23,7 @@ import type {
   IsoDateTime,
   Member,
   MemberId,
+  Outbound,
   Scheduler,
   Stores,
   Trip,
@@ -71,6 +72,7 @@ import { createModelClient, readModelEnv, type ModelClient } from './model/clien
 import { sendTurn as sendTurnViaSendPath, type SendDeps } from './outbound/send.js';
 import { morningAfterJobsFor } from './recaps/morningAfter.js';
 import { wrappedJobFor } from './recaps/wrapped.js';
+import { announceFamilyMode } from './settings/flow.js';
 import { createV0ToolRegistry } from './tools/index.js';
 import type { ToolRegistry } from './tools/registry.js';
 
@@ -132,6 +134,12 @@ export interface TravRuntime {
   readonly turns: readonly TurnResult[];
   /** Run every due scheduled job (`scheduler.drain(clock.now())`) through the agent. */
   drain(): Promise<readonly TurnResult[]>;
+  /**
+   * VOICE §8: post the family-mode notice once, as its own message, when the
+   * group is in family mode and has not been told yet (`announceFamilyMode`
+   * in `settings/flow.ts`). Call after seeding a group or changing its roster.
+   */
+  announceFamilyMode(groupId: string): Promise<readonly Outbound[]>;
   /** Unsubscribe from the channel and close the stores. */
   close(): void;
 }
@@ -256,6 +264,9 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
         out.push(result);
       }
       return out;
+    },
+    announceFamilyMode(groupId) {
+      return announceFamilyMode({ stores, clock, ids, sendTurn }, groupId);
     },
     close() {
       unsubscribe?.();

@@ -2,9 +2,19 @@
  * `get_settings` and `request_settings_change` (SAFETY §2.6 group settings,
  * §2.8 roast gate, VOICE §7.2 wording). Leads change caps and turn roast mode
  * on; anyone can turn it off; every change is audited.
+ *
+ * In a chat turn the change goes through the settings flow (T-017,
+ * `settings/flow.ts`, via `TurnToolContext.settings`), so a change the model
+ * inferred gets exactly what a typed command gets: the same gates, the
+ * requester's "yes to confirm?" before a cap or the reply mode moves, and the
+ * same audit. Outside a chat turn (no flow to ask through) only the changes
+ * that need no confirmation apply: roast mode off (the kill switch), roast
+ * mode on behind the same gates, the ages flag, and the requester's own
+ * awards opt-out. Caps and reply mode then change nothing.
  */
-import type { Group, GroupSpendingPolicy } from '@trav/core';
-import { formatMoney, money, safety, TravError } from '@trav/core';
+import type { Group, Member } from '@trav/core';
+import { currencyExponent, formatMoney, money, safety, TravError } from '@trav/core';
+import type { SettingsCommand } from '../settings/parse.js';
 import {
   ROAST_AGE_QUESTION_TEXT,
   ROAST_LEAD_ONLY_TEXT,
@@ -12,7 +22,8 @@ import {
   ROAST_OFF_TEXT,
   ROAST_ON_TEXT,
 } from '../settings/text.js';
-import type { ToolDefinition } from './registry.js';
+import type { ToolContext, ToolDefinition } from './registry.js';
+import type { TurnToolContext } from './shared.js';
 import { asRecord, bad, optEnum, requireMember } from './shared.js';
 
 export interface SettingsView {
@@ -72,13 +83,13 @@ export const getSettingsTool: ToolDefinition<Record<string, never>, SettingsView
 };
 
 const BOOLEAN_SETTINGS = ['roastMode', 'quietMode', 'allAdultsConfirmed'] as const;
+/** The approval window is fixed in v0 (VOICE §6.4: 15 minutes), so it is not here. */
 const CAP_SETTINGS = [
   'autoApproveCapMinor',
   'perPersonAutoCapMinor',
   'dailyGroupCapMinor',
   'tripGroupCapMinor',
   'hardMaxPerBookingMinor',
-  'approvalTtlSeconds',
 ] as const;
 type BooleanSetting = (typeof BOOLEAN_SETTINGS)[number];
 type CapSetting = (typeof CAP_SETTINGS)[number];
@@ -94,6 +105,7 @@ export type SettingsChangeInput =
 
 type BooleanChange = Extract<SettingsChangeInput, { readonly setting: BooleanSetting }>;
 type SelfChange = Extract<SettingsChangeInput, { readonly setting: SelfSetting }>;
+type CapChange = Extract<SettingsChangeInput, { readonly setting: CapSetting }>;
 
 function isBooleanChange(input: SettingsChangeInput): input is BooleanChange {
   return (BOOLEAN_SETTINGS as readonly string[]).includes(input.setting);
@@ -104,18 +116,72 @@ function isSelfChange(input: SettingsChangeInput): input is SelfChange {
 }
 
 export interface SettingsChangeResult {
-  readonly kind: 'changed' | 'refused' | 'unchanged';
+  /**
+   * `settings_turn`: the settings flow answered (a change, a refusal, or its
+   * "yes to confirm?" question) and the loop sends the flow's own messages.
+   * `needs_confirmation`: there was no flow to ask through, so nothing changed.
+   */
+  readonly kind: 'changed' | 'refused' | 'unchanged' | 'settings_turn' | 'needs_confirmation';
   readonly setting: string;
   readonly before: unknown;
   readonly after: unknown;
   readonly text: string;
+  /** The flow's turn note (`settings_turn` only). */
+  readonly note?: string;
 }
+
+/** Integer minor units → the decimal string the settings parser produces (8000 EUR → "80.00"). */
+export function minorToDecimal(amountMinor: number, currency: string): string {
+  const exp = currencyExponent(currency);
+  if (exp === 0) return String(amountMinor);
+  const unit = 10 ** exp;
+  const whole = Math.trunc(amountMinor / unit);
+  const frac = String(amountMinor % unit).padStart(exp, '0');
+  return `${String(whole)}.${frac}`;
+}
+
+/** The typed command a tool input stands for; undefined when none fits (un-confirming ages). */
+function asCommand(input: BooleanChange | CapChange, group: Group): SettingsCommand | undefined {
+  if (isBooleanChange(input)) {
+    switch (input.setting) {
+      case 'roastMode':
+        return { kind: 'roast_mode', on: input.value };
+      case 'quietMode':
+        return { kind: 'set', change: { setting: 'replyMode', quiet: input.value } };
+      case 'allAdultsConfirmed':
+        return input.value ? { kind: 'adults_confirmed' } : undefined;
+    }
+  }
+  const cap = input as CapChange;
+  return {
+    kind: 'set',
+    change: {
+      setting: cap.setting,
+      amount:
+        cap.value === null ? null : minorToDecimal(cap.value, group.spendingPolicy.currency),
+    },
+  };
+}
+
+function currentValue(group: Group, setting: BooleanSetting | CapSetting): unknown {
+  return (BOOLEAN_SETTINGS as readonly string[]).includes(setting)
+    ? group.settings[setting as BooleanSetting]
+    : group.spendingPolicy[setting as CapSetting];
+}
+
+const CAP_NAME: Readonly<Record<CapSetting, string>> = {
+  autoApproveCapMinor: 'auto-approve cap',
+  perPersonAutoCapMinor: 'per-person cap',
+  dailyGroupCapMinor: 'daily cap',
+  tripGroupCapMinor: 'trip cap',
+  hardMaxPerBookingMinor: 'per-booking max',
+};
 
 export const requestSettingsChangeTool: ToolDefinition<SettingsChangeInput, SettingsChangeResult> =
   {
     name: 'request_settings_change',
     description:
-      'Change a group setting on a member\'s request. roastMode on, allAdultsConfirmed and every cap need a lead; roastMode off and quietMode can come from any member. awardsOptOut applies to the requester only ("no awards for me" = true). Roast mode is refused while anyone in the group is under 18 or of unconfirmed age. Returns the line to say.',
+      'Ask to change a group setting on a member\'s request. roastMode on, allAdultsConfirmed and every cap need a lead; roastMode off and quietMode can come from any member. Caps and quietMode never change straight away: trav asks the requester to confirm first. awardsOptOut applies to the requester only ("no awards for me" = true). Roast mode is refused while anyone in the group is under 18 or of unconfirmed age. Returns the line to say.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -158,147 +224,138 @@ export const requestSettingsChangeTool: ToolDefinition<SettingsChangeInput, Sett
       const me = requireMember(ctx);
       const group = ctx.stores.group.groups.get(ctx.groupId);
       if (group === undefined) throw new TravError('not_found', `group ${ctx.groupId} not found`);
-      const members = ctx.stores.group.members.listByGroup(ctx.groupId);
-      const lead = me.role === 'lead' || me.role === 'guardian';
-      const refuse = (before: unknown, text: string): SettingsChangeResult => ({
-        kind: 'refused',
+      if (isSelfChange(input)) return awardsOptOut(input, ctx, group, me);
+
+      const before = currentValue(group, input.setting);
+      const gateway = (ctx as Partial<TurnToolContext>).settings;
+      const cmd = asCommand(input, group);
+      if (gateway !== undefined && cmd !== undefined) {
+        const out = gateway.run(cmd);
+        const now = ctx.stores.group.groups.get(ctx.groupId) ?? group;
+        return {
+          kind: 'settings_turn',
+          setting: input.setting,
+          before,
+          after: currentValue(now, input.setting),
+          text: out.text,
+          note: out.note,
+        };
+      }
+      if (
+        isBooleanChange(input) &&
+        (input.setting === 'roastMode' || input.setting === 'allAdultsConfirmed')
+      ) {
+        return directBoolean(input, ctx, group, me);
+      }
+      return {
+        kind: 'needs_confirmation',
         setting: input.setting,
         before,
         after: before,
-        text,
-      });
-
-      if (isSelfChange(input)) {
-        const list = group.settings.awardsOptOut ?? [];
-        const before = list.includes(me.memberId);
-        if (before === input.value) {
-          return {
-            kind: 'unchanged',
-            setting: input.setting,
-            before,
-            after: before,
-            text: input.value ? "you're already out of the awards" : "you're already in the awards",
-          };
-        }
-        const after = input.value
-          ? [...list, me.memberId]
-          : list.filter((id) => id !== me.memberId);
-        ctx.stores.group.groups.update({
-          ...group,
-          settings: { ...group.settings, awardsOptOut: after },
-        });
-        ctx.stores.group.audit.append({
-          groupId: ctx.groupId,
-          tripId: ctx.tripId,
-          type: 'settings.changed',
-          actor: { kind: 'member', id: me.memberId },
-          visibility: 'group',
-          payload: { memberId: me.memberId, setting: input.setting, before, after: input.value },
-        });
-        return {
-          kind: 'changed',
-          setting: input.setting,
-          before,
-          after: input.value,
-          text: input.value ? "you're out of the awards" : "you're back in the awards",
-        };
-      }
-
-      if (isBooleanChange(input)) {
-        const before = group.settings[input.setting];
-        if (input.setting === 'roastMode' && input.value) {
-          if (
-            safety.groupHasMinor(members, ctx.now) ||
-            safety.isFamilyMode(group, members, ctx.now)
-          ) {
-            return refuse(before, ROAST_MINOR_TEXT);
-          }
-          if (!lead) return refuse(before, ROAST_LEAD_ONLY_TEXT);
-          if (safety.groupAgeUnconfirmed(group, members)) {
-            return refuse(before, ROAST_AGE_QUESTION_TEXT);
-          }
-        }
-        if (input.setting === 'allAdultsConfirmed' && !lead) {
-          return refuse(before, "that's a lead call. ask one of them");
-        }
-        if (before === input.value) {
-          return {
-            kind: 'unchanged',
-            setting: input.setting,
-            before,
-            after: before,
-            text: 'already set that way',
-          };
-        }
-        ctx.stores.group.groups.update({
-          ...group,
-          settings: { ...group.settings, [input.setting]: input.value },
-        });
-        ctx.stores.group.audit.append({
-          groupId: ctx.groupId,
-          tripId: ctx.tripId,
-          type: 'settings.changed',
-          actor: { kind: 'member', id: me.memberId },
-          visibility: 'group',
-          payload: { memberId: me.memberId, setting: input.setting, before, after: input.value },
-        });
-        const text =
-          input.setting === 'roastMode'
-            ? input.value
-              ? ROAST_ON_TEXT
-              : ROAST_OFF_TEXT
-            : input.setting === 'quietMode'
-              ? input.value
-                ? "quiet mode on. i'll only speak when @'d or when money needs a decision"
-                : 'quiet mode off'
-              : 'noted, everyone here is 18+';
-        return { kind: 'changed', setting: input.setting, before, after: input.value, text };
-      }
-
-      const policy: GroupSpendingPolicy = group.spendingPolicy;
-      const capSetting: CapSetting = input.setting;
-      const capValue: number | null = input.value;
-      const before = policy[capSetting];
-      if (!lead) return refuse(before, 'spending caps are a lead call. ask one of them');
-      if (before === capValue) {
-        return {
-          kind: 'unchanged',
-          setting: capSetting,
-          before,
-          after: before,
-          text: 'already set that way',
-        };
-      }
-      const after: GroupSpendingPolicy = { ...policy, [capSetting]: capValue };
-      ctx.stores.group.groups.update({ ...group, spendingPolicy: after });
-      ctx.stores.group.audit.append({
-        groupId: ctx.groupId,
-        tripId: ctx.tripId,
-        type: 'policy.changed',
-        actor: { kind: 'member', id: me.memberId },
-        visibility: 'group',
-        payload: { memberId: me.memberId, setting: input.setting, before: policy, after },
-      });
-      const label: Record<CapSetting, string> = {
-        autoApproveCapMinor: 'auto-approve cap',
-        perPersonAutoCapMinor: 'per-person cap',
-        dailyGroupCapMinor: 'daily cap',
-        tripGroupCapMinor: 'trip cap',
-        hardMaxPerBookingMinor: 'per-booking limit',
-        approvalTtlSeconds: 'approval window',
-      };
-      const shown =
-        capValue === null
-          ? 'off'
-          : capSetting === 'approvalTtlSeconds'
-            ? `${Math.round(capValue / 60)} min`
-            : formatMoney(money(capValue, policy.currency));
-      return {
-        kind: 'changed',
-        setting: capSetting,
-        before,
-        after: capValue,
-        text: `${label[capSetting]} is now ${shown}`,
+        text: isBooleanChange(input)
+          ? "say '@trav set reply mode to quiet' or 'normal' and i'll check it with you first"
+          : `say '@trav set the ${CAP_NAME[input.setting]} to' and the amount, and i'll check it with you first`,
       };
     },
   };
+
+function awardsOptOut(
+  input: SelfChange,
+  ctx: ToolContext,
+  group: Group,
+  me: Member,
+): SettingsChangeResult {
+  const list = group.settings.awardsOptOut ?? [];
+  const before = list.includes(me.memberId);
+  if (before === input.value) {
+    return {
+      kind: 'unchanged',
+      setting: input.setting,
+      before,
+      after: before,
+      text: input.value ? "you're already out of the awards" : "you're already in the awards",
+    };
+  }
+  const after = input.value ? [...list, me.memberId] : list.filter((id) => id !== me.memberId);
+  ctx.stores.group.groups.update({
+    ...group,
+    settings: { ...group.settings, awardsOptOut: after },
+  });
+  ctx.stores.group.audit.append({
+    groupId: ctx.groupId,
+    tripId: ctx.tripId,
+    type: 'settings.changed',
+    actor: { kind: 'member', id: me.memberId },
+    visibility: 'group',
+    payload: { memberId: me.memberId, setting: input.setting, before, after: input.value },
+  });
+  return {
+    kind: 'changed',
+    setting: input.setting,
+    before,
+    after: input.value,
+    text: input.value ? "you're out of the awards" : "you're back in the awards",
+  };
+}
+
+/** Roast mode and the ages flag with no flow to ask through: the same gates, applied at once. */
+function directBoolean(
+  input: BooleanChange,
+  ctx: ToolContext,
+  group: Group,
+  me: Member,
+): SettingsChangeResult {
+  const members = ctx.stores.group.members.listByGroup(ctx.groupId);
+  const lead = me.role === 'lead' || me.role === 'guardian';
+  const before = group.settings[input.setting];
+  const refuse = (text: string): SettingsChangeResult => ({
+    kind: 'refused',
+    setting: input.setting,
+    before,
+    after: before,
+    text,
+  });
+  if (input.setting === 'roastMode' && input.value) {
+    if (safety.groupHasMinor(members, ctx.now) || safety.isFamilyMode(group, members, ctx.now)) {
+      return refuse(ROAST_MINOR_TEXT);
+    }
+    if (!lead) return refuse(ROAST_LEAD_ONLY_TEXT);
+    if (safety.groupAgeUnconfirmed(group, members)) return refuse(ROAST_AGE_QUESTION_TEXT);
+  }
+  if (input.setting === 'allAdultsConfirmed') {
+    if (!lead) return refuse("that's a lead call. ask one of them");
+    if (input.value && safety.groupHasMinor(members, ctx.now)) {
+      return refuse("can't mark that, someone here is under 18");
+    }
+  }
+  if (before === input.value) {
+    return {
+      kind: 'unchanged',
+      setting: input.setting,
+      before,
+      after: before,
+      text: 'already set that way',
+    };
+  }
+  ctx.stores.group.groups.update({
+    ...group,
+    settings: { ...group.settings, [input.setting]: input.value },
+  });
+  ctx.stores.group.audit.append({
+    groupId: ctx.groupId,
+    tripId: ctx.tripId,
+    type: 'settings.changed',
+    actor: { kind: 'member', id: me.memberId },
+    visibility: 'group',
+    payload: { memberId: me.memberId, setting: input.setting, before, after: input.value },
+  });
+  const text =
+    input.setting === 'roastMode'
+      ? input.value
+        ? ROAST_ON_TEXT
+        : ROAST_OFF_TEXT
+      : input.value
+        ? 'noted, everyone here is 18+'
+        : "noted. i'll ask again before anything that needs everyone to be 18+";
+  return { kind: 'changed', setting: input.setting, before, after: input.value, text };
+}

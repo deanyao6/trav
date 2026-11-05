@@ -72,6 +72,34 @@ export function privateDataRefusalText(name: string): string {
 
 // ---------- family mode (VOICE §4.12 C, §8) ----------
 
+function nameList(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? '';
+  return `${names.slice(0, -1).join(', ')} and ${names.at(-1)!}`;
+}
+
+/**
+ * VOICE §8: shown once in the group when family mode kicks in. Pronouns are
+ * "their": Trav does not guess anyone's gender.
+ */
+export function familyModeOnText(
+  minorNames: readonly string[],
+  guardianNames: readonly string[],
+): string {
+  // "all-ages plans" rather than VOICE §8's "no nightlife": in a family group
+  // the outbound screen's keyword backstop suppresses any line naming nightlife,
+  // its own notice included.
+  if (minorNames.length === 0) return 'family mode is on: all-ages plans only, no roasts';
+  const who =
+    minorNames.length === 1 ? `${minorNames[0]!}'s` : `${nameList(minorNames)} are`;
+  const tickets =
+    guardianNames.length === 1
+      ? `, their tickets go to ${guardianNames[0]!}`
+      : guardianNames.length > 1
+        ? `, their tickets go to ${nameList(guardianNames)}`
+        : '';
+  return `family mode is on since ${who} on the trip: all-ages plans only, no roasts${tickets}`;
+}
+
 export function keepMinorOffText(minorNames: readonly string[]): string {
   const who = minorNames.length === 1 ? minorNames[0]! : 'the kids';
   return `if the adults want something later, @ me separately and i'll keep ${who} off that plan`;
