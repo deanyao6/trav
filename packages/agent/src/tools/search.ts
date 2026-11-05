@@ -158,7 +158,7 @@ export function createSearchEventsTool(tickets: TicketsAdapter): ToolDefinition<
             return {
               offerId: o.offerId,
               tier: sanitizeInline(o.tierName, 40),
-              seat: seatPlainWords(o.tierName) ?? null,
+              seat: seatPlainWords(o.tierName, ev.category) ?? null,
               amountMinor: each,
               currency: o.unitPrice.currency,
               text: formatMoney({ amountMinor: each, currency: o.unitPrice.currency }),
@@ -188,7 +188,10 @@ export function createSearchEventsTool(tickets: TicketsAdapter): ToolDefinition<
           refundableOption: api.some((o) => refundableNow(o, ctx.now)),
           fromTier: cheapest === undefined ? null : sanitizeInline(cheapest.tierName, 40),
           fromRefundable: cheapest === undefined ? null : refundableNow(cheapest, ctx.now),
-          fromSeat: cheapest === undefined ? null : (seatPlainWords(cheapest.tierName) ?? null),
+          fromSeat:
+            cheapest === undefined
+              ? null
+              : (seatPlainWords(cheapest.tierName, ev.category) ?? null),
           tiers,
           bookable: api.length > 0,
         });

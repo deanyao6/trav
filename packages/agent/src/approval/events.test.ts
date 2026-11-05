@@ -9,6 +9,7 @@ import type {
 import { razzmatazzProposal } from '../render/testkit.js';
 import {
   classifyApprovalText,
+  isOwnCancelText,
   followSupersededBy,
   MAX_SUPERSEDE_HOPS,
   normalizeApprovalEvent,
@@ -259,14 +260,19 @@ describe('normalizeApprovalEvent: buttons, tapbacks and text become one Approval
     });
   });
 
-  it('a quote-reply to a known non-proposal card is none: it never falls through to the reply window or the requester\'s own proposal', () => {
+  it("a quote-reply to a known non-proposal card is none: it never falls through to the reply window or the requester's own proposal", () => {
     const idx = index({
       cards,
       asked: ref('msg_q', 'p9'),
       mine: [razzmatazzProposal({ proposalId: 'p3' })],
     });
     expect(
-      normalizeApprovalEvent(message('yes', { replyToMessageId: 'msg_expense' }), idx, 'mem_dean', NOW),
+      normalizeApprovalEvent(
+        message('yes', { replyToMessageId: 'msg_expense' }),
+        idx,
+        'mem_dean',
+        NOW,
+      ),
     ).toEqual({ kind: 'none' });
     expect(
       normalizeApprovalEvent(
@@ -278,7 +284,12 @@ describe('normalizeApprovalEvent: buttons, tapbacks and text become one Approval
     ).toEqual({ kind: 'none' });
     // An unknown replied-to message (not one of Trav's cards) still falls through as before.
     expect(
-      normalizeApprovalEvent(message('yes', { replyToMessageId: 'msg_nobody' }), idx, 'mem_dean', NOW),
+      normalizeApprovalEvent(
+        message('yes', { replyToMessageId: 'msg_nobody' }),
+        idx,
+        'mem_dean',
+        NOW,
+      ),
     ).toMatchObject({ kind: 'event', event: { proposalId: 'p9' } });
   });
 
@@ -339,7 +350,8 @@ describe('normalizeApprovalEvent: buttons, tapbacks and text become one Approval
     expect(followSupersededBy(get, 'loopA')).toBe('loopB');
     expect(followSupersededBy(get, 'dangling')).toBe('gone');
     const long: Record<string, { status: 'superseded'; supersededBy: string }> = {};
-    for (let i = 0; i < 100; i++) long[`c${i}`] = { status: 'superseded', supersededBy: `c${i + 1}` };
+    for (let i = 0; i < 100; i++)
+      long[`c${i}`] = { status: 'superseded', supersededBy: `c${i + 1}` };
     expect(followSupersededBy((id) => long[id], 'c0')).toBe(`c${MAX_SUPERSEDE_HOPS}`);
   });
 
@@ -352,5 +364,35 @@ describe('normalizeApprovalEvent: buttons, tapbacks and text become one Approval
     expect(normalizeApprovalEvent(joined, index({ cards }), 'mem_dean', NOW)).toEqual({
       kind: 'none',
     });
+  });
+});
+
+describe('isOwnCancelText (T-137)', () => {
+  it.each([
+    'actually nah, staying in. cancel that',
+    'cancel that',
+    'cancel',
+    '@trav cancel that',
+    'trav, cancel mine',
+    'nvm, drop it',
+    'actually cancel my ticket pls',
+    'changed my mind - scrap that',
+    "ugh i'm out. cancel it",
+  ])('"%s" is an own-cancel', (t) => {
+    expect(isOwnCancelText(t)).toBe(true);
+  });
+
+  it.each([
+    'cancel the vip thing, way too much',
+    'cancel that for sam',
+    'cancel that and book the vip',
+    'can you cancel that?? lol what do you think',
+    "don't cancel that",
+    'cancel that. cancel it',
+    'staying in tonight',
+    '',
+    'henry wants to cancel that',
+  ])('"%s" is not', (t) => {
+    expect(isOwnCancelText(t)).toBe(false);
   });
 });

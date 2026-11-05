@@ -14,6 +14,7 @@ import type {
 import {
   CANCEL_NOT_ALLOWED_TEXT,
   CHEAPER_TICKETS_ONLY_TEXT,
+  NOTHING_LIKE_THAT_CHEAPER_TEXT,
   HEALTH_MEMORY_TEXT,
   NOTHING_LIKE_THAT_TEXT,
   NOTHING_PENDING_TEXT,
@@ -81,17 +82,21 @@ function after(
   call: { id: string; name: string; input: unknown },
   result: unknown,
 ): CompletionRequest {
-  return req([
-    ...first.messages,
-    {
-      role: 'assistant',
-      content: [{ type: 'tool_use', id: call.id, name: call.name, input: call.input }],
-    },
-    {
-      role: 'user',
-      content: [{ type: 'tool_result', toolUseId: call.id, content: JSON.stringify(result) }],
-    },
-  ]);
+  // Same system prompt (and transcript) as the first round, like the loop sends.
+  return {
+    ...first,
+    messages: [
+      ...first.messages,
+      {
+        role: 'assistant',
+        content: [{ type: 'tool_use', id: call.id, name: call.name, input: call.input }],
+      },
+      {
+        role: 'user',
+        content: [{ type: 'tool_result', toolUseId: call.id, content: JSON.stringify(result) }],
+      },
+    ],
+  };
 }
 
 const book = chat(createBookingRequestResponder());
@@ -217,7 +222,9 @@ describe('cheaper responder', () => {
     )!;
     expect(res.toolCalls).toEqual([]);
     expect(res.text).toContain('€18');
-    expect(res.text).toContain('€60 ones above are still held');
+    expect(res.text).toContain(
+      '€60 ones are still on the card above. 👍 on that card to book them',
+    );
   });
 
   const barcaPending = {
@@ -231,6 +238,18 @@ describe('cheaper responder', () => {
     total: '€432',
     attendees: [1, 2, 3, 4, 5, 6],
     eventDate: '2026-03-15',
+  };
+  const razzPending = {
+    proposalId: 'prop_razz',
+    kind: 'ticket',
+    itemRef: 'off_rzm_vip',
+    description: 'Razzmatazz: Saturday club night',
+    tier: 'VIP mezzanine',
+    totalMinor: 57000,
+    currency: 'EUR',
+    total: '€570',
+    attendees: [1, 2, 3, 4, 5, 6],
+    eventDate: '2026-03-14',
   };
   const tierRow = (
     offerId: string,
@@ -250,27 +269,49 @@ describe('cheaper responder', () => {
   const barcaEvent = (tiers: unknown[]) => ({
     eventId: 'evt_fcb',
     name: 'FC Barcelona vs Sevilla FC',
+    category: 'sports',
     bookable: true,
     from: { amountMinor: 6800, currency: 'EUR' },
     fromTier: 'Gol Nord',
     fromRefundable: false,
     tiers,
   });
-  function cheaperWith(proposals: unknown[], events: unknown[]): CompletionResponse {
+  const BARCA_CHEAPER = [
+    'cheaper: €68 each · behind the goal (Gol Nord) · non-refundable',
+    'want those instead? say "@trav fc barcelona vs sevilla fc behind the goal tickets for 6 mar 15" and i\'ll put up a new card',
+    'the €72 sideline ones are still on the card above. 👍 on that card to book them',
+  ];
+  const HELD_BARCA =
+    'the €72 sideline ones are still on the card above. 👍 on that card to book them';
+
+  /** The request carrying a group transcript (what the loop puts in the system prompt). */
+  const withTranscript = (text: string, lines: readonly string[]): CompletionRequest => ({
+    ...ask(text),
+    system: ['s', '', 'recent messages in the group:', ...lines].join('\n'),
+  });
+
+  function cheaperWith(
+    proposals: unknown[],
+    events: unknown[],
+    opts: { query?: string; familyMode?: boolean } = {},
+  ): CompletionResponse {
     const first = ask('Sam: @trav anything cheaper');
     const c1 = cheaperResponder.complete(first)!.toolCalls[0]!;
+    expect(c1.name).toBe('get_pending_proposals');
     const second = after(first, c1, { proposals });
     const c2 = cheaperResponder.complete(second)!.toolCalls[0]!;
     expect(c2).toMatchObject({
       name: 'search_events',
-      input: { query: 'fc barcelona vs sevilla fc', quantity: 6, date: '2026-03-15' },
+      input: { query: opts.query ?? 'fc barcelona vs sevilla fc' },
     });
-    const res = cheaperResponder.complete(after(second, c2, { events }))!;
+    const res = cheaperResponder.complete(
+      after(second, c2, opts.familyMode === true ? { events, familyMode: true } : { events }),
+    )!;
     expect(res.toolCalls).toEqual([]);
     return res;
   }
 
-  it('T-133: the same event’s cheaper tier, with where the seats are and refundability (VOICE §4.10 C)', () => {
+  it('T-133: the same event’s cheaper tier, its trade-off, how to switch, and the held card (VOICE §4.10 C)', () => {
     const res = cheaperWith(
       [barcaPending],
       [
@@ -280,31 +321,64 @@ describe('cheaper responder', () => {
         ]),
       ],
     );
-    expect(res.text).toBe(
-      'only cheaper seats for fc barcelona vs sevilla fc: €68 each · behind the goal (Gol Nord) · non-refundable\n' +
-        'the €72 sideline ones above are still held. 👍 there to keep them',
-    );
+    expect(res.text.split('\n')).toEqual(BARCA_CHEAPER);
+    expect(res.text.length).toBeLessThanOrEqual(279);
+    expect(res.text).not.toMatch(/still held|keep them|seats for/);
   });
 
-  it('T-133: several cheaper tiers are listed cheapest first (at most 3); the held tier never is', () => {
+  it('T-133: the cheapest cheaper tier is the one offered; the held tier never is', () => {
     const res = cheaperWith(
       [barcaPending],
       [
         barcaEvent([
-          tierRow('off_a', 'Grada alta', null, 4000, true),
           tierRow('off_b', 'Gol Sud', 'behind the goal', 5000),
           tierRow('off_c', 'Gol Nord', 'behind the goal', 6800),
-          tierRow('off_d', 'Lateral alta', 'sideline', 7000),
           tierRow('off_fcb_sev_tribuna', 'Tribuna lateral', 'sideline', 7200),
         ]),
       ],
     );
-    expect(res.text.split('\n')).toEqual([
-      'cheaper seats for fc barcelona vs sevilla fc:',
-      '€40 each · Grada alta · refundable',
-      '€50 each · behind the goal (Gol Sud) · non-refundable',
-      '€68 each · behind the goal (Gol Nord) · non-refundable',
-      'the €72 sideline ones above are still held. 👍 there to keep them',
+    expect(res.text.split('\n')[0]).toBe(
+      'cheaper: €50 each · behind the goal (Gol Sud) · non-refundable',
+    );
+    // Only the held tier left: nothing cheaper in that event.
+    const onlyHeld = cheaperWith(
+      [barcaPending],
+      [barcaEvent([tierRow('off_fcb_sev_tribuna', 'Tribuna lateral', 'sideline', 7200)])],
+    );
+    expect(onlyHeld.text).toMatch(/^that's already the cheapest/);
+  });
+
+  it('T-133 r1 #5: club GA is never called seats; the next step only names an ask that picks the tier', () => {
+    const razzEvent = (tiers: unknown[]) => ({
+      name: 'Razzmatazz: Saturday club night',
+      category: 'nightlife',
+      bookable: true,
+      tiers,
+    });
+    const ga = tierRow('off_rzm_ga', 'General admission', null, 1800, true);
+    const fast = tierRow('off_rzm_fast', 'Fast-line presale', null, 2200, true);
+    const vip = tierRow('off_rzm_vip', 'VIP mezzanine', null, 9500);
+    const plain = cheaperWith([razzPending], [razzEvent([ga, fast, vip])], { query: 'razzmatazz' });
+    expect(plain.text.split('\n')).toEqual([
+      'cheaper for razzmatazz: €18 each · General admission · refundable',
+      // GA has no tier word, but it's what a plain ask picks (refundable, cheapest).
+      'want those instead? say "@trav razzmatazz tickets for 6 mar 14" and i\'ll put up a new card',
+      'the €95 ones are still on the card above. 👍 on that card to book them',
+    ]);
+    expect(plain.text).not.toMatch(/\bseats?\b/);
+    // A named tier: the ask carries its name.
+    const named = cheaperWith([razzPending], [razzEvent([fast, vip])], { query: 'razzmatazz' });
+    expect(named.text.split('\n')[1]).toBe(
+      'want those instead? say "@trav razzmatazz fast-line presale tickets for 6 mar 14" and i\'ll put up a new card',
+    );
+    // GA a plain ask would not pick (a refundable tier ranks first): no next step offered.
+    const gaLocked = tierRow('off_rzm_ga', 'General admission', null, 1800, false);
+    const none = cheaperWith([razzPending], [razzEvent([gaLocked, fast, vip])], {
+      query: 'razzmatazz',
+    });
+    expect(none.text.split('\n')).toEqual([
+      'cheaper for razzmatazz: €18 each · General admission · non-refundable',
+      'the €95 ones are still on the card above. 👍 on that card to book them',
     ]);
   });
 
@@ -315,7 +389,7 @@ describe('cheaper responder', () => {
       tierRow('off_fcb_sev_tribuna', 'Tribuna lateral', 'sideline', 7200),
     ]);
     expect(cheaperWith([barcaPending], [tie]).text).toBe(
-      "that's already the cheapest i can book for fc barcelona vs sevilla fc\nthe €72 sideline ones above are still held. 👍 there to keep them",
+      `that's already the cheapest i can book for fc barcelona vs sevilla fc\n${HELD_BARCA}`,
     );
     const espanyol = {
       name: 'RCD Espanyol vs Getafe',
@@ -324,7 +398,7 @@ describe('cheaper responder', () => {
     };
     expect(cheaperWith([barcaPending], [same, espanyol]).text).toBe(
       'nothing cheaper for fc barcelona vs sevilla fc. rcd espanyol vs getafe is €55 each that night, refundable\n' +
-        'the €72 sideline ones above are still held. 👍 there to keep them',
+        HELD_BARCA,
     );
     // Another currency is never compared (no FX guesses).
     const usd = {
@@ -332,6 +406,29 @@ describe('cheaper responder', () => {
       tiers: [{ ...tierRow('off_esp', 'General', null, 100), currency: 'USD' }],
     };
     expect(cheaperWith([barcaPending], [same, usd]).text).toMatch(/^that's already the cheapest/);
+  });
+
+  it('T-133 r1 #3: a family group never gets an adults-only event as the cheaper alternative', () => {
+    const same = barcaEvent([tierRow('off_fcb_sev_tribuna', 'Tribuna lateral', 'sideline', 7200)]);
+    const club = {
+      name: 'Apolo: Saturday session',
+      bookable: true,
+      adultsOnly: true,
+      tiers: [tierRow('off_apolo', 'General admission', null, 1500, true)],
+    };
+    const museum = {
+      name: 'Museu Picasso',
+      bookable: true,
+      adultsOnly: false,
+      tiers: [tierRow('off_mp', 'Entry', null, 2000, true)],
+    };
+    expect(cheaperWith([barcaPending], [same, club, museum]).text).toMatch(/apolo is €15 each/);
+    const family = cheaperWith([barcaPending], [same, club, museum], { familyMode: true });
+    expect(family.text).toMatch(/museu picasso is €20 each/);
+    expect(family.text).not.toMatch(/apolo/i);
+    const onlyClub = cheaperWith([barcaPending], [same, club], { familyMode: true });
+    expect(onlyClub.text).toMatch(/^that's already the cheapest/);
+    expect(onlyClub.text).not.toMatch(/apolo/i);
   });
 
   it('T-133: only ticket proposals are re-searched; a stay waiting alone gets the honest line', () => {
@@ -351,6 +448,82 @@ describe('cheaper responder', () => {
     expect(both.toolCalls[0]).toMatchObject({ name: 'search_events' });
   });
 
+  describe('T-133 r1 #1: two pending ticket proposals', () => {
+    const two = [barcaPending, razzPending];
+    const pendingRound = (first: CompletionRequest): CompletionResponse => {
+      const c1 = cheaperResponder.complete(first)!.toolCalls[0]!;
+      return cheaperResponder.complete(after(first, c1, { proposals: two }))!;
+    };
+    const WHICH = [
+      'which one?',
+      '1. fc barcelona vs sevilla fc tribuna lateral · €432',
+      '2. razzmatazz vip mezzanine · €570',
+      "reply with the number or the name and i'll look for cheaper",
+    ].join('\n');
+    // How the loop's transcript carries it (one line per message).
+    const whichLine = `- trav: ${WHICH.replace(/\n/g, ' ')}`;
+
+    it('nothing named ⇒ a numbered which-one whose answer this flow reads', () => {
+      const res = pendingRound(ask('Sam: @trav anything cheaper'));
+      expect(res.toolCalls).toEqual([]);
+      expect(res.text).toBe(WHICH);
+    });
+
+    it.each([
+      ['@trav anything cheaper for razzmatazz', 'razzmatazz'],
+      ['@trav anything cheaper for the razz', 'razzmatazz'],
+      ['@trav cheaper ones for barça?', 'fc barcelona vs sevilla fc'],
+      ['@trav anything cheaper than the vip', 'razzmatazz'],
+    ])('the ask names one: %s ⇒ searched directly', (text, query) => {
+      const res = pendingRound(ask(`Sam: ${text}`));
+      expect(res.toolCalls[0]).toMatchObject({ name: 'search_events', input: { query } });
+    });
+
+    it.each([
+      ['2', 'razzmatazz'],
+      ['the second one', 'razzmatazz'],
+      ['1', 'fc barcelona vs sevilla fc'],
+      ['razzmatazz', 'razzmatazz'],
+      ['@trav razz', 'razzmatazz'],
+      ['barça', 'fc barcelona vs sevilla fc'],
+    ])('a reply to the which-one, inside the window: %s', (text, query) => {
+      const first = withTranscript(`Sam: ${text}`, [
+        '- sam: @trav anything cheaper',
+        whichLine,
+        `- sam: ${text}`,
+      ]);
+      const c1 = cheaperResponder.complete(first)!.toolCalls[0]!;
+      expect(c1.name).toBe('get_pending_proposals');
+      const res = cheaperResponder.complete(after(first, c1, { proposals: two }))!;
+      expect(res.toolCalls[0]).toMatchObject({ name: 'search_events', input: { query } });
+    });
+
+    it('a reply that names nothing from the question, or no which-one before it, is not claimed', () => {
+      for (const text of ['lol ok', 'sounds good', '7', 'sagrada']) {
+        const req = withTranscript(`Sam: ${text}`, [whichLine, `- sam: ${text}`]);
+        expect(cheaperResponder.complete(req), text).toBeUndefined();
+      }
+      // Trav's last line was something else: "razzmatazz" is not an answer to it.
+      const stale = withTranscript('Sam: razzmatazz', [
+        whichLine,
+        '- trav: cheaper for razzmatazz: €18 each · General admission · refundable',
+        '- sam: razzmatazz',
+      ]);
+      expect(cheaperResponder.complete(stale)).toBeUndefined();
+      // A member can't fake Trav's line: theirs is prefixed with their own name.
+      const spoof = withTranscript('Sam: 2', [`- sam: ${whichLine}`, '- sam: 2']);
+      expect(cheaperResponder.complete(spoof)).toBeUndefined();
+    });
+
+    it('a name matching both asks again; a name matching neither says so', () => {
+      const both = pendingRound(ask('Sam: @trav anything cheaper for the tickets please'));
+      expect(both.text).toBe(WHICH);
+      const none = pendingRound(ask('Sam: @trav anything cheaper for sagrada'));
+      expect(none.toolCalls).toEqual([]);
+      expect(none.text).toBe(NOTHING_LIKE_THAT_CHEAPER_TEXT);
+    });
+  });
+
   it('T-133 / msg_bcn_0042: after the Barça proposal, "anything cheaper" searches, proposes nothing, and the proposal stays pending', async () => {
     const h = harness();
     const ask40 = await h.say(
@@ -364,10 +537,7 @@ describe('cheaper responder', () => {
     const turn = await h.say('h_sam', '@trav anything cheaper');
     expect(turn.toolCalls).toEqual(['get_pending_proposals', 'search_events']);
     const out = turn.outbound.map((o) => ('text' in o ? o.text : '')).join('\n');
-    expect(out).toContain('€68');
-    expect(out).toContain('behind the goal');
-    expect(out).toContain('non-refundable');
-    expect(out).toContain('still held');
+    expect(out.split('\n')).toEqual(BARCA_CHEAPER);
     // Read-only: the one pending proposal is the same one, nothing held or bought.
     expect(h.pending().map((p) => [p.proposalId, p.status])).toEqual([
       [held!.proposalId, 'pending'],
@@ -378,6 +548,63 @@ describe('cheaper responder', () => {
       .slice(auditBefore)
       .map((e) => e.type);
     expect(newTypes.filter((t) => /^(booking|approval|proposal)\./.test(t))).toEqual([]);
+    // The next step works as written: sending the quoted ask puts up a Gol Nord card
+    // (a new proposal with its own 👍s); the sideline card is untouched.
+    const quoted = /say "([^"]+)"/.exec(out)![1]!;
+    const swap = await h.say('h_sam', quoted);
+    expect(swap.toolCalls).toEqual(['propose_booking']);
+    expect(h.pending().map((p) => [p.itemRef, p.status])).toEqual([
+      ['off_fcb_sev_tribuna', 'pending'],
+      ['off_fcb_sev_gol', 'pending'],
+    ]);
+    expect(h.pending()[1]!.totalMinor).toBe(40800);
+    expect(h.tickets.purchaseCount()).toBe(0);
+  });
+
+  it('T-133 r1 #5: the quoted ask for a club tier proposes that tier', async () => {
+    const h = harness();
+    await h.say('h_maya', '@trav book the razz vip mezzanine for all 6 tonight');
+    const turn = await h.say('h_sam', '@trav anything cheaper');
+    const out = turn.outbound.map((o) => ('text' in o ? o.text : '')).join('\n');
+    expect(out).toMatch(/^cheaper for razzmatazz: €18 each · General admission · refundable\n/);
+    const swap = await h.say('h_sam', /say "([^"]+)"/.exec(out)![1]!);
+    expect(swap.toolCalls).toEqual(['propose_booking']);
+    expect(h.pending().map((p) => p.itemRef)).toEqual([
+      'off_rzm_20260314_vip',
+      'off_rzm_20260314_ga',
+    ]);
+    expect(h.tickets.purchaseCount()).toBe(0);
+  });
+
+  it('T-133 r1 #1 end to end: Barça then Razzmatazz pending; which-one, then a plain name or number in the window', async () => {
+    const h = harness();
+    await h.say(
+      'h_dean',
+      '@trav barça vs sevilla sunday mar 15, 6 tickets together, sideline not behind the goal',
+    );
+    await h.say('h_maya', '@trav book the razz vip mezzanine for all 6 tonight');
+    expect(h.pending()).toHaveLength(2);
+    const text = (t: { outbound: readonly unknown[] }): string =>
+      t.outbound.map((o) => (o as { text?: string }).text ?? '').join('\n');
+    const q = await h.say('h_sam', '@trav anything cheaper');
+    expect(text(q).split('\n').slice(0, 3)).toEqual([
+      'which one?',
+      '1. fc barcelona vs sevilla fc tribuna lateral · €432',
+      '2. razzmatazz vip mezzanine · €570',
+    ]);
+    const byName = await h.say('h_sam', 'razzmatazz');
+    expect(byName.toolCalls).toEqual(['get_pending_proposals', 'search_events']);
+    expect(text(byName)).toMatch(
+      /^cheaper for razzmatazz: €18 each · General admission · refundable\n/,
+    );
+    await h.say('h_sam', '@trav anything cheaper');
+    const byNumber = await h.say('h_sam', '1');
+    expect(text(byNumber)).toMatch(/^cheaper: €68 each · behind the goal/);
+    const direct = await h.say('h_jordan', '@trav anything cheaper for razzmatazz');
+    expect(text(direct)).toMatch(/^cheaper for razzmatazz:/);
+    // Read-only throughout.
+    expect(h.pending()).toHaveLength(2);
+    expect(h.tickets.purchaseCount()).toBe(0);
   });
 });
 

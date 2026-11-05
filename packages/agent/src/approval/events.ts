@@ -101,6 +101,40 @@ export function classifyApprovalText(text: string): ApprovalIntent | undefined {
   return undefined;
 }
 
+/** "cancel that", "drop mine", "scrap my ticket": a cancel that names no proposal but the sender's own. */
+const OWN_CANCEL_CLAUSE =
+  /^(?:(?:pls|please|ok|okay|so|just|yeah|actually)\s+)*(?:cancel|drop|scrap|kill)(?:\s+(?:that|it|this|mine|my one|my ticket|my tix|that one|that ticket|the ticket|the extra one))?(?:\s+(?:pls|plz|please|then|too|for me))?$/;
+/**
+ * Other clauses a requester's own cancel may carry ("actually nah, staying
+ * in. cancel that"): filler or the sender saying they're not going. Anything
+ * else (a question, a name, another request) makes it not a bare own-cancel.
+ */
+const OWN_CANCEL_FILLER =
+  /^(?:(?:actually|nah|nvm|never ?mind|wait|hmm+|ugh|ok|okay|sorry|lol|no|nope|yeah|jk|scratch that|changed my mind|on second thought|i changed my mind|i'?m good|im good|i'?m out|im out|i'?ll pass|ill pass|gonna pass|not going|not coming|staying in|staying home|i'?m staying in|im staying in|i'?m staying home|im staying home|maybe next time|next time|all good)\s*)+$/;
+
+/**
+ * A message whose request is "cancel my own pending one" (T-137): one cancel
+ * clause that names nothing but "that"/"it"/"mine", plus optional filler
+ * clauses. The loop binds it only to a proposal the sender asked for, never
+ * to someone else's card or to anything already booked.
+ */
+export function isOwnCancelText(text: string): boolean {
+  const t = stripInvisible(text)
+    .toLowerCase()
+    .replace(/[’‘]/g, "'")
+    .replace(/(^|[^\w@])@trav(?![\w-])\s*[,:]?/g, ' ')
+    .replace(/^\s*(?:(?:hey|hi|yo|ok|okay|yeah)\s+)?trav\s*[,:]\s*/, '')
+    .trim();
+  if (t.length === 0 || t.length > 100) return false;
+  const clauses = t
+    .split(/[,.;!?\n]+|\s+-+\s+/)
+    .map((c) => c.replace(/\s+/g, ' ').trim())
+    .filter((c) => c.length > 0);
+  const cancels = clauses.filter((c) => OWN_CANCEL_CLAUSE.test(c));
+  if (cancels.length !== 1) return false;
+  return clauses.every((c) => OWN_CANCEL_CLAUSE.test(c) || OWN_CANCEL_FILLER.test(c));
+}
+
 /** Tapbacks and reaction names that mean 👍 / 👎 (iMessage names, emoji). */
 export function reactionIntent(reaction: string): ApprovalIntent | undefined {
   const r = reaction.trim().toLowerCase();

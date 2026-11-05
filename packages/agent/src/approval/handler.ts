@@ -934,10 +934,57 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
       invalidAttempt(proposal, event, 'not_required_approver', sender);
       return [];
     }
+    undoOwnJoin(ctx, me, event.messageId);
     return reject(
       ctx,
       signature(event, sender),
-      `dropped ${shortEventName(proposal.description)}. no charge`,
+      addOnDropLine(ctx) ?? `dropped ${shortEventName(proposal.description)}. no charge`,
+    );
+  }
+
+  /**
+   * An add-on's drop line says the tickets already bought still stand (T-137):
+   * "dropped razzmatazz" alone reads like the whole night is off. Undefined
+   * when nothing on the activity is booked.
+   */
+  function addOnDropLine(ctx: Loaded): string | undefined {
+    if (ctx.activity === null) return undefined;
+    const booked = bookedAttendees(group, ctx.trip, ctx.activity.activityId).size;
+    if (booked === 0) return undefined;
+    const what = shortEventName(ctx.proposal.description);
+    const n = ctx.proposal.attendees.length;
+    const tickets = n === 1 ? `${what} ticket` : `${String(n)} ${what} tickets`;
+    return `dropped the extra ${tickets}. no charge, the ${String(booked)} already booked still stand`;
+  }
+
+  /**
+   * A late joiner dropping their own add-on (T-137: "can i get one too", then
+   * "actually nah, staying in. cancel that", or their 👎 on it): the "in" that
+   * very ask wrote is taken back, so the roster no longer counts someone with
+   * no ticket. Only when the decliner asked for it, is its one attendee, holds
+   * no ticket for the activity, and their row still comes from that ask.
+   * Someone else's decline leaves the row alone. Ids and statuses only.
+   */
+  function undoOwnJoin(ctx: Loaded, me: MemberId, messageId: MessageId): void {
+    const { proposal, activity, members, now, trip } = ctx;
+    if (activity === null || proposal.requestedBy !== me) return;
+    if (proposal.attendees.length !== 1 || proposal.attendees[0] !== me) return;
+    const booked = bookedAttendees(group, trip, activity.activityId);
+    if (booked.size === 0 || booked.has(me)) return;
+    const row = group.trips.listAttendance(activity.activityId).find((r) => r.memberId === me);
+    if (row?.status !== 'in' || row.sourceMessageId !== proposal.sourceMessageId) return;
+    setAttendance(
+      group,
+      {
+        activityId: activity.activityId,
+        memberId: me,
+        status: 'out',
+        setBy: me,
+        sourceMessageId: messageId,
+      },
+      members,
+      now,
+      activity,
     );
   }
 
@@ -1008,7 +1055,8 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
       return reject(
         ctx,
         signature(event, sender),
-        `dropped ${shortEventName(proposal.description)}, nobody's left on it. no charge`,
+        addOnDropLine(ctx) ??
+          `dropped ${shortEventName(proposal.description)}, nobody's left on it. no charge`,
       );
     }
     return supersede(ctx, 'payers_changed', rest, {

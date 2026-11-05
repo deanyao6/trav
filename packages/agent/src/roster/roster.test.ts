@@ -14,6 +14,7 @@ import {
   bookingParty,
   detectRollCall,
   parseRosterUpdate,
+  parseTicketForMe,
   renderAttendanceLine,
   renderRollCall,
   resolveActivity,
@@ -850,5 +851,32 @@ describe('roster turns through the loop (offline, no model)', () => {
     );
     const roll = await h.say('h_dean', "@trav who's in tonight?");
     expect(messages(roll)[0]?.text).toContain('maybe: Sam (counts as out when i book)');
+  });
+});
+
+describe('parseTicketForMe (T-137)', () => {
+  it.each([
+    ['@trav can i get one too in case i feel better later', {}],
+    ['@trav can i get one too', {}],
+    ['trav, could i grab a ticket too pls', {}],
+    ['@trav get me one too', {}],
+    ['@trav grab me a ticket for razzmatazz too', { hint: 'razzmatazz' }],
+    ['@trav can i have one tonight as well, just in case', { when: 'tonight' }],
+    ["@trav i'll take one too", {}],
+  ])('"%s" ⇒ %o, the reason dropped', (text, want) => {
+    const got = parseTicketForMe(text);
+    expect(got).toEqual(want);
+    expect(JSON.stringify(got)).not.toMatch(/feel|better|case/);
+  });
+
+  it.each([
+    '@trav can i get one',
+    '@trav get sam one too',
+    '@trav can i get the vip one too and a table',
+    '@trav can i get one too? also what time is it',
+    "@trav i'm in",
+    '@trav can you book 6 tickets too',
+  ])('"%s" is not', (text) => {
+    expect(parseTicketForMe(text)).toBeUndefined();
   });
 });

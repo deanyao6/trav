@@ -25,18 +25,20 @@ import type {
 } from '@trav/core';
 import { addDays } from '@trav/core';
 import type { RosterChangeNotice } from '../approval/events.js';
-import { nightOf } from '../booking/proposals.js';
+import { bookedAttendees, nightOf } from '../booking/proposals.js';
 import { sanitizeInline } from '../context/groupContext.js';
 import { keptOffLine, parseCombinedRoster, planParty, type CombinedRoster } from './combined.js';
 import {
   detectRollCall,
   keptOffFor,
   parseRosterUpdate,
+  parseTicketForMe,
   renderAttendanceLine,
   renderRollCall,
   resolveActivity,
   resolveMemberName,
   rosterOf,
+  type RosterUpdate,
   setAttendance,
   upcomingActivities,
 } from './index.js';
@@ -144,7 +146,15 @@ export function handleRosterMessage(input: RosterTurnInput): RosterTurn | undefi
     if (combined !== undefined) return handleCombined(input, combined);
   }
   const roll = detectRollCall(text);
-  const update = roll === undefined ? parseRosterUpdate(text) : undefined;
+  const parsed = roll === undefined ? parseRosterUpdate(text) : undefined;
+  // "can i get one too" (T-137) is the sender's own "i'm in" for a plan the
+  // others already have: the same write, then a separate add-on card.
+  const ticket =
+    roll === undefined && parsed === undefined && input.expectInCount === undefined
+      ? parseTicketForMe(text)
+      : undefined;
+  const update: RosterUpdate | undefined =
+    parsed ?? (ticket !== undefined ? { who: 'me', status: 'in', ...ticket } : undefined);
   if (roll === undefined && update === undefined) return undefined;
 
   const hint = roll?.hint ?? update?.hint;
@@ -169,6 +179,13 @@ export function handleRosterMessage(input: RosterTurnInput): RosterTurn | undefi
   }
   if (input.expectInCount !== undefined && (roll !== undefined || activity === undefined)) {
     return undefined;
+  }
+  if (ticket !== undefined) {
+    // "one too" needs something the others have; otherwise the ask is the model's.
+    if (activity === undefined) return undefined;
+    const held = ticketHeld(input, activity);
+    if (held === 'none') return undefined;
+    if (held !== 'no') return held;
   }
   if (activity === undefined) {
     // A named activity that is not on the plan is not ours to answer.
@@ -234,6 +251,24 @@ export function handleRosterMessage(input: RosterTurnInput): RosterTurn | undefi
     now,
     activity,
   );
+  if (!write.changed && ticket !== undefined && write.status === 'in') {
+    // Already marked in but holding no ticket and on no card (the booking left
+    // them off): "can i get one too" still asks for their own add-on.
+    return {
+      kind: 'changed',
+      activity,
+      memberId,
+      status,
+      text: renderAttendanceLine(activity, write.roster, members, memberId, status),
+      notice: {
+        groupId: activity.groupId,
+        activityId: activity.activityId,
+        changes: [{ memberId, status }],
+        by: me.memberId,
+        messageId,
+      },
+    };
+  }
   if (!write.changed) {
     const who = sanitizeInline(
       members.find((m) => m.memberId === memberId)?.displayName ?? memberId,
@@ -266,6 +301,31 @@ export function handleRosterMessage(input: RosterTurnInput): RosterTurn | undefi
 }
 
 type Row = { readonly memberId: MemberId; readonly status: AttendanceStatus };
+
+/**
+ * For "can i get one too" (T-137): `none` when nothing on this plan is booked
+ * or waiting (not a roster message), `no` when the sender holds no ticket and
+ * is on no pending card (go on: write them in, the add-on follows), else the
+ * one line that says they already have one.
+ */
+function ticketHeld(input: RosterTurnInput, activity: Activity): RosterTurn | 'none' | 'no' {
+  const { group, trip, me } = input;
+  const booked = bookedAttendees(group, trip, activity.activityId);
+  const pending = group.bookings
+    .listPendingProposals(activity.groupId)
+    .filter((p) => p.activityId === activity.activityId);
+  if (booked.size === 0 && pending.length === 0) return 'none';
+  const label = sanitizeInline(activity.name, 40).toLowerCase();
+  const name = sanitizeInline(me.displayName, 40);
+  const base = { kind: 'unchanged', activity, memberId: me.memberId, status: 'in' } as const;
+  if (booked.has(me.memberId)) {
+    return { ...base, text: `you've already got a ticket for ${label}, ${name}` };
+  }
+  if (pending.some((p) => p.attendees.includes(me.memberId))) {
+    return { ...base, text: `you're already on the ${label} card, ${name}` };
+  }
+  return 'no';
+}
 
 /**
  * Refused in/maybe changes go through `setAttendance`, which writes nothing

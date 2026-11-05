@@ -89,7 +89,7 @@ import type {
   PendingCardIndex,
   PendingCardRef,
 } from './approval/events.js';
-import { followSupersededBy } from './approval/events.js';
+import { followSupersededBy, isOwnCancelText } from './approval/events.js';
 import {
   AUTO_APPROVE_FAILED_TEXT,
   TURN_FAILED_AFTER_PURCHASE_TEXT,
@@ -948,6 +948,17 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     return stores.group.audit.listByProposal(proposalId).some((e) => e.type === 'message.sent');
   }
 
+  /** The proposal's card went out (its latest `message.sent`) within the 2-minute reply window. */
+  function cardSentWithinWindow(proposalId: string, now: IsoDateTime): boolean {
+    const sent = stores.group.audit
+      .listByProposal(proposalId)
+      .filter((e) => e.type === 'message.sent')
+      .at(-1);
+    if (sent === undefined) return false;
+    const delta = parseIso(now) - parseIso(sent.ts);
+    return delta >= 0 && delta <= REPLY_WINDOW_MS;
+  }
+
   function message(
     r: Resolved,
     text: string,
@@ -1665,6 +1676,37 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
         event.messageId,
         boundRef !== undefined || inReplyWindow(mentionCtx),
       );
+    }
+
+    // 1a. "actually nah, staying in. cancel that" (T-137): the sender's own
+    // pending proposal, dropped like their 👎. It binds only to a proposal the
+    // sender asked for (a quote-reply to someone else's card, or nothing of
+    // theirs pending, is not this), never to a completed booking. It counts
+    // when it quotes the card, says "@trav", or comes inside the reply window
+    // of the card going out; otherwise it is chat.
+    if (me !== null && canRequest(r.identity) && r.lane === 'group' && isOwnCancelText(rawText)) {
+      const own = pendingFor(r).filter(
+        (p) => p.requestedBy === me.memberId && delivered(p.proposalId),
+      );
+      const replied = boundRef?.proposalId;
+      const target = replied === undefined ? own : own.filter((p) => p.proposalId === replied);
+      const addressed =
+        hasAtTrav(rawText) ||
+        boundRef !== undefined ||
+        target.some((p) => cardSentWithinWindow(p.proposalId, r.now));
+      if (target.length > 0 && addressed) {
+        recordInbound();
+        return routeApproval(
+          r,
+          event,
+          'decline',
+          rawText,
+          'text',
+          target.length === 1 ? target[0]!.proposalId : undefined,
+          event.messageId,
+          true,
+        );
+      }
     }
 
     // 1b. "undo" (bare or "@trav undo") from a member: the quoted logged-expense

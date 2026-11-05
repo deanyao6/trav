@@ -548,7 +548,7 @@ describe('T-104: a member the booking leaves out never approves it', () => {
     expect(h.audit().filter((e) => e.type === 'approval.granted')).toEqual([]);
   });
 
-  it("round 2: Henry's own request on his own card (\"the 5 of us, Henry's sick\") is his to confirm", async () => {
+  it('round 2: Henry\'s own request on his own card ("the 5 of us, Henry\'s sick") is his to confirm', async () => {
     const { h, fake } = rig();
     const { proposal, cardMessageId } = await propose(h, 'h_henry');
     expect(proposal.requestedBy).toBe('mem_henry');
@@ -1443,6 +1443,176 @@ describe('late joiner after the booking', () => {
     );
     expect((await h.say('h_henry', "@trav i'm in")).note).toBe('roster:unchanged');
     expect(h.pending()).toEqual([]);
+  });
+});
+
+describe('T-137: "can i get one too" and its cancel', () => {
+  const ASK = '@trav can i get one too in case i feel better later';
+  const CANCEL = 'actually nah, staying in. cancel that';
+
+  async function bookFive(h: Harness, fake: Fake) {
+    const { proposal, cardMessageId } = await propose(h);
+    await h.tap('h_dean', cardMessageId, 'approve');
+    expect(fake.calls).toHaveLength(1);
+    return { first: proposal, firstCard: cardMessageId };
+  }
+
+  function henryRow(h: Harness) {
+    return h.runtime.stores.group.trips.listAttendance(ACT).find((r) => r.memberId === 'mem_henry')
+      ?.status;
+  }
+
+  it('after the 5 are booked ⇒ a separate Henry-only €18 add-on that needs his 👍; nothing bought; the reason is never kept', async () => {
+    const { h, fake } = rig();
+    setPolicy(h, { autoApproveCapMinor: 8000 });
+    const { first } = await bookFive(h, fake);
+    const turn = await h.say('h_henry', ASK);
+    expect(turn.note).toBe('roster:changed');
+    expect(fake.calls).toHaveLength(1);
+    expect(h.tickets.purchaseCount()).toBe(0);
+    const group = groupMessages(turn);
+    expect(group).toHaveLength(1);
+    expect(group[0]!.card?.type).toBe('booking_proposal');
+    expect(group[0]!.text.split('\n').slice(0, 3)).toEqual([
+      "razzmatazz tonight, 1 more ticket (5 already booked, this one's separate)",
+      'Henry',
+      '€18 each · €18 total · refundable until 10pm',
+    ]);
+    expect(group[0]!.text).toContain('👍 to book');
+    const addOn = h.pending()[0]!;
+    expect(addOn.attendees).toEqual(['mem_henry']);
+    expect(addOn.payers).toEqual([{ memberId: 'mem_henry', shareMinor: 1800 }]);
+    expect(addOn.totalMinor).toBe(1800);
+    expect(addOn.requestedBy).toBe('mem_henry');
+    expect(addOn.idempotencyKey).not.toBe(first.idempotencyKey);
+    const d = decisionOf(h, addOn.proposalId);
+    expect(d.outcome).toBe('needs_confirmation');
+    expect(d.approvalMode).toBe('any_one');
+    expect(d.requiredApprovers).toEqual(['mem_henry']);
+    expect(d.reasons[0]).toBe('default_confirm');
+    expect(grantStatus(h, addOn.proposalId)).toBe('pending');
+    // Under the cap and still no auto-buy: the 👍 of the person paying (D-021).
+    expect(h.audit().filter((e) => e.type === 'approval.granted')).toHaveLength(1);
+    const text = JSON.stringify([h.audit(), h.runtime.stores.group.trips.listAttendance(ACT)]);
+    expect(text).not.toMatch(/feel better|in case/i);
+    expect(group[0]!.text).not.toMatch(/feel|better|sick/i);
+  });
+
+  it('"actually nah, staying in. cancel that" inside 2 minutes ⇒ only his add-on is rejected; the 5 still stand; Henry back out', async () => {
+    const { h, fake } = rig();
+    const { first } = await bookFive(h, fake);
+    await h.say('h_henry', ASK);
+    const addOn = h.pending()[0]!;
+    expect(henryRow(h)).toBe('in');
+    h.clock.advanceMs(2 * 60 * 1000);
+    const turn = await h.say('h_henry', CANCEL);
+    expect(groupMessages(turn).map((m) => m.text)).toEqual([
+      'dropped the extra razzmatazz ticket. no charge, the 5 already booked still stand',
+    ]);
+    expect(status(h, addOn.proposalId)).toBe('rejected');
+    expect(grantStatus(h, addOn.proposalId)).toBe('rejected');
+    const rejected = h.audit().filter((e) => e.type === 'approval.rejected');
+    expect(rejected.map((e) => e.proposalId)).toEqual([addOn.proposalId]);
+    expect(rejected[0]!.actor).toEqual({ kind: 'member', id: 'mem_henry' });
+    expect(fake.calls).toHaveLength(1);
+    expect(status(h, first.proposalId)).toBe('completed');
+    expect(h.runtime.stores.group.bookings.listByTrip(T)).toHaveLength(1);
+    expect(h.pending()).toEqual([]);
+    expect(henryRow(h)).toBe('out');
+    const roll = await h.say('h_dean', "@trav who's in tonight?");
+    expect(groupMessages(roll)[0]?.text.split('\n')[0]).toBe(
+      'razzmatazz tonight: 5 in · Dean, Maya, Jordan, Priya, Sam',
+    );
+  });
+
+  it('"cancel that" past the window and without @trav is chat; "@trav cancel that" then drops it', async () => {
+    const { h, fake } = rig();
+    await bookFive(h, fake);
+    await h.say('h_henry', ASK);
+    const addOn = h.pending()[0]!;
+    h.clock.advanceMs(3 * 60 * 1000);
+    const chat = await h.say('h_henry', CANCEL);
+    expect(groupMessages(chat)).toEqual([]);
+    expect(status(h, addOn.proposalId)).toBe('pending');
+    const turn = await h.say('h_henry', '@trav cancel that');
+    expect(status(h, addOn.proposalId)).toBe('rejected');
+    expect(groupMessages(turn)).toHaveLength(1);
+    expect(fake.calls).toHaveLength(1);
+  });
+
+  it("someone else's \"cancel that\" (even a lead's) never drops Henry's add-on, and Henry's never drops someone else's card", async () => {
+    const { h, fake } = rig();
+    await bookFive(h, fake);
+    await h.say('h_henry', ASK);
+    const addOn = h.pending()[0]!;
+    // Dean (the lead) has nothing of his own pending: his bare "cancel that" binds to nothing here.
+    await h.say('h_dean', 'actually nah. cancel that');
+    await h.say('h_maya', 'cancel that');
+    expect(status(h, addOn.proposalId)).toBe('pending');
+    expect(h.audit().filter((e) => e.type === 'approval.rejected')).toEqual([]);
+
+    // A card Henry did not ask for: his "cancel that" (even quoting it) leaves it alone.
+    const { h: h2, fake: fake2 } = rig();
+    const { proposal, cardMessageId } = await propose(h2);
+    await h2.say('h_henry', 'actually nah, cancel that', { replyToMessageId: cardMessageId });
+    await h2.say('h_henry', 'cancel that');
+    expect(status(h2, proposal.proposalId)).toBe('pending');
+    expect(h2.audit().filter((e) => e.type === 'approval.rejected')).toEqual([]);
+    expect(fake2.calls).toEqual([]);
+  });
+
+  it('Henry\'s 👍 on the add-on books his one ticket; then "can i get one too" says he already has one', async () => {
+    const { h, fake } = rig();
+    await bookFive(h, fake);
+    const turn = await h.say('h_henry', ASK);
+    const card = groupMessages(turn)[0]!;
+    const addOn = h.pending()[0]!;
+    // Nobody else's 👍 counts for Henry's card.
+    await h.react('h_dean', card.id, '👍');
+    expect(fake.calls).toHaveLength(1);
+    await h.react('h_henry', card.id, '👍');
+    expect(fake.calls.map((c) => c.proposalId).at(-1)).toBe(addOn.proposalId);
+    expect(fake.calls).toHaveLength(2);
+    const again = await h.say('h_henry', ASK);
+    expect(again.note).toBe('roster:unchanged');
+    expect(groupMessages(again).map((m) => m.text)).toEqual([
+      "you've already got a ticket for razzmatazz, Henry",
+    ]);
+    expect(h.pending()).toEqual([]);
+  });
+
+  it('a second "can i get one too" while his add-on is waiting adds nothing', async () => {
+    const { h, fake } = rig();
+    await bookFive(h, fake);
+    await h.say('h_henry', ASK);
+    const again = await h.say('h_henry', '@trav can i get one too');
+    expect(groupMessages(again).map((m) => m.text)).toEqual([
+      "you're already on the razzmatazz card, Henry",
+    ]);
+    expect(h.pending()).toHaveLength(1);
+  });
+
+  it('with nothing booked or waiting, "can i get one too" is not a roster line', async () => {
+    const { h } = rig();
+    const turn = await h.say('h_henry', ASK);
+    expect(turn.note?.startsWith('roster:')).toBe(false);
+    expect(h.pending()).toEqual([]);
+  });
+
+  it("Henry's 👎 on his own add-on also takes back the in his ask wrote; Dean's decline of it does not", async () => {
+    const { h, fake } = rig();
+    await bookFive(h, fake);
+    const turn = await h.say('h_henry', ASK);
+    await h.react('h_henry', groupMessages(turn)[0]!.id, '👎');
+    expect(henryRow(h)).toBe('out');
+
+    const { h: h2, fake: fake2 } = rig();
+    await bookFive(h2, fake2);
+    const t2 = await h2.say('h_henry', ASK);
+    const addOn = h2.pending()[0]!;
+    await h2.tap('h_dean', groupMessages(t2)[0]!.id, 'decline');
+    expect(status(h2, addOn.proposalId)).toBe('rejected');
+    expect(henryRow(h2)).toBe('in');
   });
 });
 

@@ -420,6 +420,46 @@ export function parseRosterUpdate(text: string): RosterUpdate | undefined {
   );
 }
 
+// ---------- "can i get one too" (T-137) ----------
+
+export interface TicketForMe {
+  /** Activity name hint ("razzmatazz"), if the ask named one. */
+  readonly hint?: string;
+  /** The night the ask named ("tonight", "tomorrow"), if any. */
+  readonly when?: RosterWhen;
+}
+
+const TICKET_ASK = String.raw`(?:(?:can|could|may)\s+i\s+(?:get|grab|have)|(?:can|could)\s+(?:you|u)\s+(?:get|grab|book)\s+me|(?:get|grab|book)\s+me|i'?ll\s+take|i\s+(?:want|need)|i'?d\s+(?:like|take))`;
+const TICKET_WORD = String.raw`(?:one|a ticket|a tix|a spot|1)`;
+/**
+ * The sender asking for a ticket of their own on something the others have
+ * ("can i get one too", "grab me a ticket for razz too pls"). An "in case …"
+ * / "if …" tail is matched only to recognize the sentence: it often carries
+ * a health reason ("in case i feel better later") and is never returned.
+ */
+const ME_TICKET = new RegExp(
+  String.raw`^(?:(?:ok|okay|wait|hey|actually|pls|please)\s+)*${TICKET_ASK}\s+${TICKET_WORD}(?:\s+(?:for|to)\s+${HINT})?${WHEN}\s+(?:too|as well)(?:\s+(?:pls|plz|please))?(?:,?\s+(?:just\s+)?(?:in case|if|for later|for when)\b.{0,60})?$`,
+  'iu',
+);
+
+/**
+ * "@trav can i get one too in case i feel better later" ⇒ the sender wants
+ * a ticket for the plan the others already have (or are about to have).
+ * Returns the activity hint and night only; the reason is dropped here.
+ */
+export function parseTicketForMe(text: string): TicketForMe | undefined {
+  const t = stripTravPrefix(text);
+  if (t.length === 0 || t.length > 120) return undefined;
+  const m = ME_TICKET.exec(t);
+  if (m === null) return undefined;
+  const hint = m.groups?.['hint']?.trim();
+  const when = whenOf(m.groups);
+  return {
+    ...(hint !== undefined && hint.length > 0 ? { hint } : {}),
+    ...(when !== undefined ? { when } : {}),
+  };
+}
+
 /** "Henry" (case-insensitive, one match) or a member id. */
 export function resolveMemberName(members: readonly Member[], ref: string): MemberId | undefined {
   const exact = members.find((m) => m.memberId === ref);

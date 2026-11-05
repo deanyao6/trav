@@ -561,6 +561,16 @@ describe('booking tools stop at a proposal', () => {
       },
     ]);
     expect(barca).toMatchObject({ fromTier: 'Gol Nord', fromSeat: 'behind the goal' });
+    // T-133 r1 #2: seat words are for stadium tiers only; a club's tiers get none.
+    const razz = (await h.runtime.tools.run(
+      'search_events',
+      { query: 'razzmatazz', quantity: 6, date: '2026-03-14' },
+      ctx(h),
+    )) as { events: EventResult[] };
+    const tiers = razz.events.flatMap((e) => e.tiers);
+    expect(tiers.length).toBeGreaterThan(0);
+    expect(tiers.every((t) => t.seat === null)).toBe(true);
+    expect(razz.events.every((e) => e.fromSeat === null)).toBe(true);
     // Read-only: nothing proposed, held or bought.
     expect(h.pending()).toEqual([]);
     expect(h.tickets.purchaseCount()).toBe(0);

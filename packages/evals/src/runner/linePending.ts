@@ -58,10 +58,6 @@ export const LINE_PENDING: Readonly<Record<string, LinePending>> = Object.fromEn
     'msg_bcn_0161',
   ]),
   ...gap('T-136', 'roast from group-ledger facts finds nothing to say', ['msg_bcn_0112']),
-  ...gap('T-137', 'late joiner "can i get one too" and its cancel', [
-    'msg_bcn_0135',
-    'msg_bcn_0136',
-  ]),
   ...gap('T-139', "a guest's second message: fixture expects a refusal, agent stays silent", [
     'msg_bcn_0147',
   ]),

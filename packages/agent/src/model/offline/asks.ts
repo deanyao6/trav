@@ -31,6 +31,7 @@ import type {
   ToolCall,
 } from '../client.js';
 import {
+  CATEGORY_WORDS,
   foldText,
   parseBookingRequest,
   parseVenueQuestion,
@@ -38,7 +39,6 @@ import {
   venueIndexFrom,
   type VenueIndex,
 } from '../../booking/request.js';
-import { seatPlainWords } from '../../booking/seats.js';
 import { deriveScriptKey } from './scripts.js';
 
 const ZERO_USAGE = { inputTokens: 0, outputTokens: 0 } as const;
@@ -65,6 +65,9 @@ export const NOTHING_PENDING_CHEAPER_TEXT =
 /** "anything cheaper" with only a stay or a flight waiting (T-133): those aren't re-searched. */
 export const CHEAPER_TICKETS_ONLY_TEXT =
   "i can only look for cheaper tickets from the chat right now. what's above is still waiting on its 👍";
+/** "anything cheaper for sagrada" when nothing like that is waiting (T-133 r1 #1). */
+export const NOTHING_LIKE_THAT_CHEAPER_TEXT =
+  "nothing like that is waiting on a 👍. ask me for it by name and i'll price it";
 export const CANCEL_NOT_ALLOWED_TEXT =
   'only whoever asked for it, or a trip lead, can drop that one. a 👎 on the card from someone going works too';
 export const CANCEL_GONE_TEXT = "that one's not waiting anymore, so there's nothing to drop";
@@ -348,20 +351,137 @@ function whichOneText(list: readonly PendingSummary[], verb: string): string {
   return ['which one?', ...shown, `say the name and i'll ${verb}`].join('\n');
 }
 
+/** Words in a "cheaper" ask that name no proposal ("anything cheaper for us all"). */
+const CHEAPER_FILLER = new Set([
+  'cheaper',
+  'anything',
+  'something',
+  'any',
+  'got',
+  'there',
+  'than',
+  'seat',
+  'seats',
+  'option',
+  'options',
+  'one',
+  'ones',
+  'everyone',
+  'everybody',
+  'group',
+  'guys',
+  'people',
+  'first',
+  'second',
+  'third',
+  'number',
+]);
+
+function namedWords(text: string): string[] {
+  return foldText(text)
+    .split(/[^a-z0-9]+/)
+    .filter(
+      (w) =>
+        w.length >= 3 && !CANCEL_FILLER.has(w) && !CANCEL_WHEN.has(w) && !CHEAPER_FILLER.has(w),
+    );
+}
+
+/** The last line of the which-one question, the part the reply-window parser keys on. */
+const CHEAPER_WHICH_TAIL = "reply with the number or the name and i'll look for cheaper";
+
+/**
+ * "which one?" for "anything cheaper" (T-133 r1 #1): numbered, and its
+ * answer is something this responder reads back, a number or a name inside
+ * the reply window, or "@trav anything cheaper for <name>" any time.
+ */
+function cheaperWhichText(list: readonly PendingSummary[]): string {
+  // Two numbered at most: the question stays inside the 4-line reply cap (a name answers any).
+  const shown = list.slice(0, 2).map((p, i) => `${i + 1}. ${pendingLabel(p)} · ${p.total}`);
+  return ['which one?', ...shown, CHEAPER_WHICH_TAIL].join('\n');
+}
+
+function pendingLabel(p: PendingSummary): string {
+  const tier = p.tier !== undefined && p.tier.length > 0 ? ` ${p.tier.toLowerCase()}` : '';
+  return `${shortName(p.description)}${tier}`;
+}
+
+/**
+ * Trav's last line in the group transcript the prompt carries, when it is
+ * this flow's which-one question: its numbered labels by number. Members'
+ * lines are prefixed with their own name, so only Trav's own text can match.
+ */
+function lastWhichQuestion(req: CompletionRequest): Map<number, string> | undefined {
+  const lines = req.system.split('\n');
+  const start = lines.findIndex((l) => l.trim() === 'recent messages in the group:');
+  if (start < 0) return undefined;
+  const travLines = lines.slice(start + 1).filter((l) => l.startsWith('- trav: '));
+  const last = travLines.at(-1);
+  if (last === undefined) return undefined;
+  const text = last.slice('- trav: '.length);
+  if (!text.startsWith('which one?') || !text.includes(CHEAPER_WHICH_TAIL)) return undefined;
+  const labels = new Map<number, string>();
+  for (const m of text.matchAll(/(?:^|\s)([1-3])\. (.+?) · /g)) labels.set(Number(m[1]), m[2]!);
+  return labels;
+}
+
+const ORDINALS: Readonly<Record<string, number>> = {
+  '1': 1,
+  '2': 2,
+  '3': 3,
+  one: 1,
+  two: 2,
+  three: 3,
+  first: 1,
+  second: 2,
+  third: 3,
+};
+
+/**
+ * A reply to the which-one question ("2", "the second one", "razzmatazz"):
+ * the words that pick the proposal, or undefined when the line isn't one
+ * (anything that names nothing from the question is left to other flows).
+ */
+function whichReplyWords(text: string, labels: ReadonlyMap<number, string>): string[] | undefined {
+  const t = foldText(text)
+    .replace(/[?!.]+$/, '')
+    .trim();
+  const n =
+    /^(?:(?:the|number|option|#)\s*)*(\d|one|two|three|first|second|third)(?:\s+one)?$/.exec(
+      t,
+    )?.[1];
+  if (n !== undefined) {
+    const label = labels.get(ORDINALS[n] ?? 0);
+    return label === undefined ? undefined : namedWords(label);
+  }
+  const words = namedWords(t);
+  if (words.length === 0 || t.split(/\s+/).length > 5) return undefined;
+  const shown = [...labels.values()].flatMap((l) => namedWords(l));
+  return words.some((w) => namesWord(w, shown)) ? words : undefined;
+}
+
+/** The words that name which pending proposal the member means ([] = none named). */
+function cheaperSelector(req: CompletionRequest, text: string): string[] {
+  const folded = foldText(text);
+  const m = CHEAPER_RE.exec(folded.replace(/[?!.]+$/, '').trim());
+  if (m !== null) return namedWords(folded.replace(m[0], ' '));
+  const labels = lastWhichQuestion(req);
+  return labels === undefined ? [] : (whichReplyWords(text, labels) ?? []);
+}
+
 export const cheaperResponder: FallbackResponder = {
   id: 'cheaper_v1',
   complete(req) {
     const prefix = 'toolu_offline_cheaper_';
     const ask = freshAsk(req);
     if (ask !== undefined) {
-      if (
-        !CHEAPER_RE.test(
-          foldText(ask.text)
-            .replace(/[?!.]+$/, '')
-            .trim(),
-        )
-      )
-        return undefined;
+      const asked = CHEAPER_RE.test(
+        foldText(ask.text)
+          .replace(/[?!.]+$/, '')
+          .trim(),
+      );
+      const labels = asked ? undefined : lastWhichQuestion(req);
+      const replied = labels !== undefined && whichReplyWords(ask.text, labels) !== undefined;
+      if (!asked && !replied) return undefined;
       if (!offered(req, 'get_pending_proposals') || !offered(req, 'search_events'))
         return undefined;
       return response(req, '', [call(req, prefix, 1, 'get_pending_proposals', {})]);
@@ -373,8 +493,8 @@ export const cheaperResponder: FallbackResponder = {
       if (pending.length === 0) return response(req, NOTHING_PENDING_CHEAPER_TEXT, []);
       const tickets = ticketsOnly(pending);
       if (tickets.length === 0) return response(req, CHEAPER_TICKETS_ONLY_TEXT, []);
-      if (tickets.length > 1) return response(req, whichOneText(tickets, 'look'), []);
-      const p = tickets[0]!;
+      const p = pickPending(req, tickets);
+      if (typeof p === 'string') return response(req, p, []);
       const input = {
         query: shortName(p.description),
         quantity: Math.max(1, p.attendees.length),
@@ -386,15 +506,73 @@ export const cheaperResponder: FallbackResponder = {
     }
     if (round.name === 'search_events') {
       const first = round.all.find((x) => x.name === 'get_pending_proposals');
-      const p = ticketsOnly(pendingFrom(first?.result) ?? [])[0];
-      if (p === undefined || !isRecord(round.result) || !Array.isArray(round.result['events'])) {
+      const p = pickPending(req, ticketsOnly(pendingFrom(first?.result) ?? []));
+      if (
+        typeof p === 'string' ||
+        !isRecord(round.result) ||
+        !Array.isArray(round.result['events'])
+      ) {
         return response(req, NOTHING_PENDING_CHEAPER_TEXT, []);
       }
-      return response(req, cheaperText(p, round.result['events'] as unknown[]), []);
+      const familyMode = round.result['familyMode'] === true;
+      return response(req, cheaperText(p, round.result['events'] as unknown[], familyMode), []);
     }
     return undefined;
   },
 };
+
+/**
+ * Which pending ticket proposal the ask means: the one its words name (or the
+ * which-one reply names), the only one when nothing is named; otherwise the
+ * line to send instead (a numbered which-one, or "nothing like that").
+ */
+function pickPending(
+  req: CompletionRequest,
+  tickets: readonly PendingSummary[],
+): PendingSummary | string {
+  if (tickets.length === 0) return NOTHING_PENDING_CHEAPER_TEXT;
+  const words = cheaperSelector(req, theAsk(req)?.text ?? '');
+  const hits = words.length === 0 ? [...tickets] : cheaperMatches(words, tickets);
+  if (hits.length === 1) return hits[0]!;
+  if (hits.length === 0) return NOTHING_LIKE_THAT_CHEAPER_TEXT;
+  return cheaperWhichText(hits);
+}
+
+const termWords = (t: string): string[] => t.split(/[^a-z0-9]+/).filter((w) => w.length >= 3);
+
+/**
+ * Does the member's word `w` name something with these (folded) words? It
+ * starts one of them ("razz"), or it's a venue alias from the bundled ticket
+ * inventories whose venue has one of them ("barca" ⇒ "barcelona").
+ */
+function namesWord(w: string, hay: readonly string[]): boolean {
+  if (hay.some((h) => h.startsWith(w))) return true;
+  const index = bundledVenueIndex();
+  return index.venues
+    .filter((v) => v.terms.some((t) => !index.generic.has(t) && termWords(t).includes(w)))
+    .some((v) =>
+      v.terms.some((t) => namedWords(t).some((a) => !CATEGORY_WORDS.has(a) && hay.includes(a))),
+    );
+}
+
+/**
+ * The pending proposals the named words point at: like `cancelMatches`, each
+ * word scores when it starts a word of the description or tier, or when it's
+ * an alias the bundled ticket inventories give that venue ("barça" names
+ * "FC Barcelona vs Sevilla FC"). Best score wins; a tie stays a tie.
+ */
+function cheaperMatches(
+  named: readonly string[],
+  pending: readonly PendingSummary[],
+): PendingSummary[] {
+  const scored = pending.map((p) => {
+    const hay = foldText(`${p.description} ${p.tier ?? ''}`).split(/[^a-z0-9]+/);
+    return { p, score: named.filter((w) => namesWord(w, hay)).length };
+  });
+  const best = Math.max(0, ...scored.map((s) => s.score));
+  if (best === 0) return [];
+  return scored.filter((s) => s.score === best).map((s) => s.p);
+}
 
 /** Ticket proposals only: a stay or a flight is never re-searched as an event. */
 function ticketsOnly(list: readonly PendingSummary[]): PendingSummary[] {
@@ -411,6 +589,7 @@ interface CheaperTier {
 
 interface CheaperEvent {
   readonly name: string;
+  readonly adultsOnly: boolean;
   readonly tiers: readonly CheaperTier[];
 }
 
@@ -451,7 +630,13 @@ function cheaperEvents(raw: readonly unknown[], currency: string): CheaperEvent[
       });
     }
     if (tiers.length === 0) return [];
-    return [{ name: e['name'], tiers: [...tiers].sort((a, b) => a.amountMinor - b.amountMinor) }];
+    return [
+      {
+        name: e['name'],
+        adultsOnly: e['adultsOnly'] === true,
+        tiers: [...tiers].sort((a, b) => a.amountMinor - b.amountMinor),
+      },
+    ];
   });
 }
 
@@ -463,21 +648,66 @@ function seatLabel(t: Pick<CheaperTier, 'tier' | 'seat'>): string {
   return t.seat ?? t.tier ?? '';
 }
 
-/** Cheaper tiers listed under the context line; held line after (≤ 6 lines, VOICE §3.1). */
-const MAX_CHEAPER = 3;
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+/** "2026-03-15" ⇒ "mar 15" (the request parser reads it as that night); undefined otherwise. */
+function monthDay(date: string | undefined): string | undefined {
+  const m = date === undefined ? null : /^\d{4}-(\d{2})-(\d{2})$/.exec(date);
+  if (m === null) return undefined;
+  const month = MONTHS[Number(m[1]) - 1];
+  return month === undefined ? undefined : `${month} ${String(Number(m[2]))}`;
+}
+
+/** Tier-name words a re-ask can't pick a tier by (mirrors the request parser's noise words). */
+const TIER_NAME_NOISE = new Set([
+  'general',
+  'admission',
+  'entry',
+  'slot',
+  'ticket',
+  'tickets',
+  'line',
+  'zone',
+  'show',
+  'and',
+  'the',
+  'with',
+]);
+
+/**
+ * What a member can say to get this tier proposed ("behind the goal",
+ * "fast-line presale"): its seat words, else its tier name when that has a
+ * word the request parser picks a tier by. Undefined for "General admission".
+ */
+function tierHandle(t: CheaperTier): string | undefined {
+  if (t.seat !== undefined) return t.seat;
+  if (t.tier === undefined) return undefined;
+  const words = foldText(t.tier)
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length >= 3 && !/\d/.test(w) && !TIER_NAME_NOISE.has(w));
+  return words.length > 0 ? t.tier.toLowerCase() : undefined;
+}
 
 /**
  * "anything cheaper" for one pending ticket proposal (T-133, VOICE §4.10 C):
- * the same event's cheaper tiers first, each with its trade-off (where the
- * seats are, refundability); else the cheapest other event that night; else
- * "already the cheapest". Prices come only from the search results. The
- * pending proposal is never touched: the last line says it's still held.
+ * the same event's cheapest cheaper tier first, with its trade-off (where
+ * the seats are, refundability) and how to switch; else the cheapest other event
+ * that night (never an adults-only one in a family group); else "already the
+ * cheapest". Prices come only from the search results. The pending proposal
+ * is never touched: the last line says it's still on its card.
+ *
+ * Switching is a new ask: a different tier is a different proposal (its own
+ * card and 👍s), so the next step quotes the ask that proposes it (event,
+ * seat or tier name, headcount, night), and only when the request parser
+ * picks the tier by that name (or a plain re-ask would pick it anyway).
  */
-function cheaperText(p: PendingSummary, rawEvents: readonly unknown[]): string {
+function cheaperText(
+  p: PendingSummary,
+  rawEvents: readonly unknown[],
+  familyMode: boolean,
+): string {
   const n = Math.max(1, p.attendees.length);
   const each = Math.round(p.totalMinor / n);
-  const heldSeat = seatPlainWords(p.tier);
-  const held = `the ${fmt(each, p.currency)}${heldSeat !== undefined ? ` ${heldSeat}` : ''} ones above are still held. 👍 there to keep them`;
   const what = shortName(p.description);
   const refund = (r: boolean): string => (r ? 'refundable' : 'non-refundable');
   const line = (t: CheaperTier): string =>
@@ -490,17 +720,44 @@ function cheaperText(p: PendingSummary, rawEvents: readonly unknown[]): string {
     (p.itemRef !== undefined
       ? events.find((e) => e.tiers.some((t) => t.offerId === p.itemRef))
       : undefined) ?? events.find((e) => e.name === p.description);
-  const cheaperTiers = (same?.tiers ?? [])
-    .filter((t) => t.amountMinor < each && (p.itemRef === undefined || t.offerId !== p.itemRef))
-    .slice(0, MAX_CHEAPER);
-  if (cheaperTiers.length === 1) {
-    return `only cheaper seats for ${what}: ${line(cheaperTiers[0]!)}\n${held}`;
-  }
-  if (cheaperTiers.length > 1) {
-    return [`cheaper seats for ${what}:`, ...cheaperTiers.map(line), held].join('\n');
+  // Seat words for the held tier come from the search (it knows the event's category).
+  const heldSeat =
+    p.itemRef === undefined ? undefined : same?.tiers.find((t) => t.offerId === p.itemRef)?.seat;
+  const heldPrice = `${fmt(each, p.currency)}${heldSeat !== undefined ? ` ${heldSeat}` : ''}`;
+  const held = `the ${heldPrice} ones are still on the card above. 👍 on that card to book them`;
+  // The cheapest cheaper tier of the same event (never the held one): one
+  // option, its trade-off and how to switch fit the 4-line reply (VOICE §3.1).
+  const cheaper = (same?.tiers ?? []).find(
+    (t) => t.amountMinor < each && (p.itemRef === undefined || t.offerId !== p.itemRef),
+  );
+  if (cheaper !== undefined) {
+    // What a plain re-ask picks: refundable first, then cheapest (`rankOffers`).
+    const defaultPick = [...(same?.tiers ?? [])].sort((a, b) =>
+      a.refundable !== b.refundable ? (a.refundable ? -1 : 1) : a.amountMinor - b.amountMinor,
+    )[0];
+    const handle = tierHandle(cheaper);
+    const night = monthDay(p.eventDate);
+    // The exact ask that proposes this tier, or none when no ask would pick it.
+    const reAsk =
+      handle !== undefined || cheaper === defaultPick
+        ? `@trav ${what}${handle !== undefined ? ` ${handle}` : ''} tickets for ${String(n)}${night !== undefined ? ` ${night}` : ''}`
+        : undefined;
+    const next =
+      reAsk === undefined ? [] : [`want those instead? say "${reAsk}" and i'll put up a new card`];
+    const named = `cheaper for ${what}: ${line(cheaper)}`;
+    const short = `cheaper: ${line(cheaper)}`;
+    const candidates = [
+      [named, ...next, held],
+      [short, ...next, held],
+      [named, held],
+      [short, held],
+    ];
+    // A plain reply is 279 characters at most (VOICE §3.1): the first that fits.
+    const fits = candidates.find((c) => c.join('\n').length <= 279);
+    return (fits ?? candidates.at(-1)!).join('\n');
   }
   const other = events
-    .filter((e) => e !== same)
+    .filter((e) => e !== same && !(familyMode && e.adultsOnly))
     .map((e) => ({ name: e.name, t: e.tiers[0]! }))
     .filter((x) => x.t.amountMinor < each)
     .sort((a, b) => a.t.amountMinor - b.t.amountMinor)[0];
