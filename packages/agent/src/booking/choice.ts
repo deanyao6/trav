@@ -64,6 +64,11 @@ export interface TicketChoicePlan {
   readonly expiresAt: IsoDateTime;
   readonly status: 'pending' | 'picked';
   readonly pickedIndex?: number;
+  /**
+   * Other members' picks (T-168 r1 #3): each became a proposal card that needs
+   * a 👍. They never close the plan; the asker's own pick checks them first.
+   */
+  readonly otherPicks?: readonly { readonly index: number; readonly proposalId: string }[];
 }
 
 export interface TicketChoiceStore {

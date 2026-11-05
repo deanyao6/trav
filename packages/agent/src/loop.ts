@@ -694,6 +694,8 @@ export function createTravAgent(input: AgentDeps): TravAgent {
   const lastQuestionAt = new Map<string, IsoDateTime>();
   const lastQuestionRef = new Map<string, PendingCardRef>();
   const cards = new Map<MessageId, PendingCardRef>();
+  /** Trav's newest card in each group thread (any type): what a bare text pick may bind to (T-168). */
+  const newestGroupCard = new Map<GroupId, PendingCardRef>();
   /** Which group each card was sent in: the index never answers across groups. */
   const cardGroup = new Map<MessageId, GroupId>();
   const guestsTold = new Set<string>();
@@ -942,6 +944,8 @@ export function createTravAgent(input: AgentDeps): TravAgent {
           sentAt: r.now,
         };
         cards.set(msg.id, ref);
+        // T-168 r1 #1-2: a bare text pick binds only to Trav's newest group card.
+        if (msg.to.kind === 'group') newestGroupCard.set(r.group.groupId, ref);
         cardGroup.set(msg.id, r.group.groupId);
         if (/\?/.test(msg.text)) lastQuestionRef.set(key, ref);
       }
@@ -1892,13 +1896,34 @@ export function createTravAgent(input: AgentDeps): TravAgent {
         ? pickTextIndex(rawText)
         : undefined;
     if (pickIndex !== undefined) {
+      // T-168 r1 #1-2: a quote-reply to the options card itself, or a bare pick
+      // while that options card is Trav's newest card in the group (any later
+      // card, a flight options card, a proposal, anything, makes it stale) and
+      // still live. An unaddressed bare pick also must not be answering a
+      // member's question asked since the card.
       const quoted =
         boundRef !== undefined ? deps.proposals.ticketChoice(boundRef.cardId) : undefined;
+      const newest =
+        event.replyToMessageId === undefined ? newestGroupCard.get(r.group.groupId) : undefined;
       const latest =
-        event.replyToMessageId === undefined
-          ? deps.proposals.latestTicketChoice(r.group.groupId)
+        newest !== undefined && newest.card.type === 'options'
+          ? deps.proposals.ticketChoice(newest.cardId)
           : undefined;
-      const plan = quoted ?? (latest !== undefined && planLive(latest, r.now) ? latest : undefined);
+      const addressed = /^\s*@trav\b/i.test(rawText) || event.platformMention === true;
+      const memberAskedSince =
+        newest !== undefined &&
+        (recent.get(groupKey) ?? []).some(
+          (m) =>
+            !m.fromTrav &&
+            m.senderMemberId !== me?.memberId &&
+            parseIso(m.at) >= parseIso(newest.sentAt) &&
+            /\?\s*\S{0,4}\s*$/u.test(m.text),
+        );
+      const bare =
+        latest !== undefined && planLive(latest, r.now) && (addressed || !memberAskedSince)
+          ? latest
+          : undefined;
+      const plan = quoted ?? bare;
       if (plan !== undefined) {
         recordInbound();
         return pickTicketTurn(r, plan.planId, pickIndex, event.messageId);

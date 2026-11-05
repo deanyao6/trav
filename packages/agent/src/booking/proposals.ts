@@ -205,6 +205,8 @@ export interface ProposeContext {
   };
   /** T-168 (b): the proposal is an option picked off a ticket options card (by anyone); the card names the tier. */
   readonly fromOptions?: boolean;
+  /** T-168 (b): the member who picked the option (may differ from `requestedBy`); audited. */
+  readonly pickedBy?: MemberId;
 }
 
 export interface EventSummary {
@@ -1683,6 +1685,7 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
           refundable: proposal.refundable,
           requestedBy: proposal.requestedBy,
           sourceMessageId: proposal.sourceMessageId,
+          ...(ctx.pickedBy !== undefined ? { pickedBy: ctx.pickedBy } : {}),
         },
       }).id,
     );
@@ -2071,11 +2074,35 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
       };
     }
     const now = clock.now();
+    const isAsker = pick.pickedBy === plan.requestedBy;
     // Only the asker's own pick on a live card is their ok (T-168 b). Anyone
     // else's pick, or a stale card, is an ordinary proposal that needs a 👍.
-    const asker = pick.pickedBy === plan.requestedBy && planLive(plan, now);
-    // Marked before the await: a second tap while this one is in flight proposes nothing.
-    choices.save({ ...plan, status: 'picked', pickedIndex: index });
+    const asker = isAsker && planLive(plan, now);
+    // T-168 r1 #3: another member's pick never closes the card. Once a card
+    // from one of those picks is booked (or is still waiting), the asker's own
+    // pick gets that answer instead of a second set of tickets.
+    if (isAsker) {
+      for (const other of plan.otherPicks ?? []) {
+        const state = latestStatus(other.proposalId);
+        if (state === 'completed' || state === 'approved' || state === 'executing') {
+          choices.save({ ...plan, status: 'picked', pickedIndex: other.index });
+          return {
+            kind: 'unavailable',
+            reason: 'already_picked',
+            text: `option ${String(other.index)} is already booked on that one. nothing else booked`,
+          };
+        }
+        if (state === 'pending') {
+          return {
+            kind: 'unavailable',
+            reason: 'already_picked',
+            text: `option ${String(other.index)} is waiting for a 👍 above. 👍 it, or say "no" on it first and pick again. nothing's booked`,
+          };
+        }
+      }
+      // Marked before the await: a second tap while this one is in flight proposes nothing.
+      choices.save({ ...plan, status: 'picked', pickedIndex: index });
+    }
     const res = await propose(
       {
         kind: 'ticket',
@@ -2092,14 +2119,35 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
         requestedBy: plan.requestedBy,
         sourceMessageId: pick.sourceMessageId,
         fromOptions: true,
+        // T-168 r1 #4: who actually picked, for the audit trail.
+        pickedBy: pick.pickedBy,
         ...(asker
           ? { pick: { planId, offerId: option.offerId, expectedTotalMinor: option.totalMinor } }
           : {}),
       },
     );
-    // Nothing came of it (sold out, the site down, a question): the card stays pickable.
-    if (res.kind === 'unavailable' || res.kind === 'clarify') choices.save(plan);
+    const current = choices.get(planId) ?? plan;
+    if (isAsker) {
+      // Nothing came of it (sold out, the site down, a question): the card stays pickable.
+      if (res.kind === 'unavailable' || res.kind === 'clarify') choices.save(plan);
+    } else if (res.kind === 'proposal') {
+      choices.save({
+        ...current,
+        otherPicks: [...(current.otherPicks ?? []), { index, proposalId: res.proposal.proposalId }],
+      });
+    }
     return res;
+  }
+
+  /** A proposal's status, following "not me" / roster re-quotes to the newest one. */
+  function latestStatus(proposalId: ProposalId): BookingProposal['status'] | undefined {
+    let p = group.bookings.getProposal(proposalId);
+    for (let hops = 0; p !== undefined && p.status === 'superseded' && hops < 20; hops += 1) {
+      const next = p.supersededBy;
+      if (next === undefined) break;
+      p = group.bookings.getProposal(next);
+    }
+    return p?.status;
   }
 
   return {

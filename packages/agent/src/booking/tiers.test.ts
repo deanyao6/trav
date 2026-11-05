@@ -424,6 +424,119 @@ describe('(b) choice purchases: options, then the pick is the approval', () => {
   });
 });
 
+describe('T-168 r1: a text pick binds only to Trav’s newest card, and others’ picks never close the card', () => {
+  const FLIGHTS_ASK =
+    "@trav we're 6, flying BOS SFO ORD JFK LAX MIA into BCN thurs mar 12, home tues mar 17 to JFK LAX ORD IAD SEA ATL. find flights that land around the same time";
+
+  it('#1 Barça options → flight options → "@trav book option 1" books nothing, it is the flight card', async () => {
+    const h = on();
+    h.clock.set('2026-02-03T20:11:00+01:00');
+    const b = await h.say(
+      'h_dean',
+      '@trav get the 6 of us barça vs sevilla tickets for sunday mar 15',
+    );
+    expect(group(b).some((m) => m.card?.type === 'options')).toBe(true);
+    const f = await h.say('h_dean', FLIGHTS_ASK);
+    expect(group(f).some((m) => m.card?.type === 'options')).toBe(true);
+    const pick = await h.say('h_dean', '@trav book option 1');
+    expect(pick.note).not.toMatch(/^pick:ticket/);
+    expect(h.tickets.purchaseCount()).toBe(0);
+    expect(h.auditTypes()).not.toContain('booking.completed');
+    const card = group(pick).find((m) => m.card?.type === 'booking_proposal');
+    expect(card?.text).toMatch(/flights/);
+  });
+
+  it('#2 Barça options → a Razz proposal card → bare "2" buys nothing', async () => {
+    const h = on();
+    await h.say('h_dean', BARCA_ASK);
+    const razz = await h.say(
+      'h_dean',
+      "@trav can you get the 5 of us Razzmatazz tickets? Henry's sick",
+    );
+    expect(group(razz).some((m) => m.card?.type === 'booking_proposal')).toBe(true);
+    const two = await h.say('h_dean', '2');
+    expect(two.note).not.toMatch(/^pick:ticket/);
+    expect(h.tickets.purchaseCount()).toBe(0);
+  });
+
+  it('#2 a casual "2" answering a member’s question after the options card buys nothing', async () => {
+    const h = on();
+    await h.say('h_dean', BARCA_ASK);
+    await h.say('h_chase', 'how many beers are we getting before?');
+    const two = await h.say('h_dean', '2');
+    expect(two.note).not.toMatch(/^pick:ticket/);
+    expect(h.tickets.purchaseCount()).toBe(0);
+    // Addressed to Trav, the same pick still counts.
+    const picked = await h.say('h_dean', '@trav 2');
+    expect(picked.note).toBe('pick:ticket:auto_approved');
+    expect(h.tickets.purchaseCount()).toBe(1);
+  });
+
+  it('#2 a quote-reply to the options card still picks after another card', async () => {
+    const h = on();
+    const { outbound } = await h.say('h_dean', BARCA_ASK);
+    const options = outbound.find((m) => !isReaction(m) && m.card?.type === 'options')!;
+    await h.say('h_dean', "@trav can you get the 5 of us Razzmatazz tickets? Henry's sick");
+    const picked = await h.say('h_dean', '1', { replyToMessageId: options.id });
+    expect(picked.note).toBe('pick:ticket:auto_approved');
+    expect(h.tickets.purchaseCount()).toBe(1);
+  });
+
+  it('#3 Henry picks 1 (a card) → Dean picks 2 ⇒ an answer, never silence, nothing bought twice', async () => {
+    const h = on();
+    await h.say('h_dean', BARCA_ASK);
+    const henry = await h.say('h_henry', '1');
+    const card = group(henry).find((m) => m.card?.type === 'booking_proposal')!;
+    expect(card).toBeDefined();
+    expect(h.tickets.purchaseCount()).toBe(0);
+    // Henry's card is the newest now, so Dean quote-replies the options card.
+    const options = h.runtime.proposals.latestTicketChoice(G)!;
+    const dean = await h.runtime.proposals.pickTicketOption(options.planId, 2, {
+      groupId: G,
+      pickedBy: 'mem_dean',
+      sourceMessageId: 'msg_dean_pick',
+    });
+    expect(dean.kind).toBe('unavailable');
+    expect('text' in dean && dean.text).toMatch(/option 1 is waiting for a 👍 above/);
+    expect(h.tickets.purchaseCount()).toBe(0);
+    // Dean declines Henry's card; his own pick then buys.
+    await h.react('h_dean', card.id, '👎');
+    const again = await h.runtime.proposals.pickTicketOption(options.planId, 2, {
+      groupId: G,
+      pickedBy: 'mem_dean',
+      sourceMessageId: 'msg_dean_pick2',
+    });
+    expect(again.kind).toBe('auto_approved');
+  });
+
+  it('#3 Henry’s pick, approved by Dean, closes the card: Dean’s later pick buys no second set', async () => {
+    const h = on();
+    await h.say('h_dean', BARCA_ASK);
+    const henry = await h.say('h_henry', '1');
+    const card = group(henry).find((m) => m.card?.type === 'booking_proposal')!;
+    for (const who of ['h_dean', 'h_henry', 'h_chase', 'h_piotr', 'h_arjun', 'h_crowley']) {
+      await h.react(who, card.id, '👍');
+    }
+    expect(h.tickets.purchaseCount()).toBe(1);
+    const plan = h.runtime.proposals.latestTicketChoice(G)!;
+    const dean = await h.runtime.proposals.pickTicketOption(plan.planId, 2, {
+      groupId: G,
+      pickedBy: 'mem_dean',
+      sourceMessageId: 'msg_dean_pick',
+    });
+    expect('text' in dean && dean.text).toMatch(/option 1 is already booked/);
+    expect(h.tickets.purchaseCount()).toBe(1);
+  });
+
+  it('#4 a non-asker pick records pickedBy in proposal.created', async () => {
+    const h = on();
+    await h.say('h_dean', BARCA_ASK);
+    await h.say('h_henry', '1');
+    const created = h.audit().find((e) => e.type === 'proposal.created')!;
+    expect(created.payload).toMatchObject({ requestedBy: 'mem_dean', pickedBy: 'mem_henry' });
+  });
+});
+
 describe('(c) lodging and flights keep the explicit approval, even with an eligible ask', () => {
   it('a stay proposed with the flagship verdict attached is still a card everyone staying 👍s', async () => {
     const h = on(1_000_000);

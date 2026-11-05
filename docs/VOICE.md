@@ -847,7 +847,7 @@ Trav never spends without an approval event that passes `ApprovalPolicy`. The po
 - Price changed between proposal and purchase by more than 5% or past the cap → Trav does not buy; it re-proposes with the new price.
 
 ### 6.3 Who may approve what (defaults; `ApprovalPolicy` owns the numbers)
-- Per-person cap: €60 (configurable per group). Per-purchase cap: €500. Non-refundable: always lead, except a non-refundable explicit ask of €200 or less, or a picked option (T-168).
+- Per-person cap: €50 by default (`defaultSpendingPolicy`), configurable per group (the Barcelona group sets €60). Per-purchase cap: €500. Non-refundable: always lead, except a non-refundable explicit ask of €200 or less, or a picked option (T-168).
 - Auto-buy cap: €500 total by default, per group; 0 turns auto-buy off.
 - Flights and lodging: always lead, always stated in the proposal, never bought on an ask alone.
 - Anything charged to a member's own card and nobody else's: that member alone.
