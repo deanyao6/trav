@@ -90,13 +90,14 @@ import {
   PROPOSAL_ACTIONS,
   proposalExpiresAt,
   proposalMessage,
+  bookingHeadline,
   shortEventName,
   type ProposalService,
   type ProposeResult,
 } from '../booking/proposals.js';
 import { sanitizeInline } from '../context/groupContext.js';
 import { renderBookingProposal } from '../render/bookingProposal.js';
-import type { RenderContext } from '../render/common.js';
+import { possessive, type RenderContext } from '../render/common.js';
 import { renderReceipt } from '../render/receipt.js';
 import { renderTicket } from '../render/ticket.js';
 import {
@@ -126,15 +127,20 @@ export interface ApprovalHandlerDeps {
 }
 
 /** VOICE §6.4: the one line at expiry. The scheduled job (`loop.ts`) posts the same text. */
-export function proposalExpiredText(description: string): string {
-  return `${shortEventName(description)} proposal expired, no charge. @ me if you still want it`;
+export function proposalExpiredText(description: string, kind?: BookingProposal['kind']): string {
+  return `${bookingHeadline({ description, kind })} proposal expired, no charge. @ me if you still want it`;
 }
 
 /** VOICE §4.10: two lines, no emoji, says money did not move and what happens next. */
-export function bookingFailedText(description: string, retriable: boolean): string {
-  const head = `couldn't book ${shortEventName(description)}. no charge went through`;
-  return retriable
-    ? `${head}\n@ me again in a few and i'll retry`
+export function bookingFailedText(
+  description: string,
+  retriable: boolean,
+  kind?: BookingProposal['kind'],
+): string {
+  const head = `couldn't book ${bookingHeadline({ description, kind })}. no charge went through`;
+  if (retriable) return `${head}\n@ me again in a few and i'll retry`;
+  return kind === 'flight'
+    ? `${head}\n@ me and i'll search flights again`
     : `${head}\n@ me if you want to try another night or another place`;
 }
 
@@ -144,8 +150,12 @@ export function bookingFailedText(description: string, retriable: boolean): stri
  * is kept), so approving it again retries under the same key. A policy
  * auto-approved ask has no card: the requester's "yes" retries it.
  */
-export function chargeFailedText(description: string, hasCard = true): string {
-  const head = `couldn't charge the card for ${shortEventName(description)}. no charge went through, nothing's booked yet`;
+export function chargeFailedText(
+  description: string,
+  hasCard = true,
+  kind?: BookingProposal['kind'],
+): string {
+  const head = `couldn't charge the card for ${bookingHeadline({ description, kind })}. no charge went through, nothing's booked yet`;
   return hasCard
     ? `${head}\ntap Approve again in a few and i'll retry`
     : `${head}\nsay yes in a few and i'll retry`;
@@ -153,13 +163,36 @@ export function chargeFailedText(description: string, hasCard = true): string {
 
 /**
  * VOICE §4.10 for a group flight set where some orders landed and the rest
- * did not (T-074): who isn't booked, that they weren't charged, what's next.
- * `who` is already a name list ("Sam, Henry").
+ * did not (T-074): whose order failed (and whether that is certainly no
+ * charge), who was never sent because Trav stopped there, what's next. Names
+ * are already lists ("Maya", "Jordan, Priya").
  */
-export function partialFlightsText(who: string, count: number): string {
-  return count === 1
-    ? `${who}'s flight didn't go through, so it's not booked and nothing was charged for it\n@ me and i'll look again`
-    : `flights for ${who} didn't go through, so they're not booked and nothing was charged for them\n@ me and i'll look again`;
+export function partialFlightsText(input: {
+  readonly failed: string;
+  readonly failedCount: number;
+  readonly notSent: string;
+  readonly notSentCount: number;
+  readonly errorCode: string;
+}): string {
+  // A definite refusal books and charges nothing; an outage or timeout may
+  // have landed at the airline, so Trav never promises "no charge" for it.
+  const unsure = input.errorCode === 'provider_unavailable';
+  const flight =
+    input.failedCount === 1 ? `${possessive(input.failed)} flight` : `flights for ${input.failed}`;
+  const lines = [
+    unsure
+      ? `${flight} didn't confirm, so check with the airline before rebooking`
+      : `${flight} didn't go through, so ${input.failedCount === 1 ? "it's" : "they're"} not booked and not charged`,
+  ];
+  if (input.notSentCount > 0) {
+    lines.push(
+      input.notSentCount === 1
+        ? `i stopped there: ${input.notSent} wasn't booked, nothing charged for them`
+        : `i stopped there: ${input.notSent} weren't booked, nothing charged for them`,
+    );
+  }
+  lines.push("@ me and i'll look again");
+  return lines.join('\n');
 }
 
 /** Each traveler paid their own fare: no ledger expense belongs to the booking (D-040). */
@@ -536,7 +569,7 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
     });
     scheduler.cancel(expiryJobId(proposal.proposalId));
     await proposals.releaseHold(proposal);
-    return [terminalLine(proposal, proposalExpiredText(proposal.description))];
+    return [terminalLine(proposal, proposalExpiredText(proposal.description, proposal.kind))];
   }
 
   // ---------- THE executor call ----------
@@ -588,7 +621,9 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
       if (!bought) {
         setStatus(proposal.proposalId, 'failed');
         inFlight.delete(proposal.proposalId);
-        return [terminalLine(proposal, bookingFailedText(proposal.description, true))];
+        return [
+          terminalLine(proposal, bookingFailedText(proposal.description, true, proposal.kind)),
+        ];
       }
       // The purchase stands: the proposal is done and its grant is spent,
       // whatever the executor managed to write after the charge. One retry
@@ -635,8 +670,14 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
         if (result.partial === undefined) return done;
         // One group message per booking turn (VOICE §3.7): who isn't booked
         // goes under the receipt, in the same bubble.
-        const missing = result.partial.missing;
-        const note = partialFlightsText(names(ctx.members, missing), missing.length);
+        const { failed, notSent, errorCode } = result.partial;
+        const note = partialFlightsText({
+          failed: names(ctx.members, failed),
+          failedCount: failed.length,
+          notSent: names(ctx.members, notSent),
+          notSentCount: notSent.length,
+          errorCode,
+        });
         let noted = false;
         return done.map((o) => {
           if (noted || isReaction(o) || o.to.kind !== 'group') return o;
@@ -693,11 +734,18 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
           // An auto-approved ask never had a card or an expiry job: give it
           // one now, so an unretried one still ends with the one VOICE §6.4 line.
           if (auto) scheduleExpiry(proposal, ctx.decision, proposal.groupId);
-          return [text(proposal.groupId, chargeFailedText(proposal.description, !auto))];
+          return [
+            text(proposal.groupId, chargeFailedText(proposal.description, !auto, proposal.kind)),
+          ];
         }
         setStatus(proposal.proposalId, 'failed');
         scheduler.cancel(expiryJobId(proposal.proposalId));
-        return [terminalLine(proposal, bookingFailedText(proposal.description, result.retriable))];
+        return [
+          terminalLine(
+            proposal,
+            bookingFailedText(proposal.description, result.retriable, proposal.kind),
+          ),
+        ];
       }
     }
   }
@@ -775,7 +823,7 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
         decision: next.decision,
         item: {
           name: p.description,
-          headline: shortEventName(p.description),
+          headline: bookingHeadline(p),
           ...(next.activity?.venue !== undefined ? { venue: next.activity.venue } : {}),
           ...(next.activity?.startsAt !== undefined ? { startsAt: next.activity.startsAt } : {}),
           ...(next.activity?.endsAt !== undefined ? { endsAt: next.activity.endsAt } : {}),
@@ -812,10 +860,7 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
       ids,
     };
     // "flights to BCN" keeps its airport code (VOICE: IATA codes stay upper case).
-    const headline =
-      booking.kind === 'flight'
-        ? sanitizeInline(booking.description, 60)
-        : shortEventName(booking.description);
+    const headline = bookingHeadline(booking);
     try {
       const dms: OutboundMessage[] = [];
       const tickets: { memberId: MemberId; ticketCardId: string }[] = [];
@@ -978,7 +1023,7 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
     return reject(
       ctx,
       signature(event, sender),
-      addOnDropLine(ctx) ?? `dropped ${shortEventName(proposal.description)}. no charge`,
+      addOnDropLine(ctx) ?? `dropped ${bookingHeadline(proposal)}. no charge`,
     );
   }
 
@@ -1106,7 +1151,7 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
         ctx,
         signature(event, sender),
         addOnDropLine(ctx) ??
-          `dropped ${shortEventName(proposal.description)}, nobody's left on it. no charge`,
+          `dropped ${bookingHeadline(proposal)}, nobody's left on it. no charge`,
       );
     }
     return supersede(ctx, 'payers_changed', rest, {

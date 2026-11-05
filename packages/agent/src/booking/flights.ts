@@ -45,6 +45,7 @@ import { approval, flights as coreFlights, formatMoney, money, parseIso } from '
 import type { FlightOffer, FlightSearchRequest, FlightsAdapter } from '@trav/adapters';
 import { toFlightChoice } from '@trav/adapters';
 import { sanitizeInline } from '../context/groupContext.js';
+import { possessive } from '../render/common.js';
 import { carrierOf, payersFor, type PayerRule } from './payers.js';
 import { weekdayName } from './request.js';
 import type { ProposeContext, ProposeInput, ProposeResult } from './proposals.js';
@@ -151,23 +152,41 @@ export interface FlightPlan {
  * that outlives its runtime would point at nothing. A newer search replaces it.
  */
 export interface FlightPlanStore {
+  /** Keeps `plan` as its group's latest (same `planId` ⇒ an update of that plan). */
   save(plan: FlightPlan): void;
   latest(groupId: GroupId): FlightPlan | undefined;
+  /** A plan by id, the latest or one a newer search replaced (so an old card can say so). */
   get(planId: string): FlightPlan | undefined;
+  /** Which option of the latest plan a proposed flight set (`itemRef`) came from. */
+  noteProposed(itemRef: string, planId: string, optionIndex: number): void;
+  proposedFrom(
+    itemRef: string,
+  ): { readonly planId: string; readonly optionIndex: number } | undefined;
 }
+
+/** Plans kept by id per group (the latest plus the few it replaced). */
+const PLANS_KEPT_PER_GROUP = 5;
 
 export function createFlightPlanStore(): FlightPlanStore {
   const byGroup = new Map<GroupId, FlightPlan>();
   const byId = new Map<string, FlightPlan>();
+  const order = new Map<GroupId, string[]>();
+  const proposed = new Map<string, { planId: string; optionIndex: number }>();
   return {
     save(plan) {
-      const prior = byGroup.get(plan.groupId);
-      if (prior !== undefined) byId.delete(prior.planId);
       byGroup.set(plan.groupId, plan);
       byId.set(plan.planId, plan);
+      const ids = (order.get(plan.groupId) ?? []).filter((id) => id !== plan.planId);
+      ids.push(plan.planId);
+      while (ids.length > PLANS_KEPT_PER_GROUP) byId.delete(ids.shift()!);
+      order.set(plan.groupId, ids);
     },
     latest: (groupId) => byGroup.get(groupId),
     get: (planId) => byId.get(planId),
+    noteProposed(itemRef, planId, optionIndex) {
+      proposed.set(itemRef, { planId, optionIndex });
+    },
+    proposedFrom: (itemRef) => proposed.get(itemRef),
   };
 }
 
@@ -547,6 +566,9 @@ interface LivePick extends FlightPick {
   readonly penaltyMinor: number;
 }
 
+export const REPLACED_OPTIONS_TEXT =
+  "those flight options were replaced by a newer search, so nothing's booked\npick from the newer card";
+
 export const NO_FLIGHT_OPTIONS_TEXT =
   "there are no flight options up right now, so nothing's booked\n@ me with who flies from where and when, and i'll find some";
 
@@ -631,9 +653,7 @@ export interface ProposeFlightsDeps {
       readonly members: { listByGroup(groupId: GroupId): readonly Member[] };
       readonly bookings: {
         listPendingProposals(groupId: GroupId): readonly BookingProposal[];
-        getBookingByKey(
-          key: string,
-        ):
+        getBookingByKey(key: string):
           | {
               readonly bookingId: string;
               readonly description: string;
@@ -652,15 +672,45 @@ function chosenOption(
   input: ProposeInput,
   groupId: GroupId,
   trip: Trip,
-): { plan: FlightPlan; option: FlightPlanOption } | { text: string; clarify?: true } {
+):
+  | { plan: FlightPlan; option: FlightPlanOption; roster?: readonly MemberId[] }
+  | { text: string; clarify?: true } {
   const set = input.itemRef === undefined ? undefined : decodeFlightSet(input.itemRef);
   const plan = plans.latest(groupId);
   if (plan === undefined || plan.tripId !== trip.tripId) return { text: NO_FLIGHT_OPTIONS_TEXT };
   if (set !== undefined) {
-    // A re-quote ("not me", a price change): the option holding these offers.
-    const ids = new Set(set.map((p) => p.offerId));
-    const option = plan.options.find((o) => o.picks.some((p) => ids.has(p.offerId)));
-    return option === undefined ? { text: NO_FLIGHT_OPTIONS_TEXT } : { plan, option };
+    // A re-quote ("not me", a price change): exactly the set's own flights,
+    // each traveler on the offer they were proposed (never another option's),
+    // under the option number it was proposed as.
+    const from = plans.proposedFrom(input.itemRef!);
+    if (from !== undefined && from.planId !== plan.planId) return { text: NO_FLIGHT_OPTIONS_TEXT };
+    const all = plan.options.flatMap((o) => o.picks);
+    const picks = set.map((part) =>
+      all.find((p) => p.memberId === part.memberId && p.offerId === part.offerId),
+    );
+    if (picks.some((p) => p === undefined)) return { text: NO_FLIGHT_OPTIONS_TEXT };
+    const own = picks as FlightPick[];
+    const index =
+      from?.optionIndex ??
+      plan.options.find((o) =>
+        own.every((p) => o.picks.some((q) => q.memberId === p.memberId && q.offerId === p.offerId)),
+      )?.index;
+    if (index === undefined) return { text: NO_FLIGHT_OPTIONS_TEXT };
+    const base = plan.options.find((o) => o.index === index)!;
+    return {
+      plan,
+      roster: base.picks.map((p) => p.memberId),
+      option: {
+        ...base,
+        picks: own,
+        totalMinor: own.reduce((s, p) => s + p.priceMinor, 0),
+        allRefundable: own.every((p) => p.refundable),
+      },
+    };
+  }
+  // A tap names its own card: one a newer search replaced books nothing.
+  if (input.planId !== undefined && input.planId !== plan.planId) {
+    return { text: REPLACED_OPTIONS_TEXT };
   }
   const n = input.option ?? (plan.options.length === 1 ? 1 : undefined);
   const option = n === undefined ? undefined : plan.options.find((o) => o.index === n);
@@ -736,8 +786,18 @@ export function renderFlightProposalText(input: {
       ? ''
       : ` (${carried
           .map((id) => {
+            // Whoever carries the fare: their guardian when paying, else the one payer.
             const g = byId.get(id)?.guardianMemberId;
-            return `${nameIn(members, id)}'s on ${g === undefined ? 'a guardian' : nameIn(members, g)}'s`;
+            const carrier =
+              g !== undefined && payerIds.includes(g)
+                ? g
+                : payerIds.length === 1
+                  ? payerIds[0]
+                  : undefined;
+            const who = possessive(nameIn(members, id));
+            return carrier === undefined
+              ? `${who} on a guardian's`
+              : `${who} on ${possessive(nameIn(members, carrier))}`;
           })
           .join(', ')})`;
   lines.push(
@@ -850,6 +910,8 @@ export async function proposeFlights(a: {
       : { kind: 'unavailable', reason: 'not_found', text: chosen.text };
   }
   const { plan, option } = chosen;
+  // Who the option was for: "not" names everyone dropped since, across re-quotes.
+  const roster = chosen.roster ?? option.picks.map((p) => p.memberId);
   const members = deps.stores.group.members.listByGroup(ctx.groupId);
   const order = members.map((m) => m.memberId);
 
@@ -882,7 +944,7 @@ export async function proposeFlights(a: {
       problems: ['empty_roster'],
     };
   }
-  const excluded = onOption.filter((id) => !picks.some((p) => p.memberId === id));
+  const excluded = roster.filter((id) => !picks.some((p) => p.memberId === id));
 
   // ---- the live fares, from the provider (never the plan's numbers) ----
   const live: LivePick[] = [];
@@ -911,17 +973,14 @@ export async function proposeFlights(a: {
   if (renamed.size > 0) {
     deps.plans.save({
       ...plan,
-      options: plan.options.map((o) =>
-        o.index !== option.index
-          ? o
-          : {
-              ...o,
-              picks: o.picks.map((p) => {
-                const x = renamed.get(p.offerId);
-                return x === undefined ? p : { ...p, offerId: x.offerId };
-              }),
-            },
-      ),
+      // Every option that holds the re-found offer follows it (options share fares).
+      options: plan.options.map((o) => ({
+        ...o,
+        picks: o.picks.map((p) => {
+          const x = renamed.get(p.offerId);
+          return x === undefined || x.memberId !== p.memberId ? p : { ...p, offerId: x.offerId };
+        }),
+      })),
     });
   }
   const attendees = live.map((x) => x.memberId);
@@ -950,6 +1009,8 @@ export async function proposeFlights(a: {
   const itemRef = encodeFlightSet(
     live.map((x) => ({ memberId: x.memberId, offerId: x.offerId, totalMinor: x.priceMinor })),
   );
+  // A later re-quote of this set keeps its option number (and its flights).
+  deps.plans.noteProposed(itemRef, plan.planId, option.index);
   const inTrip = plan.departDate >= trip.startDate && plan.departDate <= trip.endDate;
   const eventDate: IsoDate | '' = inTrip ? plan.departDate : '';
   const key = approval.deriveIdempotencyKey({

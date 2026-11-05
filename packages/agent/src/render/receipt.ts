@@ -206,7 +206,27 @@ export function renderReceipt(
   }
 
   if (booking.paidBy.kind === 'per_person_cards') {
-    lines.push('each on your own card, nothing to split');
+    // A traveler who pays nothing themselves (a minor) is on whoever carries
+    // their fare: the same "Sam's on Dean's" note the proposal said (T-074).
+    const payerIds = facts.payers.map((p) => p.memberId);
+    const carried = facts.attendees.filter((id) => !payerIds.includes(id));
+    const notes = carried.map((id) => {
+      const guardian = ctx.members.find((m) => m.memberId === id)?.guardianMemberId;
+      const carrier =
+        guardian !== undefined && payerIds.includes(guardian)
+          ? guardian
+          : payerIds.length === 1
+            ? payerIds[0]
+            : undefined;
+      return carrier === undefined
+        ? `${possessive(nameOf(ctx, id))} on a guardian's`
+        : `${possessive(nameOf(ctx, id))} on ${possessive(nameOf(ctx, carrier))}`;
+    });
+    lines.push(
+      notes.length === 0
+        ? 'each on your own card, nothing to split'
+        : `each on your own card (${notes.join(', ')}), nothing to split`,
+    );
   } else {
     const holder = booking.paidBy.memberId;
     const debtors = split.filter((p) => p.memberId !== holder);

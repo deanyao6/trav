@@ -164,6 +164,13 @@ export interface FlightsAdapter {
    * ApprovalProof is expired, for another group, or below the total; with
    * "price_changed" if expectedTotal no longer matches. Same idempotencyKey
    * returns the original order instead of booking twice.
+   *
+   * TODO(real adapter, D-040): a group set is one order per traveler, so a
+   * real provider can leave a set half-booked. Only a definite refusal means
+   * "not charged"; a timeout or a 5xx after the request was sent must come back
+   * as `provider_unavailable` (outcome unknown), and the adapter must support
+   * finding the order by `idempotencyKey` so the executor can compensate (keep
+   * it, or cancel it through the approval path) before telling the group.
    */
   createOrder(request: CreateFlightOrderRequest): Promise<Result<FlightOrder>>;
 

@@ -311,3 +311,47 @@ describe('reactions and empty groups', () => {
     expect(g.typing).toBe(false);
   });
 });
+
+describe('group flight options cards (T-074 review r1 #2)', () => {
+  function flightOptions(cardId: string): RichCard {
+    return {
+      cardId,
+      type: 'options',
+      title: 'flights into BCN',
+      fallbackText: 'flights for 6 into BCN thu mar 12',
+      context: 'flights for 6 into BCN thu mar 12',
+      options: [
+        {
+          id: `${cardId}#1`,
+          index: 1,
+          label: 'everyone lands within 3h',
+          price: eur(295600),
+          refundable: true,
+          tradeoff: '',
+        },
+      ],
+      pickAction: { id: 'pick', label: 'Book this one', style: 'secondary', textAliases: [] },
+      status: 'pending',
+    };
+  }
+  const stateOf = (e: ReturnType<typeof buildGroupThread>[number] | undefined) =>
+    e?.kind === 'message' ? e.cardState : undefined;
+
+  it('a newer search drops the older card (buttons dead); the newest stays pickable', () => {
+    const thread = buildGroupThread(
+      BARCELONA,
+      view([
+        msg({ card: flightOptions('card_a') }),
+        msg({ text: 'hm' }),
+        msg({ card: flightOptions('card_b') }),
+      ]),
+      AT,
+    );
+    expect(stateOf(thread[0])).toMatchObject({
+      status: 'dropped',
+      label: 'Replaced by newer flight options',
+      liveActionIds: [],
+    });
+    expect(stateOf(thread[2])).toEqual({ status: 'pending', liveActionIds: ['pick'] });
+  });
+});

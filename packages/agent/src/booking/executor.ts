@@ -122,10 +122,9 @@ export type ExecuteResult =
       readonly auditEventIds: readonly AuditEventId[];
       /**
        * A group flight set where some orders landed and the rest did not
-       * (T-074, D-040): the booking covers only who is booked; `missing` were
-       * not booked and not charged.
+       * (T-074, D-040): the booking covers only who is booked.
        */
-      readonly partial?: { readonly missing: readonly MemberId[]; readonly errorCode: string };
+      readonly partial?: FlightSetShortfall;
     }
   | {
       readonly kind: 'duplicate';
@@ -231,11 +230,18 @@ interface Purchased {
    * A flight set where an order failed after others landed: who is booked
    * (the totals above are theirs alone), who is not, and why.
    */
-  readonly partial?: {
-    readonly booked: readonly MemberId[];
-    readonly missing: readonly MemberId[];
-    readonly errorCode: string;
-  };
+  readonly partial?: FlightSetShortfall & { readonly booked: readonly MemberId[] };
+}
+
+/**
+ * Who a partial flight set did not book (T-074): `failed`, the traveler(s)
+ * of the order the provider refused (`errorCode`); `notSent`, everyone after
+ * it, whose orders were never placed (Trav stops at the first failure).
+ */
+export interface FlightSetShortfall {
+  readonly failed: readonly MemberId[];
+  readonly notSent: readonly MemberId[];
+  readonly errorCode: string;
 }
 
 /** One provider flight order of a proposal: the offer, who flies on it, the fare approved for it. */
@@ -749,11 +755,18 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
           if (!res.ok) {
             if (landed.length === 0) return res;
             // Some fares are bought: they stand, and the booking covers only
-            // them; the rest were not booked and not charged.
+            // them. This order was refused; the ones after it are never sent.
+            // TODO(real flights adapter): a real airline can fail ambiguously
+            // (a timeout after the order landed). Before any real provider,
+            // add a compensating step here: look the order up by its
+            // idempotency key (`getOrder`) and either keep it in the booking
+            // or cancel it through the approval path; until then only a
+            // definite refusal may be reported as "not charged" (D-040).
             return ok(
               flightPurchase(landed, {
                 booked: landed.flatMap((l) => l.part.memberIds),
-                missing: parts.slice(i).flatMap((p) => p.memberIds),
+                failed: part.memberIds,
+                notSent: parts.slice(i + 1).flatMap((p) => p.memberIds),
                 errorCode: res.error.code,
               }),
             );
@@ -1275,7 +1288,8 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
         ...(purchased.partial !== undefined
           ? {
               partial: {
-                missing: purchased.partial.missing,
+                failed: purchased.partial.failed,
+                notSent: purchased.partial.notSent,
                 errorCode: purchased.partial.errorCode,
                 approvedTotalMinor: proposal.totalMinor,
               },
@@ -1337,7 +1351,8 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
       ...(purchased.partial !== undefined
         ? {
             partial: {
-              missing: purchased.partial.missing,
+              failed: purchased.partial.failed,
+              notSent: purchased.partial.notSent,
               errorCode: purchased.partial.errorCode,
             },
           }

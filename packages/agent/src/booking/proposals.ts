@@ -102,6 +102,8 @@ export interface ProposeInput {
   readonly areas?: readonly string[];
   /** Flights: the option number on the latest flight options card ("book option 1"), T-074. */
   readonly option?: number;
+  /** Flights: the options card the pick came from (a tap); a card a newer search replaced books nothing. */
+  readonly planId?: string;
   /** Exactly who is going; wins over quantity and roster. */
   readonly attendeeMemberIds?: readonly MemberId[];
   /** Named out ("Henry's sick"), by id or by display name. */
@@ -326,6 +328,18 @@ function inOrder(ids: Iterable<MemberId>, order: readonly MemberId[]): MemberId[
 export function shortEventName(name: string): string {
   const head = name.split(/[:·|]/)[0] ?? name;
   return sanitizeInline(head, 40).toLowerCase();
+}
+
+/**
+ * What Trav calls a booking in a one-line status ("razzmatazz", "flights to
+ * BCN"): a flight set keeps its airport code upper case (T-074), everything
+ * else is the event's short lowercase name.
+ */
+export function bookingHeadline(p: {
+  readonly kind?: BookingProposal['kind'] | undefined;
+  readonly description: string;
+}): string {
+  return p.kind === 'flight' ? sanitizeInline(p.description, 60) : shortEventName(p.description);
 }
 
 function tripStartIso(trip: Trip): IsoDateTime {

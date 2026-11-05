@@ -41,6 +41,7 @@ import {
   decodeFlightSet,
   encodeFlightSet,
   NO_FLIGHT_OPTIONS_TEXT,
+  REPLACED_OPTIONS_TEXT,
   planGroupFlights,
   wallClock,
   type GroupFlightAsk,
@@ -515,6 +516,126 @@ describe('flights in chat (T-074): ask → options → "book option 1" → every
     expect(h.auditTypes()).toContain('approval.invalidated');
   });
 
+  /** Each traveler's offer on an option, by member. */
+  const offersOf = (p: BookingProposal): Map<string, string> =>
+    new Map(decodeFlightSet(p.itemRef)!.map((x) => [x.memberId, x.offerId] as const));
+
+  it('"not me" on option 3 re-quotes option 3: the same flights for everyone left, never option 1 (review r1 #1)', async () => {
+    const { h, flights } = planning();
+    const { card } = await options(h);
+    const { msg, proposal } = await bookOption(h, 3);
+    expect(msg.text).toMatch(/^option 3, flights for 6/);
+    expect(proposal.totalMinor).toBe(card.options[2]!.price.amountMinor);
+    const out = await h.tap('h_sam', msg.id, 'not_me');
+    const next = group(out).find((m) => m.card?.type === 'booking_proposal')!;
+    expect(next.text).toMatch(/^option 3, flights for 5 \(not Sam\)/);
+    const fresh = h.pending().find((p) => p.kind === 'flight')!;
+    const before = offersOf(proposal);
+    const after = offersOf(fresh);
+    expect([...after.keys()].sort()).toEqual(
+      [...before.keys()].filter((id) => id !== 'mem_sam').sort(),
+    );
+    for (const [member, offer] of after) expect(offer).toBe(before.get(member));
+    const samFare = decodeFlightSet(proposal.itemRef)!.find((p) => p.memberId === 'mem_sam')!;
+    expect(fresh.totalMinor).toBe(proposal.totalMinor - samFare.totalMinor);
+    // A second "not me" on the fresh card still stays on option 3.
+    const again = await h.tap('h_jordan', next.id, 'not_me');
+    expect(group(again).find((m) => m.card?.type === 'booking_proposal')?.text).toMatch(
+      // Everyone off option 3 since it was posted, in member order.
+      /^option 3, flights for 4 \(not Jordan, Sam\)/,
+    );
+    expect(flights.orders).toEqual([]);
+  });
+
+  it('a fare that moves on option 2 re-quotes option 2 on the same flights at the new fare', async () => {
+    const { h, flights } = planning();
+    await options(h);
+    const { msg, proposal } = await bookOption(h, 2);
+    const priya = decodeFlightSet(proposal.itemRef)!.find((p) => p.memberId === 'mem_priya')!;
+    flights.bump.set(priya.offerId, 2500);
+    let last: TurnResult | undefined;
+    for (const handle of HANDLES) last = await h.tap(handle, msg.id, 'approve');
+    expect(flights.orders).toEqual([]);
+    const requote = h.pending().find((p) => p.kind === 'flight')!;
+    expect(requote.proposalId).not.toBe(proposal.proposalId);
+    expect(offersOf(requote)).toEqual(offersOf(proposal));
+    expect(requote.totalMinor).toBe(proposal.totalMinor + 2500);
+    expect(
+      group(last!)
+        .map((m) => m.text)
+        .join('\n'),
+    ).toMatch(/option 2, flights for 6/);
+  });
+
+  it("the mock airline's own re-price (11 min later) on option 3: the repost is option 3, same flights", async () => {
+    const { h, flights } = planning();
+    await options(h);
+    const { msg, proposal } = await bookOption(h, 3);
+    h.clock.advanceMs(11 * 60 * 1000);
+    let last: TurnResult | undefined;
+    for (const handle of HANDLES) last = await h.tap(handle, msg.id, 'approve');
+    expect(flights.inner.purchaseCount()).toBe(0);
+    const requote = h.pending().find((p) => p.kind === 'flight');
+    expect(requote).toBeDefined();
+    expect(requote!.proposalId).not.toBe(proposal.proposalId);
+    expect(offersOf(requote!)).toEqual(offersOf(proposal));
+    expect(requote!.totalMinor).not.toBe(proposal.totalMinor);
+    expect(
+      group(last!)
+        .map((m) => m.text)
+        .join('\n'),
+    ).toMatch(/^option 3, flights for 6/m);
+  });
+
+  it('a tap on an options card a newer search replaced books nothing and points at the newer card (review r1 #2)', async () => {
+    const { h } = planning();
+    const { msg: old, card: oldCard } = await options(h);
+    const { msg: latest, card: newCard } = await options(h);
+    expect(newCard.cardId).not.toBe(oldCard.cardId);
+    const stale = await h.tap('h_maya', old.id, 'pick', oldCard.options[0]!.id);
+    expect(group(stale).map((m) => m.text)).toEqual([REPLACED_OPTIONS_TEXT]);
+    expect(h.pending()).toEqual([]);
+    const ok = await h.tap('h_maya', latest.id, 'pick', newCard.options[0]!.id);
+    expect(group(ok).some((m) => m.card?.type === 'booking_proposal')).toBe(true);
+  });
+
+  it('the expiry line keeps the airport code: "flights to BCN proposal expired" (review r1 #3)', async () => {
+    const { h, flights } = planning();
+    await options(h);
+    await bookOption(h);
+    h.clock.advanceMs(20 * 60 * 1000);
+    const turns = await h.runtime.drain();
+    const texts = turns.flatMap((t) => group(t).map((m) => m.text));
+    expect(texts).toContain(
+      'flights to BCN proposal expired, no charge. @ me if you still want it',
+    );
+    expect(flights.orders).toEqual([]);
+  });
+
+  it('the receipt says whose fare a guardian carries: "(Sam\'s on Dean\'s)" (review r1 #4)', async () => {
+    const { h, flights } = planning();
+    const sam = h.runtime.stores.group.members.get('mem_sam')!;
+    h.runtime.stores.group.members.upsert({
+      ...sam,
+      ageBand: 'under18',
+      guardianMemberId: 'mem_dean',
+    } as Member);
+    await options(h);
+    const { msg, proposal } = await bookOption(h);
+    expect(msg.text).toMatch(
+      /each pays their own fare on their own card \(Sam's on Dean's\), nothing to split/,
+    );
+    const decision = h.runtime.stores.group.bookings.getDecision(proposal.proposalId)!.decision;
+    expect(decision.requiredApprovers).not.toContain('mem_sam');
+    let last: TurnResult | undefined;
+    for (const handle of HANDLES.filter((x) => x !== 'h_sam')) {
+      last = await h.tap(handle, msg.id, 'approve');
+    }
+    expect(flights.inner.purchaseCount()).toBe(6);
+    const receipt = group(last!).find((m) => m.card?.type === 'receipt');
+    expect(receipt?.text).toMatch(/each on your own card \(Sam's on Dean's\), nothing to split$/);
+  });
+
   it('an order that fails after others landed: the booking covers who is booked, the rest are told plainly, nothing bought twice', async () => {
     const { h, flights } = planning();
     await options(h);
@@ -533,11 +654,16 @@ describe('flights in chat (T-074): ask → options → "book option 1" → every
     const completed = h
       .audit()
       .find((e) => e.type === 'booking.completed' && e.proposalId === proposal.proposalId)!;
+    // Maya's order was refused; Jordan's, Priya's and Sam's were never sent.
     expect(completed.payload['partial']).toMatchObject({
-      missing: set.slice(2).map((p) => p.memberId),
+      failed: [set[2]!.memberId],
+      notSent: set.slice(3).map((p) => p.memberId),
       errorCode: 'sold_out',
       approvedTotalMinor: proposal.totalMinor,
     });
+    expect(flights.orders.map((o) => o.travelers[0]!.memberId)).toEqual(
+      set.slice(0, 3).map((p) => p.memberId),
+    );
     // One group message (VOICE §3.7): the receipt, then who isn't booked.
     const sent = group(last!);
     expect(sent).toHaveLength(1);
@@ -545,9 +671,13 @@ describe('flights in chat (T-074): ask → options → "book option 1" → every
     expect(lines.length).toBeLessThanOrEqual(6);
     expect(lines[0]).toMatch(/^booked ✅ flights to BCN, €[\d,]+$/);
     expect(lines[1]).toMatch(/^2 airline orders, refs in the card/);
-    expect(lines.slice(-2).join('\n')).toBe(
-      // Orders go out in member order: Dean and Henry landed, the third (Maya's) failed.
-      "flights for Maya, Jordan, Priya, Sam didn't go through, so they're not booked and nothing was charged for them\n@ me and i'll look again",
+    // Orders go out in member order: Dean and Henry landed, the third (Maya's) failed.
+    expect(lines.slice(-3).join('\n')).toBe(
+      [
+        "Maya's flight didn't go through, so it's not booked and not charged",
+        "i stopped there: Jordan, Priya, Sam weren't booked, nothing charged for them",
+        "@ me and i'll look again",
+      ].join('\n'),
     );
     // The grant is spent: another tap orders nothing more.
     await h.tap('h_henry', msg.id, 'approve');
@@ -555,14 +685,31 @@ describe('flights in chat (T-074): ask → options → "book option 1" → every
     expect(auditCore.verifyAuditChain(h.audit()).ok).toBe(true);
   });
 
-  it('partialFlightsText: one traveler or several, never a double negative', () => {
-    expect(partialFlightsText('Sam', 1)).toBe(
-      "Sam's flight didn't go through, so it's not booked and nothing was charged for it\n@ me and i'll look again",
+  it('partialFlightsText: the refused order, the unsent ones, and no "no charge" promise after an outage', () => {
+    const t = (over: Partial<Parameters<typeof partialFlightsText>[0]>) =>
+      partialFlightsText({
+        failed: 'Sam',
+        failedCount: 1,
+        notSent: '',
+        notSentCount: 0,
+        errorCode: 'sold_out',
+        ...over,
+      });
+    expect(t({})).toBe(
+      "Sam's flight didn't go through, so it's not booked and not charged\n@ me and i'll look again",
     );
-    expect(partialFlightsText('Priya, Sam', 2)).toMatch(
-      /^flights for Priya, Sam didn't go through/,
+    expect(t({ failed: 'James', notSent: 'Henry', notSentCount: 1 })).toBe(
+      "James' flight didn't go through, so it's not booked and not charged\ni stopped there: Henry wasn't booked, nothing charged for them\n@ me and i'll look again",
     );
-    expect(partialFlightsText('Priya, Sam', 2)).not.toMatch(/not not|aren't not/);
+    // A timeout or outage may have landed at the airline: never "not charged".
+    const unsure = t({ errorCode: 'provider_unavailable' });
+    expect(unsure).toBe(
+      "Sam's flight didn't confirm, so check with the airline before rebooking\n@ me and i'll look again",
+    );
+    expect(unsure).not.toMatch(/not charged/);
+    expect(t({ failed: 'Priya, Sam', failedCount: 2 })).toMatch(
+      /^flights for Priya, Sam didn't go through, so they're not booked/,
+    );
   });
 });
 

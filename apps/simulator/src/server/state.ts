@@ -202,6 +202,11 @@ function deriveProposalState(msg: TranscriptMessage, ctx: DeriveContext): CardSt
   return { status: 'pending', liveActionIds: liveIds(msg.actions, card) };
 }
 
+/** The group flights options card (`booking/flights.ts` titles it "flights into <IATA>"). */
+function isFlightOptions(card: RichCard): boolean {
+  return card.type === 'options' && /^flights into [A-Z]{3}$/.test(card.title);
+}
+
 function capitalize(s: string): string {
   return s.length === 0 ? s : s[0]!.toUpperCase() + s.slice(1);
 }
@@ -236,6 +241,25 @@ function deriveGenericState(msg: TranscriptMessage, ctx: DeriveContext): CardSta
   const actions = liveIds(msg.actions, card);
   if (card.type === 'options' && card.status !== 'pending') {
     return { status: card.status, label: capitalize(card.status), liveActionIds: [] };
+  }
+  // Group flight options (T-074): a newer search's card replaces this one, so
+  // its buttons go dead (a tap on it would book nothing anyway).
+  if (card.type === 'options' && isFlightOptions(card)) {
+    const newer = ctx.messages.find(
+      (m) =>
+        m.seq > msg.seq &&
+        m.direction === 'outbound' &&
+        m.card?.type === 'options' &&
+        isFlightOptions(m.card),
+    );
+    if (newer !== undefined) {
+      return {
+        status: 'dropped',
+        label: 'Replaced by newer flight options',
+        at: newer.at,
+        liveActionIds: [],
+      };
+    }
   }
   if (actions.length === 0) return undefined;
   const taps = ctx.taps.byMessage.get(msg.messageId) ?? [];

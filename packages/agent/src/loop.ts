@@ -97,7 +97,7 @@ import {
   TURN_FAILED_TEXT,
 } from './approval/text.js';
 import type { ProposalService, ProposeResult } from './booking/proposals.js';
-import { nightOf, shortEventName } from './booking/proposals.js';
+import { bookingHeadline, nightOf } from './booking/proposals.js';
 import { optionIndexOf } from './booking/flights.js';
 import type { BookingExecutor, ProviderRegistry } from './booking/executor.js';
 import { buildGroupContext, renderGroupPrompt, sanitizeInline } from './context/groupContext.js';
@@ -1011,7 +1011,8 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
   }
 
   function proposalLine(p: BookingProposal, i: number): string {
-    return `${i + 1}. ${shortEventName(p.description)} · ${formatMoney(money(p.totalMinor, p.currency))} · ${p.attendees.length} ticket${p.attendees.length === 1 ? '' : 's'}`;
+    const unit = p.kind === 'flight' ? 'traveler' : 'ticket';
+    return `${i + 1}. ${bookingHeadline(p)} · ${formatMoney(money(p.totalMinor, p.currency))} · ${p.attendees.length} ${unit}${p.attendees.length === 1 ? '' : 's'}`;
   }
 
   /** Members who have already 👍'd this proposal (the grant's signatures). */
@@ -1288,7 +1289,13 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     if (option === undefined) return silent('pick:no_option');
     const before = snapshotAudit(r.group.groupId);
     const res = await deps.proposals.propose(
-      { kind: 'flight', option, requestText: `tapped option ${String(option)}` },
+      // The tapped card's own plan (its cardId): an older card never books the latest plan.
+      {
+        kind: 'flight',
+        option,
+        planId: ref.cardId,
+        requestText: `tapped option ${String(option)}`,
+      },
       {
         groupId: r.group.groupId,
         tripId: r.trip?.tripId ?? null,
@@ -3224,7 +3231,7 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     const sent = await send(r, [
       message(
         r,
-        `${shortEventName(proposal.description)} proposal expired, no charge. @ me if you still want it`,
+        `${bookingHeadline(proposal)} proposal expired, no charge. @ me if you still want it`,
       ),
     ]);
     return {
