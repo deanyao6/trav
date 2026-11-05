@@ -285,7 +285,11 @@ export function seenKeyKey(namespace: string, key: string): string {
 export const runtimeStateSpec: TableSpec<RuntimeStateEntry> = {
   name: 'runtime_state',
   key: (e) => runtimeStateKey(e.namespace, e.groupId, e.key),
-  columns: { state_ns: (e) => e.namespace, group_id: (e) => e.groupId },
+  columns: {
+    state_ns: (e) => e.namespace,
+    group_id: (e) => e.groupId,
+    trip_id: (e) => e.tripId ?? null,
+  },
 };
 
 export const seenKeysSpec: TableSpec<StoredSeenKey> = {
@@ -308,6 +312,7 @@ export const privateRuntimeStateSpec: TableSpec<StoredPrivateRuntimeEntry> = {
     owner_member_id: (e) => e.ownerMemberId,
     state_ns: (e) => e.namespace,
     group_id: (e) => e.groupId,
+    trip_id: (e) => e.tripId ?? null,
   },
 };
 

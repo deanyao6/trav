@@ -191,7 +191,7 @@ describe('sqlite specifics', () => {
     const check = new DatabaseSync(path);
     const version = check.prepare('PRAGMA user_version').get() as { user_version: number };
     check.close();
-    expect(version.user_version).toBe(4);
+    expect(version.user_version).toBe(LATEST_SCHEMA_VERSION);
     const reopened = createSqliteStores({ ...deps('c'), sqlitePath: path });
     try {
       expect(reopened.group.groups.get('grp_barcelona')).toBeDefined();
@@ -201,6 +201,84 @@ describe('sqlite specifics', () => {
     } finally {
       reopened.close();
     }
+  });
+
+  it('T-185 r1: a version-4 database gets trip_id on its runtime-state tables, rows and order kept', () => {
+    const path = tempTravPath();
+    createSqliteStores({ ...deps('a'), sqlitePath: path }).close();
+    // Recreate the two tables exactly as V4 shipped them (no trip_id), with rows.
+    const db = new DatabaseSync(path);
+    db.exec(`
+      DROP TABLE runtime_state;
+      DROP TABLE private_runtime_state;
+      CREATE TABLE runtime_state (seq INTEGER PRIMARY KEY AUTOINCREMENT, pk TEXT NOT NULL UNIQUE,
+        state_ns TEXT, group_id TEXT, json TEXT NOT NULL);
+      CREATE INDEX runtime_state_ix_state_ns ON runtime_state(state_ns);
+      CREATE INDEX runtime_state_ix_group_id ON runtime_state(group_id);
+      CREATE TABLE private_runtime_state (seq INTEGER PRIMARY KEY AUTOINCREMENT, pk TEXT NOT NULL UNIQUE,
+        owner_member_id TEXT, state_ns TEXT, group_id TEXT, json TEXT NOT NULL);
+      CREATE INDEX private_runtime_state_ix_owner_member_id ON private_runtime_state(owner_member_id);
+      CREATE INDEX private_runtime_state_ix_state_ns ON private_runtime_state(state_ns);
+      CREATE INDEX private_runtime_state_ix_group_id ON private_runtime_state(group_id);
+      PRAGMA user_version = 4;
+    `);
+    const put = db.prepare(
+      'INSERT INTO runtime_state (pk, state_ns, group_id, json) VALUES (?, ?, ?, ?)',
+    );
+    for (const key of ['z', 'a']) {
+      const e = { namespace: 'card', groupId: 'grp_barcelona', key, value: key };
+      put.run(
+        JSON.stringify(['card', 'grp_barcelona', key]),
+        'card',
+        'grp_barcelona',
+        JSON.stringify(e),
+      );
+    }
+    db.prepare(
+      'INSERT INTO private_runtime_state (pk, owner_member_id, state_ns, group_id, json) VALUES (?, ?, ?, ?, ?)',
+    ).run(
+      JSON.stringify(['mem_dean', 'recent', 'grp_barcelona', 'dm']),
+      'mem_dean',
+      'recent',
+      'grp_barcelona',
+      JSON.stringify({
+        ownerMemberId: 'mem_dean',
+        namespace: 'recent',
+        groupId: 'grp_barcelona',
+        key: 'dm',
+        value: ['hi'],
+      }),
+    );
+    db.close();
+
+    const migrated = createSqliteStores({ ...deps('b'), sqlitePath: path });
+    try {
+      expect(migrated.group.runtime.list('card').map((e) => e.key)).toEqual(['z', 'a']);
+      expect(
+        migrated.private.getRuntimeState('mem_dean', 'recent', 'grp_barcelona', 'dm')?.value,
+      ).toEqual(['hi']);
+      migrated.group.runtime.put({
+        namespace: 'card',
+        groupId: 'grp_barcelona',
+        tripId: 'trip_barcelona',
+        key: 'n',
+        value: 1,
+      });
+      expect(migrated.group.runtime.list('card').map((e) => e.key)).toEqual(['z', 'a', 'n']);
+      expect(migrated.deleteTrip('trip_barcelona').runtime_state).toBe(1);
+      expect(migrated.group.runtime.list('card').map((e) => e.key)).toEqual(['z', 'a']);
+    } finally {
+      migrated.close();
+    }
+    const check = new DatabaseSync(path);
+    const cols = check
+      .prepare('PRAGMA table_info(runtime_state)')
+      .all()
+      .map((r) => String(r.name));
+    const version = Number(check.prepare('PRAGMA user_version').get()?.user_version);
+    check.close();
+    expect(cols).toEqual(['seq', 'pk', 'state_ns', 'group_id', 'trip_id', 'json']);
+    expect(version).toBe(5);
   });
 
   it('refuses a database whose schema is newer than this build', () => {

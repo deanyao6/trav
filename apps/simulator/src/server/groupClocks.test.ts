@@ -239,6 +239,7 @@ describe('T-095: each chat opens on its own trip, with its own clock', () => {
         importCardTransactions: () => Promise.reject(new Error('unused')),
         importEmailReceipts: () => Promise.reject(new Error('unused')),
         announceFamilyMode: () => Promise.resolve([]),
+        forgetRuntimeState: () => undefined,
         pendingCards: {
           byMessageId: () => undefined,
           pendingProposalsRequestedBy: () => [],

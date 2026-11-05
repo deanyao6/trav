@@ -13,6 +13,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import type {
   InboundReaction,
   MockBookingPayments,
@@ -282,3 +283,130 @@ describe('T-185: a restart mid-approval (same SQLite file, new runtime)', () => 
     expect(count(second, 'booking.completed')).toBe(1);
   }, 30_000);
 });
+
+/** Every row of every table in the file, as one string (the "SELECT json FROM …" repro, all tables). */
+function dumpFile(path: string): string {
+  const db = new DatabaseSync(path);
+  try {
+    const tables = db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+      .all()
+      .map((r) => String(r.name));
+    return tables.map((t) => JSON.stringify(db.prepare(`SELECT * FROM ${t}`).all())).join('\n');
+  } finally {
+    db.close();
+  }
+}
+
+describe('T-185 r1 #1: no QR code outlives its trip on disk', () => {
+  it('auto-buy, then "forget this trip", then a restart: no QR payload or image anywhere in the file', async () => {
+    const w = world();
+    const first = boot(w, 'a'); // the group's default auto-buy cap: the flagship ask buys at once
+    const turn = await first.agent.handleInbound(
+      await w.channel.injectMessage({ from: 'h_dean', text: RAZZMATAZZ_ASK }),
+    );
+    expect(w.tickets.purchaseCount()).toBe(1);
+    const ticketCards = turn.outbound.flatMap((o) =>
+      !isReaction(o) && o.card?.type === 'ticket' ? [o.card] : [],
+    );
+    expect(ticketCards).toHaveLength(5);
+    const secrets = ticketCards.flatMap((c) => [c.qr.payload, c.qr.dataUrl]);
+    // The agent still answers about a ticket DM in this life (memory only)…
+    const dmId = turn.outbound.find((o) => !isReaction(o) && o.card?.type === 'ticket')!.id;
+    expect(first.agent.pendingCards.byMessageId(dmId)?.card.type).toBe('ticket');
+    first.close();
+    // …but the QR is on disk only in ticket_artifacts, never in the runtime state.
+    let disk = dumpFile(w.path);
+    const artifactsOnly = disk.split('\n').filter((rows) => secrets.some((s) => rows.includes(s)));
+    expect(artifactsOnly).toHaveLength(1); // the ticket_artifacts table
+    const second = boot(w, 'b');
+    for (const id of FIVE) {
+      expect(JSON.stringify(second.stores.private.listRuntimeState(id, 'card'))).not.toContain(
+        'TRAV-MOCK-TICKET',
+      );
+    }
+    // The receipt card is filed under the trip, so it goes with it.
+    expect(second.stores.group.runtime.list('card').every((e) => e.tripId === T)).toBe(true);
+
+    const counts = second.stores.deleteTrip(T);
+    second.agent.forgetRuntimeState({ tripId: T });
+    expect(counts.ticket_artifacts).toBe(5);
+    expect(counts.runtime_state).toBeGreaterThan(0);
+    second.close();
+
+    const third = boot(w, 'c');
+    third.close();
+    disk = dumpFile(w.path);
+    for (const s of secrets) expect(disk).not.toContain(s);
+    expect(disk).not.toContain('TRAV-MOCK-TICKET');
+  }, 30_000);
+});
+
+describe('T-185 r1 #2 and #4: forgotten data stays forgotten; guests are not stored by handle', () => {
+  it('after "forget me" (deletePartition + forgetRuntimeState) the next DM does not write the old DM state back', async () => {
+    const w = world();
+    const r = boot(w, 'a');
+    const dm = async (text: string) =>
+      r.agent.handleInbound(await w.channel.injectMessage({ from: 'h_dean', text, lane: 'dm' }));
+    const mine = (ns: string): string =>
+      JSON.stringify(r.stores.private.listRuntimeState('mem_dean', ns));
+    const first = await dm('my sister flies in thursday');
+    const firstIds = first.outbound.map((o) => o.id);
+    // Before: Dean's DM words (lane guard) and Trav's reply (recent) are in his partition.
+    expect(mine('lane_text')).toContain('my sister');
+    expect(firstIds.some((id) => mine('recent').includes(id))).toBe(true);
+
+    r.stores.private.deletePartition('mem_dean');
+    r.agent.forgetRuntimeState({ memberId: 'mem_dean' });
+    const second = await dm('what time is dinner');
+    // Only the new state was written back, nothing from before the deletion.
+    expect(mine('lane_text')).toContain('what time is dinner');
+    expect(mine('lane_text')).not.toContain('my sister');
+    expect(firstIds.some((id) => mine('recent').includes(id))).toBe(false);
+    expect(second.outbound.some((o) => mine('recent').includes(o.id))).toBe(true);
+    r.close();
+    // And a restart has nothing of it to reload.
+    const again = boot(w, 'b');
+    expect(
+      JSON.stringify(again.stores.private.listRuntimeState('mem_dean', 'lane_text')),
+    ).not.toContain('my sister');
+  }, 30_000);
+
+  it('a guest is told once per group, stored as a hash (never the handle), and told again after the TTL', async () => {
+    const w = world();
+    const r = boot(w, 'a');
+    const ask = async () =>
+      r.agent.handleInbound(
+        await w.channel.injectMessage({ from: 'h_ava', text: '@trav book us a table' }),
+      );
+    expect((await ask()).note).toBe('guest:refused');
+    expect((await ask()).note).toBe('guest:told_once');
+    const rows = r.stores.group.runtime.list('guest_told_h');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.groupId).toBe(G);
+    expect(rows[0]!.key).toMatch(/^[0-9a-f]{64}$/);
+    r.close();
+    expect(runtimeTables(w.path)).not.toContain('h_ava');
+    // After a restart, still told once; 31 days later, told again.
+    const second = boot(w, 'b');
+    const again = async () =>
+      second.agent.handleInbound(
+        await w.channel.injectMessage({ from: 'h_ava', text: '@trav book us a table' }),
+      );
+    expect((await again()).note).toBe('guest:told_once');
+    w.clock.advanceHours(31 * 24);
+    expect((await again()).note).toBe('guest:refused');
+  }, 30_000);
+});
+
+/** The runtime-state tables of the file (the audit log records a guest's sender id by design, SAFETY §2.5). */
+function runtimeTables(path: string): string {
+  const db = new DatabaseSync(path);
+  try {
+    return ['runtime_state', 'private_runtime_state', 'seen_keys', 'scheduled_jobs']
+      .map((t) => JSON.stringify(db.prepare(`SELECT * FROM ${t}`).all()))
+      .join('\n');
+  } finally {
+    db.close();
+  }
+}

@@ -36,6 +36,12 @@ export function requireEntry(entry: RuntimeStateEntry): void {
   }
 }
 
+/** `{ tripId }` when the entry is tied to a trip, else nothing (a read gives back what was put). */
+export function tripPart(entry: RuntimeStateEntry): { tripId?: string } {
+  if (entry.tripId === undefined || entry.tripId === null) return {};
+  return { tripId: requireId(entry.tripId, 'tripId') };
+}
+
 export function createRuntimeStateRepository(backend: Backend): RuntimeStateRepository {
   const state = backend.table(runtimeStateSpec);
   const seen = backend.table(seenKeysSpec);
@@ -52,6 +58,7 @@ export function createRuntimeStateRepository(backend: Backend): RuntimeStateRepo
       state.upsert({
         namespace: entry.namespace,
         groupId: entry.groupId,
+        ...tripPart(entry),
         key: entry.key,
         value: entry.value,
       });

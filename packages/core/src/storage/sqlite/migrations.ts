@@ -85,11 +85,41 @@ const V4 = [
   table('private_runtime_state', ['owner_member_id', 'state_ns', 'group_id']),
 ].join('\n\n');
 
+/**
+ * Rebuilds a table with a new column list (migrations are append-only and V4
+ * has shipped). Rows keep their `seq` (so first-put order survives), `pk` and
+ * `json`; `carried` columns are copied, the new ones start NULL.
+ */
+const rebuild = (name: string, columns: readonly string[], carried: readonly string[]): string =>
+  [
+    `ALTER TABLE ${name} RENAME TO ${name}__old;`,
+    ...carried.map((c) => `DROP INDEX ${name}_ix_${c};`),
+    table(name, columns),
+    `INSERT INTO ${name} (seq, pk, ${carried.join(', ')}, json)`,
+    `  SELECT seq, pk, ${carried.join(', ')}, json FROM ${name}__old ORDER BY seq;`,
+    `DROP TABLE ${name}__old;`,
+  ].join('\n');
+
+/**
+ * T-185 r1 #1 (D-054): runtime state entries carry the trip they belong to,
+ * so "forget this trip" deletes them with it. Existing rows get NULL (not
+ * tied to a trip).
+ */
+const V5 = [
+  rebuild('runtime_state', ['state_ns', 'group_id', 'trip_id'], ['state_ns', 'group_id']),
+  rebuild(
+    'private_runtime_state',
+    ['owner_member_id', 'state_ns', 'group_id', 'trip_id'],
+    ['owner_member_id', 'state_ns', 'group_id'],
+  ),
+].join('\n\n');
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, sql: V1 },
   { version: 2, sql: V2 },
   { version: 3, sql: V3 },
   { version: 4, sql: V4 },
+  { version: 5, sql: V5 },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]?.version ?? 0;

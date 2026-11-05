@@ -16,23 +16,41 @@
  * it with the rest (`deletePartition`) and the group store never holds a DM.
  * `memory` keeps an entry in this process only (no owner to file it under).
  */
-import type { GroupId, MemberId, RuntimeStateEntry, Stores } from '@trav/core';
+import type { GroupId, MemberId, RuntimeStateEntry, Stores, TripId } from '@trav/core';
 import type { LaneTextGuard } from '../privacy/laneText.js';
 import { MAX_PRIVATE_TEXTS } from '../privacy/laneText.js';
 
+/**
+ * Where an entry is filed. `tripId` (T-185 r1 #1) ties it to a trip, so
+ * `Stores.deleteTrip` deletes it and `evictTrip` drops it from the cache.
+ */
 export type StateScope =
-  | { readonly kind: 'group'; readonly groupId: GroupId | null }
-  | { readonly kind: 'private'; readonly ownerId: MemberId; readonly groupId: GroupId | null }
+  | { readonly kind: 'group'; readonly groupId: GroupId | null; readonly tripId?: TripId | null }
+  | {
+      readonly kind: 'private';
+      readonly ownerId: MemberId;
+      readonly groupId: GroupId | null;
+      readonly tripId?: TripId | null;
+    }
   | { readonly kind: 'memory' };
 
 export const GROUP_WIDE: StateScope = { kind: 'group', groupId: null };
+export const MEMORY: StateScope = { kind: 'memory' };
 
-export function groupScope(groupId: GroupId | null): StateScope {
-  return { kind: 'group', groupId };
+export function groupScope(groupId: GroupId | null, tripId?: TripId | null): StateScope {
+  return tripId === undefined || tripId === null
+    ? { kind: 'group', groupId }
+    : { kind: 'group', groupId, tripId };
 }
 
-export function privateScope(ownerId: MemberId, groupId: GroupId | null): StateScope {
-  return { kind: 'private', ownerId, groupId };
+export function privateScope(
+  ownerId: MemberId,
+  groupId: GroupId | null,
+  tripId?: TripId | null,
+): StateScope {
+  return tripId === undefined || tripId === null
+    ? { kind: 'private', ownerId, groupId }
+    : { kind: 'private', ownerId, groupId, tripId };
 }
 
 /** The part of the `Map` API the loop uses. */
@@ -59,10 +77,49 @@ interface Slot<V> {
   readonly seq: number;
 }
 
+/** What "forget me" / "forget this trip" call so a cache never writes deleted data back (r1 #2). */
+export interface Evictable {
+  /** Drops every entry in `memberId`'s partition, from the cache and the store. */
+  evictOwner(memberId: MemberId): void;
+  /** Drops every entry filed under `tripId`, from the cache and the store. */
+  evictTrip(tripId: TripId): void;
+}
+
+/** Every persisted structure of one runtime, so one call evicts them all. */
+export interface RuntimeStateRegistry extends Evictable {
+  register(e: Evictable): void;
+}
+
+export function createRuntimeStateRegistry(): RuntimeStateRegistry {
+  const all: Evictable[] = [];
+  return {
+    register: (e) => {
+      all.push(e);
+    },
+    evictOwner: (memberId) => {
+      for (const e of all) e.evictOwner(memberId);
+    },
+    evictTrip: (tripId) => {
+      for (const e of all) e.evictTrip(tripId);
+    },
+  };
+}
+
 export interface RuntimeStateDeps {
   readonly stores: Stores;
   /** Every member whose private partition may hold this runtime's DM-lane state. */
   readonly owners: () => readonly MemberId[];
+  /** Each map and set built on these deps registers here (for eviction). */
+  readonly registry?: RuntimeStateRegistry;
+}
+
+export interface PersistedOptions {
+  /**
+   * At most this many entries (r1 #3): past it, the oldest (first put) is
+   * deleted from the cache and the store. Default: unbounded, for maps keyed
+   * by a group or lane (bounded by the number of groups and members).
+   */
+  readonly cap?: number;
 }
 
 function isWrapped(value: unknown): value is Wrapped {
@@ -74,10 +131,13 @@ function isWrapped(value: unknown): value is Wrapped {
   );
 }
 
+const tripOf = (scope: StateScope): TripId | null =>
+  scope.kind === 'memory' ? null : (scope.tripId ?? null);
+
 function sameScope(a: StateScope, b: StateScope): boolean {
   if (a.kind !== b.kind) return false;
   if (a.kind === 'memory' || b.kind === 'memory') return true;
-  if (a.groupId !== b.groupId) return false;
+  if (a.groupId !== b.groupId || tripOf(a) !== tripOf(b)) return false;
   return a.kind !== 'private' || (b.kind === 'private' && a.ownerId === b.ownerId);
 }
 
@@ -91,10 +151,12 @@ function loadNamespace(
     if (!isWrapped(e.value)) return;
     out.push({ key: e.key, value: e.value.v, scope, seq: e.value.s });
   };
-  for (const e of deps.stores.group.runtime.list(namespace)) take(e, groupScope(e.groupId));
+  for (const e of deps.stores.group.runtime.list(namespace)) {
+    take(e, groupScope(e.groupId, e.tripId));
+  }
   for (const owner of new Set(deps.owners())) {
     for (const e of deps.stores.private.listRuntimeState(owner, namespace)) {
-      take(e, privateScope(owner, e.groupId));
+      take(e, privateScope(owner, e.groupId, e.tripId));
     }
   }
   return out.sort((a, b) => a.seq - b.seq);
@@ -108,7 +170,14 @@ function write(
   w: Wrapped,
 ): void {
   if (scope.kind === 'memory') return;
-  const entry: RuntimeStateEntry = { namespace, groupId: scope.groupId, key, value: w };
+  const tripId = tripOf(scope);
+  const entry: RuntimeStateEntry = {
+    namespace,
+    groupId: scope.groupId,
+    ...(tripId !== null ? { tripId } : {}),
+    key,
+    value: w,
+  };
   if (scope.kind === 'group') deps.stores.group.runtime.put(entry);
   else deps.stores.private.putRuntimeState(scope.ownerId, entry);
 }
@@ -125,21 +194,26 @@ function remove(deps: RuntimeStateDeps, namespace: string, key: string, scope: S
  * Iteration is insertion order, like `Map`, across a restart too. Values must
  * be JSON (they are read back from JSON after a restart).
  */
-export class PersistedMap<V> implements MapLike<string, V> {
+export class PersistedMap<V> implements MapLike<string, V>, Evictable {
   private readonly slots = new Map<string, Slot<V>>();
   private nextSeq = 1;
+  private readonly cap: number;
 
   constructor(
     private readonly deps: RuntimeStateDeps,
     private readonly namespace: string,
     private readonly place: (key: string, value: V) => StateScope,
+    opts: PersistedOptions = {},
   ) {
+    this.cap = opts.cap ?? Number.POSITIVE_INFINITY;
     for (const row of loadNamespace(deps, namespace)) {
       // A key stored twice (moved between stores by a crash mid-move): the newest wins.
       this.slots.delete(row.key);
       this.slots.set(row.key, { value: row.value as V, scope: row.scope, seq: row.seq });
       this.nextSeq = Math.max(this.nextSeq, row.seq + 1);
     }
+    this.trim();
+    deps.registry?.register(this);
   }
 
   get size(): number {
@@ -171,6 +245,7 @@ export class PersistedMap<V> implements MapLike<string, V> {
     }
     write(this.deps, this.namespace, key, scope, { s: seq, v: value });
     this.slots.set(key, { value, scope, seq });
+    this.trim();
     return this;
   }
 
@@ -180,6 +255,31 @@ export class PersistedMap<V> implements MapLike<string, V> {
     remove(this.deps, this.namespace, key, old.scope);
     this.slots.delete(key);
     return true;
+  }
+
+  /** Deletes every entry for which `drop` holds (cache and store). */
+  deleteWhere(drop: (key: string, value: V, scope: StateScope) => boolean): number {
+    let n = 0;
+    for (const [key, slot] of [...this.slots]) {
+      if (drop(key, slot.value, slot.scope) && this.delete(key)) n += 1;
+    }
+    return n;
+  }
+
+  evictOwner(memberId: MemberId): void {
+    this.deleteWhere((_k, _v, s) => s.kind === 'private' && s.ownerId === memberId);
+  }
+
+  evictTrip(tripId: TripId): void {
+    this.deleteWhere((_k, _v, s) => tripOf(s) === tripId);
+  }
+
+  private trim(): void {
+    while (this.slots.size > this.cap) {
+      const oldest = this.slots.keys().next();
+      if (oldest.done === true) break;
+      this.delete(oldest.value);
+    }
   }
 
   *keys(): IterableIterator<string> {
@@ -199,12 +299,17 @@ export class PersistedMap<V> implements MapLike<string, V> {
   }
 }
 
-/** A `Set<string>` written through to the stores (see `PersistedMap`). */
+/** A `Set<string>` written through to the stores (see `PersistedMap`); evicted through it. */
 export class PersistedSet {
   private readonly map: PersistedMap<true>;
 
-  constructor(deps: RuntimeStateDeps, namespace: string, place: (key: string) => StateScope) {
-    this.map = new PersistedMap<true>(deps, namespace, (key) => place(key));
+  constructor(
+    deps: RuntimeStateDeps,
+    namespace: string,
+    place: (key: string) => StateScope,
+    opts: PersistedOptions = {},
+  ) {
+    this.map = new PersistedMap<true>(deps, namespace, (key) => place(key), opts);
   }
 
   get size(): number {
@@ -222,6 +327,14 @@ export class PersistedSet {
 
   delete(key: string): boolean {
     return this.map.delete(key);
+  }
+
+  evictOwner(memberId: MemberId): void {
+    this.map.evictOwner(memberId);
+  }
+
+  evictTrip(tripId: TripId): void {
+    this.map.evictTrip(tripId);
   }
 }
 

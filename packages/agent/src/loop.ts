@@ -63,6 +63,7 @@ import type {
   Scheduler,
   Stores,
   Trip,
+  TripId,
 } from '@trav/core';
 import {
   approval,
@@ -125,10 +126,13 @@ import {
   whichOptionText,
   type RosterCheck,
 } from './booking/rosterCheck.js';
+import { createHash } from 'node:crypto';
 import {
   GROUP_WIDE,
+  MEMORY,
   PersistedMap,
   PersistedSet,
+  createRuntimeStateRegistry,
   groupScope,
   persistLaneTextGuard,
   privateScope,
@@ -401,6 +405,13 @@ export interface TravAgent {
    * the DM-text guard and expense notices see it like every other send).
    */
   announceFamilyMode(groupId: string): Promise<readonly Outbound[]>;
+  /**
+   * T-185 r1 #2 (D-054): drops the agent's runtime state for a member (call
+   * with `PrivateStore.deletePartition`, "forget me") or a trip (with
+   * `Stores.deleteTrip`, "forget this trip"), from its caches and the stores,
+   * so a later write never puts deleted data back. Idempotent.
+   */
+  forgetRuntimeState(target: { readonly memberId: MemberId } | { readonly tripId: TripId }): void;
 }
 
 // ---------- constants (VOICE §4.12, §6.4) ----------
@@ -449,6 +460,18 @@ const DEFAULT_RECENT_LIMIT = 20;
 /** Member group lines kept per group for a ride receipt's "who left" read (T-135). */
 const RIDE_LINES_CAP = 300;
 const SEEN_CAP = 5000;
+/**
+ * T-185 r1 #3: the stored card index keeps the newest this many cards (all
+ * groups); older ones drop out of the cache and the store. A trip posts tens
+ * of cards a day and a booking card expires within hours, so a live card is
+ * never near the back.
+ */
+export const CARD_INDEX_CAP = 1000;
+/** T-185 r1 #3: "asked once" / "replied once" keys kept (newest first to stay). */
+export const ONCE_KEYS_CAP = 1000;
+/** T-185 r1 #4: guests told "members only" kept per runtime, by hashed handle, for 30 days. */
+export const GUEST_TOLD_CAP = 500;
+export const GUEST_TOLD_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 /** Member chat times kept per group for the Morning After signal (T-015): 2 days, at most 2000. */
 const CHAT_TIMES_KEEP_MS = 48 * 60 * 60 * 1000;
 const CHAT_TIMES_CAP = 2000;
@@ -801,8 +824,10 @@ export function createTravAgent(input: AgentDeps): TravAgent {
   // T-185 (D-054): the runtime state below is written through to the stores,
   // so a restart over the same SQLite file keeps pending cards, dedupe keys,
   // Trav's last questions and the lane guard's DM corpus (`state/persisted.ts`).
+  const stateRegistry = createRuntimeStateRegistry();
   const stateDeps: RuntimeStateDeps = {
     stores: input.stores,
+    registry: stateRegistry,
     owners: () =>
       input.stores.group.groups
         .list()
@@ -842,24 +867,37 @@ export function createTravAgent(input: AgentDeps): TravAgent {
   /** Lane transcripts: the group lane in the GroupStore, Trav's DMs in the member's partition. */
   const recent = new PersistedMap<GroupMessageSummary[]>(stateDeps, 'recent', laneScope);
   const lastQuestionAt = new PersistedMap<IsoDateTime>(stateDeps, 'last_question_at', laneScope);
+  /** Filed with the card it points at (`cardScope`), so it goes with the card's trip or owner. */
   const lastQuestionRef = new PersistedMap<PendingCardRef>(
     stateDeps,
     'last_question_ref',
     laneScope,
   );
   /**
-   * Trav's cards by message id. Filed where they were sent (`setIn`): a group
-   * card under its group, a DM card in the recipient's partition. The filing
-   * is also which group each card was sent in: the index never answers
-   * across groups (`cardGroupOf`).
+   * Trav's cards by message id. Filed where they were sent (`cardScope`): a
+   * group card under its group and trip, a DM card in the recipient's
+   * partition. The filing is also which group each card was sent in: the
+   * index never answers across groups (`cardGroupOf`). Ticket cards (QR codes)
+   * stay in this process only (T-185 r1 #1): the QR lives in
+   * `ticket_artifacts` alone, which "forget this trip" deletes.
    */
-  const cards = new PersistedMap<PendingCardRef>(stateDeps, 'card', () => ({ kind: 'memory' }));
+  const cards = new PersistedMap<PendingCardRef>(stateDeps, 'card', () => MEMORY, {
+    cap: CARD_INDEX_CAP,
+  });
+  /** The group of each memory-only card (tickets), for `cardGroupOf`. */
+  const memoryCardGroup = new Map<MessageId, GroupId>();
   const cardGroupOf = (messageId: MessageId): GroupId | undefined => {
     const scope = cards.scopeOf(messageId);
-    return scope === undefined || scope.kind === 'memory'
-      ? undefined
-      : (scope.groupId ?? undefined);
+    if (scope === undefined) return undefined;
+    if (scope.kind === 'memory') return memoryCardGroup.get(messageId);
+    return scope.groupId ?? undefined;
   };
+  /**
+   * Where a card (and every ref to it) is filed. A card that carries a QR is
+   * never written to the stores, whatever it is waiting for.
+   */
+  const cardScope = (ref: PendingCardRef, base: StateScope): StateScope =>
+    ref.card.type === 'ticket' || 'qr' in ref.card ? MEMORY : base;
   /** Trav's newest card in each group thread (any type): what a bare text pick may bind to (T-168). */
   const newestGroupCard = new PersistedMap<PendingCardRef>(stateDeps, 'newest_group_card', (g) =>
     groupScope(g),
@@ -870,8 +908,32 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     new PersistedMap<RosterCheck>(stateDeps, 'roster_check', (_k, v) => groupScope(v.groupId)),
   );
   /** T-198: options cards already answered with "which one?" (asked once, VOICE §2). */
-  const optionsNudged = new PersistedSet(stateDeps, 'options_nudged', () => GROUP_WIDE);
-  const guestsTold = new PersistedSet(stateDeps, 'guest_told', () => GROUP_WIDE);
+  const optionsNudged = new PersistedSet(stateDeps, 'options_nudged', () => GROUP_WIDE, {
+    cap: ONCE_KEYS_CAP,
+  });
+  /**
+   * T-185 r1 #4: guests already told "members only", per group. Keyed by a
+   * hash of (group, handle), never the raw handle; the value is when, so it
+   * lapses after `GUEST_TOLD_TTL_MS`. Rows of the first T-185 shape (raw
+   * handles, runtime-wide) are deleted on build.
+   */
+  for (const legacy of stores.group.runtime.list('guest_told')) {
+    stores.group.runtime.delete('guest_told', legacy.groupId, legacy.key);
+  }
+  const guestsTold = new PersistedMap<IsoDateTime>(stateDeps, 'guest_told_h', () => GROUP_WIDE, {
+    cap: GUEST_TOLD_CAP,
+  });
+  const guestKey = (groupId: GroupId, sender: string): string =>
+    createHash('sha256').update(`trav-guest\u0000${groupId}\u0000${sender}`).digest('hex');
+  const guestToldRecently = (groupId: GroupId, sender: string, now: IsoDateTime): boolean => {
+    const at = guestsTold.get(guestKey(groupId, sender));
+    return at !== undefined && parseIso(now) - parseIso(at) < GUEST_TOLD_TTL_MS;
+  };
+  const markGuestTold = (groupId: GroupId, sender: string, now: IsoDateTime): void => {
+    const key = guestKey(groupId, sender);
+    guestsTold.delete(key); // re-telling moves it to the back of the cap order
+    guestsTold.setIn(key, now, groupScope(groupId));
+  };
   /**
    * When members spoke in each group thread (T-015's "chat after midnight"
    * night-out signal). Times only, never text; guests and DMs never count.
@@ -1127,16 +1189,19 @@ export function createTravAgent(input: AgentDeps): TravAgent {
           ...(msg.expiresAt !== undefined ? { expiresAt: msg.expiresAt } : {}),
           sentAt: r.now,
         };
-        cards.setIn(
-          msg.id,
+        // T-185 r1 #1: filed under the turn's trip, so "forget this trip" takes it.
+        const tripId = r.trip?.tripId ?? null;
+        const filed = cardScope(
           ref,
           msg.to.kind === 'member'
-            ? privateScope(msg.to.memberId, r.group.groupId)
-            : groupScope(r.group.groupId),
+            ? privateScope(msg.to.memberId, r.group.groupId, tripId)
+            : groupScope(r.group.groupId, tripId),
         );
+        if (filed.kind === 'memory') memoryCardGroup.set(msg.id, r.group.groupId);
+        cards.setIn(msg.id, ref, filed);
         // T-168 r1 #1-2: a bare text pick binds only to Trav's newest group card.
-        if (msg.to.kind === 'group') newestGroupCard.set(r.group.groupId, ref);
-        if (/\?/.test(msg.text)) lastQuestionRef.set(key, ref);
+        if (msg.to.kind === 'group') newestGroupCard.setIn(r.group.groupId, ref, filed);
+        if (/\?/.test(msg.text)) lastQuestionRef.setIn(key, ref, filed);
       }
       if (/\?/.test(msg.text)) lastQuestionAt.set(key, r.now);
     }
@@ -2636,10 +2701,10 @@ export function createTravAgent(input: AgentDeps): TravAgent {
           auditEventIds: auditIdsSince(r.group.groupId, before),
         });
       }
-      if (guestsTold.has(event.sender)) {
+      if (guestToldRecently(r.group.groupId, event.sender, r.now)) {
         return silent('guest:told_once', { auditEventIds: auditIdsSince(r.group.groupId, before) });
       }
-      guestsTold.add(event.sender);
+      markGuestTold(r.group.groupId, event.sender, r.now);
       const sent = await send(r, [message(r, GUEST_REFUSAL_TEXT)]);
       return {
         outbound: sent,
@@ -3687,7 +3752,9 @@ export function createTravAgent(input: AgentDeps): TravAgent {
   // ---------- "i've paid" on the final settle card (T-141) ----------
 
   /** (card message, member) pairs already sent the current card for a stale 👍. */
-  const settleStaleReplied = new PersistedSet(stateDeps, 'settle_stale_replied', () => GROUP_WIDE);
+  const settleStaleReplied = new PersistedSet(stateDeps, 'settle_stale_replied', () => GROUP_WIDE, {
+    cap: ONCE_KEYS_CAP,
+  });
 
   /** A final settle_up card Trav posted in this group's thread. */
   function isFinalSettleCard(r: Resolved, ref: PendingCardRef): boolean {
@@ -4600,5 +4667,15 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     pendingCards,
     announceFamilyMode: (groupId) =>
       announceFamilyMode({ stores, clock, ids, sendTurn: deps.sendTurn }, groupId),
+    forgetRuntimeState(target) {
+      if ('memberId' in target) {
+        // The lane guard first: its own order lists must see the notes it drops.
+        for (const g of stores.group.groups.list())
+          laneText.forgetMember(g.groupId, target.memberId);
+        stateRegistry.evictOwner(target.memberId);
+      } else {
+        stateRegistry.evictTrip(target.tripId);
+      }
+    },
   };
 }

@@ -12,6 +12,7 @@ import {
   GROUP_WIDE,
   PersistedMap,
   PersistedSet,
+  createRuntimeStateRegistry,
   groupScope,
   persistLaneTextGuard,
   privateScope,
@@ -180,5 +181,100 @@ describe('persistLaneTextGuard (T-185 over T-213)', () => {
     const texts = JSON.stringify(stores.private.listRuntimeState(DEAN, 'lane_text'));
     expect(texts).not.toContain('secret number 4 is');
     expect(texts).toContain(`secret number ${String(MAX_PRIVATE_TEXTS + 4)} is`);
+  });
+});
+
+describe('caps (T-185 r1 #3)', () => {
+  it('past the cap the oldest entry goes from the cache and the store; an update keeps its age', () => {
+    const { stores, deps } = rig();
+    const m = new PersistedMap<number>(deps, 'card', () => groupScope(G), { cap: 3 });
+    for (const k of ['a', 'b', 'c']) m.set(k, 1);
+    m.set('a', 2); // an update, not a new entry: 'a' stays the oldest
+    m.set('d', 1);
+    expect([...m.keys()]).toEqual(['b', 'c', 'd']);
+    expect(stores.group.runtime.list('card').map((e) => e.key)).toEqual(['b', 'c', 'd']);
+    // A restart reads back at most the cap, and keeps trimming from there.
+    const again = new PersistedMap<number>(deps, 'card', () => groupScope(G), { cap: 3 });
+    again.set('e', 1);
+    expect([...again.keys()]).toEqual(['c', 'd', 'e']);
+    // A smaller cap on rebuild trims what was stored.
+    const smaller = new PersistedMap<number>(deps, 'card', () => groupScope(G), { cap: 1 });
+    expect([...smaller.keys()]).toEqual(['e']);
+    expect(stores.group.runtime.list('card')).toHaveLength(1);
+  });
+
+  it('a capped set stays at its cap across many adds', () => {
+    const { stores, deps } = rig();
+    const s = new PersistedSet(deps, 'options_nudged', () => GROUP_WIDE, { cap: 50 });
+    for (let i = 0; i < 500; i += 1) s.add(`card_${String(i)}`);
+    expect(s.size).toBe(50);
+    expect(s.has('card_449')).toBe(false);
+    expect(s.has('card_450')).toBe(true);
+    expect(stores.group.runtime.list('options_nudged')).toHaveLength(50);
+  });
+});
+
+describe('eviction (T-185 r1 #2)', () => {
+  it('evictOwner after deletePartition: the next set writes only the new value, never the old lines', () => {
+    const { stores, deps } = rig();
+    const recent = new PersistedMap<string[]>(deps, 'recent', () => GROUP_WIDE);
+    const key = `${G}:dm:${DEAN}`;
+    recent.setIn(key, ['old secret line'], privateScope(DEAN, G));
+    recent.setIn('chase', ['chase line'], privateScope(CHASE, G));
+
+    stores.private.deletePartition(DEAN);
+    recent.evictOwner(DEAN);
+    expect(recent.get(key)).toBeUndefined();
+    // The loop's pushRecent: read (now empty), append, set.
+    recent.setIn(key, [...(recent.get(key) ?? []), 'new line'], privateScope(DEAN, G));
+    expect(JSON.stringify(stores.private.listRuntimeState(DEAN, 'recent'))).not.toContain('old');
+    expect(stores.private.getRuntimeState(DEAN, 'recent', G, key)?.value).toMatchObject({
+      v: ['new line'],
+    });
+    // Another member is untouched.
+    expect(recent.get('chase')).toEqual(['chase line']);
+  });
+
+  it('without the evict, the stale cache would write the deleted lines back (what evictOwner prevents)', () => {
+    const { stores, deps } = rig();
+    const recent = new PersistedMap<string[]>(deps, 'recent', () => GROUP_WIDE);
+    recent.setIn('k', ['old secret line'], privateScope(DEAN, G));
+    stores.private.deletePartition(DEAN);
+    recent.setIn('k', [...(recent.get('k') ?? []), 'new'], privateScope(DEAN, G));
+    expect(JSON.stringify(stores.private.listRuntimeState(DEAN, 'recent'))).toContain('old');
+  });
+
+  it('evictTrip drops what is filed under the trip (group and private), from the cache and the store', () => {
+    const { stores, deps } = rig();
+    const cards = new PersistedMap<string>(deps, 'card', () => GROUP_WIDE);
+    cards.setIn('g_a', 'group card a', groupScope(G, 'trip_a'));
+    cards.setIn('d_a', 'dm card a', privateScope(DEAN, G, 'trip_a'));
+    cards.setIn('g_b', 'group card b', groupScope(G, 'trip_b'));
+    cards.setIn('none', 'no trip', groupScope(G));
+    expect(stores.group.runtime.get('card', G, 'g_a')?.tripId).toBe('trip_a');
+    cards.evictTrip('trip_a');
+    expect([...cards.keys()]).toEqual(['g_b', 'none']);
+    expect(stores.group.runtime.list('card').map((e) => e.key)).toEqual(['g_b', 'none']);
+    expect(stores.private.listRuntimeState(DEAN, 'card')).toEqual([]);
+    // The trip filing survives a restart (so deleteTrip can find it there too).
+    const again = new PersistedMap<string>(deps, 'card', () => GROUP_WIDE);
+    expect(again.scopeOf('g_b')).toEqual(groupScope(G, 'trip_b'));
+    expect(stores.deleteTrip('trip_b').runtime_state).toBe(1);
+  });
+
+  it('a registry evicts every map and set built on its deps', () => {
+    const { stores } = rig();
+    const registry = createRuntimeStateRegistry();
+    const deps: RuntimeStateDeps = { stores, owners: () => [DEAN, CHASE], registry };
+    const m = new PersistedMap<string>(deps, 'm', () => GROUP_WIDE);
+    const s = new PersistedSet(deps, 's', () => GROUP_WIDE);
+    m.setIn('x', 'v', privateScope(DEAN, G, 'trip_a'));
+    s.add('k');
+    registry.evictOwner(DEAN);
+    expect(m.size).toBe(0);
+    m.setIn('y', 'v', groupScope(G, 'trip_a'));
+    registry.evictTrip('trip_a');
+    expect(m.size).toBe(0);
+    expect(s.has('k')).toBe(true); // runtime-wide, no owner or trip
   });
 });

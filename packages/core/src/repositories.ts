@@ -202,6 +202,11 @@ export interface RuntimeStateEntry {
   readonly namespace: string;
   /** The group it belongs to; `null` for runtime-wide entries. */
   readonly groupId: GroupId | null;
+  /**
+   * The trip it belongs to, if any (T-185 r1 #1): `Stores.deleteTrip` deletes
+   * the entry with the trip. Absent or `null` ⇒ not tied to a trip.
+   */
+  readonly tripId?: TripId | null;
   readonly key: string;
   readonly value: unknown;
 }

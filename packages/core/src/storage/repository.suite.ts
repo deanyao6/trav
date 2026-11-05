@@ -1499,6 +1499,20 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         stores.group.audit.append(
           auditInput({ tripId, proposalId: `prop_${suffix}`, payload: { note: suffix } }),
         );
+        stores.group.runtime.put({
+          namespace: 'card',
+          groupId: G,
+          tripId,
+          key: `msg_${suffix}`,
+          value: { suffix },
+        });
+        stores.private.putRuntimeState(DEAN, {
+          namespace: 'card',
+          groupId: G,
+          tripId,
+          key: `dm_${suffix}`,
+          value: { qr: `QR-${suffix}` },
+        });
         stores.group.runtime.putJob({
           jobId: `morning_after:${suffix}`,
           groupId: G,
@@ -1545,11 +1559,18 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
           member_memory: 1,
           ticket_artifacts: 2,
           scheduled_jobs: 1,
+          runtime_state: 1,
+          private_runtime_state: 1,
           [AUDIT_REDACTED_COUNT_KEY]: 2,
         });
 
-        // Trip A: zero rows everywhere except audit; trip B's job is still queued.
+        // Trip A: zero rows everywhere except audit; trip B's job and state are still there.
         expect(stores.group.runtime.listJobs().map((j) => j.jobId)).toEqual(['morning_after:b']);
+        expect(stores.group.runtime.list('card').map((e) => [e.key, e.tripId])).toEqual([
+          ['msg_b', TRIP2],
+        ]);
+        expect(stores.private.listRuntimeState(DEAN, 'card').map((e) => e.key)).toEqual(['dm_b']);
+        expect(JSON.stringify(stores.private.listRuntimeState(DEAN, 'card'))).not.toContain('QR-a');
         expect(stores.group.trips.get(TRIP)).toBeUndefined();
         expect(stores.group.trips.getActivity('act_a')).toBeUndefined();
         expect(stores.group.trips.listAttendance('act_a')).toEqual([]);
@@ -1740,6 +1761,43 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         rt.put(entry('x|a|b', 2, 'g'));
         expect(rt.get('card', 'g|x', 'a|b')?.value).toBe(1);
         expect(rt.get('card', 'g', 'x|a|b')?.value).toBe(2);
+      });
+
+      it('tripId round-trips on both stores (absent or null ⇒ not stored) and an empty one is refused', () => {
+        const rt = stores.group.runtime;
+        rt.put({ namespace: 'card', groupId: G, tripId: TRIP, key: 't', value: 1 });
+        rt.put({ namespace: 'card', groupId: G, tripId: null, key: 'n', value: 2 });
+        expect(rt.get('card', G, 't')).toEqual({
+          namespace: 'card',
+          groupId: G,
+          tripId: TRIP,
+          key: 't',
+          value: 1,
+        });
+        expect(Object.keys(rt.get('card', G, 'n') ?? {})).not.toContain('tripId');
+        stores.private.putRuntimeState(DEAN, {
+          namespace: 'card',
+          groupId: G,
+          tripId: TRIP,
+          key: 'd',
+          value: 3,
+        });
+        expect(stores.private.getRuntimeState(DEAN, 'card', G, 'd')?.tripId).toBe(TRIP);
+        expectTravError(
+          () => rt.put({ namespace: 'card', groupId: G, tripId: '', key: 'x', value: 1 }),
+          'invalid_argument',
+        );
+        expectTravError(
+          () =>
+            stores.private.putRuntimeState(DEAN, {
+              namespace: 'card',
+              groupId: G,
+              tripId: '',
+              key: 'x',
+              value: 1,
+            }),
+          'invalid_argument',
+        );
       });
 
       it('rejects an empty namespace or group id and an undefined value', () => {

@@ -36,7 +36,7 @@ import {
   ticketArtifactsSpec,
 } from './schema.js';
 import { requireId } from './util.js';
-import { requireEntry, requireGroupScope, requireKey } from './runtimeState.js';
+import { requireEntry, requireGroupScope, requireKey, tripPart } from './runtimeState.js';
 
 function notOwner(table: string, ownerMemberId: string, itemId: string): TravError {
   // Ids only, never contents (SAFETY §2.9 logging rules).
@@ -76,7 +76,13 @@ function scopedPut<T>(
 
 /** The stored row without its partition column (the caller already knows the owner). */
 function toEntry(row: StoredPrivateRuntimeEntry): RuntimeStateEntry {
-  return { namespace: row.namespace, groupId: row.groupId, key: row.key, value: row.value };
+  return {
+    namespace: row.namespace,
+    groupId: row.groupId,
+    ...(row.tripId !== undefined && row.tripId !== null ? { tripId: row.tripId } : {}),
+    key: row.key,
+    value: row.value,
+  };
 }
 
 export function createPrivateStore(backend: Backend): PrivateStore {
@@ -286,6 +292,7 @@ export function createPrivateStore(backend: Backend): PrivateStore {
         ownerMemberId: o,
         namespace: entry.namespace,
         groupId: entry.groupId,
+        ...tripPart(entry),
         key: entry.key,
         value: entry.value,
       });

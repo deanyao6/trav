@@ -23,7 +23,9 @@ import {
   memberMemorySpec,
   pendingItemsSpec,
   proposalsSpec,
+  privateRuntimeStateSpec,
   receiptScansSpec,
+  runtimeStateSpec,
   scheduledJobsSpec,
   settlementsSpec,
   ticketArtifactsSpec,
@@ -66,6 +68,8 @@ export function createStoresOnBackend(backend: Backend, deps: StoreDeps): Stores
   const memberMemory = backend.table(memberMemorySpec);
   const tickets = backend.table(ticketArtifactsSpec);
   const jobs = backend.table(scheduledJobsSpec);
+  const runtimeState = backend.table(runtimeStateSpec);
+  const privateRuntimeState = backend.table(privateRuntimeStateSpec);
 
   /**
    * Rewrites payloads to `{ redacted: true, payloadHash }` (SAFETY §2.9, D-016).
@@ -115,6 +119,9 @@ export function createStoresOnBackend(backend: Backend, deps: StoreDeps): Stores
         counts.trips = trips.deleteKey(tripId) ? 1 : 0;
         // T-185: the trip's queued jobs (recaps, expiries) never run on a forgotten trip.
         counts.scheduled_jobs = jobs.deleteWhere(byTrip);
+        // T-185 r1 #1: the agent's state filed under the trip (its cards), every owner.
+        counts.runtime_state = runtimeState.deleteWhere(byTrip);
+        counts.private_runtime_state = privateRuntimeState.deleteWhere(byTrip);
         // Private rows of every owner linked to the trip (SAFETY §2.9 "all owners").
         // A pending item and its source row are one unit: if either is on the
         // trip, both go, so no raw text survives behind a half-deleted pair.
