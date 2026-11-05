@@ -160,6 +160,12 @@ describe('T-216: except lists past a comma', () => {
     'i covered €72 for the paella, everybody but ines, luca and then tomas paid the cab',
     'i covered €72 for the paella, everybody but ines, rafa, so venmo me',
     'i covered €72 for the paella, everybody but ines, rafa and i split the dessert',
+    // r2 #1: a name being addressed, whatever punctuation follows it
+    'i covered €72 for the paella, everybody but ines, rafa: venmo me',
+    'i covered €72 for the paella, everybody but ines, rafa; venmo me pls',
+    'i covered €72 for the paella, everybody but ines, rafa! venmo me',
+    'i covered €72 for the paella, everybody but ines, rafa (you owe me)',
+    'i covered €72 for the paella, everybody but ines, rafa. venmo me',
   ]) {
     it(`asks: ${text}`, () => expectQuestion(text, ctx('Maya')));
   }

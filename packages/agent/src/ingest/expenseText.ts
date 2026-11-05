@@ -1035,8 +1035,13 @@ function exceptList(low: string, m: RegExpExecArray, members: readonly ParseMemb
     if (isPerson(words[0]!) && !payerClause) return { list, ambiguous: true };
     break;
   }
-  // "henry, chase, so venmo me": an open list followed by another clause
-  const more = low[at] === ',' && low.slice(at + 1).trim().length > 0;
+  // "henry, chase, so venmo me" / "henry, chase: venmo me": an open list
+  // followed by anything else may end on a name being addressed, so ask
+  const more =
+    low
+      .slice(at)
+      .replace(/^[,.;:!?(]\s*/, '')
+      .trim().length > 0;
   return { list, ambiguous: !closed && more };
 }
 
