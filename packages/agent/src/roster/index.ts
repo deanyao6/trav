@@ -21,7 +21,7 @@ import type {
   MessageId,
   Roster,
 } from '@trav/core';
-import { addDays, formatTime, parseIso, safety } from '@trav/core';
+import { addDays, formatClockTime, formatTime, parseIso, safety } from '@trav/core';
 import { nightOf } from '../booking/proposals.js';
 import { payersFor, type PayerRule } from '../booking/payers.js';
 import { sanitizeInline } from '../context/groupContext.js';
@@ -89,6 +89,10 @@ export const ADULT_PLAN_LABEL = "the adults' plan";
  * outbound screen would drop a line naming nightlife or alcohol, leaving the
  * adult who asked with no answer (T-154). The screen itself is unchanged.
  * An unknown group fails closed to "has a minor".
+ *
+ * When more than one adult-only plan starts on that night, the label carries
+ * its start time ("the adults' plan at 9:30pm", T-154 r1 #1), plus "(2 of 2)"
+ * if two of them also share the time, so the adults can tell them apart.
  */
 export function rosterLabel(
   group: GroupStore,
@@ -96,13 +100,70 @@ export function rosterLabel(
   members: readonly Member[],
   now: IsoDateTime,
 ): string {
-  if (isAdultOnlyActivity(activity)) {
-    const g = group.groups.get(activity.groupId);
-    const family =
-      g === undefined ? safety.groupHasMinor(members, now) : safety.isFamilyMode(g, members, now);
-    if (family) return ADULT_PLAN_LABEL;
+  if (isAdultOnlyActivity(activity) && familyModeFor(group, activity, members, now)) {
+    const trip = group.trips.get(activity.tripId);
+    if (trip === undefined || activity.startsAt === undefined) return ADULT_PLAN_LABEL;
+    const plans = adultPlansOnNight(group, activity, trip.timeZone);
+    if (plans.length < 2) return ADULT_PLAN_LABEL;
+    const clock = formatClockTime(activity.startsAt, trip.timeZone);
+    const sameTime = plans.filter((a) => formatClockTime(a.startsAt!, trip.timeZone) === clock);
+    const nth =
+      sameTime.length < 2
+        ? ''
+        : ` (${String(sameTime.findIndex((a) => a.activityId === activity.activityId) + 1)} of ${String(sameTime.length)})`;
+    return `${ADULT_PLAN_LABEL} at ${clock}${nth}`;
   }
   return sanitizeInline(activity.name, 40).toLowerCase();
+}
+
+function familyModeFor(
+  group: GroupStore,
+  activity: Activity,
+  members: readonly Member[],
+  now: IsoDateTime,
+): boolean {
+  const g = group.groups.get(activity.groupId);
+  return g === undefined
+    ? safety.groupHasMinor(members, now)
+    : safety.isFamilyMode(g, members, now);
+}
+
+/**
+ * Every adult-only plan of this trip starting on `activity`'s night (itself
+ * included), in start order then id: the order `rosterLabel` numbers by.
+ */
+function adultPlansOnNight(group: GroupStore, activity: Activity, tz: string): Activity[] {
+  if (activity.startsAt === undefined) return [activity];
+  const night = nightOf(activity.startsAt, tz);
+  return group.trips
+    .listActivities(activity.tripId)
+    .filter(
+      (a) =>
+        a.startsAt !== undefined && isAdultOnlyActivity(a) && nightOf(a.startsAt, tz) === night,
+    )
+    .sort(
+      (a, b) =>
+        parseIso(a.startsAt!) - parseIso(b.startsAt!) || a.activityId.localeCompare(b.activityId),
+    );
+}
+
+/**
+ * For a family-group roll call that did not name a plan (T-154 r1 #1): the
+ * other adult-only plans still on that night, so "who's in tonight?" shows
+ * a second one exists. Empty outside family mode (there names tell them apart).
+ */
+export function otherAdultPlansTonight(
+  group: GroupStore,
+  activity: Activity,
+  members: readonly Member[],
+  now: IsoDateTime,
+): Activity[] {
+  if (!isAdultOnlyActivity(activity) || !familyModeFor(group, activity, members, now)) return [];
+  const trip = group.trips.get(activity.tripId);
+  if (trip === undefined) return [];
+  const plans = adultPlansOnNight(group, activity, trip.timeZone);
+  const still = new Set(upcomingActivities(plans, now).map((a) => a.activityId));
+  return plans.filter((a) => a.activityId !== activity.activityId && still.has(a.activityId));
 }
 
 /** `keptOffMembers` with the group's own attestation read from the store. */
@@ -291,6 +352,20 @@ export function upcomingActivities(activities: readonly Activity[], now: IsoDate
 const HINT_STOP_WORDS: ReadonlySet<string> = new Set(['the']);
 
 /**
+ * A captured hint, trimmed, or undefined when it is empty or only stop words
+ * ("who's in for the?" is a plain roll call, T-154 r1 #3).
+ */
+function meaningfulHint(raw: string | undefined): string | undefined {
+  const h = raw?.trim();
+  if (h === undefined || h.length === 0) return undefined;
+  const words = h
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((w) => w.length > 0);
+  return words.every((w) => HINT_STOP_WORDS.has(w)) ? undefined : h;
+}
+
+/**
  * The activity a roll call or "I'm out" refers to: by name/venue when a hint
  * is given; else by the night the message names ("tonight", "tomorrow"),
  * with nothing planned that night ⇒ `undefined`, never the other night; else
@@ -306,12 +381,8 @@ export function resolveActivity(
   when?: RosterWhen,
 ): Activity | undefined {
   const upcoming = upcomingActivities(activities, now);
-  const h = hint
-    ?.trim()
-    .toLowerCase()
-    .replace(/\btickets?\b/g, '')
-    .trim();
-  if (h !== undefined && h.length > 0) {
+  const h = meaningfulHint(hint?.toLowerCase().replace(/\btickets?\b/g, ''));
+  if (h !== undefined) {
     // "the" names nothing ("who's in for the adults nightcap", T-154).
     const words = h.split(/\s+/).filter((w) => w.length > 2 && !HINT_STOP_WORDS.has(w));
     const match = (a: Activity): boolean => {
@@ -373,7 +444,7 @@ export function detectRollCall(text: string): RollCall | undefined {
   const t = stripTravPrefix(text);
   const m = ROLL_CALL.exec(t);
   if (m === null) return undefined;
-  const hint = m.groups?.['hint']?.trim();
+  const hint = meaningfulHint(m.groups?.['hint']);
   const when = whenOf(m.groups);
   return {
     ...(hint !== undefined && hint.length > 0 ? { hint } : {}),
@@ -430,7 +501,7 @@ export function parseRosterUpdate(text: string): RosterUpdate | undefined {
   ): RosterUpdate | undefined => {
     const m = re.exec(t);
     if (m === null) return undefined;
-    const hint = m.groups?.['hint']?.trim();
+    const hint = meaningfulHint(m.groups?.['hint']);
     const name = m.groups?.['name']?.trim();
     const when = whenOf(m.groups);
     if (who === 'name' && (name === undefined || SELF_WORDS.has(name.toLowerCase()))) {
@@ -494,7 +565,7 @@ export function parseTicketForMe(text: string): TicketForMe | undefined {
   const m = ME_TICKET.exec(t);
   if (m === null) return undefined;
   if (TAIL_NOT_A_REASON.test(m.groups?.['tail'] ?? '')) return undefined;
-  const hint = m.groups?.['hint']?.trim();
+  const hint = meaningfulHint(m.groups?.['hint']);
   const when = whenOf(m.groups);
   return {
     ...(hint !== undefined && hint.length > 0 ? { hint } : {}),
@@ -514,10 +585,16 @@ export function resolveMemberName(members: readonly Member[], ref: string): Memb
 // ---------- roll call ("@trav who's in tonight?") ----------
 
 /** " tonight" for the current night, else VOICE §3.9 relative/absolute time ("tomorrow 10am", "mon mar 16 12:30am"). */
-function whenPhrase(activity: Activity, tz: string, now: IsoDateTime): string {
+function whenPhrase(activity: Activity, tz: string, now: IsoDateTime, label: string): string {
   if (activity.startsAt === undefined) return '';
   if (nightOf(activity.startsAt, tz) === nightOf(now, tz)) return ' tonight';
-  return ` ${formatTime(activity.startsAt, tz, now)}`;
+  const at = formatTime(activity.startsAt, tz, now);
+  // A label that already says the time ("the adults' plan at 9:30pm") gets the day only.
+  const clock = formatClockTime(activity.startsAt, tz);
+  if (label.includes(` at ${clock}`) && at.endsWith(` ${clock}`)) {
+    return ` ${at.slice(0, -clock.length - 1)}`;
+  }
+  return ` ${at}`;
 }
 
 function names(ids: readonly MemberId[], members: readonly Member[]): string {
@@ -543,10 +620,11 @@ export function renderRollCall(
   const label = planLabel ?? sanitizeInline(activity.name, 40).toLowerCase();
   const lines: string[] = [];
   const inCount = roster.inMemberIds.length;
-  if (inCount === 0) lines.push(`${label}${whenPhrase(activity, tz, now)}: nobody marked in yet`);
+  if (inCount === 0)
+    lines.push(`${label}${whenPhrase(activity, tz, now, label)}: nobody marked in yet`);
   else {
     lines.push(
-      `${label}${whenPhrase(activity, tz, now)}: ${String(inCount)} in · ${names(roster.inMemberIds, members)}`,
+      `${label}${whenPhrase(activity, tz, now, label)}: ${String(inCount)} in · ${names(roster.inMemberIds, members)}`,
     );
   }
   if (roster.outMemberIds.length > 0) lines.push(`out: ${names(roster.outMemberIds, members)}`);

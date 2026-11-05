@@ -31,6 +31,7 @@ import { keptOffLine, parseCombinedRoster, planParty, type CombinedRoster } from
 import {
   detectRollCall,
   keptOffFor,
+  otherAdultPlansTonight,
   parseRosterUpdate,
   parseTicketForMe,
   renderAttendanceLine,
@@ -199,19 +200,28 @@ export function handleRosterMessage(input: RosterTurnInput): RosterTurn | undefi
 
   if (roll !== undefined) {
     const roster = rosterOf(group.trips, activity.activityId, members, now);
+    // Never asks a member kept off an adult-only plan to answer (T-153).
+    const call = renderRollCall(
+      activity,
+      roster,
+      members,
+      trip.timeZone,
+      now,
+      keptOffFor(group, activity, members, now),
+      rosterLabel(group, activity, members, now),
+    );
+    // "who's in tonight?" in a family group with two adult-only plans that
+    // night: one more line says the other exists (T-154 r1 #1), within the
+    // 4-line roll call (VOICE §3.3).
+    const others = hint === undefined ? otherAdultPlansTonight(group, activity, members, now) : [];
+    const also =
+      others.length === 0
+        ? undefined
+        : `also ${nightOf(activity.startsAt!, trip.timeZone) === nightOf(now, trip.timeZone) ? 'tonight' : 'that night'}: ${others.map((a) => rosterLabel(group, a, members, now)).join(', ')}`;
     return {
       kind: 'roll_call',
       activity,
-      // Never asks a member kept off an adult-only plan to answer (T-153).
-      text: renderRollCall(
-        activity,
-        roster,
-        members,
-        trip.timeZone,
-        now,
-        keptOffFor(group, activity, members, now),
-        rosterLabel(group, activity, members, now),
-      ),
+      text: also === undefined ? call : [...call.split('\n').slice(0, 3), also].join('\n'),
     };
   }
 

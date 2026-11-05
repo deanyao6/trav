@@ -91,7 +91,8 @@ function status(stores: Stores, memberId: string): string | undefined {
 function safeForTheMinor(text: string): void {
   expect(safety.isRestrictedText(text), text).toBe(false);
   expect(text).not.toMatch(/nightcap/i);
-  expect(text).not.toMatch(/\b(?:1[0-7]|under|minor|kid|child)\b/i);
+  // An age ("14"), never a clock time ("10:30pm").
+  expect(text).not.toMatch(/\b(?:1[0-7](?![:\d]|am|pm)|under|minor|kid|child)\b/i);
 }
 
 describe('"the" in an activity hint (T-154)', () => {
@@ -101,8 +102,10 @@ describe('"the" in an activity hint (T-154)', () => {
       expect(resolveActivity(TCI.activities, TZ, now, hint)?.activityId, hint).toBe(NIGHTCAP);
     }
   });
-  it('a hint of only "the" names nothing; other words still must all match', () => {
-    expect(resolveActivity(TCI.activities, TZ, now, 'the')).toBeUndefined();
+  it('a hint of only "the" is no hint (tonight\'s plan, r1 #3); other words still must all match', () => {
+    for (const hint of ['the', ' The ', 'the the', 'the tickets']) {
+      expect(resolveActivity(TCI.activities, TZ, now, hint)?.activityId, hint).toBe(NIGHTCAP);
+    }
     expect(resolveActivity(TCI.activities, TZ, now, 'the karaoke')).toBeUndefined();
     expect(resolveActivity(TCI.activities, TZ, now, 'the theater')).toBeUndefined();
   });
@@ -245,6 +248,96 @@ describe('Turks and Caicos: roster replies about the adults nightcap reach the a
     const turn = await t.say('h_dad', "@trav i'm in for the thursday fish fry");
     expect(turn.note).toBe('roster:changed');
     expect(texts(turn)[0]).toBe("Dad is in for thursday fish fry. that's 1 now");
+  });
+});
+
+describe('two adult-only plans on one night carry their start times (T-154 r1 #1)', () => {
+  function twoPlans(startsAt = '2026-06-23T22:30:00-04:00') {
+    const t = tciRuntime();
+    const cap = t.stores.group.trips.getActivity(NIGHTCAP)!;
+    t.stores.group.trips.upsertActivity({
+      ...cap,
+      activityId: 'act_tci_lounge',
+      name: 'late rooftop lounge',
+      startsAt,
+    });
+    return t;
+  }
+  const lounge = (stores: Stores, memberId: string) =>
+    stores.group.trips.listAttendance('act_tci_lounge').find((a) => a.memberId === memberId)
+      ?.status;
+
+  it('"i\'m in for the nightcap" and "... the rooftop lounge" say which plan, by time', async () => {
+    const t = twoPlans();
+    const a = await t.say('h_dad', "@trav i'm in for the nightcap");
+    expect(texts(a)[0]).toBe("Dad is in for the adults' plan at 9:30pm. that's 1 now");
+    const b = await t.say('h_mom', "@trav i'm in for the rooftop lounge");
+    expect(texts(b)[0]).toBe("Mom is in for the adults' plan at 10:30pm. that's 1 now");
+    expect(status(t.stores, 'mem_tci_dad')).toBe('in');
+    expect(lounge(t.stores, 'mem_tci_mom')).toBe('in');
+    for (const line of [...texts(a), ...texts(b)]) {
+      safeForTheMinor(line);
+      expect(line).not.toMatch(/lounge|rooftop/i);
+    }
+    expect(t.audit().filter((e) => e.type === 'content.suppressed')).toEqual([]);
+  });
+
+  it('"who\'s in tonight?" answers the first and says the second exists; naming one does not', async () => {
+    const t = twoPlans();
+    await t.say('h_dad', "@trav i'm in for the nightcap");
+    await t.say('h_mom', "@trav i'm in for the rooftop lounge");
+    const roll = await t.say('h_dean', "@trav who's in tonight?");
+    expect(roll.note).toBe('roster:roll_call');
+    expect(texts(roll)[0]!.split('\n')).toEqual([
+      "the adults' plan at 9:30pm tonight: 1 in · Dad",
+      "haven't said: Mom, Dean",
+      "also tonight: the adults' plan at 10:30pm",
+    ]);
+    safeForTheMinor(texts(roll)[0]!);
+    expect(
+      safety.lintVoice(texts(roll)[0]!, { kind: 'reply', properNouns: ['Mom', 'Dad', 'Dean'] })
+        .violations,
+    ).toEqual([]);
+    const named = await t.say('h_dean', "@trav who's in for the rooftop lounge?");
+    expect(texts(named)[0]!.split('\n')).toEqual([
+      "the adults' plan at 10:30pm tonight: 1 in · Mom",
+      "haven't said: Dad, Dean",
+    ]);
+  });
+
+  it('two at the same time are numbered; one plan alone has no time', async () => {
+    const t = twoPlans('2026-06-23T21:30:00-04:00');
+    const a = await t.say('h_dad', "@trav i'm in for the nightcap");
+    const b = await t.say('h_dad', "@trav i'm in for the rooftop lounge");
+    // Ordered by start, then id: act_tci_lounge before act_tci_nightcap.
+    expect(texts(a)[0]).toBe("Dad is in for the adults' plan at 9:30pm (2 of 2). that's 1 now");
+    expect(texts(b)[0]).toBe("Dad is in for the adults' plan at 9:30pm (1 of 2). that's 1 now");
+    const one = tciRuntime();
+    const c = await one.say('h_dad', "@trav i'm in for the nightcap");
+    expect(texts(c)[0]).toBe("Dad is in for the adults' plan. that's 1 now");
+  });
+
+  it('a timed label on another night gives the day once, not the time twice', async () => {
+    const t = twoPlans();
+    const cap = t.stores.group.trips.getActivity(NIGHTCAP)!;
+    const lng = t.stores.group.trips.getActivity('act_tci_lounge')!;
+    t.stores.group.trips.upsertActivity({ ...cap, startsAt: '2026-06-24T21:30:00-04:00' });
+    t.stores.group.trips.upsertActivity({ ...lng, startsAt: '2026-06-24T22:30:00-04:00' });
+    const roll = await t.say('h_dean', "@trav who's in for the nightcap");
+    expect(texts(roll)[0]!.split('\n')[0]).toBe(
+      "the adults' plan at 9:30pm tomorrow night: nobody marked in yet",
+    );
+  });
+});
+
+describe('"who\'s in for the?" is a plain roll call (T-154 r1 #3)', () => {
+  it("resolves to tonight's plan, no model call", async () => {
+    const t = tciRuntime();
+    const turn = await t.say('h_dean', "@trav who's in for the?");
+    expect(turn.note).toBe('roster:roll_call');
+    expect(texts(turn)[0]).toBe(
+      "the adults' plan tonight: nobody marked in yet\nhaven't said: Mom, Dad, Dean",
+    );
   });
 });
 

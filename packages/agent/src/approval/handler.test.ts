@@ -24,6 +24,7 @@ import {
   ledger,
   markPrivate,
   money,
+  safety,
   TravError,
 } from '@trav/core';
 import { createMockTickets, loadTicketInventory } from '@trav/adapters';
@@ -1869,5 +1870,57 @@ describe('the reason is never stored', () => {
         setBy: 'mem_dean',
       },
     );
+  });
+});
+
+describe('family group: the 18+ plan is "the adults\' plan" on card follow-ups (T-154 r1 #2)', () => {
+  // The card for the 4 adults is posted first, then Sam turns out to be under
+  // 18: family mode from then on (an 18+ card is never set up in a family chat, T-143).
+  async function familyCard() {
+    const { h, fake } = rig();
+    const stores = h.runtime.stores;
+    const sam = stores.group.members.listByGroup(G).find((m) => m.memberId === 'mem_sam')!;
+    const mark = (memberId: string, s: 'in' | 'out' | 'maybe') =>
+      stores.group.trips.setAttendance({
+        activityId: ACT,
+        memberId,
+        status: s,
+        updatedAt: h.clock.now(),
+        sourceMessageId: 'msg_prior',
+        setBy: memberId,
+      });
+    mark('mem_sam', 'out');
+    mark('mem_henry', 'out');
+    const { proposal, cardMessageId } = await propose(
+      h,
+      'h_dean',
+      '@trav get the 4 of us razzmatazz tickets',
+    );
+    expect(proposal.attendees).toEqual(['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya']);
+    stores.group.members.upsert({ ...sam, birthDate: '2010-05-01', ageBand: 'under18' });
+    return { h, fake, mark, cardMessageId };
+  }
+
+  it('"not me" from someone not on the card: "Henry is out for the adults\' plan"', async () => {
+    const { h, mark, cardMessageId } = await familyCard();
+    mark('mem_henry', 'maybe');
+    const turn = await h.tap('h_henry', cardMessageId, 'not_me');
+    const [line] = groupMessages(turn).map((m) => m.text);
+    expect(line).toBe("Henry is out for the adults' plan. that leaves 4");
+    expect(safety.isRestrictedText(line!)).toBe(false);
+  });
+
+  it('"can i get one too" on the card, then after booking: both lines say the adults\' plan', async () => {
+    const { h, fake, cardMessageId } = await familyCard();
+    const waiting = await h.say('h_dean', '@trav can i get one too');
+    expect(groupMessages(waiting).map((m) => m.text)).toEqual([
+      "you're already on the adults' plan card, Dean",
+    ]);
+    await h.tap('h_dean', cardMessageId, 'approve');
+    expect(fake.calls).toHaveLength(1);
+    const booked = await h.say('h_dean', '@trav can i get one too');
+    expect(groupMessages(booked).map((m) => m.text)).toEqual([
+      "you've already got a ticket for the adults' plan, Dean",
+    ]);
   });
 });
