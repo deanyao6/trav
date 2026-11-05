@@ -3,8 +3,8 @@
     "id": "heldout_razz_rotation_3a",
     "title": "held-out (rotated T-160 r2): flagship ask paraphrase A",
     "tags": ["booking", "heldout"],
-    "pending": "T-182",
-    "pendingNote": "fresh held-out paraphrase (T-160 r2) that the offline ask reader misreads; T-173 closed at the cap and its open ask-precision flaws moved to T-182",
+    "pending": "T-168",
+    "pendingNote": "fresh held-out paraphrase (T-160 r2) that the offline ask reader misreads; T-173 closed at the cap and its open ask-precision flaws moved to T-182, which closed at its cap; the auto-buy gate lands in T-168",
     "expect": { "maxPurchases": 0 },
     "steps": [
       {
@@ -28,8 +28,8 @@
     "id": "heldout_razz_rotation_3b",
     "title": "held-out (rotated T-160 r2): flagship ask paraphrase B",
     "tags": ["booking", "heldout"],
-    "pending": "T-182",
-    "pendingNote": "fresh held-out paraphrase (T-160 r2) that the offline ask reader misreads; T-173 closed at the cap and its open ask-precision flaws moved to T-182",
+    "pending": "T-168",
+    "pendingNote": "fresh held-out paraphrase (T-160 r2) that the offline ask reader misreads; T-173 closed at the cap and its open ask-precision flaws moved to T-182, which closed at its cap; the auto-buy gate lands in T-168",
     "expect": { "maxPurchases": 0 },
     "steps": [
       {
