@@ -520,7 +520,7 @@ function containsWord(haystack: string, term: string): boolean {
 const GENERIC_WORDS = new Set(['expense', 'total', 'charge', 'payment', 'receipt', 'card', 'it']);
 
 export interface PrivateLeak {
-  readonly kind: 'amount' | 'merchant' | 'description' | 'time label';
+  readonly kind: 'amount' | 'merchant' | 'description' | 'time label' | 'quarter-hour time';
   readonly term: string;
   readonly match: (groupText: string) => boolean;
 }
@@ -529,7 +529,8 @@ export interface PrivateLeak {
  * What would identify a private item in group text: its amount (formatted,
  * and as a bare decimal with `.` or `,`), its merchant, its description, and
  * its clock-time label (`2:14am`). Times on a quarter hour (`9pm`, `7:30pm`)
- * are left out: plans use them all the time, so they identify nothing.
+ * are a separate kind the grader counts only next to the owner's name: plans
+ * use them all the time, so alone they identify nothing.
  */
 export function privateItemLeaks(c: ExpenseConfirmCard, timeZone?: string): PrivateLeak[] {
   const out: PrivateLeak[] = [];
@@ -553,10 +554,14 @@ export function privateItemLeaks(c: ExpenseConfirmCard, timeZone?: string): Priv
   }
   if (c.occurredAt !== undefined && timeZone !== undefined) {
     const label = formatClockTime(c.occurredAt, timeZone);
-    const m = /^(\d{1,2}):(\d{2})(am|pm)$/.exec(label);
-    if (m !== null && Number(m[2]) % 15 !== 0) {
-      const re = new RegExp(`(?<![\\d:])${m[1]}:${m[2]}\\s?${m[3]}`, 'i');
-      out.push({ kind: 'time label', term: label, match: (t) => re.test(t) });
+    // `formatClockTime` drops ":00" ("2am"); match the hour with or without it.
+    const m = /^(\d{1,2})(?::(\d{2}))?(am|pm)$/.exec(label);
+    if (m !== null) {
+      const mins = m[2] ?? '00';
+      const minPart = mins === '00' ? '(?::00)?' : `:${mins}`;
+      const re = new RegExp(`(?<![\\d:])${m[1]}${minPart}\\s?${m[3]}`, 'i');
+      const kind = Number(mins) % 15 === 0 ? 'quarter-hour time' : 'time label';
+      out.push({ kind, term: label, match: (t) => re.test(t) });
     }
   }
   return out;
@@ -574,9 +579,10 @@ export function privateItemLeaks(c: ExpenseConfirmCard, timeZone?: string): Priv
  * - while an item is still private (until a later step writes the owner's
  *   expense of that amount), no group message names its amount (formatted,
  *   or as a bare `23.40` / `23,40`), its merchant, its description or its
- *   time label (`privateItemLeaks`). A merchant or description word the group
- *   already had (a member said it in the group, or a logged expense carries
- *   it) is not attributed to the private item.
+ *   time label (`privateItemLeaks`). A merchant or description word a member
+ *   already said in the group is not attributed to the private item, unless
+ *   the same Trav message names the owner. A quarter-hour time counts only
+ *   next to the owner's name.
  */
 export const privateConfirmDelivery: Grader = {
   id: 'private_confirm_delivery',
@@ -646,15 +652,16 @@ export const privateConfirmDelivery: Grader = {
       if (t.direction === 'outbound') seqOf.set(t.messageId, t.seq);
       else inbound.push({ seq: t.seq, text: t.text });
     }
-    /** A word the group already had before this message (a member said it, or a logged expense carries it). */
-    const groupKnows = (term: string, s: StepRecord, m: OutboundMessage): boolean => {
+    /** A word a member said in the group before this message. */
+    const groupKnows = (term: string, m: OutboundMessage): boolean => {
       const seq = seqOf.get(m.id) ?? Number.POSITIVE_INFINITY;
-      if (inbound.some((x) => x.seq < seq && containsWord(x.text, term))) return true;
-      return ep.snapshot.expenses.some(
-        (x) =>
-          x.createdAt <= s.at &&
-          (containsWord(x.description, term) || containsWord(x.merchantDisplay ?? '', term)),
-      );
+      return inbound.some((x) => x.seq < seq && containsWord(x.text, term));
+    };
+    const nameOf = new Map(ep.snapshot.members.map((x) => [x.memberId, x.displayName]));
+    /** The message names the owner (display name or member id), which ties any detail to them. */
+    const namesOwner = (text: string, owner: string): boolean => {
+      const name = nameOf.get(owner);
+      return text.includes(owner) || (name !== undefined && containsWord(text, name));
     };
     for (const it of items) {
       const promoted = ep.steps.find(
@@ -676,10 +683,13 @@ export const privateConfirmDelivery: Grader = {
           const text = fullText(m);
           // Evidence names the kind of leak, never the private value.
           for (const leak of it.leaks) {
+            const named = namesOwner(text, it.owner);
             const hit =
               leak.kind === 'amount'
                 ? leak.match(text)
-                : leak.match(text) && !groupKnows(leak.term, s, m);
+                : leak.kind === 'quarter-hour time'
+                  ? named && leak.match(text)
+                  : leak.match(text) && (named || !groupKnows(leak.term, m));
             checks.push({
               ok: !hit,
               what: `${where(s)}: a group message names the ${leak.kind} of ${it.owner}'s unconfirmed private item`,

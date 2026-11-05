@@ -121,7 +121,10 @@ export const LINE_PENDING: Readonly<Record<string, LinePending>> = Object.fromEn
   // the send path withdraws the casino card the minor/alcohol screen suppresses
   // (SAFETY §2.7, until T-113 lets an explicit adult-only audience through), so
   // Dad's 👍 has no card to land on.
-  ...gap('T-113', 'adult-only casino card is withdrawn in a group with a minor', ['msg_tci_0025']),
+  ...gap('T-113', 'adult-only casino card is withdrawn in a group with a minor', [
+    'msg_tci_0023',
+    'msg_tci_0025',
+  ]),
   ...gap('T-142', 'Wrapped is scheduled only for the seeded Barcelona trip', [
     'clk_tci_2026062810',
   ]),

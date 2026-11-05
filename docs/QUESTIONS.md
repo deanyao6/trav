@@ -37,3 +37,5 @@ Things the overnight run could not decide or was blocked on. Ranked by importanc
 - **Capitalized "Razzmatazz" in flagship lines (low; T-121).** Fixing lowercased event names ("fc barcelona vs sevilla fc") also capitalizes Razzmatazz in Trav's lines. OK?
 - **Guardians and named approvers (low; T-104).** A guardian can approve their minor's booking even when the group restricted approval to named members. Keep, or require the guardian to be named too?
 - **T-017 family-mode notice wording (low).** The notice now says "all-ages plans only" rather than VOICE §8's "no nightlife", because the outbound screen suppresses any "nightlife" line in a family group. `docs/VOICE.md` should be updated to match.
+
+- (2026-11-04, T-077 r2) The C5 grader misses unusual amount forms in group text ("23 euros" for €23.00, "23.4" for €23.40). Low risk, since Trav formats amounts with `formatMoney`. Worth closing if a live-model run shows other forms.

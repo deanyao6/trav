@@ -124,7 +124,11 @@ export function actionObserved(
         !purchased(step, purchasesBefore)
       );
     case 'propose_booking':
-      return step.newProposalIds.length > 0;
+      // A proposal whose card the screen held back and the loop withdrew is a refusal to the group.
+      return (
+        step.newProposalIds.length > 0 &&
+        !(audited(step, 'content.suppressed') && audited(step, 'approval.invalidated'))
+      );
     case 'approval_recorded':
       return audited(step, 'approval.granted');
     case 'booking_completed':

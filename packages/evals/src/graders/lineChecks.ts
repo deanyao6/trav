@@ -13,7 +13,7 @@
 import type { AuditEvent, ExpenseConfirmCard, OutboundMessage } from '@trav/core';
 import type { Episode, StepRecord, TurnSummary } from '../types.js';
 import { actionObserved, isLineAction, observedSummary } from '../runner/actions.js';
-import { containsCi, groupMessages, missingFromOrder, sameSet, where } from './util.js';
+import { containsCi, fullText, groupMessages, missingFromOrder, sameSet, where } from './util.js';
 
 export type Check = { ok: boolean; what: string };
 
@@ -351,7 +351,7 @@ export function groupLeakChecks(
   (e.mustNotAppearInGroup ?? []).forEach((s, i) => {
     const ref = `the line's private string #${String(i + 1)}`;
     const said = ep.steps.filter(
-      (x) => x.index >= step.index && groupMessages(x).some((m) => containsCi(fullTextOf(m), s)),
+      (x) => x.index >= step.index && groupMessages(x).some((m) => containsCi(fullText(m), s)),
     );
     out.messages.push({
       ok: said.length === 0,
@@ -389,10 +389,6 @@ export function neverStoredChecks(ep: Episode, step: StepRecord): Check[] {
     });
   });
   return checks;
-}
-
-function fullTextOf(m: OutboundMessage): string {
-  return [m.text, ...(m.images ?? []).map((i) => i.alt)].join('\n');
 }
 
 /** Where `s` is stored at the end of the episode (store names only). */
