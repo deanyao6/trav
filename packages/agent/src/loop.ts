@@ -1899,8 +1899,11 @@ export function createTravAgent(input: AgentDeps): TravAgent {
       // T-168 r1 #1-2: a quote-reply to the options card itself, or a bare pick
       // while that options card is Trav's newest card in the group (any later
       // card, a flight options card, a proposal, anything, makes it stale) and
-      // still live. An unaddressed bare pick also must not be answering a
-      // member's question asked since the card.
+      // still live. An unaddressed bare pick ("2") binds only while the options
+      // card is the last message in the group thread: any later message, from
+      // anyone (the picker, another member, Trav's plain text), makes a bare
+      // digit need "@trav 2" or a quote-reply (T-168 r2 #1). The thread's last
+      // entry is never dropped by the window cap, so this fails closed.
       const quoted =
         boundRef !== undefined ? deps.proposals.ticketChoice(boundRef.cardId) : undefined;
       const newest =
@@ -1910,17 +1913,10 @@ export function createTravAgent(input: AgentDeps): TravAgent {
           ? deps.proposals.ticketChoice(newest.cardId)
           : undefined;
       const addressed = /^\s*@trav\b/i.test(rawText) || event.platformMention === true;
-      const memberAskedSince =
-        newest !== undefined &&
-        (recent.get(groupKey) ?? []).some(
-          (m) =>
-            !m.fromTrav &&
-            m.senderMemberId !== me?.memberId &&
-            parseIso(m.at) >= parseIso(newest.sentAt) &&
-            /\?\s*\S{0,4}\s*$/u.test(m.text),
-        );
+      const cardIsLast =
+        newest !== undefined && (recent.get(groupKey) ?? []).at(-1)?.messageId === newest.messageId;
       const bare =
-        latest !== undefined && planLive(latest, r.now) && (addressed || !memberAskedSince)
+        latest !== undefined && planLive(latest, r.now) && (addressed || cardIsLast)
           ? latest
           : undefined;
       const plan = quoted ?? bare;

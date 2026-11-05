@@ -472,6 +472,33 @@ describe('T-168 r1: a text pick binds only to Travâ€™s newest card, and othersâ€
     expect(h.tickets.purchaseCount()).toBe(1);
   });
 
+  it('r2 #1: any message after the options card makes a bare digit stale', async () => {
+    const lead: [string, string][][] = [
+      [['h_chase', 'rate the paella 1 to 5']],
+      [
+        ['h_dean', 'how many beers each before the game?'],
+        ['h_chase', '3'],
+      ],
+      [['h_chase', 'beers before? lmk asap pls']],
+      [['h_dean', '@trav what time does the match start?']],
+      [['h_dean', 'ok']],
+    ];
+    for (const msgs of lead) {
+      const h = on();
+      await h.say('h_dean', BARCA_ASK);
+      for (const [who, text] of msgs) await h.say(who, text);
+      const two = await h.say('h_dean', '2');
+      expect(two.note, msgs.map((m) => m[1]).join(' / ')).not.toMatch(/^pick:ticket/);
+      expect(h.tickets.purchaseCount()).toBe(0);
+    }
+    // Right after the card, the bare pick still counts.
+    const h = on();
+    await h.say('h_dean', BARCA_ASK);
+    const picked = await h.say('h_dean', '2');
+    expect(picked.note).toBe('pick:ticket:auto_approved');
+    expect(h.tickets.purchaseCount()).toBe(1);
+  });
+
   it('#2 a quote-reply to the options card still picks after another card', async () => {
     const h = on();
     const { outbound } = await h.say('h_dean', BARCA_ASK);
