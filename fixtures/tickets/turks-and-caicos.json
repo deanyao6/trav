@@ -3,6 +3,7 @@
   "name": "turks-and-caicos",
   "description": "Synthetic ticket inventory for the Turks and Caicos family trip (jun 20-27, 2026). Fictional operators and prices. Same schema as fixtures/tickets/barcelona.json (flat offers with eventId).",
   "city": "Providenciales",
+  "orderPrefix": "TCI",
   "holdMinutes": 15,
   "currency": "USD",
   "provider": "mock-tickets",

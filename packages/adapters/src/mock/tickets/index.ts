@@ -87,10 +87,14 @@ export interface MockTicketsOptions {
   /** Issues `tkt_` ticket ids (deterministic generator in tests). */
   readonly ids: IdGenerator;
   /**
-   * One inventory, or several (one per trip city; `searchEvents` filters by
-   * venue city, so each group sees its own trip's events). Event and offer ids
-   * must be unique across inventories. Order numbers count per inventory, so a
-   * purchase in one trip never shifts another trip's receipt numbers.
+   * One inventory, or several (one per trip). `searchEvents` matches an
+   * event when the requested city is its venue city or one of its own
+   * inventory's `cities` (so Lisbon finds its Sintra day trip, and Barcelona
+   * never sees Lisbon events). Event and offer ids must be unique across
+   * inventories, and so must receipt prefixes (the factory throws when two
+   * inventories can issue the same prefix). Order numbers count per
+   * inventory, so with disjoint prefixes a purchase in one trip never shifts
+   * another trip's receipt numbers.
    */
   readonly inventory: TicketInventory | readonly TicketInventory[];
   /** First receipt/order number (default 48213, so the demo reads "RZ-48213"). */
@@ -249,10 +253,30 @@ export function createMockTickets(options: MockTicketsOptions): MockTickets {
   const info: AdapterInfo = { provider: first.provider, mode: 'mock' };
 
   const events = new Map<string, InventoryEvent>();
+  /** eventId => folded cities a search may name to find it (venue + its inventory's trip cities). */
+  const eventCities = new Map<string, ReadonlySet<string>>();
   const offers = new Map<string, OfferState>();
+  /** Receipt prefix => the inventory that issues it (prefixes never span inventories). */
+  const prefixOwner = new Map<string, TicketInventory>();
+  const claimPrefix = (p: string, inventory: TicketInventory): void => {
+    const owner = prefixOwner.get(p);
+    if (owner !== undefined && owner !== inventory) {
+      throw new TravError(
+        'invalid_argument',
+        `mock-tickets: receipt prefix ${p} is used by more than one inventory`,
+      );
+    }
+    prefixOwner.set(p, inventory);
+  };
   for (const inventory of inventories) {
     const source: InventoryState = { inventory, orders: 0 };
+    const tripCities = inventory.cities.map((c) => fold(c.trim()));
     for (const ev of inventory.events) {
+      claimPrefix(ev.orderPrefix, inventory);
+      for (const inv of ev.offers) {
+        if (inv.orderPrefix !== undefined) claimPrefix(inv.orderPrefix, inventory);
+      }
+      eventCities.set(ev.event.eventId, new Set([fold(ev.event.venue.city.trim()), ...tripCities]));
       if (events.has(ev.event.eventId)) {
         throw new TravError(
           'invalid_argument',
@@ -425,7 +449,7 @@ export function createMockTickets(options: MockTicketsOptions): MockTickets {
       const maxUnit = request.maxUnitPrice;
 
       const found = [...events.values()]
-        .filter((ev) => fold(ev.event.venue.city) === city)
+        .filter((ev) => eventCities.get(ev.event.eventId)?.has(city) === true)
         .filter((ev) => {
           const night = eventNightOf(ev.event);
           return night >= fromDate && night <= toDate;
@@ -649,13 +673,12 @@ export function createMockTickets(options: MockTicketsOptions): MockTickets {
       }
 
       orderCounter += 1;
-      // Numbered per inventory; two inventories sharing a prefix (both default
-      // "TK") skip past each other's numbers so order ids stay unique.
-      let orderId: string;
-      do {
-        state.source.orders += 1;
-        orderId = `${state.event.orderPrefix}-${orderNumberStart + state.source.orders - 1}`;
-      } while (orders.has(orderId));
+      // Numbered per inventory; prefixes are disjoint across inventories
+      // (checked in the factory), so ids are unique and one trip's purchases
+      // never shift another trip's numbers.
+      state.source.orders += 1;
+      const prefix = state.inv.orderPrefix ?? state.event.orderPrefix;
+      const orderId = `${prefix}-${orderNumberStart + state.source.orders - 1}`;
       const now = clock.now();
       const offer = state.inv.offer;
       const lines: ReceiptLine[] = [

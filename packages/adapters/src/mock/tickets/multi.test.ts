@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { createDeterministicIdGenerator, createSimulatedClock, money } from '@trav/core';
 import type { TicketHold } from '../../interfaces/tickets.js';
-import type { MockTickets } from './index.js';
+import type { MockTickets, TicketInventory } from './index.js';
 import { createMockTickets, loadAllTicketInventories, loadTicketInventory } from './index.js';
 import { FIVE, TONIGHT, proof } from './testing.js';
 
@@ -59,7 +59,7 @@ describe('mock tickets over several inventories', () => {
       }),
     );
     expect(lis.map((e) => e.eventId)).toContain('evt_lis_benfica_porto');
-    expect(lis.every((e) => e.venue.city === 'Lisbon')).toBe(true);
+    expect(lis.every((e) => e.eventId.startsWith('evt_lis_'))).toBe(true);
 
     const fado = unwrap(
       await tickets.searchEvents({
@@ -123,12 +123,150 @@ describe('mock tickets over several inventories', () => {
       'EUR',
     );
     expect(rzm.orderId).toBe('RZ-48213');
-    // Lisbon and TCI share the default "TK" prefix: ids stay unique.
-    expect(lisOrder.orderId).toBe('TK-48213');
-    expect(tciOrder.orderId).toBe('TK-48214');
+    // mockHints.<offer>.orderRefPrefix: "SLB" for Benfica, "SN" for the snorkel tour.
+    expect(lisOrder.orderId).toBe('SLB-48213');
+    expect(tciOrder.orderId).toBe('SN-48213');
     expect(tciOrder.total.currency).toBe('USD');
     expect(tickets.purchaseCount()).toBe(3);
-    expect(unwrap(await tickets.getOrder('TK-48214')).event.eventId).toBe('evt_tci_snorkel_0622');
+    expect(unwrap(await tickets.getOrder('SN-48213')).event.eventId).toBe('evt_tci_snorkel_0622');
+  });
+
+  it('Lisbon purchases never shift TCI receipt numbers (offer and inventory prefixes)', async () => {
+    const at = '2026-03-14T21:40:00+01:00';
+    const baseline = setupAll(at);
+    const tciAlone = await buy(
+      baseline,
+      'off_tci_cruise_0623',
+      FIVE.slice(0, 4),
+      'grp_tci',
+      'g0',
+      at,
+      'USD',
+    );
+    const snorkelAlone = await buy(
+      baseline,
+      'off_tci_snorkel_0622',
+      FIVE.slice(0, 4),
+      'grp_tci',
+      'g00',
+      at,
+      'USD',
+    );
+
+    const tickets = setupAll(at);
+    // Two Lisbon orders first: one hinted ("SLB"), one on the inventory prefix ("LIS").
+    const slb = await buy(
+      tickets,
+      'off_lis_benfica_porto_std',
+      FIVE.slice(0, 2),
+      'grp_lisbon',
+      'g1',
+      at,
+      'EUR',
+    );
+    const fado = await buy(
+      tickets,
+      'off_lis_fado_0416',
+      FIVE.slice(0, 2),
+      'grp_lisbon',
+      'g2',
+      at,
+      'EUR',
+    );
+    expect(slb.orderId).toBe('SLB-48213');
+    expect(fado.orderId).toBe('LIS-48214');
+    const cruise = await buy(
+      tickets,
+      'off_tci_cruise_0623',
+      FIVE.slice(0, 4),
+      'grp_tci',
+      'g3',
+      at,
+      'USD',
+    );
+    const snorkel = await buy(
+      tickets,
+      'off_tci_snorkel_0622',
+      FIVE.slice(0, 4),
+      'grp_tci',
+      'g4',
+      at,
+      'USD',
+    );
+    expect(cruise.orderId).toBe(tciAlone.orderId);
+    expect(cruise.orderId).toBe('TCI-48213');
+    expect(snorkel.orderId).toBe(snorkelAlone.orderId);
+    expect(snorkel.orderId).toBe('SN-48214');
+  });
+
+  it('rejects two inventories that could issue the same receipt prefix', () => {
+    const clock = createSimulatedClock(TONIGHT);
+    const ids = createDeterministicIdGenerator('p');
+    const lis = loadTicketInventory('lisbon');
+    const tci = loadTicketInventory('turks-and-caicos');
+    // Both fall back to the default "TK" prefix if their fixtures set none.
+    const asDefault = (inv: TicketInventory): TicketInventory => ({
+      ...inv,
+      events: inv.events.map((e) => ({
+        ...e,
+        orderPrefix: 'TK',
+        offers: e.offers.map(({ orderPrefix: _drop, ...o }) => o),
+      })),
+    });
+    expect(() =>
+      createMockTickets({ clock, ids, inventory: [asDefault(lis), asDefault(tci)] }),
+    ).toThrow(/receipt prefix TK is used by more than one inventory/);
+    // An offer-level prefix collides too.
+    const lisWithSn: TicketInventory = {
+      ...lis,
+      events: lis.events.map((e, i) =>
+        i === 0 ? { ...e, offers: e.offers.map((o) => ({ ...o, orderPrefix: 'SN' })) } : e,
+      ),
+    };
+    expect(() => createMockTickets({ clock, ids, inventory: [lisWithSn, tci] })).toThrow(
+      /receipt prefix SN/,
+    );
+    // The bundled set is disjoint.
+    expect(() => setupAll(TONIGHT)).not.toThrow();
+  });
+
+  it('Lisbon finds its Sintra and Porto day trips; Barcelona never does', async () => {
+    const tickets = setupAll('2026-03-01T12:00:00+01:00');
+    const lisWeek = { dateFrom: '2026-04-15', dateTo: '2026-04-20' };
+    const pena = unwrap(
+      await tickets.searchEvents({ city: 'Lisbon', ...lisWeek, query: 'pena palace' }),
+    );
+    expect(pena.map((e) => e.eventId)).toEqual(['evt_lis_pena_0417']);
+    expect(pena[0]?.venue.city).toBe('Sintra');
+    const all = unwrap(await tickets.searchEvents({ city: 'lisbon', ...lisWeek }));
+    expect(all.map((e) => e.eventId)).toEqual(
+      expect.arrayContaining(['evt_lis_pena_0417', 'evt_lis_porto_vitoria']),
+    );
+    expect(all.every((e) => e.eventId.startsWith('evt_lis_'))).toBe(true);
+
+    // Barcelona, even over Lisbon's dates and with Lisbon words, sees none of it.
+    for (const query of [undefined, 'pena palace', 'porto', 'benfica']) {
+      const bcn = unwrap(
+        await tickets.searchEvents({
+          city: 'Barcelona',
+          ...lisWeek,
+          ...(query !== undefined ? { query } : {}),
+        }),
+      );
+      expect(bcn.filter((e) => e.eventId.startsWith('evt_lis_'))).toEqual([]);
+    }
+    const bcnTrip = unwrap(
+      await tickets.searchEvents({
+        city: 'Barcelona',
+        dateFrom: '2026-03-12',
+        dateTo: '2026-03-17',
+      }),
+    );
+    expect(bcnTrip.length).toBeGreaterThan(0);
+    expect(bcnTrip.every((e) => e.venue.city === 'Barcelona')).toBe(true);
+    // TCI never sees Lisbon either.
+    const tci = unwrap(await tickets.searchEvents({ city: 'Providenciales', ...lisWeek }));
+    expect(tci).toEqual([]);
   });
 
   it('one approval still funds only one order across inventories', async () => {

@@ -7,6 +7,11 @@
  * each event (`events[].offers[]`, the shape of `fixtures/tickets/barcelona.json`)
  * or as a flat top-level `offers[]` carrying `eventId`; money as `Money`
  * objects or as `*Minor` integers plus the inventory `currency`.
+ * Receipt prefixes resolve offer, then event, then inventory: an offer's
+ * `orderPrefix` or `mockHints.<offerId>.orderRefPrefix`, else the event's
+ * `orderPrefix` or `mockHints.<eventId>.orderRefPrefix`, else the root
+ * `orderPrefix`, else "TK". The root `city` and `tripCities` name the trip
+ * cities the inventory answers for (day trips like Sintra from Lisbon).
  * Malformed fixtures throw `TravError('invalid_argument')` naming the path.
  */
 import type { CurrencyCode, IsoDateTime, Money } from '@trav/core';
@@ -37,6 +42,8 @@ export interface InventoryOffer {
   readonly entryBefore?: IsoDateTime;
   /** Overrides the inventory-wide hold window. */
   readonly holdMinutes?: number;
+  /** Receipt prefix for this offer's orders (overrides the event's `orderPrefix`). */
+  readonly orderPrefix?: string;
 }
 
 export interface InventoryEvent {
@@ -55,6 +62,12 @@ export interface TicketInventory {
   readonly provider: string;
   readonly currency: CurrencyCode;
   readonly holdMinutes: number;
+  /**
+   * Trip cities this inventory answers for (root `city` plus `tripCities`,
+   * deduped; may be empty). A search for one of them returns this inventory's
+   * events wherever the venue is, and never another inventory's.
+   */
+  readonly cities: readonly string[];
   readonly events: readonly InventoryEvent[];
 }
 
@@ -208,11 +221,30 @@ function seating(value: unknown, path: string): InventorySeating | undefined {
   };
 }
 
+function prefix(value: unknown, path: string): string {
+  const s = str(value, path);
+  if (!/^[A-Z0-9]{1,8}$/.test(s)) bad(path, 'expected 1-8 uppercase letters or digits');
+  return s;
+}
+
+function optPrefix(value: unknown, path: string): string | undefined {
+  return value === undefined ? undefined : prefix(value, path);
+}
+
+/** `mockHints.<id>.orderRefPrefix`, if any. */
+function hintPrefix(hints: Json, id: string): string | undefined {
+  const h = hints[id];
+  if (h === undefined) return undefined;
+  const o = obj(h, `$.mockHints.${id}`);
+  return optPrefix(o.orderRefPrefix, `$.mockHints.${id}.orderRefPrefix`);
+}
+
 function offer(
   value: unknown,
   eventId: string,
   currency: CurrencyCode,
   path: string,
+  hints: Json,
 ): InventoryOffer {
   const o = obj(value, path);
   if (o.eventId !== undefined && o.eventId !== eventId) bad(`${path}.eventId`, 'mismatch');
@@ -231,8 +263,10 @@ function offer(
   const entryBefore = optIso(o.entryBefore, `${path}.entryBefore`);
   const holdMinutes =
     o.holdMinutes === undefined ? undefined : int(o.holdMinutes, `${path}.holdMinutes`, 1);
+  const offerId = str(o.offerId, `${path}.offerId`);
+  const orderPrefix = optPrefix(o.orderPrefix, `${path}.orderPrefix`) ?? hintPrefix(hints, offerId);
   const ticketOffer: TicketOffer = {
-    offerId: str(o.offerId, `${path}.offerId`),
+    offerId,
     eventId,
     tierName: str(o.tierName, `${path}.tierName`),
     unitPrice: moneyField(o, 'unitPrice', currency, path),
@@ -250,6 +284,7 @@ function offer(
     ...(seats !== undefined ? { seating: seats } : {}),
     ...(entryBefore !== undefined ? { entryBefore } : {}),
     ...(holdMinutes !== undefined ? { holdMinutes } : {}),
+    ...(orderPrefix !== undefined ? { orderPrefix } : {}),
   };
 }
 
@@ -261,6 +296,16 @@ export function parseTicketInventory(json: unknown): TicketInventory {
   const provider = root.provider === undefined ? 'mock-tickets' : str(root.provider, '$.provider');
   const holdMinutes = int(root.holdMinutes ?? 15, '$.holdMinutes', 1);
   const flatOffers = root.offers === undefined ? [] : arr(root.offers, '$.offers');
+  const hints = root.mockHints === undefined ? {} : obj(root.mockHints, '$.mockHints');
+  const rootPrefix = optPrefix(root.orderPrefix, '$.orderPrefix') ?? 'TK';
+  const homeCity = optStr(root.city, '$.city');
+  const tripCities = arr(root.tripCities ?? [], '$.tripCities').map((c, i) =>
+    str(c, `$.tripCities[${i}]`),
+  );
+  const cities: string[] = [];
+  for (const c of [...(homeCity !== undefined ? [homeCity] : []), ...tripCities]) {
+    if (!cities.includes(c)) cities.push(c);
+  }
 
   const seenEvents = new Set<string>();
   const seenOffers = new Set<string>();
@@ -300,10 +345,10 @@ export function parseTicketInventory(json: unknown): TicketInventory {
     };
     const nested = e.offers === undefined ? [] : arr(e.offers, `${path}.offers`);
     const offers = [
-      ...nested.map((o, j) => offer(o, eventId, currency, `${path}.offers[${j}]`)),
+      ...nested.map((o, j) => offer(o, eventId, currency, `${path}.offers[${j}]`, hints)),
       ...flatOffers.flatMap((o, j) =>
         obj(o, `$.offers[${j}]`).eventId === eventId
-          ? [offer(o, eventId, currency, `$.offers[${j}]`)]
+          ? [offer(o, eventId, currency, `$.offers[${j}]`, hints)]
           : [],
       ),
     ];
@@ -314,7 +359,8 @@ export function parseTicketInventory(json: unknown): TicketInventory {
     const salesEndAt = optIso(e.salesEndAt, `${path}.salesEndAt`) ?? endsAt ?? startsAt;
     return {
       event,
-      orderPrefix: optStr(e.orderPrefix, `${path}.orderPrefix`) ?? 'TK',
+      orderPrefix:
+        optPrefix(e.orderPrefix, `${path}.orderPrefix`) ?? hintPrefix(hints, eventId) ?? rootPrefix,
       salesEndAt,
       keywords: arr(e.keywords ?? [], `${path}.keywords`).map((k, j) =>
         str(k, `${path}.keywords[${j}]`),
@@ -333,6 +379,7 @@ export function parseTicketInventory(json: unknown): TicketInventory {
     provider,
     currency,
     holdMinutes,
+    cities,
     events,
   };
 }

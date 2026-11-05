@@ -121,6 +121,53 @@ describe('parseTicketInventory mapper', () => {
     expect(o?.unitFees).toEqual({ amountMinor: 250, currency: 'EUR' });
     expect(o?.eventId).toBe('evt_slb');
     expect(parsed.events[0]?.salesEndAt).toBe('2026-05-02T20:30:00+01:00');
+    // No city, no prefixes: no trip cities, default "TK".
+    expect(parsed.cities).toEqual([]);
+    expect(parsed.events[0]?.orderPrefix).toBe('TK');
+    expect(parsed.events[0]?.offers[0]?.orderPrefix).toBeUndefined();
+  });
+
+  it('resolves receipt prefixes offer > offer hint > event > event hint > root, and trip cities', () => {
+    const ev = (eventId: string, extra: Record<string, unknown> = {}) => ({
+      eventId,
+      name: eventId,
+      category: 'sports',
+      venue,
+      startsAt: '2026-05-02T20:30:00+01:00',
+      ...extra,
+    });
+    const parsed = parseTicketInventory({
+      name: 'x',
+      currency: 'EUR',
+      city: 'Lisbon',
+      tripCities: ['Sintra', 'Lisbon'],
+      orderPrefix: 'LIS',
+      events: [ev('e1'), ev('e2', { orderPrefix: 'EV' }), ev('e3')],
+      offers: [
+        { ...baseOffer, offerId: 'o1', eventId: 'e1', unitPriceMinor: 1, orderPrefix: 'OF' },
+        { ...baseOffer, offerId: 'o2', eventId: 'e1', unitPriceMinor: 1 },
+        { ...baseOffer, offerId: 'o3', eventId: 'e2', unitPriceMinor: 1 },
+        { ...baseOffer, offerId: 'o4', eventId: 'e3', unitPriceMinor: 1 },
+      ],
+      mockHints: {
+        o1: { orderRefPrefix: 'IGN' },
+        o2: { orderRefPrefix: 'HNT' },
+        e3: { orderRefPrefix: 'EH', note: 'x' },
+      },
+    });
+    expect(parsed.cities).toEqual(['Lisbon', 'Sintra']);
+    const [e1, e2, e3] = parsed.events;
+    expect(e1?.orderPrefix).toBe('LIS');
+    expect(e1?.offers.map((o) => o.orderPrefix)).toEqual(['OF', 'HNT']);
+    expect(e2?.orderPrefix).toBe('EV');
+    expect(e2?.offers[0]?.orderPrefix).toBeUndefined();
+    expect(e3?.orderPrefix).toBe('EH');
+    expect(() =>
+      parseTicketInventory({ name: 'x', currency: 'EUR', orderPrefix: 'tk-1', events: [] }),
+    ).toThrow(/\$\.orderPrefix/);
+    expect(() =>
+      parseTicketInventory({ name: 'x', currency: 'EUR', tripCities: 'Sintra', events: [] }),
+    ).toThrow(/\$\.tripCities/);
   });
 
   const minimal = (
@@ -218,10 +265,18 @@ describe('per-trip inventories (T-080)', () => {
   it('parses Lisbon: the Benfica vs Porto match and fado, in EUR and in Lisbon', () => {
     const lis = loadTicketInventory('lisbon');
     expect(lis.currency).toBe('EUR');
-    // Mostly Lisbon; FC Porto's home match (Porto) and Pena Palace (Sintra) are out-of-city decoys.
+    // Mostly Lisbon; FC Porto's home match (Porto) and Pena Palace (Sintra) are day trips the
+    // inventory answers for through `tripCities`.
     expect(
       lis.events.filter((e) => e.event.venue.city !== 'Lisbon').map((e) => e.event.eventId),
     ).toEqual(['evt_lis_porto_vitoria', 'evt_lis_pena_0417']);
+    expect(lis.cities).toEqual(['Lisbon', 'Sintra', 'Porto']);
+    // Receipt prefixes: the fixture hint for Benfica, the inventory prefix elsewhere.
+    const benfica = lis.events.find((e) => e.event.eventId === 'evt_lis_benfica_porto');
+    expect(
+      benfica?.offers.find((o) => o.offer.offerId === 'off_lis_benfica_porto_std')?.orderPrefix,
+    ).toBe('SLB');
+    expect(benfica?.orderPrefix).toBe('LIS');
     const match = lis.events.find((e) => e.event.eventId === 'evt_lis_benfica_porto');
     expect(match?.event.name).toBe('SL Benfica vs FC Porto');
     expect(match?.event.category).toBe('sports');

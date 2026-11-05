@@ -3,6 +3,12 @@
   "name": "lisbon",
   "description": "Synthetic ticket inventory for the Lisbon trip (Dean + Dad, apr 15-20, 2026). Fictional prices; real stadium names and public addresses only. Same schema as fixtures/tickets/barcelona.json (flat offers with eventId).",
   "city": "Lisbon",
+  "tripCities": [
+    "Lisbon",
+    "Sintra",
+    "Porto"
+  ],
+  "orderPrefix": "LIS",
   "holdMinutes": 15,
   "currency": "EUR",
   "provider": "mock-tickets",
