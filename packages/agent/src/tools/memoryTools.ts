@@ -50,7 +50,7 @@ const NOT_SHOWN = "the group won't see it";
 /**
  * The private "noted" in the owner's DM (VOICE §3.7): what was kept and that
  * the group won't see it. A budget is said back as the parsed figure only
- * ("your share stays under €80 a day"), and is a note, not an enforced cap. A
+ * ("you're aiming to keep your share under €80 a day"), a note, not an enforced cap. A
  * first-person fact is said back in the second person; a fact written about
  * the sender in the third person (a model's "henry is vegetarian") or naming
  * them is not echoed (T-134 r1 #6).
@@ -63,8 +63,8 @@ export function privateNotedText(
   if (category === 'budget') {
     const fig = findBudgetFigure(text, opts.tabCurrency);
     return fig === undefined
-      ? `noted, it's a note, not a hard cap. ${NOT_SHOWN}`
-      : `noted: your share stays ${budgetPhrase(fig)}, as a note, not a hard cap. ${NOT_SHOWN}`;
+      ? `noted, just a note, not a hard cap. ${NOT_SHOWN}`
+      : `noted: you're aiming to keep your share ${budgetPhrase(fig)}. just a note, not a hard cap, and ${NOT_SHOWN}`;
   }
   const t = foldBudgetText(sanitizeInline(text, 140)).replace(/[\s.!]+$/u, '');
   const first = (opts.displayName ?? '').trim().split(/\s+/)[0]?.toLowerCase() ?? '';

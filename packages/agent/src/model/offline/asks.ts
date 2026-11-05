@@ -1073,6 +1073,11 @@ export function parseRememberAsk(text: string): string | undefined {
   return fact.toLowerCase();
 }
 
+const BUDGET_WORD_RE = /\b(?:budget|my share|spend(?:ing)?|cap|limit)\b/;
+/** A budget Trav can't read as a figure: nothing is kept, and the member is told how to say it. */
+export const BUDGET_FIGURE_ONLY_TEXT =
+  'i only keep a budget as a number. dm me "keep my share under €60 a day" and i\'ll note just that';
+
 export const rememberResponder: FallbackResponder = {
   id: 'remember_v1',
   complete(req) {
@@ -1084,6 +1089,22 @@ export const rememberResponder: FallbackResponder = {
     if (HEALTH_RE.test(foldText(fact))) return response(req, HEALTH_MEMORY_TEXT, []);
     // The tool would refuse it anyway (T-134); say so instead of a blank.
     if (isHardship(fact, 'other')) return response(req, MONEY_MEMORY_TEXT, []);
+    // A budget with a figure is never kept as the member's words (T-134 r2 #2):
+    // the figure alone when the budget parser reads it, else ask for it.
+    if (BUDGET_WORD_RE.test(foldText(fact)) && /\d/.test(fact)) {
+      const budget =
+        req.systemPromptId === 'dm_chat_v1'
+          ? parsePrivateBudgetAsk(fact, promptCurrency(req.system))
+          : undefined;
+      if (budget === undefined) return response(req, BUDGET_FIGURE_ONLY_TEXT, []);
+      return response(req, '', [
+        call(req, 'toolu_offline_budget_', 1, 'remember', {
+          text: budget,
+          category: 'budget',
+          scope: 'me',
+        }),
+      ]);
+    }
     return response(req, '', [call(req, 'toolu_offline_remember_', 1, 'remember', { text: fact })]);
   },
 };
@@ -1111,7 +1132,7 @@ const BUDGET_FORMS: readonly BudgetForm[] = [
     bound: 'under',
   },
   {
-    re: /\bmy\s+(?:(?:daily|nightly|weekly|trip)\s+)?(?:budget|spending limit|spend limit|limit|cap)(?:'s|\s+is|\s+will be|\s+should be)\b/,
+    re: /\bmy\s+(?:(?:daily|nightly|weekly|trip)\s+)?(?:budget|spending limit|spend limit|limit|cap)(?:'s|\s+is|\s+will be|\s+should be)(?:\s+like)?\b/,
   },
   { re: /\bi\s+(?:can|could)\s+(?:only\s+)?spend\b/, requireMoneyMarker: true },
 ];

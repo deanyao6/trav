@@ -40,3 +40,8 @@ Things the overnight run could not decide or was blocked on. Ranked by importanc
 
 - (2026-11-04, T-077 r2) The C5 grader misses unusual amount forms in group text ("23 euros" for €23.00, "23.4" for €23.40). Low risk, since Trav formats amounts with `formatMoney`. Worth closing if a live-model run shows other forms.
 - **T-148 family price line (decide, low).** In a family group, a price question about an adults-only venue ("@trav how much is the casino night") gets "that one's not all-ages, so i won't price it in this chat", even when an adult asks. VOICE §8 allows adult content "unless asked directly". Keep the refusal in the shared family chat (current), or answer adults directly?
+
+## 2026-11-05 (session 15)
+
+- **T-141 vs T-037: who confirms a settle-up payment (decide, medium).** T-141 lets the payer's own 👍 or [Paid] tap mark their transfer paid, and balances drop right away (D-034). T-037's acceptance says balances change only on the payee's confirmation. Payer-only is simpler and matches what T-141 asked; payee confirmation is safer against a mistaken tap. A mistaken 👍 can't be undone in chat yet. Pick the rule before T-037 is built.
+- **T-135 riders: reading the group thread (decide, low).** Kept from session 14: the Uber split infers who left from members' own "heading back" lines. Keep, or always ask on a mismatch?

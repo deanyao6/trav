@@ -29,7 +29,7 @@ const G = BARCELONA.groupId;
 const EUR = 'EUR' as CurrencyCode;
 const HENRY_DM = "can you keep my share under 80 a day? money's tight this semester";
 const HENRY_REPLY =
-  "noted: your share stays under €80 a day, as a note, not a hard cap. the group won't see it";
+  "noted: you're aiming to keep your share under €80 a day. just a note, not a hard cap, and the group won't see it";
 /** Henry's figure and reason: never in anything a group request carries. */
 const HENRY_PRIVATE = ['80 a day', '€80', 'tight', 'semester'];
 
@@ -276,9 +276,62 @@ describe('the remember tool on budgets and reasons', () => {
     );
     expect(privateNotedText('my share: under €80 a day', 'budget')).toBe(HENRY_REPLY);
     expect(privateNotedText('wants to save', 'budget')).toBe(
-      "noted, it's a note, not a hard cap. the group won't see it",
+      "noted, just a note, not a hard cap. the group won't see it",
     );
     expect(privateNotedText('my share: under €80 a day', 'budget')).not.toMatch(/planning/);
+  });
+
+  // T-134 r2 #1: reasons the rewritten screen dropped, and more; a dropped pattern fails here.
+  it.each([
+    'henry lost his job so keep it cheap',
+    'i got fired, cheap stuff only',
+    'just lost my job',
+    'out of work right now',
+    'furloughed this month',
+    "i'm poor",
+    'broke student here',
+    'strapped',
+    'tight budget this trip',
+    'on a budget',
+    'out of money',
+    "don't have the money for that",
+    'between paychecks',
+    'card got declined',
+    'maxed out my card',
+    'i owe my sister money',
+    'a little short this month',
+    'barely getting by',
+    "can't swing it",
+    'bills are piling up',
+    'behind on my car payment',
+    'saving for rent',
+  ])('"%s" is a money-trouble reason', (text) => {
+    expect(isHardship(text, 'other')).toBe(true);
+  });
+
+  // T-134 r2 #3-#5: never a guessed figure.
+  it.each([
+    'keep my share under 1.5k for the trip',
+    'keep my share under 80k',
+    'keep my share under 80 thousand',
+    'keep my share under 80 chf',
+    'keep my share under 80 yen',
+    'keep my share under 80 a month',
+    'keep my share under 80 for the weekend',
+    'keep my share under 0.001',
+    'keep my share under 1,0000',
+    'keep my share under 1.000.50',
+  ])('"%s" is not stored', (text) => {
+    expect(parsePrivateBudgetAsk(text, EUR)).toBeUndefined();
+  });
+
+  it('a symbol after the figure keeps the period; "like" is a filler', () => {
+    expect(parsePrivateBudgetAsk('keep my share under 80€ a day', EUR)).toBe(
+      'my share: under €80 a day',
+    );
+    expect(parsePrivateBudgetAsk('my budget is like 60 a day', EUR)).toBe(
+      'my share: at or under €60 a day',
+    );
   });
 });
 
@@ -295,6 +348,23 @@ describe("Henry's budget DM end to end (msg_bcn_d_0002)", () => {
       expect(GROUP_CHAT_PROMPT.persona).not.toContain(s);
       expect(specs).not.toContain(s);
     }
+  });
+
+  // T-134 r2 #1, #2: no budget sentence or job loss is ever kept in anyone's words.
+  it('"remember my budget is like 60 a day, saving for rent" keeps the figure only', async () => {
+    const h = harness();
+    await h.dm('h_henry', 'remember my budget is like 60 a day, saving for rent');
+    const facts = h.runtime.memberMemory.recall('mem_henry', G);
+    expect(facts.map((f) => f.text)).toEqual(['my share: at or under €60 a day']);
+  });
+
+  it('a budget sentence that is not a readable figure stores nothing; job loss in the group stores nothing', async () => {
+    const h = harness();
+    const before = h.runtime.groupMemory.recall(G).length;
+    await h.dm('h_henry', 'remember my budget is roughly sixty, maybe 70 on a good day');
+    expect(h.runtime.memberMemory.recall('mem_henry', G)).toEqual([]);
+    await h.say('h_sam', '@trav remember henry lost his job so keep it cheap');
+    expect(h.runtime.groupMemory.recall(G)).toHaveLength(before);
   });
 
   it('stores a private budget fact, replies in his DM only, and never reaches the group', async () => {

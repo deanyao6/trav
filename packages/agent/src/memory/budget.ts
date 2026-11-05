@@ -51,6 +51,14 @@ const HARDSHIP_PATTERNS: readonly RegExp[] = [
   /\bstudent budget\b|\bon a (?:tight|shoestring) budget\b/,
   /\brent(?:'s| is)? (?:due|late|overdue)\b|\bbehind on (?:rent|bills|payments)\b/,
   /\b(?:paycheck|payday|financial (?:aid|troubles?|hardship|stress|problems?|issues?|situation)|money (?:troubles?|problems?|issues?|stress|situation))\b/,
+  // T-134 r2 #1: job loss and other reasons the first list missed.
+  /\b(?:lost (?:my|his|her|their|a|the) job|(?:got|been|was|were|get|getting) (?:fired|sacked|let go)|out of work|jobless|furlough(?:ed)?|strapped|paychecks?)\b/,
+  /\b(?:i'?m|im|i am|we'?re|he'?s|she'?s|they'?re) (?:so |pretty |kinda |super |dirt )?poor\b|\bbroke (?:student|college kid|af)\b/,
+  /\b(?:tight|small|limited|low) budget\b|\bon a budget\b|\bsaving (?:up )?for (?:rent|bills|tuition)\b/,
+  /\b(?:out of|no|zero|not much|barely any) (?:money|cash|funds)\b|\b(?:don'?t|do not|doesn'?t) have (?:the |enough |any )?(?:money|cash|funds)\b/,
+  /\b(?:card|payment) (?:got |was |keeps getting )?declined\b|\bmaxed (?:out )?(?:my|his|her|their|the) cards?\b|\bmaxed out\b/,
+  /\bowe (?:my |his |her |their |the )?\w+ (?:money|cash)\b|\b(?:a (?:little|bit|lil) )?short this (?:month|week)\b/,
+  /\bbarely (?:getting by|scraping by|making it|afford)\b|\bcan'?t swing (?:it|that|this)\b|\bbills (?:are )?(?:piling|stacking) up\b|\bbehind on (?:my |his |her |the )?\w+ payments?\b/,
 ];
 
 /** A bare "tight" only counts on a budget fact ("tight connection" is logistics). */
@@ -83,8 +91,17 @@ const NON_MONEY_UNIT =
   /^\s*(?:mins?|minutes?|hours?|hrs?|h|secs?|seconds?|nights?|days?|weeks?|months?|years?|people|persons?|ppl|of us|tickets?|drinks?|beers?|shots?|rounds?|bags?|km|kms|miles?|mi|am|pm|%|x|times?|stops?|steps?|floors?|rooms?|beds?)\b/;
 
 const FIGURE_RE = new RegExp(
-  String.raw`^\s*(?:${BOUND_SRC}\s+)?(?<sym>[€$£])?\s?${NUM_SRC}(?![\d:])(?:\s*${CODE_SRC}\b)?(?:\s*${PER_SRC})?`,
+  String.raw`^\s*(?:${BOUND_SRC}\s+)?(?<sym>[€$£])?\s?${NUM_SRC}(?![\d:])(?:\s?(?<symAfter>[€$£]))?(?:\s*${CODE_SRC}\b)?(?:\s*${PER_SRC})?`,
 );
+
+/**
+ * What may not follow a figure (T-134 r2 #3-#5): never guess, decline instead.
+ * A digit or separator (malformed "1,0000", "1.000.50"), a multiplier ("1.5k",
+ * "80 thousand"), a currency Trav doesn't read ("80 chf"), or a period it
+ * doesn't keep ("a month", "for the weekend").
+ */
+const UNSAFE_AFTER =
+  /^(?:\d|[.,]\d)|^\s*(?:k|K|thousand|grand|mil|million|m)\b|^\s*(?:chf|jpy|yen|cad|aud|nzd|mxn|sek|nok|dkk|pln|czk|huf|try|inr|cny|yuan|rupees?|francs?|pesos?|kron(?:a|or|er|e)|zloty|lira|reais|real|won|baht)\b|^\s*(?:(?:a|per|each|every|\/)\s*(?:month|year|weekend|semester)|monthly|yearly|annually|for the weekend|this (?:month|year|weekend|semester))\b/;
 
 const SYMBOL_CURRENCY: Readonly<Record<string, string>> = { '€': 'EUR', $: 'USD', '£': 'GBP' };
 const WORD_CURRENCY: Readonly<Record<string, string>> = {
@@ -146,10 +163,14 @@ export function parseBudgetFigure(
   const m = FIGURE_RE.exec(c);
   const g = m?.groups;
   if (m === null || g?.['num'] === undefined) return undefined;
-  if (NON_MONEY_UNIT.test(c.slice(m.index + m[0].length)) && g['per'] === undefined) {
+  const after = c.slice(m.index + m[0].length);
+  if (NON_MONEY_UNIT.test(after) && g['per'] === undefined) {
     return undefined;
   }
-  const sym = g['sym'];
+  if (UNSAFE_AFTER.test(after)) return undefined;
+  // "0.001" style leading zeros with grouping are no budget either.
+  if (g['sep'] !== undefined && /^0/.test(g['num'])) return undefined;
+  const sym = g['sym'] ?? g['symAfter'];
   const code = g['code'];
   const marked = sym !== undefined || code !== undefined;
   if (opts.requireMoneyMarker === true && !marked && g['per'] === undefined) return undefined;
