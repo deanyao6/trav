@@ -36,6 +36,7 @@ import {
   parseBookingRequest,
   parseVenueQuestion,
   splitSender,
+  TIER_NOISE,
   venueIndexFrom,
   type VenueIndex,
 } from '../../booking/request.js';
@@ -397,7 +398,13 @@ const CHEAPER_WHICH_TAIL = "reply with the number or the name and i'll look for 
 function cheaperWhichText(list: readonly PendingSummary[]): string {
   // Two numbered at most: the question stays inside the 4-line reply cap (a name answers any).
   const shown = list.slice(0, 2).map((p, i) => `${i + 1}. ${pendingLabel(p)} · ${p.total}`);
-  return ['which one?', ...shown, CHEAPER_WHICH_TAIL].join('\n');
+  // More than two waiting: say so, and how to reach the rest (T-133 r2 #3).
+  const more = list.length - shown.length;
+  const head =
+    more > 0
+      ? `which one? (+${String(more)} more: "@trav anything cheaper for" and its name)`
+      : 'which one?';
+  return [head, ...shown, CHEAPER_WHICH_TAIL].join('\n');
 }
 
 function pendingLabel(p: PendingSummary): string {
@@ -423,6 +430,8 @@ function lastWhichQuestion(req: CompletionRequest): Map<number, string> | undefi
   for (const m of text.matchAll(/(?:^|\s)([1-3])\. (.+?) · /g)) labels.set(Number(m[1]), m[2]!);
   return labels;
 }
+
+const WHICH_REPLY_FILLER: ReadonlySet<string> = new Set(['the', 'one', 'that', 'this', 'ones']);
 
 const ORDINALS: Readonly<Record<string, number>> = {
   '1': 1,
@@ -456,6 +465,13 @@ function whichReplyWords(text: string, labels: ReadonlyMap<number, string>): str
   const words = namedWords(t);
   if (words.length === 0 || t.split(/\s+/).length > 5) return undefined;
   const shown = [...labels.values()].flatMap((l) => namedWords(l));
+  // Only a name from the question (plus "the"/"one"/"that"): "@trav razzmatazz ga for 5" or
+  // "book razzmatazz for 5" is a new booking ask, never this reply (T-133 r2 #1).
+  const shownTokens = new Set([...labels.values()].flatMap((l) => foldText(l).split(/[^a-z0-9]+/)));
+  const tokens = t.split(/[^a-z0-9]+/).filter((w) => w !== '' && w !== 'trav');
+  const allowed = (w: string): boolean =>
+    WHICH_REPLY_FILLER.has(w) || shownTokens.has(w) || (w.length >= 3 && namesWord(w, shown));
+  if (!tokens.every(allowed)) return undefined;
   return words.some((w) => namesWord(w, shown)) ? words : undefined;
 }
 
@@ -658,22 +674,6 @@ function monthDay(date: string | undefined): string | undefined {
   return month === undefined ? undefined : `${month} ${String(Number(m[2]))}`;
 }
 
-/** Tier-name words a re-ask can't pick a tier by (mirrors the request parser's noise words). */
-const TIER_NAME_NOISE = new Set([
-  'general',
-  'admission',
-  'entry',
-  'slot',
-  'ticket',
-  'tickets',
-  'line',
-  'zone',
-  'show',
-  'and',
-  'the',
-  'with',
-]);
-
 /**
  * What a member can say to get this tier proposed ("behind the goal",
  * "fast-line presale"): its seat words, else its tier name when that has a
@@ -684,7 +684,8 @@ function tierHandle(t: CheaperTier): string | undefined {
   if (t.tier === undefined) return undefined;
   const words = foldText(t.tier)
     .split(/[^a-z0-9]+/)
-    .filter((w) => w.length >= 3 && !/\d/.test(w) && !TIER_NAME_NOISE.has(w));
+    // The request parser's own rule (`TIER_NOISE`, all-digit words), so the two never drift.
+    .filter((w) => w.length >= 3 && !/^\d+$/.test(w) && !TIER_NOISE.has(w));
   return words.length > 0 ? t.tier.toLowerCase() : undefined;
 }
 
@@ -735,7 +736,23 @@ function cheaperText(
     const defaultPick = [...(same?.tiers ?? [])].sort((a, b) =>
       a.refundable !== b.refundable ? (a.refundable ? -1 : 1) : a.amountMinor - b.amountMinor,
     )[0];
-    const handle = tierHandle(cheaper);
+    const rawHandle = tierHandle(cheaper);
+    // The handle only works when, among the tiers it also matches (same seat
+    // words, or a shared tier word), the parser's refundable-first rank picks
+    // this one; else the ask would re-propose another tier (T-133 r2 #2).
+    const handleWords = (t: CheaperTier): string[] =>
+      foldText(t.tier ?? '')
+        .split(/[^a-z0-9]+/)
+        .filter((w) => w.length >= 3 && !/^\d+$/.test(w) && !TIER_NOISE.has(w));
+    const matches = (same?.tiers ?? []).filter((t) =>
+      cheaper.seat !== undefined
+        ? t.seat === cheaper.seat
+        : handleWords(t).some((w) => handleWords(cheaper).includes(w)),
+    );
+    const rankedFirst = [...matches].sort((a, b) =>
+      a.refundable !== b.refundable ? (a.refundable ? -1 : 1) : a.amountMinor - b.amountMinor,
+    )[0];
+    const handle = rankedFirst === cheaper ? rawHandle : undefined;
     const night = monthDay(p.eventDate);
     // The exact ask that proposes this tier, or none when no ask would pick it.
     const reAsk =

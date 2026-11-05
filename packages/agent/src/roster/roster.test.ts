@@ -876,6 +876,13 @@ describe('parseTicketForMe (T-137)', () => {
     '@trav can i get one too? also what time is it',
     "@trav i'm in",
     '@trav can you book 6 tickets too',
+    // r1 #2: a tail that is a condition or a second request is the model's.
+    '@trav get me one too if dean pays, and book sam a vip table',
+    '@trav get me one too if dean pays',
+    '@trav can i get one too in case i feel better and book sam one',
+    '@trav can i get one too in case; also log the taxi',
+    '@trav can i get one too if sam splits it with me',
+    '@trav can i get one too for later, put it on my card',
   ])('"%s" is not', (text) => {
     expect(parseTicketForMe(text)).toBeUndefined();
   });

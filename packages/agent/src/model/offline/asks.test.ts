@@ -326,6 +326,38 @@ describe('cheaper responder', () => {
     expect(res.text).not.toMatch(/still held|keep them|seats for/);
   });
 
+  it('T-133 r2 #2: no quoted ask when its seat words would re-pick the held (refundable) tier', () => {
+    const res = cheaperWith(
+      [barcaPending],
+      [
+        barcaEvent([
+          tierRow('off_fcb_sev_alta', 'Lateral alta', 'sideline', 7000),
+          tierRow('off_fcb_sev_tribuna', 'Tribuna lateral', 'sideline', 7200, true),
+        ]),
+      ],
+    );
+    expect(res.text).toMatch(/^cheaper(?: for fc barcelona vs sevilla fc)?: €70 each · sideline/);
+    expect(res.text).not.toContain('want those instead');
+  });
+
+  it('T-133 r2 #3: more than two pending: the question says how to reach the rest', () => {
+    const third = {
+      ...razzPending,
+      proposalId: 'prop_flam',
+      description: 'Flamenco at Tablao',
+      tier: '',
+    };
+    const first = ask('Sam: @trav anything cheaper');
+    const c1 = cheaperResponder.complete(first)!.toolCalls[0]!;
+    const res = cheaperResponder.complete(
+      after(first, c1, { proposals: [barcaPending, razzPending, third] }),
+    )!;
+    expect(res.text.split('\n')[0]).toBe(
+      'which one? (+1 more: "@trav anything cheaper for" and its name)',
+    );
+    expect(res.text.length).toBeLessThanOrEqual(279);
+  });
+
   it('T-133: the cheapest cheaper tier is the one offered; the held tier never is', () => {
     const res = cheaperWith(
       [barcaPending],
@@ -606,6 +638,27 @@ describe('cheaper responder', () => {
     expect(h.pending()).toHaveLength(2);
     expect(h.tickets.purchaseCount()).toBe(0);
   });
+
+  // T-133 r2 #1: after the which-one question, a new booking ask is a booking ask.
+  it.each([
+    ['h_jordan', '@trav razzmatazz ga for 5'],
+    ['h_henry', '@trav barça tickets for 2'],
+    ['h_henry', '@trav book razzmatazz for 5'],
+  ])(
+    'r2 #1: %s "%s" after the which-one question is never read as its answer',
+    async (who, text) => {
+      const h = harness();
+      await h.say(
+        'h_dean',
+        '@trav barça vs sevilla sunday mar 15, 6 tickets together, sideline not behind the goal',
+      );
+      await h.say('h_maya', '@trav book the razz vip mezzanine for all 6 tonight');
+      await h.say('h_sam', '@trav anything cheaper');
+      const turn = await h.say(who, text);
+      expect(turn.toolCalls).not.toContain('search_events');
+      expect(turn.toolCalls).not.toEqual(['get_pending_proposals', 'search_events']);
+    },
+  );
 });
 
 describe('lodging, remember, honest gaps', () => {

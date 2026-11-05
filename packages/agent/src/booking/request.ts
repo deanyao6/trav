@@ -110,7 +110,7 @@ const NAME_NOISE = new Set([
 ]);
 
 /** Tier-name words that say nothing about which seats ("General admission", "10:00 slot"). */
-const TIER_NOISE = new Set([
+export const TIER_NOISE: ReadonlySet<string> = new Set([
   'general',
   'admission',
   'entry',

@@ -436,11 +436,19 @@ const TICKET_WORD = String.raw`(?:one|a ticket|a tix|a spot|1)`;
  * ("can i get one too", "grab me a ticket for razz too pls"). An "in case …"
  * / "if …" tail is matched only to recognize the sentence: it often carries
  * a health reason ("in case i feel better later") and is never returned.
+ * The tail is one clause (no "," or ";" inside it).
  */
 const ME_TICKET = new RegExp(
-  String.raw`^(?:(?:ok|okay|wait|hey|actually|pls|please)\s+)*${TICKET_ASK}\s+${TICKET_WORD}(?:\s+(?:for|to)\s+${HINT})?${WHEN}\s+(?:too|as well)(?:\s+(?:pls|plz|please))?(?:,?\s+(?:just\s+)?(?:in case|if|for later|for when)\b.{0,60})?$`,
+  String.raw`^(?:(?:ok|okay|wait|hey|actually|pls|please)\s+)*${TICKET_ASK}\s+${TICKET_WORD}(?:\s+(?:for|to)\s+${HINT})?${WHEN}\s+(?:too|as well)(?:\s+(?:pls|plz|please))?(?:,?\s+(?:just\s+)?(?:in case|if|for later|for when)\b(?<tail>[^,;]{0,60}))?$`,
   'iu',
 );
+/**
+ * A tail that is more than a reason (T-137 r1 #2): a second request ("and
+ * book sam a vip table"), a joiner word, or a condition on who pays or how
+ * it splits ("if dean pays"). Such an ask is the model's, never a card.
+ */
+const TAIL_NOT_A_REASON =
+  /\b(?:and|also|plus|then|but|or|(?:book|get|grab|buy|add|log|split|cancel|drop|pay|paid|cover|card|charg|venmo|owe|owing|table|vip|ticket)\w*)\b|[€$£\d@]/iu;
 
 /**
  * "@trav can i get one too in case i feel better later" ⇒ the sender wants
@@ -452,6 +460,7 @@ export function parseTicketForMe(text: string): TicketForMe | undefined {
   if (t.length === 0 || t.length > 120) return undefined;
   const m = ME_TICKET.exec(t);
   if (m === null) return undefined;
+  if (TAIL_NOT_A_REASON.test(m.groups?.['tail'] ?? '')) return undefined;
   const hint = m.groups?.['hint']?.trim();
   const when = whenOf(m.groups);
   return {

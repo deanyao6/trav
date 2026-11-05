@@ -428,6 +428,12 @@ const UNDO_TEXT =
 /** The addressed form only ("@trav undo", "trav, undo"): a bare "undo" past the window is chat. */
 const EXPLICIT_UNDO = /^[\s(]*(?:@trav|(?:hey |ok |okay |yeah )?trav\s*[,:])/i;
 export const UNDO_WHICH_TEXT = 'which one? reply undo on the logged line you want gone';
+/** "cancel that" quoting a Trav card that is no proposal (T-137 r1 #1): nothing is dropped. */
+export const QUOTED_RECEIPT_CANCEL_TEXT =
+  "that one's already booked, so there's nothing waiting to drop";
+export const QUOTED_EXPENSE_CANCEL_TEXT =
+  "that's a logged expense, not a booking. reply undo on it to take it off the tab";
+export const QUOTED_CARD_CANCEL_TEXT = "nothing's waiting on that one, so there's nothing to drop";
 
 /**
  * Clamps model prose to an ordinary reply (VOICE §3.1): the first 4 lines,
@@ -1683,18 +1689,53 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     // sender asked for (a quote-reply to someone else's card, or nothing of
     // theirs pending, is not this), never to a completed booking. It counts
     // when it quotes the card, says "@trav", or comes inside the reply window
-    // of the card going out; otherwise it is chat.
+    // of the card going out; otherwise it is chat. A quote-reply binds to the
+    // quoted card only: quoting anything but one of the sender's own proposal
+    // cards (an expense, a receipt, a recap, a member's line) is not this
+    // (T-137 r1 #1). Addressed by the window alone, it reaches only the
+    // sender's cards that went out inside the window (r1 #3).
     if (me !== null && canRequest(r.identity) && r.lane === 'group' && isOwnCancelText(rawText)) {
       const own = pendingFor(r).filter(
         (p) => p.requestedBy === me.memberId && delivered(p.proposalId),
       );
-      const replied = boundRef?.proposalId;
-      const target = replied === undefined ? own : own.filter((p) => p.proposalId === replied);
-      const addressed =
-        hasAtTrav(rawText) ||
-        boundRef !== undefined ||
-        target.some((p) => cardSentWithinWindow(p.proposalId, r.now));
-      if (target.length > 0 && addressed) {
+      // Quoting a Trav card that is no proposal (a logged expense, a booking
+      // receipt, a recap): never a cancel of some pending card, and never
+      // handed to the model's cancel either. One line, nothing changes. A
+      // still-open expense card (a receipt read, a looks-shared ask) keeps
+      // its own flow below.
+      if (
+        boundRef !== undefined &&
+        boundRef.proposalId === undefined &&
+        !(boundRef.card.type === 'expense_confirm' && boundRef.card.status !== 'logged')
+      ) {
+        recordInbound();
+        const line =
+          boundRef.card.type === 'receipt'
+            ? QUOTED_RECEIPT_CANCEL_TEXT
+            : isLoggedExpenseCard(boundRef)
+              ? QUOTED_EXPENSE_CANCEL_TEXT
+              : QUOTED_CARD_CANCEL_TEXT;
+        const before = snapshotAudit(r.group.groupId);
+        const sent = await send(r, [message(r, line)]);
+        return {
+          outbound: sent,
+          toolCalls: [],
+          auditEventIds: auditIdsSince(r.group.groupId, before),
+          silent: sent.length === 0,
+          modelSources: [],
+          note: 'cancel:quoted_not_a_proposal',
+        };
+      }
+      let target: BookingProposal[];
+      if (event.replyToMessageId !== undefined) {
+        const quoted = boundRef?.proposalId;
+        target = quoted === undefined ? [] : own.filter((p) => p.proposalId === quoted);
+      } else if (hasAtTrav(rawText) || TRAV_VOCATIVE_PREFIX.test(rawText)) {
+        target = own;
+      } else {
+        target = own.filter((p) => cardSentWithinWindow(p.proposalId, r.now));
+      }
+      if (target.length > 0) {
         recordInbound();
         return routeApproval(
           r,
