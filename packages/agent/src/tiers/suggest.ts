@@ -75,7 +75,25 @@ function fold(s: string): string {
 
 /** Booking, logging or paying: someone else's flow, never a suggestion ask. */
 const NOT_A_SUGGESTION =
-  /\b(?:book|booking|reserve|buy|order|get us|get me|grab us|grab me|hold|paid|pay|spent|owe|owes|split|cost me|covered|charge|charged|refund|cancel|remember|add|log|put)\b/;
+  /\b(?:book|booking|reserve|buy|bought|order|get us|get me|grab us|grab me|hold|paid|pay|spent|owe|owes|split|cost me|covered|fronted|charge|charged|refund|cancel|remember|add|log|put)\b/;
+/**
+ * "i got the bill at the tapas place, 96 euros" (T-222): a written amount plus
+ * a payment shape is a payment being stated, the expense flow's. The shape is
+ * "(i|we|<name>) got|grabbed|picked up the|our <bill, meal, round, ride…>"
+ * (never "i got the kids"; the verb may also open the message), or "<thing>
+ * came to <amount>". A bare word is never enough:
+ * "got any dinner spots under €30?", "what have you got under €30", "we got
+ * €40 left each, ideas?" and "where the bill won't be crazy" stay asks, and
+ * so does anything with a question mark.
+ */
+const MONEY_WRITTEN =
+  /[€$£]\s?\d|\d\s?(?:[€$£]|euros?\b|eur\b|dollars?\b|bucks\b|quid\b|pounds?\b)/;
+const PAYMENT_SHAPE =
+  /(?:^\s*|\b(?!(?:you|u|ya|have|has|ve)\b)[a-z]+\s+)(?:got|grabbed|picked up)\s+(?:the|our|that)\s+(?:bill|check|cheque|tab|dinner|lunch|brunch|breakfast|drinks|round|food|meal|tapas|pizza|wine|coffees?|taxi|uber|cab|tickets?)\b|\b(?:came|comes) to\s+[€$£]?\d/;
+
+function statesAPayment(t: string): boolean {
+  return !t.includes('?') && MONEY_WRITTEN.test(t) && PAYMENT_SHAPE.test(t);
+}
 /** The ask wants ideas, not a fact: "where", "ideas", "any good", "recommend", "spot". */
 const SUGGEST_INTENT =
   /\b(?:things to do|something to do|stuff to do|where (?:should|can|do|could|to|would)|where's good|wheres good|ideas?|recs?|recommend\w*|suggest\w*|suggestions?|options?|any (?:good|decent|nice|cheap|chill|fun|cool)|(?:food|dinner|lunch|brunch|bar|drinks?) tips|know (?:a|any)|what(?:'s| is) good|whats good|somewhere|someplace|spots?|places?|what (?:should|can|could) we do|anything (?:fun|good) to do|looking for|(?:cheap|good|great|decent|nice|budget) eats)\b/;
@@ -98,6 +116,7 @@ export function parseSuggestAsk(text: string): SuggestAsk | undefined {
   const t = fold(stripTravPrefix(text)).replace(/@trav\b/g, ' ');
   if (t.length === 0 || t.length > 200) return undefined;
   if (NOT_A_SUGGESTION.test(t) || CLUB.test(t)) return undefined;
+  if (statesAPayment(t)) return undefined;
   if (!SUGGEST_INTENT.test(t)) return undefined;
   const category: VenueCategory | undefined = ACTIVITY.test(t)
     ? 'activity'
