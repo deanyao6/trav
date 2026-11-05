@@ -788,8 +788,11 @@ interface ParticipantResult {
 }
 
 interface PersonRun {
-  /** list: a list construction; absent: next to an absence cue; stray: anything else. */
-  readonly kind: 'list' | 'absent' | 'stray';
+  /**
+   * list: a list construction; absent: next to an absence cue; unresolved: a
+   * "him"/"her" in the list that isn't one member; stray: anything else.
+   */
+  readonly kind: 'list' | 'absent' | 'stray' | 'unresolved';
   readonly ids: readonly MemberId[];
   /** "with/between/among X": the payer is in too. */
   readonly withPayer: boolean;
@@ -819,6 +822,20 @@ const LIST_LEAD =
   /\b(?:for|with|between|among|amongst|just|only|including|incl|plus|and also)\s+(?:the\s+)?$/;
 const WITH_LEAD = /\b(?:with|between|among|amongst)\s+(?:the\s+)?$/;
 
+/** After a "him"/"her" that is a person, not a possessive ("her taxi"). */
+const PRONOUN_IN_LIST_AFTER =
+  /^\s*(?:$|[,;.:!?)&+]|(?:and|too|also|as well|split|each|evenly|equally)\b)/;
+
+/**
+ * Who "him"/"her" at `at` is: the one member named before it ("chase paid
+ * €42, split between him and me" ⇒ Chase). Two or more named: undefined,
+ * so the split is a question, never a guess.
+ */
+function pronounReferent(scan: Scan, at: number): MemberId | undefined {
+  const ids = uniq(scan.names.filter((h) => h.end <= at).map((h) => h.memberId));
+  return ids.length === 1 ? ids[0] : undefined;
+}
+
 /**
  * Groups the people a span names into runs ("me, chase and crowley", "piotr and
  * i", "henry") and classifies each (T-010 r1 #1, #4). Payers ("Piotr got")
@@ -838,6 +855,19 @@ function personRuns(scan: Scan, span: [number, number]): PersonRun[] {
     const start = span[0] + m.index;
     toks.push({ start, end: start + m[0].length, id: ctx.senderMemberId, self: true, word: m[1]! });
   }
+  // "chase paid…, split between him, me and arjun": "him"/"her" in a list is
+  // the one member named before it (T-216). Possessive "her" ("her taxi") is
+  // not a person here. Two or more members named before: unresolved, a question.
+  const pronouns: Tok[] = [];
+  let unresolved = false;
+  for (const m of low.slice(span[0], span[1]).matchAll(/\b(him|her)\b/g)) {
+    const start = span[0] + m.index;
+    const end = start + m[0].length;
+    if (!PRONOUN_IN_LIST_AFTER.test(low.slice(end))) continue;
+    const id = pronounReferent(scan, start);
+    pronouns.push({ start, end, id: id ?? '', self: false, word: id === undefined ? '?' : m[1]! });
+  }
+  toks.push(...pronouns);
   toks.sort((a, b) => a.start - b.start);
   const groups: Tok[][] = [];
   for (const t of toks) {
@@ -874,6 +904,12 @@ function personRuns(scan: Scan, span: [number, number]): PersonRun[] {
     // "i" right before a payment verb ("piotr and i paid") is a payer, handled elsewhere
     const before = low.slice(0, start);
     const after = low.slice(end);
+    // a lone "him" counts only as a list ("split with him"), never "i owe him"
+    if (g.every((t) => pronouns.includes(t)) && !LIST_LEAD.test(before)) continue;
+    if (g.some((t) => t.word === '?')) {
+      unresolved = true;
+      continue;
+    }
     const clauseStart = Math.max(
       ...[',', ';', '.', ':', '('].map((c) => before.lastIndexOf(c)),
       before.lastIndexOf(' but '),
@@ -901,7 +937,47 @@ function personRuns(scan: Scan, span: [number, number]): PersonRun[] {
       out.push({ kind: 'stray', ids: names.map((t) => t.id), withPayer: false });
     }
   }
+  if (unresolved) out.push({ kind: 'unresolved', ids: [], withPayer: false });
   return out;
+}
+
+/**
+ * "everyone but henry", "everyone else apart from henry", "except henry",
+ * "(not henry)". Group 1/2: the list up to the first comma or clause word;
+ * `exceptList` carries it past commas. Group 3: the parenthesised form.
+ */
+const EXCEPT_RE =
+  /\b(?:(?:everyone|everybody)(?:\s+else)?|all(?: of us)?|the (?:whole )?group|the rest of us)\s+(?:but|except(?: for)?|minus|other than|apart from|besides|excluding|without|bar)\s+(.+?)(?=$|[,.;(]|\s(?:so|since|because|for|split|and then)\s)|\b(?:except(?: for)?|excluding|minus)\s+(.+?)(?=$|[,.;(]|\s(?:so|since|because|for|split)\s)|\(\s*not\s+(.+?)\s*\)/;
+/** What ends one comma clause of an except list. */
+const EXCEPT_STOP = /[,.;(]|\s(?:so|since|because|for|split|and then)\s/;
+
+/**
+ * The names an except phrase leaves out. The match stops at the first comma,
+ * so "except henry, piotr and arjun" would drop only Henry (T-216): past each
+ * comma, the next clause joins the list while it is nothing but names
+ * ("piotr and arjun", "and me"). "henry, chase paid", "henry, thanks" or
+ * "henry, chase too" end it there.
+ */
+function exceptList(low: string, m: RegExpExecArray, members: readonly ParseMember[]): string {
+  const first = m[1] ?? m[2];
+  if (first === undefined) return m[3] ?? '';
+  let list = first;
+  let at = m.index + m[0].length;
+  for (let guard = 0; guard <= members.length && low[at] === ','; guard += 1) {
+    const rest = low.slice(at + 1);
+    const stop = rest.search(EXCEPT_STOP);
+    const raw = (stop < 0 ? rest : rest.slice(0, stop)).trim();
+    const clause = raw.replace(/^and\s+/, '');
+    if (clause.length === 0 || clause === 'and') break;
+    if (/\b(?:too|also|as well)\b/.test(clause)) break;
+    // ", and zed": one more list item even when it isn't a member, so the
+    // caller asks instead of quietly dropping it
+    const lastItem = raw !== clause && /^[a-z']+$/.test(clause);
+    if (!lastItem && !onlyNames(clause, members)) break;
+    list = `${list}, ${clause}`;
+    at += 1 + (stop < 0 ? rest.length : stop);
+  }
+  return list;
 }
 
 /** Who is in, from one span of the text (the whole message or one expense's part of it). */
@@ -927,17 +1003,15 @@ function parseParticipants(
     return { spec: { kind: 'vague', phrase: vague[0].trim() }, restToPayer };
   }
 
-  // except
-  const except =
-    /\b(?:everyone|everybody|all(?: of us)?|the (?:whole )?group|the rest of us)\s+(?:but|except(?: for)?|minus|other than|apart from|besides|excluding|without|bar)\s+(.+?)(?=$|[,.;(]|\s(?:so|since|because|for|split|and then)\s)|\b(?:except(?: for)?|excluding|minus)\s+(.+?)(?=$|[,.;(]|\s(?:so|since|because|for|split)\s)|\(\s*not\s+(.+?)\s*\)/.exec(
-      low,
-    );
+  // except: "everyone but henry", "all except henry, piotr and arjun",
+  // "me and everyone else apart from henry" (T-216)
+  const except = EXCEPT_RE.exec(low);
   if (except !== null) {
-    const list = except[1] ?? except[2] ?? except[3] ?? '';
+    const list = exceptList(low, except, ctx.members);
     const ids: MemberId[] = [];
     for (const w of list.split(/\s*(?:,|\band\b|&|\bor\b)\s*/).filter((x) => x.length > 0)) {
       const word = w.replace(/^(?:the|just)\s+/, '').trim();
-      if (word === 'me' || word === 'myself') ids.push(sender);
+      if (word === 'me' || word === 'myself' || word === 'i') ids.push(sender);
       else {
         const id = memberByWord(word, ctx.members);
         if (id === undefined) return { spec: { kind: 'vague', phrase: w }, restToPayer };
@@ -967,6 +1041,9 @@ function parseParticipants(
   // inside a list construction; a name next to an absence cue is left out; a
   // name anywhere else is a question, never a guess.
   const runs = personRuns(scan, span);
+  if (runs.some((r) => r.kind === 'unresolved')) {
+    return { spec: { kind: 'vague', phrase: 'names' }, restToPayer };
+  }
   const listed: MemberId[] = [];
   const absent: MemberId[] = [];
   const stray: MemberId[] = [];
