@@ -29,6 +29,7 @@ import type {
   StepExpect,
 } from './types.js';
 import { PROBE_NAMES, SCENARIO_TAGS } from './types.js';
+import { LINE_ACTIONS } from './runner/actions.js';
 
 export function scenariosDir(): string {
   return join(repoRoot(), 'packages', 'evals', 'scenarios');
@@ -132,6 +133,8 @@ const safetyIdCheck: Check = (v, at) => {
     fail(at, `must be a docs/SAFETY.md §3 checklist id like "A9", got ${describe(v)}`);
 };
 const tripName = oneOf(TRIP_NAMES);
+const derivedOnly: Check = (_v, at) =>
+  fail(at, 'is derived from chat lines by the replay expansion; not settable in a scenario file');
 
 // ---------- scenario-level shapes ----------
 
@@ -196,11 +199,51 @@ const STEP_EXPECT = {
     object({
       paidBy: req(str),
       amountMinor: req(int),
-      shares: req(arrayOf(object({ memberId: req(str), amountMinor: req(int) }))),
+      shares: opt(arrayOf(object({ memberId: req(str), amountMinor: req(int) }))),
+      toleranceMinor: opt(nonNegInt),
     }),
   ),
   purchases: opt(nonNegInt),
   explicitAdultAudience: opt(arrayOf(str, { nonEmpty: true })),
+  // Chat-line ground truth (T-077): usable in scenario files too.
+  action: opt(arrayOf(oneOf(LINE_ACTIONS), { nonEmpty: true })),
+  questionCount: opt(nonNegInt),
+  proposals: opt(nonNegInt),
+  ledgerWrites: opt(nonNegInt),
+  newPurchases: opt(nonNegInt),
+  auditOrder: opt(arrayOf(str, { nonEmpty: true })),
+  auditAbsent: opt(arrayOf(str, { nonEmpty: true })),
+  roster: opt(object({ activityId: req(str), in: req(strs), out: req(strs) })),
+  consent: opt(object({ memberId: req(str), flag: req(oneOf(CONSENT_FLAGS)), to: req(bool) })),
+  settings: opt(record),
+  reactions: opt(arrayOf(str, { nonEmpty: true })),
+  textMessages: opt(nonNegInt),
+  groupMessages: opt(nonNegInt),
+  dmTo: opt(str),
+  dmMustContain: opt(strs),
+  scheduled: opt(object({ job: req(str), mode: opt(str) })),
+  approval: opt(
+    object({ effect: req(oneOf(['granted', 'ignored'])), complete: opt(bool), cause: opt(str) }),
+  ),
+  decision: opt(
+    object({
+      outcome: opt(str),
+      approvalMode: opt(str),
+      requiredApprovers: opt(strs),
+      reasons: opt(strs),
+      reasonsInclude: opt(strs),
+    }),
+  ),
+  pendingItem: opt(
+    object({ amountMinor: opt(int), participants: opt(strs), lowConfidence: opt(bool) }),
+  ),
+  ticketsTo: opt(strs),
+  noTicketsTo: opt(strs),
+  ingested: opt(nonNegInt),
+  maxTransfers: opt(nonNegInt),
+  // Set by the replay expansion only: a scenario file states its gap with the scenario-level `pending`.
+  pending: opt(derivedOnly),
+  ungraded: opt(derivedOnly),
 } satisfies Record<keyof StepExpect, Field>;
 
 const BASE: Shape = {
@@ -242,7 +285,7 @@ const STEPS: Readonly<Record<Step['do'], Shape>> = {
     ),
   },
   react: { ...BASE, from: req(str), target: req(str), reaction: req(str) },
-  tap: { ...BASE, from: req(str), target: req(str), actionId: req(str) },
+  tap: { ...BASE, from: req(str), target: req(str), actionId: req(str), value: opt(str) },
   advance: { ...BASE, minutes: opt(nonNegInt), to: opt(str), drain: opt(bool) },
   drain: { ...BASE },
   intake: {
@@ -263,6 +306,12 @@ const STEPS: Readonly<Record<Step['do'], Shape>> = {
     extracted: opt(
       object({ amountMinor: req(int), currency: req(str), merchantDisplay: req(str) }),
     ),
+  },
+  import: {
+    ...BASE,
+    event: req(oneOf(['card_sync', 'email_arrived'])),
+    owner: req(str),
+    fixture: req(str),
   },
   remember: {
     ...BASE,

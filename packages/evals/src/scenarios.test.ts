@@ -3,7 +3,13 @@
  * of typo (unknown key at any level, missing required field, bad enum, bad
  * probe, bad SAFETY id) is rejected instead of grading nothing.
  */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { repoRoot } from './arch/repo.js';
+import { TRIP_NAMES } from './fixtures.js';
+import { loadChat } from './runner/expand.js';
+import { LINE_PENDING } from './runner/linePending.js';
 import { runProbe } from './runner/probes.js';
 import { loadScenarios, validateScenario } from './scenarios.js';
 import type { ProbeName } from './types.js';
@@ -125,6 +131,33 @@ describe('validateScenario', () => {
     // weights
     ['weight for an unknown grader', { ...base, weights: { voice_lnit: 2 } }, /unknown grader/],
     ['pendingNote without pending', { ...base, pendingNote: 'x' }, /pendingNote without pending/],
+    // chat-line ground truth (T-077) and imports (T-078)
+    ['unknown line action', withStep({ ...say, expect: { action: ['dance'] } }), /dance/],
+    [
+      'per-step pending is derived only',
+      withStep({ ...say, expect: { pending: 'T-081' } }),
+      /derived from chat lines/,
+    ],
+    [
+      'ungraded is derived only',
+      withStep({ ...say, expect: { ungraded: ['x'] } }),
+      /derived from chat lines/,
+    ],
+    [
+      'bad consent flag in expect',
+      withStep({ ...say, expect: { consent: { memberId: 'm', flag: 'card', to: true } } }),
+      /card/,
+    ],
+    [
+      'import with a bad event',
+      withStep({ do: 'import', event: 'sms', owner: 'mem_sam', fixture: 'f' }),
+      /sms/,
+    ],
+    [
+      'import without fixture',
+      withStep({ do: 'import', event: 'card_sync', owner: 'mem_sam' }),
+      /"fixture"/,
+    ],
   ];
 
   for (const [name, raw, msg] of rejects) {
@@ -137,6 +170,33 @@ describe('validateScenario', () => {
     expect(() =>
       validateScenario(withStep({ ...say, expect: { silnet: true } }), 'booking.json[3]'),
     ).toThrow(/scenario booking\.json\[3\]#typo_case step 0\.expect: unknown key "silnet"/);
+  });
+});
+
+describe('known-gap markers name open tasks (T-086)', () => {
+  const backlog = readFileSync(join(repoRoot(), 'tasks', 'BACKLOG.md'), 'utf8');
+  const status = (task: string): 'open' | 'done' | 'missing' => {
+    const m = new RegExp(`^- \\[( |x)\\] ${task} \\|`, 'm').exec(backlog);
+    return m === null ? 'missing' : m[1] === 'x' ? 'done' : 'open';
+  };
+
+  it('no scenario `pending` names a task that is done or not in the backlog', () => {
+    const stale = loadScenarios()
+      .filter((s) => s.pending !== undefined && status(s.pending) !== 'open')
+      .map((s) => `${s.id}: ${s.pending ?? ''} is ${status(s.pending ?? '')}`);
+    expect(stale).toEqual([]);
+  });
+
+  it('no per-line LINE_PENDING entry names a task that is done or not in the backlog', () => {
+    const stale = Object.entries(LINE_PENDING)
+      .filter(([, p]) => status(p.task) !== 'open')
+      .map(([id, p]) => `${id}: ${p.task} is ${status(p.task)}`);
+    expect(stale).toEqual([]);
+  });
+
+  it('every LINE_PENDING entry names a real chat line', () => {
+    const ids = new Set(TRIP_NAMES.flatMap((t) => loadChat(t).map((l) => l.id)));
+    expect(Object.keys(LINE_PENDING).filter((id) => !ids.has(id))).toEqual([]);
   });
 });
 

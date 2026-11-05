@@ -11,8 +11,8 @@
     "id": "barcelona_ledger_replay",
     "title": "the Barcelona chat replayed into the ledger: balances match ledger/barcelona.json to the cent",
     "tags": ["ledger", "replay"],
-    "pending": "T-010",
-    "pendingNote": "chat-text expenses (T-010), receipts (T-011) and the booking executor (T-009) must write the ledger first",
+    "pending": "T-083",
+    "pendingNote": "the final balances need every ledger line the replay misses: receipt photos after the payer's 👍 (T-083), FX (T-084), lodging (T-132), ride split by riders (T-135), card digests (T-067, T-144); per-line gaps are named in the evidence",
     "setup": { "fixtureExtras": true },
     "expect": { "ledgerGroundTruth": "barcelona" },
     "steps": [{ "do": "replay", "chat": "barcelona" }]

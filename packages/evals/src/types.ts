@@ -107,13 +107,89 @@ export interface StepExpect {
   readonly expense?: {
     readonly paidBy: string;
     readonly amountMinor: number;
-    /** Non-zero shares, any order. */
-    readonly shares: readonly { readonly memberId: string; readonly amountMinor: number }[];
+    /** Non-zero shares, any order. Omitted ⇒ only payer and amount are graded (family tab). */
+    readonly shares?: readonly { readonly memberId: string; readonly amountMinor: number }[];
+    /** Allowed absolute difference per amount (FX rounding the fixture does not pin). */
+    readonly toleranceMinor?: number;
   };
   /** Provider purchases allowed after this step (cumulative). */
   readonly purchases?: number;
   /** Restricted content allowed in this step's group output only for this adult audience. */
   readonly explicitAdultAudience?: readonly string[];
+
+  // ---- replayed chat-line ground truth (T-077, `fixtures/README.md` "chat lines") ----
+
+  /** What Trav must do (any one of them); see `LINE_ACTIONS` in `runner/actions.ts`. */
+  readonly action?: readonly string[];
+  /** Questions (`?`) in Trav's group reply on a clarify turn. */
+  readonly questionCount?: number;
+  /** Booking proposals created on this step. */
+  readonly proposals?: number;
+  /** Ledger expenses written on this step. */
+  readonly ledgerWrites?: number;
+  /** Provider purchases made on this step (not cumulative; compare `purchases`). */
+  readonly newPurchases?: number;
+  /** Audit types written in this relative order on this step. */
+  readonly auditOrder?: readonly string[];
+  /** Audit types that must NOT be written on this step (`roast: false` ⇒ no `roast.generated`). */
+  readonly auditAbsent?: readonly string[];
+  /** Attendance of one activity right after this step. */
+  readonly roster?: {
+    readonly activityId: string;
+    readonly in: readonly string[];
+    readonly out: readonly string[];
+  };
+  /** A member's consent flag right after this step. */
+  readonly consent?: { readonly memberId: string; readonly flag: string; readonly to: boolean };
+  /** Group settings right after this step (each key must equal). */
+  readonly settings?: Readonly<Record<string, unknown>>;
+  /** Trav reacted with one of these. */
+  readonly reactions?: readonly string[];
+  /** Text (non-reaction) messages Trav sent on this step. */
+  readonly textMessages?: number;
+  /** Group messages Trav sent on this step (a clock line: across the scheduled turns it ran). */
+  readonly groupMessages?: number;
+  /** Every message on this step is a DM to this member (and at least one was sent). */
+  readonly dmTo?: string;
+  /** Case-insensitive substrings of the DMs on this step. */
+  readonly dmMustContain?: readonly string[];
+  /** A clock line: the scheduled job it must run, and the recap mode (`scheduled:<job>:<mode>`). */
+  readonly scheduled?: { readonly job: string; readonly mode?: string };
+  /** The approval event this tap/reaction/message must produce. */
+  readonly approval?: {
+    readonly effect: 'granted' | 'ignored';
+    readonly complete?: boolean;
+    /** `approval.invalid_attempt.cause` (non-identity causes such as `ambiguous`). */
+    readonly cause?: string;
+  };
+  /** The policy decision (`policy.evaluated`) written on this step. */
+  readonly decision?: {
+    readonly outcome?: string;
+    readonly approvalMode?: string;
+    readonly requiredApprovers?: readonly string[];
+    readonly reasons?: readonly string[];
+    readonly reasonsInclude?: readonly string[];
+  };
+  /** The private "looks shared?" card a document import must DM its owner. */
+  readonly pendingItem?: {
+    readonly amountMinor?: number;
+    readonly participants?: readonly string[];
+    readonly lowConfidence?: boolean;
+  };
+  /** Members who must get a ticket DM on this step, and members who must not. */
+  readonly ticketsTo?: readonly string[];
+  readonly noTicketsTo?: readonly string[];
+  /** Rows a document import stored for its owner (0 ⇒ consent off: nothing read). */
+  readonly ingested?: number;
+  /** A settle-up card on this step lists at most this many transfers. */
+  readonly maxTransfers?: number;
+  /**
+   * Task id this line's behaviour waits on (a per-line known gap): its failures
+   * are still scored and fail the scenario, and the evidence names the task.
+   */
+  readonly pending?: string;
+  /** Fixture expectation fields on this line that no grader checks (reported as skipped, never passed). */
+  readonly ungraded?: readonly string[];
 }
 
 interface StepBase {
@@ -158,6 +234,8 @@ export interface TapStep extends StepBase {
   readonly from: string;
   readonly target: string;
   readonly actionId: string;
+  /** Button value (a digest row's provider id, an option id). */
+  readonly value?: string;
 }
 
 export interface AdvanceStep extends StepBase {
@@ -189,6 +267,19 @@ export interface IntakeStep extends StepBase {
     readonly currency: string;
     readonly merchantDisplay: string;
   };
+}
+
+/**
+ * A `system` chat line (T-078): a card sync or an arriving email, ingested
+ * through `agent.importCardTransactions` / `agent.importEmailReceipts` for one
+ * owner. Consent is whatever the chat set so far (no implicit opt-in).
+ */
+export interface ImportStep extends StepBase {
+  readonly do: 'import';
+  readonly event: 'card_sync' | 'email_arrived';
+  readonly owner: string;
+  /** Repo-relative fixture: `fixtures/transactions/<memberId>.json` or `fixtures/emails/<emailId>.json`. */
+  readonly fixture: string;
 }
 
 export interface RememberStep extends StepBase {
@@ -253,6 +344,7 @@ export type Step =
   | AdvanceStep
   | DrainStep
   | IntakeStep
+  | ImportStep
   | RememberStep
   | AttendanceStep
   | PatchMemberStep
@@ -334,6 +426,21 @@ export interface TurnSummary {
   readonly injectionPatterns?: readonly string[];
   readonly lowConfidence?: boolean;
   readonly pendingItemId?: string;
+  /** Card/email import outcome (counts only; verdicts and rows stay private). */
+  readonly imported?: {
+    readonly status: string;
+    readonly stored: number;
+    readonly prompted: number;
+  };
+}
+
+/** Facts read from the stores right after a step, only for the expectations that need them. */
+export interface StepState {
+  readonly roster?: { readonly in: readonly string[]; readonly out: readonly string[] };
+  readonly consent?: boolean;
+  readonly settings?: Readonly<Record<string, unknown>>;
+  /** Member-memory facts (all owners) and group-memory facts written on this step. */
+  readonly memoryWrites?: { readonly private: number; readonly group: number };
 }
 
 export interface StepRecord {
@@ -364,6 +471,10 @@ export interface StepRecord {
   readonly minors: readonly string[];
   /** Consent flags when this step's photos were sent (only for steps that sent photos). */
   readonly consentAtSend?: Readonly<Record<string, ConsentFlags | undefined>>;
+  /** Store facts after the step (see `StepState`). */
+  readonly state?: StepState;
+  /** A scheduled turn run by the `advance` record at this index (a clock line). */
+  readonly drainedFrom?: number;
   readonly skipped?: string;
   readonly error?: string;
 }

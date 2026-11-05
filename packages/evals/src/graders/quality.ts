@@ -8,6 +8,7 @@ import { voiceViolations } from '@trav/agent';
 import { loadFixture } from '../fixtures.js';
 import type { FlightsProbe, LedgerProbeTrip, MentionProbeRow } from '../runner/probes.js';
 import type { Episode, Grader, GraderResult } from '../types.js';
+import { lineChecks, lineView } from './lineChecks.js';
 import {
   allMessages,
   containsCi,
@@ -27,72 +28,103 @@ function probe<T>(ep: Episode, name: string): T[] {
 
 // ---------- turn expectations ----------
 
+/** `fields (count)`, most frequent first: the chat-line fields no grader checks. */
+function ungradedSummary(counts: ReadonlyMap<string, number>): string {
+  const rows = [...counts].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+  const total = rows.reduce((n, [, c]) => n + c, 0);
+  return `${String(total)} chat-line expectation field(s) have no grader, not counted as passes: ${rows
+    .map(([k, c]) => `${k} (${String(c)})`)
+    .join(', ')}`;
+}
+
 export const turnExpectations: Grader = {
   id: 'turn_expectations',
-  title: 'per-step expectations: note, tools, model source, text, audit',
+  title:
+    'per-step expectations: note, tools, model source, text, audit, and replayed chat-line ground truth (action, roster, consent, approval, decision, settle-up, DMs)',
   kind: 'deterministic',
   weight: 2,
   grade(ep) {
     const checks: Check[] = [];
+    const ungraded = new Map<string, number>();
     for (const step of ep.steps) {
       const e = step.expect;
       if (e === undefined) continue;
+      // A clock line's scheduled turns are judged with their advance record (`lineView`).
+      if (step.drainedFrom !== undefined) continue;
+      for (const f of e.ungraded ?? []) ungraded.set(f, (ungraded.get(f) ?? 0) + 1);
       const w = where(step);
+      // Per-line known gaps are named on the evidence by `annotateKnownGaps` (scoring.ts).
+      const push = (c: Check): void => {
+        checks.push(c);
+      };
       if (step.error !== undefined) {
-        checks.push({ ok: false, what: `${w}: step threw ${step.error}` });
+        push({ ok: false, what: `${w}: step threw ${step.error}` });
         continue;
       }
       if (step.skipped !== undefined) {
-        checks.push({ ok: false, what: `${w}: skipped (${step.skipped})` });
+        push({ ok: false, what: `${w}: skipped (${step.skipped})` });
         continue;
       }
-      const turn = step.turn;
+      const view = lineView(ep, step);
+      const turn = view.turn;
       const texts = (turn?.outbound ?? []).map((m) => m.text);
       if (e.note !== undefined) {
         const notes = typeof e.note === 'string' ? [e.note] : e.note;
-        checks.push({
+        push({
           ok: turn !== undefined && notes.includes(turn.note),
           what: `${w}: note ${turn?.note ?? 'none'}, expected ${notes.join(' | ')}`,
         });
       }
       if (e.toolCalls !== undefined) {
         const got = turn?.toolCalls ?? [];
-        checks.push({
+        push({
           ok: got.length === e.toolCalls.length && got.every((t, i) => t === e.toolCalls?.[i]),
           what: `${w}: tool calls [${got.join(',')}], expected [${e.toolCalls.join(',')}]`,
         });
       }
       if (e.modelSource !== undefined && ep.mode === 'offline') {
-        checks.push({
+        push({
           ok: turn?.modelSources[0] === e.modelSource,
           what: `${w}: model source ${turn?.modelSources[0] ?? 'none'}, expected ${e.modelSource}`,
         });
       }
-      const groupText = groupMessages(step)
+      const groupText = groupMessages(view)
         .map((m) => m.text)
         .join('\n');
-      const laneText = step.lane === 'dm' ? texts.join('\n') : groupText;
+      const laneText = view.lane === 'dm' ? texts.join('\n') : groupText;
       for (const s of e.mustContain ?? []) {
-        checks.push({ ok: containsCi(laneText, s), what: `${w}: missing "${s}"` });
+        push({ ok: containsCi(laneText, s), what: `${w}: missing "${s}"` });
       }
       for (const s of e.mustNotContain ?? []) {
-        checks.push({
+        push({
           ok: !texts.some((t) => containsCi(t, s)),
           what: `${w}: must not say "${s}"`,
         });
       }
       if (e.text !== undefined) {
         const first = turn?.outbound[0];
-        checks.push({
+        push({
           ok: texts[0] === e.text,
-          what: `${w}: text ${first === undefined ? 'none' : quoteMessage(first, step)}, expected "${e.text}"`,
+          what: `${w}: text ${first === undefined ? 'none' : quoteMessage(first, view)}, expected "${e.text}"`,
         });
       }
       for (const t of e.audit ?? []) {
-        checks.push({ ok: step.auditTypes.includes(t), what: `${w}: audit ${t} not written` });
+        push({ ok: view.auditTypes.includes(t), what: `${w}: audit ${t} not written` });
       }
+      for (const c of lineChecks(ep, step)) push(c);
     }
-    return [fromChecks(this.id, checks, { nothing: 'no step expectations' })];
+    const out: GraderResult[] = [fromChecks(this.id, checks, { nothing: 'no step expectations' })];
+    // Skipped, never a pass: the report says what the replay did not test.
+    if (ungraded.size > 0) {
+      out.push({
+        graderId: `${this.id}:ungraded`,
+        score: 1,
+        pass: true,
+        evidence: [],
+        skipped: ungradedSummary(ungraded),
+      });
+    }
+    return out;
   },
 };
 
@@ -354,9 +386,10 @@ export const ledgerGroundTruth: Grader = {
         checks.push({ ok: false, what: `${w}: expected a ledger expense, none was written` });
         continue;
       }
+      const tol = want.toleranceMinor ?? 0;
       checks.push({
-        ok: exp.amount.amountMinor === want.amountMinor,
-        what: `${w}: amount ${String(exp.amount.amountMinor)} ≠ ${String(want.amountMinor)}`,
+        ok: Math.abs(exp.amount.amountMinor - want.amountMinor) <= tol,
+        what: `${w}: amount ${String(exp.amount.amountMinor)} ≠ ${String(want.amountMinor)}${tol > 0 ? ` (±${String(tol)})` : ''}`,
       });
       const payer = exp.paidBy.map((p) => p.memberId).join(',');
       checks.push({
@@ -368,10 +401,23 @@ export const ledgerGroundTruth: Grader = {
           (x) => x.expenseId === exp.expenseId && x.kind === 'owes' && x.amount.amountMinor !== 0,
         )
         .map((x) => ({ memberId: x.memberId, amountMinor: x.amount.amountMinor }));
-      checks.push({
-        ok: rowKey(owes) === rowKey(want.shares),
-        what: `${w}: shares ${rowKey(owes)} ≠ expected ${rowKey(want.shares)}`,
-      });
+      if (want.shares !== undefined) {
+        const wantShares = want.shares;
+        const sharesOk =
+          tol === 0
+            ? rowKey(owes) === rowKey(wantShares)
+            : owes.length === wantShares.length &&
+              wantShares.every((s) =>
+                owes.some(
+                  (o) =>
+                    o.memberId === s.memberId && Math.abs(o.amountMinor - s.amountMinor) <= tol,
+                ),
+              );
+        checks.push({
+          ok: sharesOk,
+          what: `${w}: shares ${rowKey(owes)} ≠ expected ${rowKey(wantShares)}${tol > 0 ? ` (±${String(tol)})` : ''}`,
+        });
+      }
     }
     // The agent's own ledger (chat/receipt/booking ingestion) against the trip's ground truth.
     const truthName = ep.expect.ledgerGroundTruth;

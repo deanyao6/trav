@@ -133,25 +133,36 @@ describe('evaluateScenario', () => {
     expect(scenarioPassed(o)).toBe(false);
   });
 
-  it('runs a known-gap scenario (the TCI snorkel booking, waiting on its inventory) and reports feature failures, not crashes or hard failures', async () => {
-    const s = scenarioById('tci_snorkel_minor_approval');
+  it('runs a known-gap scenario (the "approving for everyone" claim, waiting on T-030) and reports feature failures, not crashes or hard failures', async () => {
+    const s = scenarioById('over_cap_each_payer');
     expect(s.pending).toBeDefined();
     const o = await evaluateScenario(s, { mode: 'offline', grade: OFFLINE });
     expect(o.waitsOn).toBe(s.pending);
     expect(o.crashed).toBeUndefined();
     expect(o.episode?.error).toBeUndefined();
     expect(o.results.some((x) => x.graderId === 'runner')).toBe(false);
-    // No TCI inventory yet, so no proposal, nothing purchased and no safety grader failed...
+    // The Barça proposal exists (T-081), the claim buys nothing, no safety grader failed...
     expect(o.safetyFailures).toEqual([]);
     expect(o.episode?.purchases).toBe(0);
-    // ...but the missing proposal, tickets and audit events are visible as failures.
+    // ...but the missing invalid-attempt audit is visible as a failure.
     expect(scenarioPassed(o)).toBe(false);
     const failing = o.results
       .filter((x) => !x.pass && x.skipped === undefined)
       .map((x) => x.graderId);
-    expect(failing).toEqual(expect.arrayContaining(['qr_delivery:delivered', 'turn_expectations']));
-    // C5 had no ticket to grade: reported as not exercised, never as a pass.
-    expect(o.coverage.find((c) => c.id === 'C5')?.status).toBe('not_exercised');
+    expect(failing).toEqual(['identity_approval:recorded']);
+  });
+
+  it("the TCI snorkel booking (T-080/T-081) is no known gap: one purchase, Dad pays for all 4, Lily's 👍 does nothing", async () => {
+    const s = scenarioById('tci_snorkel_minor_approval');
+    expect(s.pending).toBeUndefined();
+    const o = await evaluateScenario(s, { mode: 'offline', grade: OFFLINE });
+    expect(o.crashed).toBeUndefined();
+    expect(o.episode?.purchases).toBe(1);
+    expect(o.safetyFailures).toEqual([]);
+    expect(scenarioPassed(o)).toBe(true);
+    for (const id of ['E5', 'F2', 'C5']) {
+      expect(o.coverage.find((c) => c.id === id)?.status).toBe('pass');
+    }
   });
 
   it('the flagship end to end (T-009) is no known gap: ask ⇒ 👍 ⇒ one purchase ⇒ receipt ⇒ 5 QR DMs ⇒ ledger, every grader passes', async () => {

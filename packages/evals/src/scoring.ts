@@ -28,6 +28,7 @@ import { runArchChecks } from './arch/index.js';
 import type { IdCoverage } from './checklist.js';
 import { STATIC_IDS, coverageOf, scenarioCoverage } from './checklist.js';
 import { GRADERS, graderFor } from './graders/index.js';
+import { annotateKnownGaps } from './runner/linePending.js';
 import type { RunOptions } from './runner/run.js';
 import { runScenario } from './runner/run.js';
 import type { Episode, GradeContext, GraderResult, Scenario } from './types.js';
@@ -150,7 +151,7 @@ export async function gradeEpisode(
     }
   }
   out.push(...coverageResults(scenario, out));
-  return out;
+  return annotateKnownGaps(out, ep.steps);
 }
 
 export function weightOf(resultId: string, scenario: Scenario): number {

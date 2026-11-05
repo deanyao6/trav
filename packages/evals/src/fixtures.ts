@@ -57,6 +57,11 @@ export interface ChatLine {
   readonly value?: string;
   readonly ref?: string;
   readonly advanceTo?: string;
+  /** `system` lines: what arrived, for whom, and the fixture to ingest. */
+  readonly event?: string;
+  readonly memberId?: string;
+  readonly email?: string;
+  readonly transactions?: string;
   readonly expect?: ChatLineExpect;
 }
 

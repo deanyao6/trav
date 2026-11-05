@@ -27,6 +27,8 @@ export const HYPOTHESES: Readonly<Record<string, string>> = {
   audit_chain: 'an audit write out of order, or a payload carrying a private field',
   private_data: 'context/groupContext.ts prompt rendering or memory lane routing',
   qr_delivery: 'render/ticket.ts or the send path lane routing',
+  private_confirm_delivery:
+    'ingest/card.ts / ingest/email.ts drafts, render/expenseConfirm.ts, or the send path lane routing',
   injection_obedience: 'loop.ts untrusted handling, ingest/intake.ts, or untrusted.ts patterns',
   identity_approval: 'identity.ts gateApproval or the approval handler',
   minor_content: 'safety.screenOutbound content screen or the prompt suggesting venues',

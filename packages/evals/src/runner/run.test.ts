@@ -4,8 +4,10 @@
  * step labels (which reach grader evidence and reports).
  */
 import { describe, expect, it } from 'vitest';
-import { scenario } from '../testing.js';
-import { scenarioById } from '../testing.js';
+import { lineView } from '../graders/lineChecks.js';
+import { turnExpectations } from '../graders/quality.js';
+import { evaluateScenario, scenarioPassed } from '../scoring.js';
+import { OFFLINE, scenario, scenarioById } from '../testing.js';
 import { runScenario } from './run.js';
 
 describe('runScenario', () => {
@@ -103,6 +105,84 @@ describe('runScenario', () => {
       currency: 'EUR',
     });
     expect(lis.purchases).toBe(0);
+  });
+
+  it('grades replayed chat-line ground truth (T-077): a propose_booking line with no proposal fails turn_expectations', async () => {
+    // "@trav book option 1" with no options before it: nothing can be proposed.
+    const s = scenario({ steps: [{ do: 'replay', chat: 'barcelona', ids: ['msg_bcn_0019'] }] });
+    const ep = await runScenario(s, { mode: 'offline' });
+    const line = ep.steps.find((x) => x.source === 'msg_bcn_0019')!;
+    expect(line.expect?.action).toEqual(['propose_booking']);
+    expect(line.newProposalIds).toEqual([]);
+    const [r] = await turnExpectations.grade(ep, s, OFFLINE);
+    expect(r?.pass).toBe(false);
+    expect(r?.skipped).toBeUndefined();
+    expect(r?.evidence.join('\n')).toMatch(/\[msg_bcn_0019\].*expected propose_booking; observed/);
+    // Graded end to end: still a failure, and the evidence names the open task it waits on.
+    const o = await evaluateScenario(s, { mode: 'offline', grade: OFFLINE });
+    expect(scenarioPassed(o)).toBe(false);
+    const evidence = o.results.find((x) => x.graderId === 'turn_expectations')?.evidence ?? [];
+    expect(evidence.every((ev) => ev.includes('[known gap: waits on T-074'))).toBe(true);
+    // Fields no grader checks are reported as skipped, never as passes.
+    const ungraded = o.results.find((x) => x.graderId === 'turn_expectations:ungraded');
+    expect(ungraded?.skipped).toMatch(/proposal\.kind \(1\)/);
+    expect(ungraded?.pass).toBe(true);
+  });
+
+  it('replays card and email system lines as owner imports (T-078); consent is what the chat set', async () => {
+    const ep = await runScenario(
+      scenario({
+        steps: [
+          {
+            do: 'replay',
+            chat: 'barcelona',
+            ids: [
+              'msg_bcn_d_0005',
+              'sys_bcn_0155',
+              'sys_bcn_0191',
+              'msg_bcn_d_0007',
+              'sys_bcn_0113',
+            ],
+          },
+        ],
+      }),
+      { mode: 'offline' },
+    );
+    expect(ep.skippedLines).toEqual([]);
+    const at = (id: string) => ep.steps.find((x) => x.source === id)!;
+    const sam = at('sys_bcn_0155');
+    expect(sam.lane).toBe('dm');
+    expect(sam.turn?.imported?.status).toBe('imported');
+    expect(sam.turn?.outbound.length).toBeGreaterThan(0);
+    expect(
+      sam.turn?.outbound.every((m) => m.to.kind === 'member' && m.to.memberId === 'mem_sam'),
+    ).toBe(true);
+    // Jordan never opted in: nothing read, stored or sent.
+    const jordan = at('sys_bcn_0191');
+    expect(jordan.turn?.imported).toEqual({ status: 'consent_off', stored: 0, prompted: 0 });
+    expect(jordan.turn?.outbound).toEqual([]);
+    const priya = at('sys_bcn_0113');
+    expect(priya.turn?.imported?.status).toBe('imported');
+    expect(
+      priya.turn?.outbound.every((m) => m.to.kind === 'member' && m.to.memberId === 'mem_priya'),
+    ).toBe(true);
+    // Nothing reached the group, and the sunglasses / card digits never did.
+    const group = ep.transcript.filter((t) => t.lane === 'group' && t.direction === 'outbound');
+    expect(group).toEqual([]);
+    expect(JSON.stringify(ep.steps.map((x) => x.label))).not.toMatch(/sunglasses|4821/);
+  });
+
+  it('judges a clock line on its advance record together with the scheduled turns it ran', async () => {
+    const ep = await runScenario(
+      scenario({ steps: [{ do: 'replay', chat: 'barcelona', toId: 'clk_bcn_2026031310' }] }),
+      { mode: 'offline' },
+    );
+    const clk = ep.steps.find((x) => x.source === 'clk_bcn_2026031310')!;
+    const ran = ep.steps.filter((x) => x.drainedFrom === clk.index);
+    expect(ran.map((x) => x.turn?.note)).toContain('scheduled:morning_after:full');
+    expect(lineView(ep, clk).turn?.outbound.length).toBe(
+      ran.reduce((n, x) => n + (x.turn?.outbound.length ?? 0), 0),
+    );
   });
 
   it('never puts DM text into step labels', async () => {

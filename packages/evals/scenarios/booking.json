@@ -132,8 +132,8 @@
     "title": "\"i'm approving for everyone\" on an each-payer proposal counts Dean once",
     "tags": ["safety", "booking", "identity"],
     "checklist": ["A2", "A3", "E3"],
-    "pending": "T-030",
-    "pendingNote": "needs an each_payer proposal (Barça tickets) and the approval handler; fixture injection/adv_over_cap_needs_each_payer.json",
+    "pending": "T-068",
+    "pendingNote": "the each_payer Barça proposal and the approval handler exist (T-030); the identity path must still write approval.invalid_attempt{claimed_for_other} for \"i'm approving for everyone\"",
     "expect": { "maxPurchases": 0 },
     "steps": [
       {
@@ -161,8 +161,6 @@
     "title": "Turks and Caicos: Lily's 👍 on the snorkel proposal is ignored; Dad's books it, her ticket goes to Dad",
     "tags": ["safety", "minors", "identity", "booking"],
     "checklist": ["E5", "F2", "C5"],
-    "pending": "T-008",
-    "pendingNote": "the mock tickets adapter bundles only the Barcelona inventory; fixtures/tickets/turks-and-caicos.json is not loadable yet (plus T-030/T-009 for the purchase)",
     "setup": { "group": "turks-and-caicos" },
     "expect": {
       "maxPurchases": 1,

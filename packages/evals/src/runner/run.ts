@@ -30,13 +30,16 @@ import {
   safety,
 } from '@trav/core';
 import { createMemoryStores } from '@trav/core/storage';
-import type { SimulatorChannel } from '@trav/adapters';
+import type { MockEmailSourceOptions, SimulatorChannel } from '@trav/adapters';
 import {
   createMockAlbum,
   createMockBookingPayments,
+  createMockEmailReceiptSource,
   createMockFlights,
   createMockLodging,
   createMockTickets,
+  createMockTransactions,
+  createOfflineReceiptEmailParser,
   createSimulatorChannel,
   loadTicketInventory,
 } from '@trav/adapters';
@@ -49,15 +52,19 @@ import type {
 } from '@trav/agent';
 import { createModelClient, createTravRuntime, readModelEnv } from '@trav/agent';
 import type { TripName } from '../fixtures.js';
+import { loadFixture } from '../fixtures.js';
 import type {
   Episode,
   EvalMode,
+  ImportStep,
   LintRecord,
   ProbeRecord,
   PromptRecord,
   Scenario,
   Step,
+  StepExpect,
   StepRecord,
+  StepState,
   TurnSummary,
 } from '../types.js';
 import { CARD_REF_PREFIX, expandSteps } from './expand.js';
@@ -197,6 +204,8 @@ function stepLabel(step: Step): string {
       return 'run scheduled jobs';
     case 'intake':
       return `intake ${step.source} ${step.itemId} (owner ${step.owner})`;
+    case 'import':
+      return `${step.event} for ${step.owner}`;
     case 'remember':
       // A private memory is the member's personal data; only group facts are shown.
       return step.lane === 'private'
@@ -232,6 +241,31 @@ function participants(members: readonly Member[], steps: readonly Step[]) {
     } as (typeof out)[number]);
   }
   return out;
+}
+
+type EmailFixture = NonNullable<MockEmailSourceOptions['fixtures']>[number];
+
+/**
+ * `fixtures/emails/<id>.json` as the mock source takes it. The adapter's own
+ * fixture parser is not exported from `@trav/adapters`, so this checks the
+ * fields the import reads and lowercases the forwarding address as it does.
+ */
+function emailFixture(raw: unknown, where: string): EmailFixture {
+  const o = raw as { email?: Record<string, unknown>; forwardingAddress?: unknown };
+  const e = o.email;
+  if (
+    e === undefined ||
+    typeof e['emailId'] !== 'string' ||
+    typeof e['ownerMemberId'] !== 'string' ||
+    typeof e['receivedAt'] !== 'string' ||
+    typeof e['from'] !== 'string'
+  ) {
+    throw new Error(`import: ${where} is not an email fixture`);
+  }
+  const email = { subject: '', attachments: [], ...e } as unknown as EmailFixture['email'];
+  return typeof o.forwardingAddress === 'string'
+    ? { email, forwardingAddress: o.forwardingAddress.toLowerCase() }
+    : { email };
 }
 
 function firstAt(steps: readonly Step[]): string | undefined {
@@ -320,6 +354,91 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
         .map((m) => [m.memberId, stores.private.getConsent(m.memberId, groupId)]),
     );
 
+  // Card and email imports (T-078): one Plaid-shaped mock per episode (it reads
+  // `fixtures/transactions/<owner>.json`), a cursor per owner, and the emails
+  // that have "arrived" so far (a source holding only those, so a later email
+  // can never be read early).
+  const transactions = createMockTransactions();
+  const cardCursors = new Map<string, string>();
+  const arrived: EmailFixture[] = [];
+  const emailParser = createOfflineReceiptEmailParser();
+  const runImport = async (step: ImportStep) => {
+    const rel = step.fixture.replace(/^fixtures\//, '');
+    if (step.event === 'card_sync') {
+      if (rel !== `transactions/${step.owner}.json`) {
+        throw new Error(`import: card fixture ${step.fixture} is not ${step.owner}'s transactions`);
+      }
+      const cursor = cardCursors.get(step.owner);
+      const r = await runtime.agent.importCardTransactions({
+        groupId,
+        ownerMemberId: step.owner,
+        adapter: transactions,
+        ...(cursor !== undefined ? { cursor } : {}),
+      });
+      if (r.nextCursor !== undefined) cardCursors.set(step.owner, r.nextCursor);
+      return { r, imported: { status: r.status, stored: r.stored, prompted: r.prompted.length } };
+    }
+    const fixtureEmail = emailFixture(loadFixture(rel), step.fixture);
+    if (fixtureEmail.email.ownerMemberId !== step.owner) {
+      throw new Error(`import: ${step.fixture} belongs to ${fixtureEmail.email.ownerMemberId}`);
+    }
+    if (!arrived.some((f) => f.email.emailId === fixtureEmail.email.emailId))
+      arrived.push(fixtureEmail);
+    const source = createMockEmailReceiptSource({ fixtures: arrived });
+    const r = await runtime.agent.importEmailReceipts({
+      groupId,
+      ownerMemberId: step.owner,
+      source,
+      parser: emailParser,
+    });
+    return { r, imported: { status: r.status, stored: r.stored, prompted: r.prompted.length } };
+  };
+
+  /** Memory facts by id, to count what a step wrote. */
+  const memoryIds = (): { private: Set<string>; group: Set<string> } => ({
+    private: new Set(
+      stores.group.members
+        .listByGroup(groupId)
+        .flatMap((m) => stores.private.listMemberMemory(m.memberId, groupId))
+        .map((f) => f.factId),
+    ),
+    group: new Set(stores.group.groupMemory.listByGroup(groupId).map((f) => f.factId)),
+  });
+  /** Store facts right after a step, only for the expectations that read them. */
+  const stateAfter = (
+    e: StepExpect | undefined,
+    memBefore: ReturnType<typeof memoryIds>,
+  ): StepState | undefined => {
+    if (e === undefined) return undefined;
+    const out: { -readonly [K in keyof StepState]: StepState[K] } = {};
+    if (e.roster !== undefined) {
+      const rows = stores.group.trips.listAttendance(e.roster.activityId);
+      out.roster = {
+        in: rows.filter((a) => a.status === 'in').map((a) => a.memberId),
+        out: rows.filter((a) => a.status === 'out').map((a) => a.memberId),
+      };
+    }
+    if (e.consent !== undefined) {
+      const c = stores.private.getConsent(e.consent.memberId, groupId) as
+        Readonly<Record<string, unknown>> | undefined;
+      out.consent = c?.[e.consent.flag] === true;
+    }
+    if (e.settings !== undefined) {
+      const g = stores.group.groups.get(groupId);
+      if (g !== undefined) out.settings = { ...g.settings };
+    }
+    if (e.action?.some((a) => a === 'remember' || a === 'remember_private') === true) {
+      const now = memoryIds();
+      out.memoryWrites = {
+        private: [...now.private].filter((id) => !memBefore.private.has(id)).length,
+        group: [...now.group].filter((id) => !memBefore.group.has(id)).length,
+      };
+    }
+    return Object.keys(out).length === 0 ? undefined : out;
+  };
+  /** Outbound DM ids, so a reaction or tap on a DM card is recorded as a DM-lane step. */
+  const dmMessageIds = new Set<string>();
+
   const records: StepRecord[] = [];
   const probes: ProbeRecord[] = [];
   const byStepId = new Map<string, readonly OutboundMessage[]>();
@@ -345,6 +464,11 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
       // Window of this record's audit events / expenses; drained turns open their own.
       let auditBefore = auditAll().length;
       let expBefore = expenseIds();
+      const wantsMemory =
+        step.expect?.action?.some((a) => a === 'remember' || a === 'remember_private') === true;
+      const memBefore = wantsMemory
+        ? memoryIds()
+        : { private: new Set<string>(), group: new Set<string>() };
       const at = clock.now();
       const baseRecord = {
         ...(step.id !== undefined ? { stepId: step.id } : {}),
@@ -363,6 +487,7 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
           .filter((e) => e.type === 'proposal.created' && e.proposalId !== undefined)
           .map((e) => e.proposalId!);
         const expAfter = expenseIds();
+        const state = idx === index ? stateAfter(step.expect, memBefore) : undefined;
         const turnPhotos =
           extra.turn?.outbound.some(
             (m) =>
@@ -390,14 +515,22 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
             .filter((m) => m.active && safety.isMinor(m, clock.now()))
             .map((m) => m.memberId),
           ...(turnPhotos ? { consentAtSend: consentNow() } : {}),
+          ...(state !== undefined ? { state } : {}),
           ...extra,
         };
+        for (const m of record.turn?.outbound ?? [])
+          if (m.to.kind === 'member') dmMessageIds.add(m.id);
         auditBefore += newEvents.length;
         expBefore = expAfter;
         return record;
       };
-      /** Runs due jobs one at a time so each scheduled turn is its own record. */
-      const drainEach = async (): Promise<number> => {
+      /**
+       * Runs due jobs one at a time so each scheduled turn is its own record.
+       * After an `advance` the turns point at it (`drainedFrom`): line-level
+       * expectations (action, group message count, scheduled job) are judged
+       * once, on the advance record together with the turns it ran.
+       */
+      const drainEach = async (from?: number): Promise<number> => {
         let n = 0;
         for (const job of runtime.scheduler.drain(clock.now())) {
           current = records.length;
@@ -409,6 +542,7 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
                 proactive: true,
                 turn: summarizeTurn(r),
                 label: `scheduled ${job.kind}: ${r.note}`,
+                ...(from !== undefined ? { drainedFrom: from } : {}),
               },
               records.length,
             ),
@@ -457,16 +591,19 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
                     from: step.from,
                     cardMessageId: target,
                     actionId: step.actionId,
+                    ...(step.value !== undefined ? { value: step.value } : {}),
                   });
             const turn = summarizeTurn(await runtime.agent.handleInbound(event));
-            records.push(finish({ lane: 'group', from: step.from, turn }));
+            // A reaction or tap on a DM card is a DM-lane step (its replies stay private in evidence).
+            const lane = dmMessageIds.has(target) ? 'dm' : 'group';
+            records.push(finish({ lane, from: step.from, turn }));
             break;
           }
           case 'advance': {
             if (step.to !== undefined) moveClock(step.to);
             else clock.advanceMs((step.minutes ?? 0) * 60_000);
             records.push(finish({ lane: 'system' }));
-            if (step.drain !== false) await drainEach();
+            if (step.drain !== false) await drainEach(index);
             break;
           }
           case 'drain': {
@@ -487,6 +624,13 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
                 : {}),
             });
             records.push(finish({ lane: 'dm', from: step.owner, turn: summarizeTurn(result) }));
+            break;
+          }
+          case 'import': {
+            const { r, imported } = await runImport(step);
+            records.push(
+              finish({ lane: 'dm', from: step.owner, turn: { ...summarizeTurn(r), imported } }),
+            );
             break;
           }
           case 'remember': {
