@@ -39,6 +39,13 @@ export const APPROVE_REPLIES: readonly string[] = [
 export const DECLINE_REPLIES: readonly string[] = ['no', 'nah', 'cancel', 'drop it', '👎'];
 export const NOT_ME_REPLIES: readonly string[] = ['not me', "i'm out", 'im out', 'without me'];
 
+/** The words on a card's actions (`Action.textAliases`): the replies minus the tapback glyphs. */
+const words = (replies: readonly string[]): readonly string[] =>
+  replies.filter((r) => r !== '👍' && r !== '👎');
+export const APPROVE_TEXT_ALIASES: readonly string[] = words(APPROVE_REPLIES);
+export const DECLINE_TEXT_ALIASES: readonly string[] = words(DECLINE_REPLIES);
+export const NOT_ME_TEXT_ALIASES: readonly string[] = words(NOT_ME_REPLIES);
+
 /**
  * Emoji a reply may end with and still be exact ("yes 🙏", "book it 🎉").
  * Laughing, winking, eye-roll and the like can mean "not really", so they are
@@ -213,7 +220,7 @@ const NEAR_MISS_WORDS: ReadonlySet<string> = new Set([
   'says',
 ]);
 
-export type NearMissKind = 'not_me' | 'generic';
+export type NearMissKind = 'not_me' | 'decline' | 'generic';
 
 /**
  * A short message that sounds like an answer to the card but isn't exactly
@@ -238,25 +245,42 @@ export function nearMissKind(
   let approvalish = false;
   for (const w of words) {
     const bare = w.replace(/'s$/, '');
+    // T-182 r1 #1: a member's name means a party edit ("book it for henry
+    // too", "do it for me and chase only"), never a near miss to swallow.
+    if (names.has(bare)) return undefined;
     if (APPROVAL_WORD.test(w)) {
       // "do" and "it" alone are not approval words: "do it" is, "book" too.
       if (w !== 'do' && w !== 'it') approvalish = true;
       continue;
     }
-    if (NEAR_MISS_WORDS.has(w) || names.has(bare)) continue;
+    if (NEAR_MISS_WORDS.has(w)) continue;
     return undefined;
   }
   if (/\bdo it\b/.test(t)) approvalish = true;
   if (!approvalish) return undefined;
-  if (/\b(?:not|no|without|except)\b(?: for)? (?:me|myself)\b|\b(?:i'?m|im) out\b/.test(t)) {
+  if (PARTY_EDIT.test(t)) return undefined;
+  if (/\b(?:not|no)\b(?: for)? (?:me|myself)\b|\b(?:i'?m|im) out\b/.test(t)) {
     return 'not_me';
   }
+  // T-182 r1 #5: "i don't approve", "no don't book it": a no, so the decline hint.
+  if (NEGATED.test(t)) return 'decline';
   return 'generic';
 }
+
+/**
+ * A change to who's going (T-182 r1 #1): "book me too", "book it for him
+ * also", "book it without me", "except me", "only". These go on through the
+ * loop (the roster and proposal flows) and never get a near-miss answer.
+ */
+const PARTY_EDIT =
+  /\b(?:me|myself|him|her|them|us)\s+(?:too|also)\b|\b(?:also|too)\s+(?:me|myself)\b|\b(?:without|except|only)\b/;
+/** A no in a near miss. */
+const NEGATED = /\b(?:don'?t|dont|do not|doesn'?t|never|no|not|won'?t|can'?t|cant)\b/;
 
 /** Trav's question back for a near miss or a non-whitelisted approval (VOICE §6.2). */
 export function nearMissReply(kind: NearMissKind, forOthers = false): string {
   if (kind === 'not_me') return 'not booked. reply "not me" to drop out, or "yes" to book it';
+  if (kind === 'decline') return 'not booked. reply "no" to drop it, or "yes" to book it';
   if (forOthers) return 'not booked. everyone approves for themselves: 👍 the card or reply "yes"';
   return 'not booked. 👍 the card or reply "yes" to book it';
 }

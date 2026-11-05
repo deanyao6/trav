@@ -364,3 +364,22 @@ describe('round-2 sweep and probe regressions', () => {
     }
   });
 });
+
+describe('T-182 r1 #6: a whole-party no and an unplaced pronoun are no ask', () => {
+  it.each([
+    'get razz tickets for everyone, nobody wants to go',
+    'get razz tickets for everyone, no one wants to go',
+    'get razz tickets for everyone, none of us want to',
+    "get razz tickets for everyone, he can't make it",
+    "get razz tickets for everyone, she's sick",
+    "get razz tickets for all of us. he isn't coming",
+  ])('%s', (text) => {
+    for (const r of both(text)) expect(r, text).toBeUndefined();
+  });
+
+  it('a pronoun for a member already named out still reads', () => {
+    for (const r of both("get the 5 of us Razzmatazz tickets, Henry's sick, he can't make it")) {
+      expect(r).toMatchObject({ quantity: 5, excludedNames: ['Henry'] });
+    }
+  });
+});

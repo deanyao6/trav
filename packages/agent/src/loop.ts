@@ -93,6 +93,9 @@ import type {
 } from './approval/events.js';
 import { followSupersededBy, isOwnCancelText } from './approval/events.js';
 import {
+  APPROVE_TEXT_ALIASES,
+  DECLINE_TEXT_ALIASES,
+  NOT_ME_TEXT_ALIASES,
   approvalCounts,
   nearMissKind,
   nearMissReply,
@@ -417,20 +420,20 @@ const PROPOSAL_ACTIONS: readonly Action[] = [
     style: 'primary',
     tapback: '👍',
     // VOICE §6.2 only; a bare "ok" in unrelated chat must never buy tickets.
-    textAliases: ['yes', 'yep', 'go', 'book it', 'do it'],
+    textAliases: APPROVE_TEXT_ALIASES,
   },
   {
     id: 'not_me',
     label: 'Not me',
     style: 'secondary',
-    textAliases: ['not me', "i'm out", 'im out', 'without me'],
+    textAliases: NOT_ME_TEXT_ALIASES,
   },
   {
     id: 'decline',
     label: 'Decline',
     style: 'destructive',
     tapback: '👎',
-    textAliases: ['no', 'nah', 'cancel', 'drop it'],
+    textAliases: DECLINE_TEXT_ALIASES,
   },
 ];
 

@@ -345,6 +345,14 @@ One entry per significant decision. Format: context, decision, alternatives, con
   5. **Offline model.** The loose T-007 `bookingIntentResponder` is out of the default fallback chain: it proposed "…, Henry's sick. actually i don't think so" after the reader had said no. `booking_request_v1` alone reads asks offline.
 - **Evals:** `packages/evals/scenarios/approval_whitelist.json` (dev split, tagged `safety` and `regression`): the near-miss approvals on the flagship card, ending in one exact "yes" that buys once; the T-173 r2 repros through the runtime (no purchase); and the `auto_buy` probe over `fixtures/safety/auto-buy-asks.json`, graded by `auto_buy_whitelist` (false positives A3 hard, party on eligible asks A9, recall scored).
 - **Consequences:** fewer things approve by text. "yes i approve for all of us" now needs a plain "yes"; "everyone's in, book it" needs "book it". "get the 5 of us razz tickets, Henry's sick, isn't that sad" is no longer read as an ask (the negation default). Any new phrasing that should auto-buy is a deliberate grammar change with a test, never a regex tweak.
+- **Revised in T-182 r2 (review `tasks/reviews/T-182-r1.md`):**
+  1. A near miss never covers a party edit: a message that names a member, says me/him/her/them/us + too/also, or has without/except/only goes on through the loop (roster and proposal flows), never gets the "not booked" line.
+  2. A near miss with a no in it ("i don't approve", "no don't book it", "don't do it") gets `not booked. reply "no" to drop it, or "yes" to book it`.
+  3. `AutoBuyInput` takes `lane` (required; only `group` can auto-buy, since a DM's "us" can't mean the group), `forwarded` and `quotesMessage` (either ⇒ `quoted`). "us" / "the N of us" / "everyone" from a sender in `alreadyOut` is `party`, never the others without them.
+  4. As a clause of its own, a bare "no NAME" or "but NAME" is not an exclusion (it can be read another way); "not NAME", "but not NAME", "except NAME" still are, as is "everyone but NAME" inside the party.
+  5. **Orchestrator:** "lol" and "haha" are not auto-buy tails (sarcasm markers); those asks get the card. "thanks", "pls", warm emoji and "when you get a sec" stay.
+  6. Reader: "nobody", "no one" and "none of us/you/them" are negations (take the ask back); a pronoun said to be out ("…, he can't make it") with nobody named out and no named list is no ask.
+  7. Card `textAliases` (`booking/proposals.ts`, `loop.ts`, `render/common.ts`) are built from `APPROVE_REPLIES` / `DECLINE_REPLIES` / `NOT_ME_REPLIES` (`*_TEXT_ALIASES`: the replies minus the 👍/👎 glyphs), so they can't drift.
 
 ## D-043: Settle-up is Sent → Got it with locally built pay links; only the payee's word clears a debt; payment profiles are owner-private (2026-11-05, builder T-166; supersedes D-034)
 
