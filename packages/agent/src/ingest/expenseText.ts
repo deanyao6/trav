@@ -818,9 +818,13 @@ function onlyNames(clause: string, members: readonly ParseMember[]): boolean {
   );
 }
 
-/** What may sit right before a list: "for", "with", "between", "just", "only"… */
+/**
+ * What may sit right before a list: "for", "with", "between", "just", "only"…
+ * "not including X" leaves X out (T-222), so "including" after a "not" is
+ * never a list lead.
+ */
 const LIST_LEAD =
-  /\b(?:for|with|between|among|amongst|just|only|including|incl|plus|and also)\s+(?:the\s+)?$/;
+  /(?:\b(?:for|with|between|among|amongst|just|only|plus|and also)|(?<!\bnot\s)\b(?:including|incl))\s+(?:the\s+)?$/;
 const WITH_LEAD = /\b(?:with|between|among|amongst)\s+(?:the\s+)?$/;
 
 /** After a "him"/"her" that is a person, not a possessive ("her taxi"). */
@@ -842,6 +846,37 @@ function pronounReferent(
     scan.names.filter((h) => h.end <= at && !ownRun.has(h.start)).map((h) => h.memberId),
   );
   return ids.length === 1 ? ids[0] : undefined;
+}
+
+/**
+ * Who "them" at `at` is (T-222): every member named before it, outside its
+ * own list, when they form ONE joined run of two or more ("piotr and arjun
+ * had the wine, … split between them and me"). Any other name before it
+ * (a second run, a payer, a single name) makes "them" a guess: undefined.
+ */
+function themReferent(scan: Scan, at: number, ownRun: ReadonlySet<number>): MemberId[] | undefined {
+  const hits = scan.names.filter((h) => h.end <= at && !ownRun.has(h.start));
+  if (hits.length < 2) return undefined;
+  for (let i = 1; i < hits.length; i += 1) {
+    const gap = scan.low.slice(hits[i - 1]!.end, hits[i]!.start);
+    if (!/^\s*(?:,\s*(?:and\s+)?|and|&|\+)\s*$/.test(gap)) return undefined;
+  }
+  const ids = uniq(hits.map((h) => h.memberId));
+  return ids.length >= 2 ? ids : undefined;
+}
+
+/**
+ * "the tickets came to €156, i bought them for all 6": "them" right after a
+ * buying verb, with nobody named before it, is the things bought, not people
+ * (T-222). With a name before it ("dean and chase forgot their wallets, i got
+ * them") it may be people, so it stays a question.
+ */
+function isObjectThem(scan: Scan, start: number, end: number): boolean {
+  if (scan.names.some((h) => h.end <= start)) return false;
+  return (
+    /\b(?:bought|got|grabbed|booked|ordered|picked up)\s+$/.test(scan.low.slice(0, start)) &&
+    /^\s*(?:(?:for|at|from|on|online)\b|[,;.!]|$)/.test(scan.low.slice(end))
+  );
 }
 
 /**
@@ -871,10 +906,16 @@ function personRuns(scan: Scan, span: [number, number]): PersonRun[] {
   let unresolved = false;
   let viaPronoun = false;
   let pronounsInLists = 0;
-  for (const m of low.slice(span[0], span[1]).matchAll(/\b(him|her)\b/g)) {
+  for (const m of low.slice(span[0], span[1]).matchAll(/\b(him|her|them)\b/g)) {
     const start = span[0] + m.index;
     const end = start + m[0].length;
     if (!PRONOUN_IN_LIST_AFTER.test(low.slice(end))) continue;
+    // "the rest of them" is a group phrase (VAGUE_GROUP / "the others"), not a list pronoun
+    if (
+      m[1] === 'them' &&
+      (isObjectThem(scan, start, end) || /\brest of\s+$/.test(low.slice(0, start)))
+    )
+      continue;
     pronouns.push({ start, end, id: `\u0000pronoun@${start}`, self: false, word: m[1]! });
   }
   toks.push(...pronouns);
@@ -910,22 +951,34 @@ function personRuns(scan: Scan, span: [number, number]): PersonRun[] {
     // "i" right before a payment verb ("piotr and i paid") is a payer, handled elsewhere
     const before = low.slice(0, start);
     const after = low.slice(end);
-    // a lone "him" counts only as a list ("split with him"), never "i owe him"
+    // a lone "him" counts only as a list ("split with him"), never "i owe him".
+    // A lone "them" that is not a list ("them too") is people we can't name:
+    // a question (T-222), as VAGUE_GROUP had it.
     const own = raw.filter((t) => pronouns.includes(t));
-    if (own.length === raw.length && !LIST_LEAD.test(before)) continue;
+    if (own.length === raw.length && !LIST_LEAD.test(before)) {
+      if (own.some((t) => t.word === 'them')) unresolved = true;
+      continue;
+    }
     let g = raw;
     if (own.length > 0) {
       pronounsInLists += own.length;
       const ownRun = new Set(raw.filter((t) => !pronouns.includes(t)).map((t) => t.start));
-      const ids = own.map((t) => pronounReferent(scan, t.start, ownRun));
-      if (ids.some((id) => id === undefined)) {
+      const ids = own.map((t) =>
+        t.word === 'them'
+          ? themReferent(scan, t.start, ownRun)
+          : (() => {
+              const one = pronounReferent(scan, t.start, ownRun);
+              return one === undefined ? undefined : [one];
+            })(),
+      );
+      if (ids.some((x) => x === undefined)) {
         unresolved = true;
         continue;
       }
       viaPronoun = true;
-      g = raw.map((t) => {
+      g = raw.flatMap((t) => {
         const i = own.indexOf(t);
-        return i < 0 ? t : { ...t, id: ids[i]! };
+        return i < 0 ? [t] : ids[i]!.map((id) => ({ ...t, id }));
       });
     }
     // a lone "i"/"me" is the speaker talking ("i paid", "on me"), not a list
@@ -973,7 +1026,7 @@ function personRuns(scan: Scan, span: [number, number]): PersonRun[] {
  * `exceptList` carries it past commas. Group 3: the parenthesised form.
  */
 const EXCEPT_RE =
-  /\b(?:(?:everyone|everybody)(?:\s+else)?|all(?: of us)?|the (?:whole )?group|the rest of us)\s+(?:but|except(?: for)?|minus|other than|apart from|besides|excluding|without|bar)\s+(.+?)(?=$|[,.;(]|\s(?:so|since|because|for|split|and then)\s)|\b(?:except(?: for)?|excluding|minus)\s+(.+?)(?=$|[,.;(]|\s(?:so|since|because|for|split)\s)|\(\s*not\s+(.+?)\s*\)/;
+  /\b(?:(?:everyone|everybody)(?:\s+else)?|all(?: of us)?|the (?:whole )?group|the rest of us)\s+(?:but|except(?: for)?|minus|other than|apart from|besides|excluding|without|bar|not including|not counting)\s+(.+?)(?=$|[,.;(]|\s(?:so|since|because|for|split|and then)\s)|\b(?:except(?: for)?|excluding|minus|not including|not counting|leaving out)\s+(.+?)(?=$|[,.;(]|\s(?:so|since|because|for|split)\s)|\(\s*not\s+(.+?)\s*\)/;
 /**
  * What ends one comma clause of an except list: punctuation only. A clause
  * word ("so", "split", "and then") never shortens a clause into a name
@@ -1052,38 +1105,151 @@ function parseParticipants(
   payer: ExpenseDraft['payer'],
   shareOwners: readonly MemberId[],
 ): ParticipantResult {
+  const low = scan.low.slice(span[0], span[1]);
+  const restToPayer =
+    /\b(?:the )?rest(?: of it)? (?:is|'s|on) (?:mine|me)\b|\bi'?ll (?:cover|take|pay) the rest\b|\brest is on me\b/.test(
+      low,
+    );
+  const vagueSpec: ParticipantResult = { spec: { kind: 'vague', phrase: 'names' }, restToPayer };
+
+  // "the girls", "some of us", "them": nobody can name them for the sender.
+  // Two readings are not vague (T-222): "them" that is the things bought
+  // ("i bought them for all 6") or a list pronoun personRuns resolves ("split
+  // between them and me"), and "the others" with a clause saying they were
+  // out ("me, ines and bea, the others walked"), which means the names given
+  // are the whole split. Any other "the others" ("the others too") asks.
+  let othersOut = false;
+  let othersAt = -1;
+  if (!/\beveryone else\b/.test(low)) {
+    for (const v of low.matchAll(new RegExp(VAGUE_GROUP.source, 'g'))) {
+      const at = span[0] + v.index;
+      const end = at + v[0].length;
+      if (v[1] === 'them') {
+        const listPronoun = PRONOUN_IN_LIST_AFTER.test(scan.low.slice(end));
+        if (isObjectThem(scan, end - 4, end) || listPronoun) continue;
+      }
+      if (
+        (v[1] === 'others' || v[1] === 'rest of them') &&
+        OTHERS_OUT.test(scan.low.slice(end, span[1]))
+      ) {
+        othersOut = true;
+        othersAt = Math.max(othersAt, at);
+        continue;
+      }
+      return { spec: { kind: 'vague', phrase: v[0].trim() }, restToPayer };
+    }
+  }
+  const result = parseParticipantsAfterVague(scan, span, payer, shareOwners, restToPayer);
+  // "the others walked" says the names given are everyone in: only a plain
+  // list may follow from it (not everyone, an except list or a count), and
+  // only from names said before it. "…, the others went home, henry too":
+  // is Henry in or one of the others? Ask.
+  if (othersOut) {
+    if (result.spec?.kind !== 'list') return vagueSpec;
+    const after = scan.low.slice(othersAt, span[1]);
+    if (
+      scan.names.some((h) => h.start > othersAt && h.end <= span[1]) ||
+      /\b(?:me|i|myself)\b/.test(after)
+    )
+      return vagueSpec;
+  }
+  return result;
+}
+
+/**
+ * After "the others" (T-222): a clause that says they were not in. "walked",
+ * "stayed in", "went home", "didn't come", "took the metro", "paid their own".
+ * "the others too", "the others owe me": not this, so the split is asked.
+ * Only absence: "the others didn't pay yet", "the others left the tip" and
+ * "the others were not happy" say nothing about who was in, so they ask too.
+ * A bare verb ("walked", "left") counts only when the clause ends there or
+ * goes on with where they went ("walked back", "left early").
+ */
+const OTHERS_OUT = new RegExp(
+  '^\\s*(?:all\\s+|just\\s+)?(?:' +
+    [
+      `(?:walked|left|bailed|passed|skipped(?: it)?|sat (?:it )?out|stayed (?:in|home|back|behind|at the \\w+)|went (?:home|back|to bed|ahead|elsewhere|separately))(?=\\s*(?:$|[,.;:!?)]|(?:early|home|back|already|before|after|instead|so|and|but|though)\\b))`,
+      `(?:didn'?t|did not|never) (?:come|came|join|joined|go|went|show(?:ed)? up|make it|made it|eat|drink|ride|have any|get any|want (?:any|it|to come))\\b`,
+      `(?:weren'?t|were not) (?:there|with us|in|coming|around|hungry|thirsty)\\b`,
+      `(?:were|are) (?:out|home|asleep|elsewhere|back at the \\w+)\\b`,
+      `took (?:the |a |an )?(?:metro|bus|train|tram|taxi|cab|bike|bikes|scooters?|ferry|another|their own|a different)\\b`,
+      `got their own\\b`,
+      `paid (?:for )?(?:their own|themselves)\\b`,
+    ].join('|') +
+    ')',
+);
+
+function parseParticipantsAfterVague(
+  scan: Scan,
+  span: [number, number],
+  payer: ExpenseDraft['payer'],
+  shareOwners: readonly MemberId[],
+  restToPayer: boolean,
+): ParticipantResult {
   const { ctx } = scan;
   const low = scan.low.slice(span[0], span[1]);
   const sender = ctx.senderMemberId;
   const all = ctx.members.map((m) => m.memberId);
   const size = all.length;
-  const restToPayer =
-    /\b(?:the )?rest(?: of it)? (?:is|'s|on) (?:mine|me)\b|\bi'?ll (?:cover|take|pay) the rest\b|\brest is on me\b/.test(
-      low,
-    );
   const payerId = payer.kind === 'member' ? payer.memberId : undefined;
 
-  const vague = VAGUE_GROUP.exec(low);
-  if (vague !== null && !/\beveryone else\b/.test(low)) {
-    return { spec: { kind: 'vague', phrase: vague[0].trim() }, restToPayer };
-  }
-
   // except: "everyone but henry", "all except henry, piotr and arjun",
-  // "me and everyone else apart from henry" (T-216)
-  const except = EXCEPT_RE.exec(low);
+  // "me and everyone else apart from henry" (T-216), "not including x or y",
+  // "everyone except him" (T-222)
+  let except = EXCEPT_RE.exec(low);
+  // "€84 not including tip", "not counting the wine": a thing left out of the
+  // amount, not a person left out of the split (only the T-222 forms; the
+  // older "excluding tax" already asks, and still does)
+  if (
+    except?.[2] !== undefined &&
+    /^(?:not including|not counting|leaving out)\b/.test(except[0]) &&
+    !/^(?:me|myself|i|him|her|them)$/.test(except[2].trim().split(/[\s,]+/)[0] ?? '') &&
+    memberByWord(except[2].trim().split(/[\s,]+/)[0] ?? '', ctx.members) === undefined
+  ) {
+    except = null;
+  }
   if (except !== null) {
     const { list, ambiguous } = exceptList(low, except, ctx.members);
     if (ambiguous) return { spec: { kind: 'vague', phrase: 'names' }, restToPayer };
     const ids: MemberId[] = [];
+    const listStart = span[0] + except.index;
+    let pronounSeen = false;
     for (const w of list.split(/\s*(?:,|\band\b|&|\bor\b)\s*/).filter((x) => x.length > 0)) {
       const word = w.replace(/^(?:the|just)\s+/, '').trim();
       if (word === 'me' || word === 'myself' || word === 'i') ids.push(sender);
-      else {
+      else if (word === 'him' || word === 'her' || word === 'them') {
+        // one pronoun per list, resolved to whoever was named before the
+        // except phrase (never a name inside it); otherwise ask
+        if (pronounSeen) return { spec: { kind: 'vague', phrase: w }, restToPayer };
+        pronounSeen = true;
+        const rel = new RegExp(`\\b${word}\\b`).exec(scan.low.slice(listStart));
+        const at = rel === null ? -1 : listStart + rel.index;
+        const ownList = new Set(scan.names.filter((h) => h.start >= listStart).map((h) => h.start));
+        const r =
+          at < 0
+            ? undefined
+            : word === 'them'
+              ? themReferent(scan, at, ownList)
+              : (() => {
+                  const one = pronounReferent(scan, at, ownList);
+                  return one === undefined ? undefined : [one];
+                })();
+        if (r === undefined) return { spec: { kind: 'vague', phrase: w }, restToPayer };
+        ids.push(...r);
+      } else {
         const id = memberByWord(word, ctx.members);
         if (id === undefined) return { spec: { kind: 'vague', phrase: w }, restToPayer };
         ids.push(id);
       }
     }
+    // "for chase and me, not including henry": a list of who's in AND a list
+    // of who's out. Everyone-but-henry would charge people nobody named, the
+    // list alone ignores the except: ask (T-222).
+    const out = new Set(ids);
+    const listedToo = personRuns(scan, span).some(
+      (r) => r.kind === 'list' && r.ids.some((x) => !out.has(x)),
+    );
+    if (listedToo) return { spec: { kind: 'vague', phrase: 'names' }, restToPayer };
     if (ids.length > 0 && ids.length < size)
       return { spec: { kind: 'except', ids: uniq(ids) }, restToPayer };
   }
@@ -1091,10 +1257,14 @@ function parseParticipants(
   // counts
   let n: number | undefined;
   const countRe = new RegExp(
-    `\\b(?:the|all|us|just the|only the)?\\s*${COUNT_WORD}\\s+of\\s+(?:us|you)\\b|\\b(?:split\\s+(?:it\\s+)?)?${COUNT_WORD}\\s+ways\\b|\\b(\\d{1,2})\\s*[x×]\\s*[€$£]?\\d|\\ball\\s+${COUNT_WORD}\\b`,
+    // "all 6" is a headcount only on its own or before a people word: "all 6
+    // tickets" is how many things, not who's in (T-222)
+    `\\b(?:the|all|us|just the|only the)?\\s*${COUNT_WORD}\\s+of\\s+(?:us|you)\\b|\\b(?:split\\s+(?:it\\s+)?)?${COUNT_WORD}\\s+ways\\b|\\b(\\d{1,2})\\s*[x×]\\s*[€$£]?\\d|\\ball\\s+${COUNT_WORD}(?=\\s*(?:$|[,.;:!?)])|\\s+(?:people|ppl|persons|guys|split|evenly|equally)\\b)`,
   );
   const cm = countRe.exec(low);
   if (cm !== null) n = countOf(cm[1] ?? cm[2] ?? cm[3] ?? cm[4] ?? '');
+  /** "for all 6": claims the whole group, so it never picks an activity roster by count. */
+  const allBare = cm?.[4] !== undefined;
   if (
     /\b(?:half each|50\s*\/\s*50|50-50|fifty fifty|halves|half and half|in half|both of us|the two of us|us two)\b/.test(
       low,
@@ -1174,11 +1344,19 @@ function parseParticipants(
       ? { spec: { kind: 'everyone' }, restToPayer }
       : { spec: { kind: 'vague', phrase: 'everyone else' }, restToPayer };
   }
+  // "for all 7", "everyone, the 5 of us" in a group of six: the word and the
+  // count disagree about who's in, so ask (T-222)
+  if (everyoneWord && n !== undefined && n !== size && listIds.length !== n) {
+    return { spec: { kind: 'vague', phrase: 'names' }, restToPayer };
+  }
   const everyone = everyoneWord || evenly || (n !== undefined && n === size);
 
   if (everyone) return { spec: { kind: 'everyone' }, restToPayer };
   if (n !== undefined) {
     if (listIds.length === n) return { spec: { kind: 'list', ids: listIds }, restToPayer };
+    // more than the group, or "all 6" in a group of 5 or 7: the count is wrong
+    // somewhere, so ask by name (never "which 7 are in" of six people)
+    if (n > size || allBare) return { spec: { kind: 'vague', phrase: 'names' }, restToPayer };
     if (listIds.length === 0 || listIds.length < n) {
       const roster = rosterFor(scan, n);
       if (roster !== undefined && listIds.every((id) => roster.includes(id))) {

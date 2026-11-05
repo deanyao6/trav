@@ -118,8 +118,25 @@ describe('parseSuggestAsk', () => {
     '@trav remember chase hates tapas',
     '@trav what time is dinner',
     '',
+    // T-222: a payment being stated at a place, not an ask for places
+    '@trav grabbed the check at that tapas spot, €70, everyone',
+    '@trav the pizza place came to 54 euros, me and maya',
+    '@trav i picked up the bill at the bar, $40',
   ])('not a suggestion ask: %s', (t) => {
     expect(parseSuggestAsk(t)).toBeUndefined();
+  });
+
+  it('a budget figure without a spend word is still an ask (T-222)', () => {
+    expect(parseSuggestAsk('@trav any tapas places under €30 a head?')?.category).toBe(
+      'restaurant',
+    );
+    expect(parseSuggestAsk('@trav dinner spot ideas around 25 euros each')?.category).toBe(
+      'restaurant',
+    );
+    expect(parseSuggestAsk('@trav dinner places where it costs under €30 a head')).toBeDefined();
+    expect(
+      parseSuggestAsk('@trav the last dinner spot was €25 a head, any good places like it?'),
+    ).toBeDefined();
   });
 });
 
@@ -561,22 +578,22 @@ describe('r1 #3: offhand words in unaddressed chat are not stated wants', () => 
 });
 
 describe('r2 #1: an adult DM in a family-mode group is cautious too, and never silent', () => {
-  it.each([['any good bars tonight', 'casual'], ['any good bars tonight, casual', undefined]])(
-    'Dean DMs %s: food for everyone, sent',
-    async (ask, answer) => {
-      const h = harness();
-      makeMinor(h);
-      const all = [await h.dm('h_dean', ask)];
-      if (all[0]!.note === 'suggest:question' && answer !== undefined)
-        all.push(await h.dm('h_dean', answer));
-      const last = all.at(-1)!;
-      for (const t of all) expect(t.silent).toBe(false);
-      expect(last.note).toMatch(/^suggest:(?:places|answered)$/);
-      expect(text(last)).toContain('food for everyone tonight:');
-      for (const p of CATALOG.places.filter(restrictedForMinors))
-        expect(text(last)).not.toContain(p.name);
-    },
-  );
+  it.each([
+    ['any good bars tonight', 'casual'],
+    ['any good bars tonight, casual', undefined],
+  ])('Dean DMs %s: food for everyone, sent', async (ask, answer) => {
+    const h = harness();
+    makeMinor(h);
+    const all = [await h.dm('h_dean', ask)];
+    if (all[0]!.note === 'suggest:question' && answer !== undefined)
+      all.push(await h.dm('h_dean', answer));
+    const last = all.at(-1)!;
+    for (const t of all) expect(t.silent).toBe(false);
+    expect(last.note).toMatch(/^suggest:(?:places|answered)$/);
+    expect(text(last)).toContain('food for everyone tonight:');
+    for (const p of CATALOG.places.filter(restrictedForMinors))
+      expect(text(last)).not.toContain(p.name);
+  });
 });
 
 describe('r2 #2: questions and look-backs are never stated wants', () => {

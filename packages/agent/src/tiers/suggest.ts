@@ -75,7 +75,17 @@ function fold(s: string): string {
 
 /** Booking, logging or paying: someone else's flow, never a suggestion ask. */
 const NOT_A_SUGGESTION =
-  /\b(?:book|booking|reserve|buy|order|get us|get me|grab us|grab me|hold|paid|pay|spent|owe|owes|split|cost me|covered|charge|charged|refund|cancel|remember|add|log|put)\b/;
+  /\b(?:book|booking|reserve|buy|bought|order|get us|get me|grab us|grab me|hold|paid|pay|spent|owe|owes|split|cost me|covered|fronted|picked up|bill|charge|charged|refund|cancel|remember|add|log|put)\b/;
+/**
+ * "i got the bill at the tapas place, 96 euros" (T-222): a written amount next
+ * to a past-tense spend word is a payment being stated, the expense flow's.
+ * "dinner spots under €30" has the amount but no spend word, so it stays an ask.
+ */
+const MONEY_WRITTEN =
+  /[€$£]\s?\d|\d\s?(?:[€$£]|euros?\b|eur\b|dollars?\b|bucks\b|quid\b|pounds?\b)/;
+// past-tense spend only: "places where dinner costs under €30" and "the last
+// spot was €25 a head, anything like it?" are still asks
+const SPEND_STATED = /\b(?:got|grabbed|treated|came to|tab)\b/;
 /** The ask wants ideas, not a fact: "where", "ideas", "any good", "recommend", "spot". */
 const SUGGEST_INTENT =
   /\b(?:things to do|something to do|stuff to do|where (?:should|can|do|could|to|would)|where's good|wheres good|ideas?|recs?|recommend\w*|suggest\w*|suggestions?|options?|any (?:good|decent|nice|cheap|chill|fun|cool)|(?:food|dinner|lunch|brunch|bar|drinks?) tips|know (?:a|any)|what(?:'s| is) good|whats good|somewhere|someplace|spots?|places?|what (?:should|can|could) we do|anything (?:fun|good) to do|looking for|(?:cheap|good|great|decent|nice|budget) eats)\b/;
@@ -98,6 +108,7 @@ export function parseSuggestAsk(text: string): SuggestAsk | undefined {
   const t = fold(stripTravPrefix(text)).replace(/@trav\b/g, ' ');
   if (t.length === 0 || t.length > 200) return undefined;
   if (NOT_A_SUGGESTION.test(t) || CLUB.test(t)) return undefined;
+  if (MONEY_WRITTEN.test(t) && SPEND_STATED.test(t)) return undefined;
   if (!SUGGEST_INTENT.test(t)) return undefined;
   const category: VenueCategory | undefined = ACTIVITY.test(t)
     ? 'activity'
