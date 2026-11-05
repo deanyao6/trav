@@ -390,6 +390,8 @@ export function createChannelBackend(options: ChannelBackendOptions): ChannelBac
           );
         case 'member_joined': {
           const group = requireGroup(input.groupId);
+          // A guest's later DMs and tapbacks run on this chat's clock (T-095 review #1).
+          if (!groupOfHandle.has(input.handle)) groupOfHandle.set(input.handle, group);
           return stampIn(group.groupId, () =>
             channel.injectMemberJoined({
               conversationId: group.conversationId,
