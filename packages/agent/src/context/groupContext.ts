@@ -141,6 +141,7 @@ export function buildGroupContext(
       members,
       expenses,
       entries: store.expenses.listEntries(trip.tripId),
+      payments: store.settlements.listByTrip(trip.tripId),
       now,
     });
     balances = money.kind === 'ok' ? money.ledger.balances : [];

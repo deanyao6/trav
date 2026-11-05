@@ -169,6 +169,7 @@ import {
   type SettingsTurnContext,
 } from './settings/flow.js';
 import { balancesFor, renderSettleUpFor } from './tools/ledger.js';
+import { markPaid } from './balances/markPaid.js';
 import {
   myPositionText,
   NO_TRIP_BALANCE_TEXT,
@@ -2604,6 +2605,89 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     };
   }
 
+  // ---------- "i've paid" on the final settle card (T-141) ----------
+
+  /** A final settle_up card Trav posted in this group's thread. */
+  function isFinalSettleCard(r: Resolved, ref: PendingCardRef): boolean {
+    return (
+      ref.card.type === 'settle_up' &&
+      ref.card.mode === 'final' &&
+      cardGroup.get(ref.messageId) === r.group.groupId
+    );
+  }
+
+  /**
+   * 👍 / [Paid] from a payer on the final settle card: record their outgoing
+   * transfer(s) on that card as paid (`balances/markPaid.ts`; their word, no
+   * money moves), audit it, and post the card again with the row ticked and
+   * what is still owed. A payee, anyone else, a guest or a minor changes
+   * nothing (silent). A second tick is silent. A card the tab has moved past
+   * records nothing and gets the current card.
+   */
+  async function markPaidTurn(
+    r: Resolved,
+    ref: PendingCardRef,
+    via: 'reaction' | 'button',
+    messageId: MessageId,
+    value?: string,
+  ): Promise<TurnResult> {
+    if (ref.card.type !== 'settle_up') return silent('settle:not_settle_card');
+    const trip = r.trip;
+    if (r.lane !== 'group' || trip === null) return silent('settle:no_trip');
+    if (r.me === null || !canRequest(r.identity)) return silent('settle:guest');
+    // [Paid] carries `from:to`; a tap on someone else's row does nothing.
+    let onlyTo: string | undefined;
+    if (value !== undefined && value.length > 0) {
+      const [from, to] = value.split(':');
+      if (from !== r.me.memberId || to === undefined || to.length === 0)
+        return silent('settle:not_payer');
+      onlyTo = to;
+    }
+    const ctx = {
+      groupId: r.group.groupId,
+      tripId: trip.tripId,
+      senderMemberId: r.me.memberId,
+      senderId: r.me.senderId,
+      lane: r.lane,
+      now: r.now,
+      clock,
+      ids,
+      stores,
+    };
+    const outcome = markPaid(ctx, {
+      card: ref.card,
+      cardMessageId: ref.messageId,
+      via,
+      messageId,
+      ...(onlyTo !== undefined ? { onlyTo } : {}),
+    });
+    if (outcome.kind === 'not_applicable' || outcome.kind === 'not_payer')
+      return silent(`settle:${outcome.kind}`);
+    if (outcome.kind === 'already_paid') return silent('settle:already_paid');
+    const before = snapshotAudit(r.group.groupId);
+    const rctx = {
+      groupId: r.group.groupId,
+      members: r.members,
+      timeZone: trip.timeZone,
+      now: r.now,
+      ids,
+    };
+    // Stale: the current card (one group message per turn, VOICE §3.7) shows
+    // what is owed now; their 👍 on it is what ticks them off.
+    const sent = await send(r, [renderSettleUpFor(ctx, 'final', rctx)]);
+    return {
+      outbound: sent,
+      toolCalls: [],
+      auditEventIds: [
+        ...(outcome.kind === 'marked' ? outcome.auditEventIds : []),
+        ...auditIdsSince(r.group.groupId, before),
+      ],
+      silent: sent.length === 0,
+      modelSources: [],
+      note: outcome.kind === 'marked' ? 'settle:marked_paid' : 'settle:stale',
+    };
+  }
+
   // ---------- turn boundary (ARCHITECTURE §6) ----------
 
   /**
@@ -2696,6 +2780,9 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
         const ref = cards.get(event.targetMessageId);
         if (intent === 'decline' && ref !== undefined && isLoggedExpenseCard(ref))
           return undoExpense(r, ref, 'reaction', event.messageId);
+        // 👍 on the final settle card: "i've paid, tick me off" (VOICE §4.6, T-141).
+        if (intent === 'approve' && ref !== undefined && isFinalSettleCard(r, ref))
+          return markPaidTurn(r, ref, 'reaction', event.messageId);
         if (intent === undefined || ref?.proposalId === undefined)
           return silent('reaction:not_approval');
         return routeApproval(r, event, intent, '', 'reaction', ref.proposalId, event.messageId);
@@ -2713,6 +2800,9 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
         const ref = cards.get(event.cardMessageId);
         if (event.actionId === 'undo' && ref !== undefined && isLoggedExpenseCard(ref))
           return undoExpense(r, ref, 'button', event.messageId);
+        // [Paid] on a transfer row (T-141, the T-037 button): value is `from:to`.
+        if (event.actionId === 'paid' && ref !== undefined && isFinalSettleCard(r, ref))
+          return markPaidTurn(r, ref, 'button', event.messageId, event.value);
         const intent: ApprovalIntent | undefined =
           event.actionId === 'approve' ||
           event.actionId === 'decline' ||

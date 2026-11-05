@@ -102,7 +102,7 @@ export interface Harness {
   /** DM-lane message from a handle. */
   dm(from: string, text: string): Promise<TurnResult>;
   react(from: string, targetMessageId: string, reaction: string): Promise<TurnResult>;
-  tap(from: string, cardMessageId: string, actionId: string): Promise<TurnResult>;
+  tap(from: string, cardMessageId: string, actionId: string, value?: string): Promise<TurnResult>;
   audit(): readonly AuditEvent[];
   auditTypes(): string[];
   pending(): BookingProposal[];
@@ -179,8 +179,13 @@ export function harness(opts: HarnessOptions = {}): Harness {
       last.reaction = event;
       return runtime.agent.handleInbound(event);
     },
-    async tap(from, cardMessageId, actionId) {
-      const event = await channel.injectButtonTap({ from, cardMessageId, actionId });
+    async tap(from, cardMessageId, actionId, value) {
+      const event = await channel.injectButtonTap({
+        from,
+        cardMessageId,
+        actionId,
+        ...(value !== undefined ? { value } : {}),
+      });
       last.tap = event;
       return runtime.agent.handleInbound(event);
     },

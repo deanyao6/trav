@@ -81,7 +81,7 @@ export const OFFLINE_FALLBACK = "i'm not sure what you mean";
 export const DEMO_NOTES: readonly string[] = [
   "step 2 (flights): v0 has no chat flow that posts group flight options or books flights (`booking/proposals.ts` answers `unsupported_kind` for flights). Trav's chat reply is scripted to say exactly that (it can't line up or book group flights in chat yet) and quotes no optimizer numbers; the step then runs the core multi-origin optimizer (`flights.optimizeGroupFlights`) over the mock flights provider directly, in a labeled block. Nothing is booked.",
   'step 3 (lodging): the real `search_lodging` call; the offline reply text is scripted on its result. No chat flow proposes or books a stay yet, so the step also lists the mock search directly for the check. Nothing is booked.',
-  'step 10 (settle-up): Trav answers "@trav settle now" with the transfers, but the settle-up card\'s [Paid] button and its "i\'ll tick you off" line are not wired yet (no mark-paid flow; T-037), so the demo applies the transfers to the balances itself and checks that everyone ends at €0. No money moves.',
+  'step 10 (settle-up): Trav answers "@trav settle now" with the transfers; Maya\'s 👍 on the card (or her [Paid] tap) records that she says she paid and re-posts the card with her row ticked (T-141). Payee confirmation, disputes and nudges are not built (T-037), so the demo applies the remaining transfers to the balances itself and checks that everyone ends at €0. No money moves.',
 ];
 
 function nameOf(id: string): string {
@@ -201,7 +201,11 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
     const id = G.members.find((m) => m.name === who)!.memberId;
     return (flush().dms.get(id) ?? []).filter((m) => m.isTrav);
   };
-  const react = async (who: string, target: ThreadMessage, reaction = '👍'): Promise<void> => {
+  const react = async (
+    who: string,
+    target: ThreadMessage,
+    reaction = '👍',
+  ): Promise<ThreadMessage[]> => {
     emit(`- _${who} reacts ${reaction} on trav's ${target.card?.type ?? 'message'}_`);
     await backend.inject({
       type: 'reaction',
@@ -209,7 +213,7 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
       targetMessageId: target.messageId,
       reaction,
     });
-    flush();
+    return flush().group.filter((m) => m.isTrav);
   };
   const tap = async (who: string, target: ThreadMessage, actionId: string): Promise<void> => {
     const label = target.actions.find((a) => a.id === actionId)?.label ?? actionId;
@@ -546,6 +550,31 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
       lines.length > 0 && lines.every((l) => settleReply.includes(l)),
       settleReply,
     );
+    // Maya paid Dean outside Trav and says so with a 👍 (T-141): her row is
+    // ticked, the rest still owed. No money moves; it is her word, audited.
+    const finalCard = settleNow.find((m) => m.card?.type === 'settle_up');
+    const mayaRow = expectedTransfers(rt()).find((t) => t.from === 'mem_maya');
+    if (finalCard !== undefined && mayaRow !== undefined) {
+      const ticked = (await react('Maya', finalCard)).find((m) => m.card?.type === 'settle_up');
+      const tcard = ticked?.card?.type === 'settle_up' ? ticked.card : undefined;
+      check(
+        "Maya's 👍 ticks her transfer paid and leaves the rest owed",
+        tcard !== undefined &&
+          tcard.transfers.filter((t) => t.paid === true).map((t) => t.from).join() ===
+            'mem_maya' &&
+          (ticked?.text.includes(
+            `${nameOf(mayaRow.from)} → ${nameOf(mayaRow.to)} ${formatMoney(mayaRow.amount)} · paid`,
+          ) ??
+            false),
+        ticked?.text,
+      );
+      check(
+        'marking paid is audited and moves no money',
+        auditLog().some(
+          (e) => e.type === 'settlement.marked_paid' && e.payload['moneyMoved'] === false,
+        ),
+      );
+    }
     emit(settleUp(rt(), check));
 
     // ---------------- 11. Wrapped ----------------

@@ -48,7 +48,7 @@ import { isMinor } from '../safety/minors.js';
 import type { SplitContext } from './context.js';
 import { assertUniqueMembers } from './context.js';
 import { computeBalances } from './balances.js';
-import { settle } from './settle.js';
+import { applyPayments, settle } from './settle.js';
 import { buildLedger, totalSpent } from './splits.js';
 
 // ---------- minor folding ----------
@@ -241,14 +241,23 @@ export interface TripLedgerInput {
   readonly now: IsoDateTime;
   /** Small-amount floor passed to `settle` (T-049). Ignored for a family tab. */
   readonly floorMinor?: number;
+  /**
+   * Transfers members said they paid (T-141, `SettlementPayment`). Applied to
+   * the balances before settling, so `balances` is what is still owed and
+   * `transfers` is what is left to pay. A minor named here is carried by their
+   * guardian (minors never pay or receive). Ignored for a family tab.
+   */
+  readonly payments?: readonly Transfer[];
 }
 
 export interface TripLedger {
   readonly mode: 'split' | 'family_tab';
   /** One row per NON-minor member, in member order. All zero for a family tab. */
   readonly balances: Balance[];
-  /** Minimal settle-up. Always empty for a family tab; never names a minor. */
+  /** Minimal settle-up of what is still owed. Always empty for a family tab; never names a minor. */
   readonly transfers: Transfer[];
+  /** `payments` as applied (minors folded onto guardians), input order. Empty for a family tab. */
+  readonly paid: Transfer[];
   /** Σ logged expenses. */
   readonly total: Money;
   readonly byCategory: CategoryTotal[];
@@ -325,14 +334,23 @@ export function tripLedger(input: TripLedgerInput): TripLedger {
       mode: 'family_tab',
       balances: order.map((memberId) => ({ memberId, net: money(0, currency) })),
       transfers: [],
+      paid: [],
       ...common,
     };
   }
+  // T-141: what members said they paid, minors carried by their guardian.
+  const paidTransfers = (input.payments ?? []).map((t) => ({
+    from: carrier(t.from, folding),
+    to: carrier(t.to, folding),
+    amount: t.amount,
+  }));
+  const owing = paidTransfers.length > 0 ? applyPayments(balances, paidTransfers) : balances;
   const floorMinor = input.floorMinor;
   return {
     mode: 'split',
-    balances,
-    transfers: settle(balances, floorMinor === undefined ? undefined : { floorMinor }),
+    balances: owing,
+    transfers: settle(owing, floorMinor === undefined ? undefined : { floorMinor }),
+    paid: paidTransfers,
     ...common,
   };
 }

@@ -26,6 +26,7 @@ export const ID_PREFIXES = {
   job: 'job',
   ticket: 'tkt',
   photo: 'photo',
+  payment: 'pay',
 } as const;
 
 export type IdPrefix = (typeof ID_PREFIXES)[keyof typeof ID_PREFIXES];

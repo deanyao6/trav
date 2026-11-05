@@ -36,6 +36,8 @@ export type AuditEventType =
   | 'ledger.entry_edited'
   | 'ledger.entry_deleted'
   | 'ledger.written'
+  /** T-141: a member said they paid a settle-up transfer (no money moved through Trav). */
+  | 'settlement.marked_paid'
   | 'private.item_ingested'
   | 'private.item_promoted'
   | 'private.item_dismissed'

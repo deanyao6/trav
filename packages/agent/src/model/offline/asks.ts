@@ -22,7 +22,7 @@
  * tool result from anything else is never theirs to answer. Each returns
  * `undefined` to pass.
  */
-import { formatMoney, money, parseDecimal } from '@trav/core';
+import { formatMoney, money } from '@trav/core';
 import type { CurrencyCode } from '@trav/core';
 import { loadAllTicketInventories } from '@trav/adapters';
 import type {
@@ -42,6 +42,13 @@ import {
   venueIndexFrom,
   type VenueIndex,
 } from '../../booking/request.js';
+import {
+  budgetPhrase,
+  foldBudgetText,
+  isHardship,
+  parseBudgetFigure,
+} from '../../memory/budget.js';
+import type { BudgetBound, BudgetFigure } from '../../memory/budget.js';
 import { deriveScriptKey } from './scripts.js';
 
 const ZERO_USAGE = { inputTokens: 0, outputTokens: 0 } as const;
@@ -61,6 +68,9 @@ export const ONE_TOO_TEXT =
 export const EXPENSE_RESTATE_TEXT =
   "nothing's logged yet, i need the total. say it in one line: what it was, how much, and who was in";
 export const HEALTH_MEMORY_TEXT = "i'll leave that one out, i don't keep notes on health stuff";
+/** A money-trouble "fact" (T-134): not stored for anyone, in any scope. */
+export const MONEY_MEMORY_TEXT =
+  "i'll leave that one out, i don't keep notes on anyone's money situation";
 export const NOTHING_PENDING_TEXT =
   "nothing's waiting on a 👍 right now, so there's nothing to drop";
 export const NOTHING_PENDING_CHEAPER_TEXT =
@@ -1072,6 +1082,8 @@ export const rememberResponder: FallbackResponder = {
     const fact = parseRememberAsk(ask.text);
     if (fact === undefined) return undefined;
     if (HEALTH_RE.test(foldText(fact))) return response(req, HEALTH_MEMORY_TEXT, []);
+    // The tool would refuse it anyway (T-134); say so instead of a blank.
+    if (isHardship(fact, 'other')) return response(req, MONEY_MEMORY_TEXT, []);
     return response(req, '', [call(req, 'toolu_offline_remember_', 1, 'remember', { text: fact })]);
   },
 };
@@ -1079,54 +1091,47 @@ export const rememberResponder: FallbackResponder = {
 // ---------- a personal budget, told in a DM (T-134) ----------
 
 /**
- * "can you keep my share under 80 a day", "my budget is €60 a day", "i can
- * only spend 300 for the trip". The intent has to come before the figure.
+ * Explicit budget asks only (T-134 r1 #2), each ending where the figure
+ * starts. Anything else (a share already spent, a question that only checks,
+ * "20 minutes", "2 nights") is not a budget and is never stored.
  */
-const BUDGET_INTENT_RE =
-  /\b(?:(?:keep|cap|limit|hold)\s+(?:my\s+(?:daily\s+)?(?:share|spend(?:ing)?|budget|part|costs?|total)|me)|my\s+(?:daily\s+)?(?:share|spend(?:ing)?|budget|limit|cap)|i\s+(?:can|could)\s+(?:only\s+)?(?:spend|afford)|i\s+can\s+only\s+do|(?:don'?t|do not|never)\s+let\s+(?:my\s+(?:share|spend(?:ing)?|part|costs?)|me)\s+go)\b/;
-const BUDGET_FIGURE_RE =
-  /(?:\b(?<bound>under|below|less than|no more than|at most|max(?:imum)?|tops|up to|over|above|past|around|about|roughly)\s+)?(?<sym>[€$£])?\s?(?<num>\d{1,6}(?:\.\d{1,2})?)(?![\d:])\s*(?<code>eur|euros?|usd|dollars?|bucks|gbp|pounds?|quid)?\b\s*(?<per>(?:a|per|each|\/)\s*(?:day|night|week)|daily|nightly|weekly|for the (?:whole )?trip|(?:in )?total)?/;
+interface BudgetForm {
+  readonly re: RegExp;
+  /** "don't let my share go over 80" ⇒ under 80. */
+  readonly bound?: BudgetBound;
+  /** "i can only spend 20" needs a currency or a period to be money. */
+  readonly requireMoneyMarker?: boolean;
+}
+const BUDGET_FORMS: readonly BudgetForm[] = [
+  {
+    re: /\b(?:keep|cap|limit|hold)\s+(?:my\s+(?:(?:daily|nightly|weekly|own|trip)\s+)?(?:share|spend(?:ing)?|budget|part|costs?|total)|me)\b/,
+  },
+  {
+    re: /\b(?:don'?t|dont|do not|never)\s+let\s+(?:my\s+(?:(?:daily|nightly|weekly|own|trip)\s+)?(?:share|spend(?:ing)?|part|costs?|total|budget)|me)\s+(?:go|get|run)\s+(?:over|above|past|beyond)\b/,
+    bound: 'under',
+  },
+  {
+    re: /\bmy\s+(?:(?:daily|nightly|weekly|trip)\s+)?(?:budget|spending limit|spend limit|limit|cap)(?:'s|\s+is|\s+will be|\s+should be)\b/,
+  },
+  { re: /\bi\s+(?:can|could)\s+(?:only\s+)?spend\b/, requireMoneyMarker: true },
+];
 /** Money already spent belongs to the expense flow, never to a budget note. */
-const SPENT_RE = /\b(?:i paid|paid for|i covered|i bought|i got everyone|split (?:it|this|with))\b/;
-const QUESTION_LEAD_RE = /^(?:what|whats|what's|how|is|am|are|did|does|where|why|when|which)\b/;
-
-const SYMBOL_CURRENCY: Readonly<Record<string, CurrencyCode>> = {
-  '€': 'EUR' as CurrencyCode,
-  $: 'USD' as CurrencyCode,
-  '£': 'GBP' as CurrencyCode,
+const SPENT_RE =
+  /\b(?:i paid|paid for|i covered|i bought|i spent|i got everyone|split (?:it|this|with))\b/;
+/** A question that only checks ("is my share over 100 yet", "what if my budget is 80"). */
+const BUDGET_CHECK_RE =
+  /^(?:what|whats|what's|how|is|am|are|was|were|did|does|do|where|why|when|which|if)\b|\b(?:check|checking|see if|so far|already|yet|how much|how close|am i|is it)\b|\bright\s*\?/;
+const ADJ_PERIOD: Readonly<Record<string, BudgetFigure['period']>> = {
+  daily: 'day',
+  nightly: 'night',
+  weekly: 'week',
+  trip: 'trip',
 };
-const WORD_CURRENCY: Readonly<Record<string, CurrencyCode>> = {
-  eur: 'EUR' as CurrencyCode,
-  euro: 'EUR' as CurrencyCode,
-  euros: 'EUR' as CurrencyCode,
-  usd: 'USD' as CurrencyCode,
-  dollar: 'USD' as CurrencyCode,
-  dollars: 'USD' as CurrencyCode,
-  bucks: 'USD' as CurrencyCode,
-  gbp: 'GBP' as CurrencyCode,
-  pound: 'GBP' as CurrencyCode,
-  pounds: 'GBP' as CurrencyCode,
-  quid: 'GBP' as CurrencyCode,
-};
-
-function boundWord(bound: string | undefined): string {
-  if (bound === undefined) return 'to';
-  if (/^(?:under|below|less than|over|above|past)$/.test(bound)) return 'under';
-  if (/^(?:around|about|roughly)$/.test(bound)) return 'around';
-  return 'at most';
-}
-
-function periodWords(per: string | undefined): string | undefined {
-  if (per === undefined) return undefined;
-  if (/day|daily/.test(per)) return 'a day';
-  if (/night/.test(per)) return 'a night';
-  if (/week/.test(per)) return 'a week';
-  return 'for the trip';
-}
 
 /** The tab's currency named in the system prompt ("tab in EUR", else "currency EUR"). */
 export function promptCurrency(system: string): CurrencyCode | undefined {
-  const code = /\btab in ([A-Z]{3})\b/.exec(system)?.[1] ?? /\bcurrency ([A-Z]{3})\b/.exec(system)?.[1];
+  const code =
+    /\btab in ([A-Z]{3})\b/.exec(system)?.[1] ?? /\bcurrency ([A-Z]{3})\b/.exec(system)?.[1];
   return code as CurrencyCode | undefined;
 }
 
@@ -1140,32 +1145,26 @@ export function parsePrivateBudgetAsk(
   text: string,
   tabCurrency?: CurrencyCode,
 ): string | undefined {
-  const t = foldText(text).replace(/\s+/g, ' ').trim();
-  if (SPENT_RE.test(t)) return undefined;
-  if (QUESTION_LEAD_RE.test(t) && !/\b(?:keep|cap|limit|hold)\b/.test(t)) return undefined;
-  const intent = BUDGET_INTENT_RE.exec(t);
-  if (intent === null) return undefined;
-  const clause = t.slice(intent.index + intent[0].length).split(/[?!;]|\.(?!\d)/)[0] ?? '';
-  const fig = BUDGET_FIGURE_RE.exec(clause)?.groups;
-  if (fig?.['num'] === undefined) return undefined;
-  const sym = fig['sym'];
-  const code = fig['code'];
-  const currency =
-    (sym !== undefined ? SYMBOL_CURRENCY[sym] : undefined) ??
-    (code !== undefined ? WORD_CURRENCY[code] : undefined) ??
-    tabCurrency;
-  let amount = fig['num'];
-  if (currency !== undefined) {
-    try {
-      const m = parseDecimal(fig['num'], currency);
-      if (m.amountMinor <= 0) return undefined;
-      amount = formatMoney(m);
-    } catch {
-      amount = `${fig['num']} ${currency}`;
-    }
-  } else if (Number(fig['num']) <= 0) return undefined;
-  const per = periodWords(fig['per']);
-  return `keep my share ${boundWord(fig['bound'])} ${amount}${per === undefined ? '' : ` ${per}`}`;
+  const t = foldBudgetText(text);
+  if (SPENT_RE.test(t) || BUDGET_CHECK_RE.test(t)) return undefined;
+  let best: { form: BudgetForm; match: RegExpExecArray } | undefined;
+  for (const form of BUDGET_FORMS) {
+    const match = form.re.exec(t);
+    if (match !== null && (best === undefined || match.index < best.match.index))
+      best = { form, match };
+  }
+  if (best === undefined) return undefined;
+  const rest = t.slice(best.match.index + best.match[0].length);
+  const clause = rest.split(/[?!;]|[.,](?!\d)/)[0] ?? '';
+  const fig = parseBudgetFigure(clause, {
+    ...(tabCurrency !== undefined ? { tabCurrency } : {}),
+    ...(best.form.bound !== undefined ? { bound: best.form.bound } : {}),
+    ...(best.form.requireMoneyMarker === true ? { requireMoneyMarker: true } : {}),
+  });
+  if (fig === undefined) return undefined;
+  const adj = /\b(daily|nightly|weekly|trip)\s/.exec(best.match[0])?.[1];
+  const period = fig.period ?? (adj !== undefined ? ADJ_PERIOD[adj] : undefined);
+  return `my share: ${budgetPhrase({ ...fig, ...(period !== undefined ? { period } : {}) })}`;
 }
 
 /**
@@ -1241,8 +1240,10 @@ export function travAskResponders(): readonly FallbackResponder[] {
     lodgingResponder,
     createBookingRequestResponder(),
     createVenueQuestionResponder(),
-    rememberResponder,
+    // Before the generic "remember …": in a DM, "remember keep my share under
+    // 80 a day, money's rough" keeps the figure only (T-134 r1 #4).
     privateBudgetResponder,
+    rememberResponder,
     honestGapsResponder,
   ];
 }

@@ -17,7 +17,16 @@
  * caught here and returned as `needs_guardian` (which minors, who to ask), so
  * callers ask the trip leads (VOICE §8) instead of throwing.
  */
-import type { Expense, IsoDateTime, LedgerEntry, Member, MemberId, Money, Trip } from '@trav/core';
+import type {
+  Expense,
+  IsoDateTime,
+  LedgerEntry,
+  Member,
+  MemberId,
+  Money,
+  SettlementPayment,
+  Trip,
+} from '@trav/core';
 import { ledger } from '@trav/core';
 
 export type TripLedgerView = ReturnType<typeof ledger.tripLedger>;
@@ -30,6 +39,8 @@ export interface TripMoneyInput {
   /** The persisted ledger rows for `expenses`. */
   readonly entries: readonly LedgerEntry[];
   readonly now: IsoDateTime;
+  /** T-141: settle-up transfers members said they paid (`store.settlements`). */
+  readonly payments?: readonly SettlementPayment[];
 }
 
 export type TripMoney =
@@ -44,6 +55,9 @@ export type TripMoney =
     };
 
 export function tripMoney(input: TripMoneyInput): TripMoney {
+  const payments = (input.payments ?? [])
+    .filter((p) => p.status === 'marked_paid')
+    .map((p) => ({ from: p.from, to: p.to, amount: p.amount }));
   try {
     return {
       kind: 'ok',
@@ -53,6 +67,7 @@ export function tripMoney(input: TripMoneyInput): TripMoney {
         expenses: input.expenses,
         entries: input.entries,
         now: input.now,
+        payments,
       }),
     };
   } catch (e) {

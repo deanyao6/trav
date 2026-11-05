@@ -6,7 +6,12 @@
 import type { AuditEventId, ProposalId } from '../../primitives.js';
 import type { Group, Member } from '../../domain/group.js';
 import type { Activity, Attendance, Trip } from '../../domain/trip.js';
-import type { Expense, ExpenseSourceRef, LedgerEntry } from '../../domain/expense.js';
+import type {
+  Expense,
+  ExpenseSourceRef,
+  LedgerEntry,
+  SettlementPayment,
+} from '../../domain/expense.js';
 import type { Booking, BookingProposal } from '../../domain/booking.js';
 import type { ApprovalGrant, MemberSpendingPrefs, PolicyDecision } from '../../domain/approval.js';
 import type { AuditEvent } from '../../domain/audit.js';
@@ -140,6 +145,24 @@ export const groupMemorySpec: TableSpec<GroupMemoryFact> = {
   columns: { group_id: (f) => f.groupId, source_trip_id: (f) => f.sourceTripId },
 };
 
+export function settlementSourceKey(
+  p: Pick<SettlementPayment, 'cardMessageId' | 'from' | 'to'>,
+): string {
+  return `${p.cardMessageId}|${p.from}|${p.to}`;
+}
+
+/** T-141 (D-034): transfers a member said they paid. One per (card, from, to). */
+export const settlementsSpec: TableSpec<SettlementPayment> = {
+  name: 'settlements',
+  key: (p) => p.paymentId,
+  columns: {
+    trip_id: (p) => p.tripId,
+    group_id: (p) => p.groupId,
+    source_key: (p) => settlementSourceKey(p),
+  },
+  unique: [['source_key']],
+};
+
 // ---------- private ----------
 
 export const cardTransactionsSpec: TableSpec<CardTransaction> = {
@@ -233,6 +256,7 @@ export const ALL_SPECS: Readonly<Record<TableName, TableSpec<never>>> = {
   bookings: bookingsSpec as TableSpec<never>,
   audit_events: auditEventsSpec as TableSpec<never>,
   group_memory: groupMemorySpec as TableSpec<never>,
+  settlements: settlementsSpec as TableSpec<never>,
   card_transactions: cardTransactionsSpec as TableSpec<never>,
   email_receipts: emailReceiptsSpec as TableSpec<never>,
   receipt_scans: receiptScansSpec as TableSpec<never>,

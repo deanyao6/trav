@@ -28,7 +28,12 @@ import type {
 } from './primitives.js';
 import type { Group, Member } from './domain/group.js';
 import type { Activity, Attendance, Trip } from './domain/trip.js';
-import type { Expense, ExpenseSourceRef, LedgerEntry } from './domain/expense.js';
+import type {
+  Expense,
+  ExpenseSourceRef,
+  LedgerEntry,
+  SettlementPayment,
+} from './domain/expense.js';
 import type { Booking, BookingProposal } from './domain/booking.js';
 import type { ApprovalGrant, MemberSpendingPrefs, PolicyDecision } from './domain/approval.js';
 import type { AuditEvent, AuditEventInput, AuditEventType } from './domain/audit.js';
@@ -93,6 +98,18 @@ export interface ExpenseRepository {
   listEntries(tripId: TripId): readonly LedgerEntry[];
 }
 
+/**
+ * Settle-up transfers members said they paid (T-141, D-034). Append-only in
+ * v0 (T-037 adds confirm/dispute/cancel). Unique on (cardMessageId, from, to):
+ * a second tick of the same transfer on the same card is a `duplicate`.
+ */
+export interface SettlementRepository {
+  /** Throws `duplicate` on an existing paymentId or the same (cardMessageId, from, to). */
+  record(payment: SettlementPayment): void;
+  /** In the order they were recorded. */
+  listByTrip(tripId: TripId): readonly SettlementPayment[];
+}
+
 export interface BookingRepository {
   createProposal(p: BookingProposal): void;
   getProposal(proposalId: ProposalId): BookingProposal | undefined;
@@ -152,6 +169,7 @@ export interface GroupStore {
   readonly members: MemberRepository;
   readonly trips: TripRepository;
   readonly expenses: ExpenseRepository;
+  readonly settlements: SettlementRepository;
   readonly bookings: BookingRepository;
   readonly audit: AuditRepository;
   readonly groupMemory: GroupMemoryRepository;

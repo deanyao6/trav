@@ -65,7 +65,6 @@ export const LINE_PENDING: Readonly<Record<string, LinePending>> = Object.fromEn
     'sys_bcn_0192',
     'msg_bcn_d_0012',
   ]),
-  ...gap('T-141', '👍 on the final settle card does not mark a transfer paid', ['msg_bcn_0173']),
   // ---- Lisbon (fixtures/chats/lisbon.jsonl; held out: these name the gap, nothing is tuned on them) ----
   ...gap('T-145', 'Lisbon match asks: sold-out derby, Benfica vs Porto proposal and its ledger', [
     'msg_lis_0001',

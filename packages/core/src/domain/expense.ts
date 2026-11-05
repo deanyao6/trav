@@ -125,3 +125,28 @@ export interface Transfer {
   readonly to: MemberId;
   readonly amount: Money;
 }
+
+/**
+ * A settle-up transfer a member SAYS they paid (T-141, D-034). No money moves
+ * through Trav: this records the payer's word, from a 👍 or [Paid] on a final
+ * settle card. Balances apply it (`ledger.tripLedger` `payments`), so what is
+ * still owed drops by `amount`. Only the payer (`from`) can mark it, never a
+ * minor (transfers never name one). `marked_paid` is the only state in v0;
+ * T-037 adds payee confirm, dispute and cancel.
+ */
+export interface SettlementPayment {
+  /** `pay_` id. */
+  readonly paymentId: string;
+  readonly groupId: GroupId;
+  readonly tripId: TripId;
+  readonly from: MemberId;
+  readonly to: MemberId;
+  readonly amount: Money;
+  /** Who said it was paid; always `from` in v0. */
+  readonly markedBy: MemberId;
+  readonly markedAt: IsoDateTime;
+  readonly via: 'reaction' | 'button';
+  /** The settle_up card the transfer was ticked on; with from/to it is the idempotency key. */
+  readonly cardMessageId: MessageId;
+  readonly status: 'marked_paid';
+}

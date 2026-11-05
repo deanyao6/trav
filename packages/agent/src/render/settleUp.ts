@@ -28,7 +28,12 @@ export interface SettleUpRenderInput {
   readonly balances: readonly Balance[];
   /** Default: `ledger.settle(balances)`. */
   readonly transfers?: readonly Transfer[];
-  /** Transfers already ticked off (final mode), matched by from/to/amount. */
+  /**
+   * Final mode: transfers members already said they paid (T-141,
+   * `TripLedger.paid`). Listed with "· paid" and `paid: true`, alongside the
+   * open `transfers` (which settle `balances`, already net of these). Ignored
+   * in running mode and on a family tab.
+   */
   readonly paid?: readonly Transfer[];
   readonly totalSpent: Money;
   readonly dayNumber?: number;
@@ -52,10 +57,6 @@ function chunk<T>(items: readonly T[], n: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < items.length; i += n) out.push(items.slice(i, i + n));
   return out;
-}
-
-function sameTransfer(a: Transfer, b: Transfer): boolean {
-  return a.from === b.from && a.to === b.to && a.amount.amountMinor === b.amount.amountMinor;
 }
 
 /**
@@ -143,9 +144,41 @@ export function buildSettleUp(
   const transfers = input.familyTab
     ? []
     : (input.transfers ?? (nonZero.length > 0 ? ledger.settle(balances) : []));
-  const paid = input.paid ?? [];
+  const paid = input.familyTab === true || input.mode !== 'final' ? [] : (input.paid ?? []);
+  if (paid.some((t) => minors.has(t.from) || minors.has(t.to) || t.amount.currency !== cur)) {
+    throw new TravError(
+      'invariant_violation',
+      'renderSettleUp: a paid transfer names a minor or another currency',
+    );
+  }
+  // Final mode rows: paid and open together, debtor then creditor in member
+  // order (VOICE §4.6 B reads one debtor at a time), a paid row first on a tie.
+  const rank = (id: MemberId): number => {
+    const i = order.indexOf(id);
+    return i < 0 ? order.length : i;
+  };
+  const open = transfers.map((t) => ({ t, paid: false }));
+  const rows: readonly { readonly t: Transfer; readonly paid: boolean }[] =
+    paid.length === 0
+      ? open
+      : [...paid.map((t) => ({ t, paid: true })), ...open].sort(
+          (a, b) => rank(a.t.from) - rank(b.t.from) || rank(a.t.to) - rank(b.t.to),
+        );
 
   const lines: string[] = [];
+  /** Final-mode transfer rows (10-line settle cap: overflow goes to "+N more in the card"). */
+  const pushRows = (): void => {
+    const n = rows.length;
+    const showAll = n <= MAX_TRANSFER_LINES + 1;
+    const shown = showAll ? rows : rows.slice(0, MAX_TRANSFER_LINES);
+    for (const r of shown) {
+      const done = r.paid ? ' · paid' : '';
+      lines.push(
+        `${formatTransfer(nameOf(ctx, r.t.from), nameOf(ctx, r.t.to), r.t.amount)}${done}`,
+      );
+    }
+    if (!showAll) lines.push(`+${String(n - shown.length)} more in the card`);
+  };
   const total = input.showTotal === true ? formatMoney(input.totalSpent) : undefined;
   if (input.familyTab === true) {
     lines.push(
@@ -153,6 +186,13 @@ export function buildSettleUp(
         ? `${total} on the family tab so far, nothing to split`
         : "everything's on the family tab, nothing to split",
     );
+  } else if (input.mode === 'final' && paid.length > 0 && transfers.length === 0) {
+    // Every transfer ticked off (T-141): the paid rows stay as the record.
+    const n = rows.length;
+    lines.push(
+      n === 1 ? `final settle, it's paid and everyone's square` : `final settle, all ${String(n)} paid and everyone's square`,
+    );
+    pushRows();
   } else if (nonZero.length === 0) {
     lines.push(
       total !== undefined
@@ -176,14 +216,12 @@ export function buildSettleUp(
     );
   } else {
     const n = transfers.length;
-    lines.push(`final settle, ${String(n)} transfer${n === 1 ? '' : 's'} and everyone's square`);
-    const showAll = n <= MAX_TRANSFER_LINES + 1;
-    const shown = showAll ? transfers : transfers.slice(0, MAX_TRANSFER_LINES);
-    for (const t of shown) {
-      const done = paid.some((p) => sameTransfer(p, t)) ? ' · paid' : '';
-      lines.push(`${formatTransfer(nameOf(ctx, t.from), nameOf(ctx, t.to), t.amount)}${done}`);
-    }
-    if (!showAll) lines.push(`+${String(n - shown.length)} more in the card`);
+    lines.push(
+      paid.length === 0
+        ? `final settle, ${String(n)} transfer${n === 1 ? '' : 's'} and everyone's square`
+        : `final settle, ${String(paid.length)} of ${String(rows.length)} paid, ${String(n)} to go`,
+    );
+    pushRows();
     lines.push("👍 on this message when you've paid, i'll tick you off");
   }
 
@@ -201,11 +239,12 @@ export function buildSettleUp(
       name: nameOf(ctx, b.memberId),
       net: b.net,
     })),
-    transfers: transfers.map((t) => ({
-      from: t.from,
-      to: t.to,
-      amount: t.amount,
-      ...(paid.some((p) => sameTransfer(p, t)) ? { paid: true } : {}),
+    // Running mode keeps the open transfers only (its card never lists them).
+    transfers: rows.map((r) => ({
+      from: r.t.from,
+      to: r.t.to,
+      amount: r.t.amount,
+      ...(r.paid ? { paid: true } : {}),
     })),
     totalSpent: input.totalSpent,
   };
@@ -222,7 +261,8 @@ export function renderSettleUp(
     ...new Set(card.transfers.filter((t) => t.paid !== true).map((t) => t.from)),
   ];
   return cardMessage<SettleUpCard>(ctx, GROUP, lines, rest, {
-    ...(input.mode === 'final' && card.transfers.length > 0
+    // [Paid] is for a debtor with an open transfer only (T-141: payers mark their own).
+    ...(input.mode === 'final' && debtors.length > 0
       ? { actions: [action('paid', { allowedMemberIds: debtors })] }
       : {}),
   });

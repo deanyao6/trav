@@ -64,6 +64,15 @@ const V1 = [
   table('ticket_artifacts', ['owner_member_id', 'trip_id', 'booking_id']),
 ].join('\n\n');
 
-export const MIGRATIONS: readonly Migration[] = [{ version: 1, sql: V1 }];
+/** T-141 (D-034): settle-up transfers members said they paid. */
+const V2 = [
+  table('settlements', ['trip_id', 'group_id', 'source_key']),
+  unique('settlements', ['source_key']),
+].join('\n\n');
+
+export const MIGRATIONS: readonly Migration[] = [
+  { version: 1, sql: V1 },
+  { version: 2, sql: V2 },
+];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]?.version ?? 0;

@@ -9,6 +9,7 @@ import type { GroupMemory, MemberMemory } from '../memory/index.js';
 import { MEMORY_CATEGORIES } from '../memory/index.js';
 import { sanitizeInline } from '../context/groupContext.js';
 import { detectInjection } from '../untrusted.js';
+import { budgetPhrase, findBudgetFigure, foldBudgetText, isHardship } from '../memory/budget.js';
 import type { ToolDefinition } from './registry.js';
 import {
   activeMembers,
@@ -24,39 +25,58 @@ import {
   resolveMemberRef,
 } from './shared.js';
 
-/**
- * Money-trouble reasons (SAFETY roast blocklist "financial hardship"). A bare
- * "tight" only counts on a budget fact ("tight connection" is logistics).
- */
-const HARDSHIP_RE =
-  /\b(?:money'?s? (?:is |are )?tight|tight (?:on|with|for) (?:money|cash|funds)|(?:cash|funds|money|things|finances)(?: is| are|'s|s)? (?:really |pretty |very |so )?tight|broke|skint|strapped|struggling|can'?t afford|cannot afford|couldn'?t afford|in debt|debts?|student loans?|loans?|paycheck|payday|unemployed|laid off|lost (?:my|his|her|their) job|between jobs|financial (?:aid|troubles?|hardship|stress|problems?|issues?)|hardship|money (?:troubles?|problems?|issues?|stress)|tuition)\b/;
+/** Re-exported for callers that screen a fact before calling the tool. */
+export { isHardship };
 
-/** Exported for tests. */
-export function isHardship(text: string, category: MemoryCategory): boolean {
-  const t = text.normalize('NFKC').replace(/[‘’]/g, "'").toLowerCase();
-  return HARDSHIP_RE.test(t) || (category === 'budget' && /\btight\b/.test(t));
-}
+const FIRST_PERSON = /\b(?:i|i'm|im|i've|i'd|i'll|me|my|mine|myself)\b/;
+const THIRD_PERSON = /\b(?:he|she|they|him|her|them|his|hers|their|theirs)\b/;
 
-/** "keep my share under €80 a day" ⇒ "keep your share under €80 a day" (said back to its owner). */
+/** "i'm vegetarian" ⇒ "you're vegetarian" (said back to its owner). Apostrophes already folded. */
 function toSecondPerson(text: string): string {
   return text
-    .replace(/\bi am\b|\bi'm\b/giu, "you're")
-    .replace(/\bi was\b/giu, 'you were')
-    .replace(/\bmyself\b/giu, 'yourself')
-    .replace(/\bmine\b/giu, 'yours')
-    .replace(/\bmy\b/giu, 'your')
-    .replace(/\b(?:i|me)\b/giu, 'you');
+    .replace(/\bi am\b|\bi'm\b|\bim\b/gu, "you're")
+    .replace(/\bi was\b/gu, 'you were')
+    .replace(/\bi've\b/gu, "you've")
+    .replace(/\bi'd\b/gu, "you'd")
+    .replace(/\bi'll\b/gu, "you'll")
+    .replace(/\bmyself\b/gu, 'yourself')
+    .replace(/\bmine\b/gu, 'yours')
+    .replace(/\bmy\b/gu, 'your')
+    .replace(/\b(?:i|me)\b/gu, 'you');
 }
 
+const NOT_SHOWN = "the group won't see it";
+
 /**
- * The private "noted" (VOICE §3.7 DM): what was kept, and that the group
- * won't see it. A budget is a note for planning, not an enforced cap.
+ * The private "noted" in the owner's DM (VOICE §3.7): what was kept and that
+ * the group won't see it. A budget is said back as the parsed figure only
+ * ("your share stays under €80 a day"), and is a note, not an enforced cap. A
+ * first-person fact is said back in the second person; a fact written about
+ * the sender in the third person (a model's "henry is vegetarian") or naming
+ * them is not echoed (T-134 r1 #6).
  */
-export function privateNotedText(text: string, category: MemoryCategory): string {
-  const fact = toSecondPerson(sanitizeInline(text, 140)).replace(/[\s.!]+$/u, '');
-  return category === 'budget'
-    ? `noted: ${fact}. it's a note for planning, not a hard cap, and the group won't see it`
-    : `noted: ${fact}. just between us, the group won't see it`;
+export function privateNotedText(
+  text: string,
+  category: MemoryCategory,
+  opts: { readonly displayName?: string; readonly tabCurrency?: string } = {},
+): string {
+  if (category === 'budget') {
+    const fig = findBudgetFigure(text, opts.tabCurrency);
+    return fig === undefined
+      ? `noted, it's a note, not a hard cap. ${NOT_SHOWN}`
+      : `noted: your share stays ${budgetPhrase(fig)}, as a note, not a hard cap. ${NOT_SHOWN}`;
+  }
+  const t = foldBudgetText(sanitizeInline(text, 140)).replace(/[\s.!]+$/u, '');
+  const first = (opts.displayName ?? '').trim().split(/\s+/)[0]?.toLowerCase() ?? '';
+  const namesSender = first.length > 0 && new RegExp(`\\b${escapeRe(first)}\\b`).test(t);
+  if (!FIRST_PERSON.test(t) || THIRD_PERSON.test(t) || namesSender) {
+    return `noted, just between us. ${NOT_SHOWN}`;
+  }
+  return `noted: ${toSecondPerson(t)}. just between us, ${NOT_SHOWN}`;
+}
+
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 }
 
 export function createGetGroupMemoryTool(groupMemory: GroupMemory): ToolDefinition<
@@ -113,7 +133,7 @@ export function createRememberTool(
   return {
     name: 'remember',
     description:
-      "Remember a fact. scope 'group' (default in the group thread): something said in the group, repeatable there. scope 'me' (default in a private thread): a fact about the sender only, kept private to them. A personal budget is scope 'me', category 'budget', the figure only (e.g. 'keep my share under €80 a day'), never why. Never store health details, money troubles, or reasons someone skipped something.",
+      "Remember a fact. scope 'group' (default in the group thread): something said in the group, repeatable there. scope 'me' (default in a private thread): a fact about the sender only, kept private to them. A personal budget is scope 'me', category 'budget', the figure only (e.g. 'my share: under £45 a week'), never why. Never store health details, money troubles, or reasons someone skipped something.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -231,7 +251,15 @@ export function createRememberTool(
       return {
         kind: 'remembered',
         scope,
-        text: ctx.lane === 'dm' ? privateNotedText(input.text, category) : 'noted, just between us',
+        text:
+          ctx.lane === 'dm'
+            ? privateNotedText(input.text, category, {
+                displayName: me.displayName,
+                ...(currentTrip(ctx)?.currency !== undefined
+                  ? { tabCurrency: currentTrip(ctx)!.currency }
+                  : {}),
+              })
+            : 'noted, just between us',
       };
     },
   };

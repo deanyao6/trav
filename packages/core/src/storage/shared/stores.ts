@@ -24,6 +24,7 @@ import {
   pendingItemsSpec,
   proposalsSpec,
   receiptScansSpec,
+  settlementsSpec,
   ticketArtifactsSpec,
   tripsSpec,
 } from './schema.js';
@@ -50,6 +51,7 @@ export function createStoresOnBackend(backend: Backend, deps: StoreDeps): Stores
   const attendance = backend.table(attendanceSpec);
   const expenses = backend.table(expensesSpec);
   const ledger = backend.table(ledgerEntriesSpec);
+  const settlements = backend.table(settlementsSpec);
   const proposals = backend.table(proposalsSpec);
   const decisions = backend.table(decisionsSpec);
   const grants = backend.table(grantsSpec);
@@ -103,6 +105,7 @@ export function createStoresOnBackend(backend: Backend, deps: StoreDeps): Stores
         counts.grants = sumOver(proposalIds, (id) => grants.deleteWhere({ proposal_id: id }));
         counts.ledger_entries = ledger.deleteWhere(byTrip);
         counts.expenses = expenses.deleteWhere(byTrip);
+        counts.settlements = settlements.deleteWhere(byTrip);
         counts.bookings = bookings.deleteWhere(byTrip);
         counts.proposals = proposals.deleteWhere(byTrip);
         counts.activities = activities.deleteWhere(byTrip);

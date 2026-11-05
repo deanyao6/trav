@@ -500,6 +500,7 @@ function tripMoneyFor(ctx: ToolContext): {
       members,
       expenses: expenses.listByTrip(trip.tripId),
       entries: expenses.listEntries(trip.tripId),
+      payments: ctx.stores.group.settlements.listByTrip(trip.tripId),
       now: ctx.now,
     }),
   };
@@ -619,6 +620,8 @@ export function settleUpFor(ctx: ToolContext, mode: 'running' | 'final'): Settle
       currency: trip.currency,
       balances: shownBalances(view, members),
       transfers: view.transfers,
+      // T-141: final cards list what members already said they paid, ticked.
+      ...(mode === 'final' && view.paid.length > 0 ? { paid: view.paid } : {}),
       totalSpent: view.total,
       ...(view.mode === 'family_tab' ? { familyTab: true } : {}),
     },

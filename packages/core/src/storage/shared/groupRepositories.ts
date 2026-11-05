@@ -14,6 +14,7 @@ import type {
   GroupRepository,
   GroupStore,
   MemberRepository,
+  SettlementRepository,
   TripRepository,
 } from '../../repositories.js';
 import { TravError } from '../../errors.js';
@@ -30,6 +31,8 @@ import {
   ledgerEntriesSpec,
   membersSpec,
   proposalsSpec,
+  settlementSourceKey,
+  settlementsSpec,
   sourceRefKey,
   tripsSpec,
 } from './schema.js';
@@ -403,12 +406,49 @@ function createGroupMemoryRepository(backend: Backend): GroupMemoryRepository {
   };
 }
 
+// ---------- settlements (T-141, D-034) ----------
+
+function createSettlementRepository(backend: Backend): SettlementRepository {
+  const rows = backend.table(settlementsSpec);
+  return {
+    record(payment) {
+      requireId(payment.paymentId, 'paymentId');
+      requireId(payment.tripId, 'tripId');
+      requireId(payment.cardMessageId, 'cardMessageId');
+      if (payment.from === payment.to) {
+        throw new TravError('invalid_argument', 'a member cannot pay themselves', {
+          memberId: payment.from,
+        });
+      }
+      if (!Number.isSafeInteger(payment.amount.amountMinor) || payment.amount.amountMinor <= 0) {
+        throw new TravError('invalid_argument', 'payment amount must be a positive integer', {
+          paymentId: payment.paymentId,
+        });
+      }
+      backend.transaction(() => {
+        if (rows.get(payment.paymentId) !== undefined) {
+          throw duplicate('settlement payment', { paymentId: payment.paymentId });
+        }
+        if (rows.count({ source_key: settlementSourceKey(payment) }) > 0) {
+          throw duplicate('settlement payment for this transfer', {
+            paymentId: payment.paymentId,
+            cardMessageId: payment.cardMessageId,
+          });
+        }
+        rows.insert(payment);
+      });
+    },
+    listByTrip: (tripId) => rows.find({ trip_id: tripId }),
+  };
+}
+
 export function createGroupStore(backend: Backend, clock: Clock, ids: IdGenerator): GroupStore {
   return {
     groups: createGroupRepository(backend),
     members: createMemberRepository(backend),
     trips: createTripRepository(backend),
     expenses: createExpenseRepository(backend),
+    settlements: createSettlementRepository(backend),
     bookings: createBookingRepository(backend),
     audit: createAuditRepository(backend, clock, ids),
     groupMemory: createGroupMemoryRepository(backend),

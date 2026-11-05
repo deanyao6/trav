@@ -86,6 +86,7 @@ function mentions(result: ReturnType<typeof tripLedger>, id: MemberId): boolean 
   return (
     result.balances.some((b) => b.memberId === id) ||
     result.transfers.some((t) => t.from === id || t.to === id) ||
+    result.paid.some((t) => t.from === id || t.to === id) ||
     result.frontedBy.some((f) => f.memberId === id)
   );
 }
@@ -799,6 +800,121 @@ describe('tripLedger: split trips', () => {
         'invalid_argument',
       );
     }
+  });
+});
+
+describe('tripLedger: payments marked paid (T-141)', () => {
+  const twoExpenses = (): Expense[] => {
+    resetCounter();
+    return [
+      famExpense({ amountMinor: 12000, payer: MOM }),
+      famExpense({
+        amountMinor: 3000,
+        payer: KID,
+        split: { method: 'equal', participants: [KID, LILY] },
+      }),
+    ];
+  };
+
+  it('a paid transfer reduces what is owed; the rest settles; Σ stays 0; total unchanged', () => {
+    const expenses = twoExpenses();
+    const before = tripLedger({
+      trip: splitTrip,
+      members: FAMILY,
+      expenses,
+      ctx: FAMILY_CTX,
+      now: NOW,
+    });
+    expect(before.paid).toEqual([]);
+    const first = before.transfers[0]!;
+    const after = tripLedger({
+      trip: splitTrip,
+      members: FAMILY,
+      expenses,
+      ctx: FAMILY_CTX,
+      now: NOW,
+      payments: [first],
+    });
+    expect(after.paid).toEqual([first]);
+    expect(after.transfers).toEqual(before.transfers.slice(1));
+    expect(after.balances.reduce((a, b) => a + b.net.amountMinor, 0)).toBe(0);
+    const net = (l: typeof before, id: MemberId): number =>
+      l.balances.find((b) => b.memberId === id)?.net.amountMinor ?? NaN;
+    expect(net(after, first.from)).toBe(net(before, first.from) + first.amount.amountMinor);
+    expect(net(after, first.to)).toBe(net(before, first.to) - first.amount.amountMinor);
+    expect(after.total).toEqual(before.total);
+    expect(after.frontedBy).toEqual(before.frontedBy);
+    expect(mentions(after, LILY)).toBe(false);
+  });
+
+  it('every transfer paid: everyone is at zero, nothing left to settle', () => {
+    const expenses = twoExpenses();
+    const before = tripLedger({
+      trip: splitTrip,
+      members: FAMILY,
+      expenses,
+      ctx: FAMILY_CTX,
+      now: NOW,
+    });
+    const after = tripLedger({
+      trip: splitTrip,
+      members: FAMILY,
+      expenses,
+      ctx: FAMILY_CTX,
+      now: NOW,
+      payments: before.transfers,
+    });
+    expect(after.transfers).toEqual([]);
+    expect(after.balances.every((b) => b.net.amountMinor === 0)).toBe(true);
+  });
+
+  it("a payment naming a minor is carried by the guardian (minors never pay or receive)", () => {
+    const expenses = twoExpenses();
+    const viaGuardian = tripLedger({
+      trip: splitTrip,
+      members: FAMILY,
+      expenses,
+      ctx: FAMILY_CTX,
+      now: NOW,
+      payments: [{ from: DAD, to: MOM, amount: usd(1000) }],
+    });
+    const viaMinor = tripLedger({
+      trip: splitTrip,
+      members: FAMILY,
+      expenses,
+      ctx: FAMILY_CTX,
+      now: NOW,
+      payments: [{ from: LILY, to: MOM, amount: usd(1000) }],
+    });
+    expect(viaMinor.balances).toEqual(viaGuardian.balances);
+    expect(viaMinor.paid).toEqual([{ from: DAD, to: MOM, amount: usd(1000) }]);
+    expect(mentions(viaMinor, LILY)).toBe(false);
+  });
+
+  it('a family tab ignores payments; a bad payment throws', () => {
+    const expenses = twoExpenses();
+    const fam = tripLedger({
+      trip: familyTrip,
+      members: FAMILY,
+      expenses,
+      ctx: FAMILY_CTX,
+      now: NOW,
+      payments: [{ from: DAD, to: MOM, amount: usd(1000) }],
+    });
+    expect(fam.paid).toEqual([]);
+    expect(fam.balances.every((b) => b.net.amountMinor === 0)).toBe(true);
+    const bad = (amount: ReturnType<typeof usd>, from: MemberId = DAD) => () =>
+      tripLedger({
+        trip: splitTrip,
+        members: FAMILY,
+        expenses,
+        ctx: FAMILY_CTX,
+        now: NOW,
+        payments: [{ from, to: MOM, amount }],
+      });
+    expectTravError(bad(usd(0)), 'invalid_argument');
+    expectTravError(bad(money(100, 'EUR')), 'currency_mismatch');
+    expectTravError(bad(usd(100), MOM), 'invalid_argument');
   });
 });
 

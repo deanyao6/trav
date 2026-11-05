@@ -11,7 +11,7 @@ import type { Stores } from '../repositories.js';
 import type { Group, Member } from '../domain/group.js';
 import { DEFAULT_GROUP_SETTINGS } from '../domain/group.js';
 import type { Activity, Attendance, Trip } from '../domain/trip.js';
-import type { Expense, LedgerEntry } from '../domain/expense.js';
+import type { Expense, LedgerEntry, SettlementPayment } from '../domain/expense.js';
 import type { Booking, BookingProposal } from '../domain/booking.js';
 import type { ApprovalGrant, PolicyDecision } from '../domain/approval.js';
 import { defaultSpendingPolicy } from '../domain/approval.js';
@@ -359,6 +359,23 @@ function makeMemberFact(
     learnedAt: T0,
     ...over,
   }) as MemberMemoryFact;
+}
+
+function makePayment(paymentId: string, over: Partial<SettlementPayment> = {}): SettlementPayment {
+  return {
+    paymentId,
+    groupId: G,
+    tripId: TRIP,
+    from: MAYA,
+    to: DEAN,
+    amount: { amountMinor: 26294, currency: 'EUR' },
+    markedBy: MAYA,
+    markedAt: T0,
+    via: 'reaction',
+    cardMessageId: `msg_card_${paymentId}`,
+    status: 'marked_paid',
+    ...over,
+  };
 }
 
 function makeGroupFact(factId: string, over: Partial<GroupMemoryFact> = {}): GroupMemoryFact {
@@ -965,6 +982,55 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
       });
     });
 
+    // ---------- settlements (T-141) ----------
+    describe('settlements', () => {
+      it('records payments per trip in order; one per (card, from, to)', () => {
+        stores.group.settlements.record(makePayment('pay_1'));
+        stores.group.settlements.record(
+          makePayment('pay_2', { from: HENRY, markedBy: HENRY, cardMessageId: 'msg_card_pay_1' }),
+        );
+        stores.group.settlements.record(makePayment('pay_3', { tripId: TRIP2 }));
+        expect(stores.group.settlements.listByTrip(TRIP).map((p) => p.paymentId)).toEqual([
+          'pay_1',
+          'pay_2',
+        ]);
+        expect(stores.group.settlements.listByTrip(TRIP2).map((p) => p.paymentId)).toEqual([
+          'pay_3',
+        ]);
+        // Same transfer ticked twice on the same card, or a reused id: duplicate.
+        expectTravError(
+          () =>
+            stores.group.settlements.record(
+              makePayment('pay_4', { cardMessageId: 'msg_card_pay_1' }),
+            ),
+          'duplicate',
+        );
+        expectTravError(
+          () =>
+            stores.group.settlements.record(makePayment('pay_1', { cardMessageId: 'msg_other' })),
+          'duplicate',
+        );
+        expect(stores.group.settlements.listByTrip(TRIP)).toHaveLength(2);
+      });
+
+      it('refuses a self-payment and a non-positive or fractional amount', () => {
+        expectTravError(
+          () => stores.group.settlements.record(makePayment('pay_1', { to: MAYA })),
+          'invalid_argument',
+        );
+        for (const [i, amountMinor] of [0, -5, 1.5].entries()) {
+          expectTravError(
+            () =>
+              stores.group.settlements.record(
+                makePayment(`pay_bad${String(i)}`, { amount: { amountMinor, currency: 'EUR' } }),
+              ),
+            'invalid_argument',
+          );
+        }
+        expect(stores.group.settlements.listByTrip(TRIP)).toEqual([]);
+      });
+    });
+
     // ---------- group memory ----------
     describe('group memory', () => {
       it('upserts, filters by trip, limits to the most recent, deletes one fact', () => {
@@ -1271,6 +1337,7 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
           makeBooking(`bk_${suffix}`, { tripId, proposalId: `prop_${suffix}` }),
         );
         stores.group.groupMemory.upsert(makeGroupFact(`gf_${suffix}`, { sourceTripId: tripId }));
+        stores.group.settlements.record(makePayment(`pay_${suffix}`, { tripId }));
         stores.private.putCardTransaction(DEAN, makeCard(`priv_c_${suffix}`, DEAN, { tripId }));
         stores.private.putEmailReceipt(MAYA, makeEmail(`priv_e_${suffix}`, MAYA, { tripId }));
         stores.private.putReceiptScan(DEAN, makeScan(`priv_s_${suffix}`, DEAN, { tripId }));
@@ -1316,6 +1383,7 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
           grants: 1,
           ledger_entries: 3,
           expenses: 1,
+          settlements: 1,
           bookings: 1,
           proposals: 1,
           activities: 1,
@@ -1342,6 +1410,7 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         expect(stores.group.bookings.getGrant('grant_a')).toBeUndefined();
         expect(stores.group.bookings.listByTrip(TRIP)).toEqual([]);
         expect(stores.group.groupMemory.listByGroup(G, { tripId: TRIP })).toEqual([]);
+        expect(stores.group.settlements.listByTrip(TRIP)).toEqual([]);
         expect(stores.private.getCardTransaction(DEAN, 'priv_c_a')).toBeUndefined();
         expect(stores.private.getEmailReceipt(MAYA, 'priv_e_a')).toBeUndefined();
         expect(stores.private.getReceiptScan(DEAN, 'priv_s_a')).toBeUndefined();
@@ -1353,6 +1422,7 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         // Trip B untouched.
         expect(stores.group.trips.get(TRIP2)).toBeDefined();
         expect(stores.group.expenses.listEntries(TRIP2)).toHaveLength(3);
+        expect(stores.group.settlements.listByTrip(TRIP2)).toHaveLength(1);
         expect(stores.private.listTickets(MAYA, 'bk_b')).toHaveLength(1);
         expect(stores.private.getPendingItem(MAYA, 'priv_p_b')).toBeDefined();
 

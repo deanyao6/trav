@@ -123,14 +123,26 @@ export function settle(
 }
 
 /**
- * Transfers still needed given transfers already marked paid (T-049): each paid
- * transfer moves the debtor's balance up and the creditor's down, then the
- * remainder is settled. Over-payments show up as a transfer back.
+ * Transfers still needed given transfers already marked paid (T-049): the
+ * balances after `applyPayments`, settled. Over-payments show up as a transfer back.
  */
 export function incrementalTransfers(
   balances: readonly Balance[],
   alreadyPaid: readonly Transfer[],
 ): Transfer[] {
+  return settle(applyPayments(balances, alreadyPaid));
+}
+
+/**
+ * Balances after transfers already marked paid (T-049, T-141): each paid
+ * transfer moves the debtor's balance up and the creditor's down. Same member
+ * order as `balances`; still sums to zero. Throws on an unknown member, a
+ * self-payment, another currency or a non-positive amount.
+ */
+export function applyPayments(
+  balances: readonly Balance[],
+  alreadyPaid: readonly Transfer[],
+): Balance[] {
   const currency = assertBalances(balances);
   if (balances.length === 0) {
     if (alreadyPaid.length > 0) {
@@ -171,7 +183,8 @@ export function incrementalTransfers(
     net.set(paid.from, (net.get(paid.from) ?? 0) + paid.amount.amountMinor);
     net.set(paid.to, (net.get(paid.to) ?? 0) - paid.amount.amountMinor);
   }
-  return settle(
-    balances.map((b) => ({ memberId: b.memberId, net: money(net.get(b.memberId) ?? 0, currency) })),
-  );
+  return balances.map((b) => ({
+    memberId: b.memberId,
+    net: money(net.get(b.memberId) ?? 0, currency),
+  }));
 }

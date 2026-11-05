@@ -72,6 +72,7 @@ export const GROUP_TABLES = [
   'bookings',
   'audit_events',
   'group_memory',
+  'settlements',
 ] as const;
 
 export const PRIVATE_TABLES = [

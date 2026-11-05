@@ -95,6 +95,10 @@ export function createFakeGroupStore(d: FakeGroupData): GroupStore {
         ),
       listEntries: (t) => d.entries.filter((e) => e.tripId === t),
     },
+    settlements: {
+      record: () => unused('settlements.record'),
+      listByTrip: () => [],
+    },
     bookings: {
       createProposal: () => unused('bookings.createProposal'),
       getProposal: (id) => d.proposals.find((p) => p.proposalId === id),

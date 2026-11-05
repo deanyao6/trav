@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { incrementalTransfers, settle } from './settle.js';
+import { applyPayments, incrementalTransfers, settle } from './settle.js';
 import {
   DEAN,
   JORDAN,
@@ -84,6 +84,33 @@ describe('settle', () => {
       'currency_mismatch',
     );
     expectTravError(() => settle([balance(DEAN, 100), balance(DEAN, -100)]), 'invalid_argument');
+  });
+});
+
+describe('applyPayments (T-141)', () => {
+  it('moves the debtor up and the creditor down, keeps order and Σ 0, never mutates the input', () => {
+    const input = [...VOICE_FINAL];
+    const after = applyPayments(input, [{ from: MAYA, to: DEAN, amount: eur(3160) }]);
+    expect(after.map((b) => b.memberId)).toEqual(VOICE_FINAL.map((b) => b.memberId));
+    expect(after.find((b) => b.memberId === MAYA)?.net.amountMinor).toBe(0);
+    expect(after.find((b) => b.memberId === DEAN)?.net.amountMinor).toBe(
+      (VOICE_FINAL.find((b) => b.memberId === DEAN)?.net.amountMinor ?? 0) - 3160,
+    );
+    expect(after.reduce((a, b) => a + b.net.amountMinor, 0)).toBe(0);
+    expect(input).toEqual(VOICE_FINAL);
+    expect(settle(after)).toEqual(incrementalTransfers(VOICE_FINAL, [{ from: MAYA, to: DEAN, amount: eur(3160) }]));
+  });
+
+  it('no payments is the identity; bad payments throw', () => {
+    expect(applyPayments(VOICE_FINAL, [])).toEqual(VOICE_FINAL);
+    expectTravError(
+      () => applyPayments(VOICE_FINAL, [{ from: MAYA, to: MAYA, amount: eur(1) }]),
+      'invalid_argument',
+    );
+    expectTravError(
+      () => applyPayments(VOICE_FINAL, [{ from: MAYA, to: DEAN, amount: eur(1.5) }]),
+      'invalid_argument',
+    );
   });
 });
 
