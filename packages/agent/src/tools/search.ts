@@ -4,10 +4,10 @@
  * refund summaries never enters a tool-enabled call; SAFETY §2.4).
  */
 import type { IsoDate, MemberId } from '@trav/core';
-import { formatMoney, localDate, safety, TravError } from '@trav/core';
+import { formatMoney, formatTime, localDate, safety, TravError } from '@trav/core';
 import type { FlightsAdapter, LodgingAdapter, TicketsAdapter, EventCategory } from '@trav/adapters';
 import { sanitizeInline } from '../context/groupContext.js';
-import { adultsOnlyEvent, nightOf, refundableNow, slotWhen } from '../booking/proposals.js';
+import { adultsOnlyEvent, nightOf, refundableNow } from '../booking/proposals.js';
 import { seatPlainWords } from '../booking/seats.js';
 import type { ToolDefinition } from './registry.js';
 import {
@@ -62,6 +62,8 @@ export interface TierResult {
 
 /** Tiers listed per event (cheapest first): enough to compare, small enough for a tool result. */
 const MAX_TIERS = 4;
+/** Events listed per search; `truncated` says when more matched. */
+const MAX_EVENTS = 12;
 
 export interface EventResult {
   readonly eventId: string;
@@ -70,7 +72,7 @@ export interface EventResult {
   readonly startsAt: string;
   /** The local night it belongs to (YYYY-MM-DD; a 2am start is the night before), T-143. */
   readonly night: IsoDate;
-  /** When it starts, as Trav says it (VOICE §3.9): "tonight 12am", "friday mar 13 10am". */
+  /** When it starts, as Trav says it (VOICE §3.9): "tonight 12am", "fri mar 13 10am". */
   readonly when: string;
   readonly category: string;
   readonly minimumAge: number | null;
@@ -99,6 +101,8 @@ export function createSearchEventsTool(tickets: TicketsAdapter): ToolDefinition<
     readonly note?: string;
     /** A minor is on the trip (or it's forced): adults-only events go unnamed (VOICE §8). */
     readonly familyMode?: boolean;
+    /** More events matched than the first `MAX_EVENTS` listed here. */
+    readonly truncated?: true;
     /**
      * The local night now (a 2am search is still last night) and the trip's
      * first and last day (YYYY-MM-DD), so "saturday" can be read against the
@@ -161,7 +165,7 @@ export function createSearchEventsTool(tickets: TicketsAdapter): ToolDefinition<
       });
       if (!res.ok) return { events: [], note: `provider ${res.error.code}` };
       const events: EventResult[] = [];
-      for (const ev of res.value.slice(0, 12)) {
+      for (const ev of res.value.slice(0, MAX_EVENTS)) {
         const offers = await tickets.getOffers(ev.eventId, input.quantity ?? 1);
         const api = offers.ok ? offers.value.filter((o) => o.purchaseMode === 'api') : [];
         const sorted = [...api].sort(
@@ -203,7 +207,7 @@ export function createSearchEventsTool(tickets: TicketsAdapter): ToolDefinition<
           venue: sanitizeInline(ev.venue.name, 80),
           startsAt: ev.startsAt,
           night: nightOf(ev.startsAt, trip.timeZone),
-          when: slotWhen(ev.startsAt, trip.timeZone, ctx.now),
+          when: formatTime(ev.startsAt, trip.timeZone, ctx.now),
           category: ev.category,
           minimumAge: ev.minimumAge ?? null,
           adultsOnly: adultsOnlyEvent(ev),
@@ -223,7 +227,11 @@ export function createSearchEventsTool(tickets: TicketsAdapter): ToolDefinition<
       const familyMode =
         group !== undefined &&
         safety.isFamilyMode(group, ctx.stores.group.members.listByGroup(ctx.groupId), ctx.now);
-      return familyMode ? { events, familyMode, calendar } : { events, calendar };
+      // More matched than listed: the list is not the whole picture (T-143 r1 #6).
+      const truncated = res.value.length > MAX_EVENTS ? { truncated: true as const } : {};
+      return familyMode
+        ? { events, familyMode, calendar, ...truncated }
+        : { events, calendar, ...truncated };
     },
   };
 }

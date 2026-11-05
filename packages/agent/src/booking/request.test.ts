@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { loadAllTicketInventories } from '@trav/adapters';
 import {
+  askedMinutes,
+  askedTime,
   foldText,
   parseBookingRequest,
   parseDayWord,
@@ -368,5 +370,33 @@ describe('splitSender', () => {
       text: 'get razz tix',
     });
     expect(splitSender('trav, get razz tix')).toEqual({ text: 'get razz tix' });
+  });
+});
+
+describe('the asked time (T-143 r1 #3)', () => {
+  it('askedTime reads "3pm", "at 10:30am", "at 3"; never a headcount or a price', () => {
+    expect(askedTime('sagrada tickets friday at 3')).toBe('3');
+    expect(askedTime('park guell friday 10am for 6')).toBe('10am');
+    expect(askedTime('razz at 11:30 pm')).toBe('11:30pm');
+    expect(askedTime('sagrada at 3 of us')).toBeUndefined();
+    expect(askedTime('razz tickets for 5')).toBeUndefined();
+    expect(askedTime('at 13')).toBeUndefined();
+  });
+
+  it('askedMinutes: am/pm is one reading, a bare hour is both', () => {
+    expect(askedMinutes('3pm')).toEqual([900]);
+    expect(askedMinutes('12am')).toEqual([0]);
+    expect(askedMinutes('12pm')).toEqual([720]);
+    expect(askedMinutes('10:30am')).toEqual([630]);
+    expect(askedMinutes('3')).toEqual([180, 900]);
+    expect(askedMinutes('teatime')).toEqual([]);
+  });
+
+  it('parseBookingRequest carries it', () => {
+    expect(parse('@trav sagrada familia tickets for all of us saturday at 3')).toMatchObject({
+      day: 'saturday',
+      time: '3',
+    });
+    expect(parse("@trav get the 5 of us Razzmatazz tickets, Henry's sick")?.time).toBeUndefined();
   });
 });

@@ -669,6 +669,7 @@ describe('combined sentences through the loop (offline, no model)', () => {
 
   it('T-143: msg_bcn_0163 asks which club and who is in (one question, no hold), so msg_bcn_0164 lands in the reply window', async () => {
     const h = monday();
+    for (const id of NOT_HENRY) mark(h.runtime.stores, CLUB_D5.activityId, id, 'in');
     mark(h.runtime.stores, CLUB_D5.activityId, 'mem_henry', 'out');
     const ask = await h.say('h_sam', '@trav get us club tickets tonight');
     expect(ask.note).toBe('tool:propose_booking:clarify');
@@ -676,7 +677,8 @@ describe('combined sentences through the loop (offline, no model)', () => {
     expect(q).toHaveLength(1);
     expect(q[0]!.text.split('\n')).toEqual([
       "i can't see a club i can book tonight",
-      'which club did you mean, and is it Dean, Henry, Maya, Jordan, Priya, Sam?',
+      // Tonight's plan has Henry out (r1 #1, VOICE §4.11 A): the in list, then who's out.
+      "which club did you mean, and is it Dean, Maya, Jordan, Priya, Sam? Henry's out",
     ]);
     expect(q[0]!.text.match(/\?/g)).toHaveLength(1);
     expect(lint(q[0]!.text)).toEqual([]);
@@ -692,6 +694,21 @@ describe('combined sentences through the loop (offline, no model)', () => {
     );
     expect(h.pending()).toEqual([]);
     expect(h.tickets.purchaseCount()).toBe(0);
+  });
+
+  it('T-143 r1 #1: with nothing planned that night the question falls back to everyone; a plan nobody is in asks who', async () => {
+    const none = harness();
+    none.clock.advanceMs(Date.parse(MON_1702) - Date.parse(BARCELONA_NOW));
+    const all = await none.say('h_sam', '@trav get us club tickets tonight');
+    expect(messages(all)[0]!.text).toContain(
+      'which club did you mean, and is it Dean, Henry, Maya, Jordan, Priya, Sam?',
+    );
+    const empty = monday();
+    for (const id of ORDER) mark(empty.runtime.stores, CLUB_D5.activityId, id, 'out');
+    const who = await empty.say('h_sam', '@trav get us club tickets tonight');
+    expect(messages(who)[0]!.text).toBe(
+      "i can't see a club i can book tonight\nwhich club did you mean, and who's in?",
+    );
   });
 
   it('T-143: in a family group the unnamed club ask lists no adults-only venue and holds nothing', async () => {

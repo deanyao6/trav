@@ -3,6 +3,7 @@
  * No purchase happens here or anywhere a tool can reach (SAFETY A2).
  */
 import type { ProposalService, ProposeInput, ProposeResult } from '../booking/proposals.js';
+import { askedMinutes } from '../booking/request.js';
 import type { ToolDefinition } from './registry.js';
 import {
   asRecord,
@@ -53,6 +54,11 @@ export function parseProposeInput(raw: unknown): ProposeInput {
     if (tier.length > 6 || tier.some((w) => w.length > 30)) bad('tier is a few short words');
     out.tier = tier;
   }
+  const time = optString(r, 'time', 10);
+  if (time !== undefined) {
+    if (askedMinutes(time).length === 0) bad('time is like 3pm, 10:30am or 3');
+    out.time = time.trim().toLowerCase();
+  }
   const requestText = optString(r, 'requestText', 500);
   if (requestText !== undefined) out.requestText = requestText;
   return out;
@@ -100,6 +106,11 @@ export function createProposeBookingTool(
           items: { type: 'string' },
           description:
             'seat tier words the offer must match, e.g. ["lateral"] for sideline, ["vip"]',
+        },
+        time: {
+          type: 'string',
+          description:
+            'the start time as said, e.g. 3pm, 10:30am, or 3 when no am/pm. nothing near it that night means no proposal',
         },
         requestText: { type: 'string' },
       },

@@ -258,8 +258,8 @@ export function barcelonaChat(opts = {}) {
     toolCalls: [{ name: 'search_events' }],
     proposals: 0,
     options: ['off_sagrada_20260313_basilica'],
-    mustContain: ['saturday', 'friday', '10am', '€26'],
-    notes: 'the bookable inventory only has Fri 13 Mar 10:00 (basilica €26 refundable, towers €36 non-refundable with 8 left). Say Saturday 3pm is not available through Trav and offer Friday 10am; never propose a slot nobody asked for without saying so.',
+    mustContain: ['saturday', 'fri mar 13 10am', '€26'],
+    notes: 'the bookable inventory only has Fri 13 Mar 10:00 (basilica €26 refundable, towers €36 non-refundable with 8 left). Say Saturday 3pm is not available through Trav and offer Friday 10am (VOICE §3.9 dates: fri mar 13); never propose a slot nobody asked for without saying so.',
   }, { ref: 'bcn_sagrada_request' });
   c.say(S('12:06'), s('maya'), "friday morning is park güell tho. i'll just get sat 3pm on the sagrada site", silent());
   c.say(S('12:07'), s('maya'), '@trav bought 6 for sat 3pm on the official site, €156. everyone', {
@@ -276,7 +276,7 @@ export function barcelonaChat(opts = {}) {
     toolCalls: [{ name: 'search_events' }],
     proposals: 0,
     options: ['off_parkguell_20260316_general'],
-    mustContain: ['monday'],
+    mustContain: ['friday', 'mon mar 16 9:30am'],
     notes: 'inventory has Park Güell only on Mon 16 Mar 9:30 (€18, non-refundable). Say Friday is not bookable here, mention Monday, no proposal unless they pick it.',
   }, { ref: 'bcn_parkguell_request' });
   c.say(S('12:30'), s('sam'), 'also razz saturday night is non negotiable', silent({ notes: 'plans Razzmatazz for all 6 (initial attendance in groups/barcelona.json)' }), { ref: 'bcn_razz_plan' });

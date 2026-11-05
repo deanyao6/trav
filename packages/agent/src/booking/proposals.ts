@@ -62,7 +62,7 @@ import type { TicketEvent, TicketHold, TicketOffer, TicketsAdapter } from '@trav
 import { sanitizeInline } from '../context/groupContext.js';
 import { keptOffFor } from '../roster/index.js';
 import { cardHolderFor, carrierOf, payersFor, type PayerRule } from './payers.js';
-import { CATEGORY_WORDS, foldText, resolveNight, weekdayName } from './request.js';
+import { askedMinutes, CATEGORY_WORDS, foldText, resolveNight, weekdayName } from './request.js';
 
 export interface ProposalDeps {
   readonly stores: Stores;
@@ -99,6 +99,11 @@ export interface ProposeInput {
   readonly day?: string;
   /** Words the offer's tier name must contain ("lateral", "vip"); no such tier ⇒ say so. */
   readonly tier?: readonly string[];
+  /**
+   * The start time as said ("3pm", "10:30am", "3": `askedTime`), T-143. With
+   * a night: nothing starting within an hour of it ⇒ the closest slot, no hold.
+   */
+  readonly time?: string;
   readonly requestText?: string;
   /**
    * `sync` (default): the named attendees ARE the activity roster, everyone
@@ -425,36 +430,124 @@ export function adultsOnlyEvent(e: Pick<TicketEvent, 'minimumAge' | 'contentFlag
   return (e.minimumAge ?? 0) >= 18 || safety.isRestrictedContent(e.contentFlags);
 }
 
-/**
- * When a slot is (VOICE §3.9, T-143): `formatTime` relative to now
- * ("tonight 12am", "tomorrow 10am"); past 48 hours its date with the
- * weekday spelled out, so "friday" is said ("friday mar 13 10am").
- */
-export function slotWhen(iso: IsoDateTime, tz: string, now: IsoDateTime): string {
-  const t = formatTime(iso, tz, now);
-  const day = weekdayName(localDate(iso, tz));
-  return t.startsWith(`${day.slice(0, 3)} `) ? `${day}${t.slice(3)}` : t;
+/** "club" ⇒ "clubs", "match" ⇒ "matches", "one" ⇒ "that" (T-143 r1 #5). */
+export function categoryPlural(noun: string): string {
+  if (noun === 'one') return 'that';
+  if (noun === 'party') return 'parties';
+  return /(?:ch|sh|s|x)$/.test(noun) ? `${noun}es` : `${noun}s`;
 }
 
 /**
- * VOICE §4.10 B, read-only: nothing `what` `on` the asked night, the closest
- * slot Trav could book and its price, and what to say next. Nothing is held.
+ * What an "it's not on that night" line calls the ask (T-143 r1 #2, #5): a
+ * category ask in the plural ("clubs"), else the first event's short name.
+ * A family group never hears an adults-only name or a nightlife word: the
+ * first all-ages event, else "that".
+ */
+export function askedThing(
+  noun: string | undefined,
+  events: readonly { readonly name: string; readonly adultsOnly: boolean }[],
+  familyMode: boolean,
+): string {
+  if (noun !== undefined) {
+    return familyMode && safety.isRestrictedText(noun) ? 'that' : categoryPlural(noun);
+  }
+  const first = events.find((e) => !familyMode || !e.adultsOnly);
+  return first === undefined ? 'that' : shortEventName(first.name);
+}
+
+/** Minutes after local midnight of an instant (T-143). */
+export function minuteOfDay(iso: IsoDateTime, tz: string): number {
+  const ms = parseIso(iso);
+  const local = Math.floor((ms + zoneOffsetMinutes(ms, tz) * 60_000) / 60_000);
+  return ((local % 1440) + 1440) % 1440;
+}
+
+/** How far (minutes, round the clock) a start is from the nearest reading of the asked time. */
+export function minutesOff(asked: readonly number[], minute: number): number {
+  return Math.min(
+    ...asked.map((a) => {
+      const d = Math.abs(a - minute);
+      return Math.min(d, 1440 - d);
+    }),
+  );
+}
+
+/** A start within this many minutes of the asked time is the slot they meant. */
+export const TIME_SLACK_MINUTES = 60;
+
+/** A slot Trav could book instead (T-143): its short name, night, start and per-person price. */
+export interface SlotOption {
+  readonly name: string;
+  readonly night: IsoDate;
+  readonly startsAt: IsoDateTime;
+  /** VOICE §3.9 `formatTime` relative to now ("tonight 12am", "fri mar 13 10am"). */
+  readonly when: string;
+  /** Minutes after local midnight, for the asked-time order. */
+  readonly minute: number;
+  readonly each: Money;
+  readonly refundable: boolean;
+}
+
+/** Closest night to the asked one, then nearest the asked time, then earliest. */
+export function rankSlots(
+  slots: readonly SlotOption[],
+  night: IsoDate,
+  asked: readonly number[],
+): SlotOption[] {
+  return [...slots].sort(
+    (a, b) =>
+      Math.abs(daysBetween(night, a.night)) - Math.abs(daysBetween(night, b.night)) ||
+      (asked.length > 0 ? minutesOff(asked, a.minute) - minutesOff(asked, b.minute) : 0) ||
+      parseIso(a.startsAt) - parseIso(b.startsAt),
+  );
+}
+
+const slotPrice = (s: SlotOption): string =>
+  `${formatMoney(s.each)} each · ${s.refundable ? 'refundable' : 'non-refundable'}`;
+
+/**
+ * VOICE §4.10 B, read-only (T-143): nothing for `what` `on` the asked night,
+ * then the closest slot Trav could book with its price and what to say next.
+ * A category ask (`named: false`) names the venue, and lists two when the
+ * closest night has more than one. Undefined when `ranked` is empty. Nothing
+ * is held.
  */
 export function closestSlotText(input: {
   readonly what: string;
   readonly on: string;
-  readonly when: string;
-  readonly each: Money;
-  readonly refundable: boolean;
-}): string {
-  const price = `${formatMoney(input.each)} each · ${input.refundable ? 'refundable' : 'non-refundable'}`;
-  return `nothing for ${input.what} ${input.on} that i can book. no charge\nclosest is ${input.when}, ${price}. @ me if you want those instead`;
+  readonly named: boolean;
+  readonly ranked: readonly SlotOption[];
+}): string | undefined {
+  const first = input.ranked[0];
+  if (first === undefined) return undefined;
+  const head = `nothing for ${input.what} ${input.on} that i can book`;
+  const seen = new Set<string>();
+  const sameNight = input.named
+    ? [first]
+    : input.ranked.filter((s) => {
+        if (s.night !== first.night || seen.has(s.name)) return false;
+        seen.add(s.name);
+        return true;
+      });
+  if (sameNight.length === 1) {
+    const which = input.named ? '' : `${first.name}, `;
+    return `${head}. no charge\nclosest is ${which}${first.when}, ${slotPrice(first)}. @ me if you want those instead`;
+  }
+  // Two options plus the head and the ask fit the 4-line reply (VOICE §3.1, §3.3).
+  const shown = sameNight.slice(0, 2);
+  const more = sameNight.length - shown.length;
+  return [
+    `${head}, no charge. closest:`,
+    ...shown.map((s) => `${s.name} · ${s.when} · ${slotPrice(s)}`),
+    `@ me with the one you want${more > 0 ? ` (+${String(more)} more that night)` : ''}`,
+  ].join('\n');
 }
 
-/** "on saturday" / "tonight" / "tomorrow" for the night a member asked for. */
-export function onNight(night: IsoDate, tonight: IsoDate): string {
+/** "on saturday" / "tonight" / "tomorrow" (+ " at 3pm" when a time was asked) for the asked night. */
+export function onNight(night: IsoDate, tonight: IsoDate, time?: string): string {
   const label = nightLabel(night, tonight);
-  return label === 'tonight' || label === 'tomorrow' ? label : `on ${label}`;
+  const on = label === 'tonight' || label === 'tomorrow' ? label : `on ${label}`;
+  return time === undefined ? on : `${on} at ${time}`;
 }
 
 /** "tonight", "tomorrow", a weekday within the week ("saturday"), else "sat mar 14" (VOICE §3.9). */
@@ -470,46 +563,64 @@ export function nightLabel(night: IsoDate, tonight: IsoDate): string {
   return `${weekdayName(night).slice(0, 3)} ${mon ?? ''} ${String(d)}`;
 }
 
+/** Events priced for the closest-slot line: never more than this many offer lookups. */
+const MAX_SLOT_LOOKUPS = 8;
+
 /**
- * VOICE §4.10 B for a night with nothing on: says so, names the closest night
- * the same thing is on that Trav can book for `quantity`, with its price, and
- * what happens next. No hold.
+ * VOICE §4.10 B for a night (or a time) with nothing on: says so, then the
+ * closest slot Trav can book for `quantity` (refundable first, like
+ * `rankOffers`), never a sold-out or site-only one (T-081 r1 #5), nor an
+ * adults-only one in a family group (VOICE §8, T-143). No hold.
  */
-async function otherNightText(
-  tickets: TicketsAdapter,
-  upcoming: readonly TicketEvent[],
-  night: IsoDate,
-  now: IsoDateTime,
-  tz: string,
-  quantity: number,
-  familyMode: boolean,
-): Promise<string> {
-  const on = onNight(night, nightOf(now, tz));
-  const sorted = [...upcoming].sort(
-    (a, b) =>
-      Math.abs(daysBetween(night, nightOf(a.startsAt, tz))) -
-        Math.abs(daysBetween(night, nightOf(b.startsAt, tz))) ||
-      parseIso(a.startsAt) - parseIso(b.startsAt),
+async function otherNightText(input: {
+  readonly tickets: TicketsAdapter;
+  readonly upcoming: readonly TicketEvent[];
+  readonly night: IsoDate;
+  readonly now: IsoDateTime;
+  readonly tz: string;
+  readonly quantity: number;
+  readonly familyMode: boolean;
+  readonly query: string | undefined;
+  readonly time?: string;
+}): Promise<string> {
+  const { tickets, night, now, tz, quantity, familyMode } = input;
+  const noun = categoryOnly(input.query);
+  const asked = input.time === undefined ? [] : askedMinutes(input.time);
+  const what = askedThing(
+    noun,
+    input.upcoming.map((e) => ({ name: e.name, adultsOnly: adultsOnlyEvent(e) })),
+    familyMode,
   );
-  // The closest night Trav could actually book for this many (T-081 r1 #5):
-  // a sold-out or site-only night is never offered as the alternative, nor
-  // an adults-only one in a family group (VOICE §8, T-143).
-  for (const alt of sorted) {
-    if (familyMode && adultsOnlyEvent(alt)) continue;
-    const res = await tickets.getOffers(alt.eventId, quantity);
+  const on = onNight(night, nightOf(now, tz), input.time);
+  const byNight = input.upcoming
+    .filter((e) => !familyMode || !adultsOnlyEvent(e))
+    .sort(
+      (a, b) =>
+        Math.abs(daysBetween(night, nightOf(a.startsAt, tz))) -
+          Math.abs(daysBetween(night, nightOf(b.startsAt, tz))) ||
+        parseIso(a.startsAt) - parseIso(b.startsAt),
+    );
+  const slots: SlotOption[] = [];
+  for (const e of byNight.slice(0, MAX_SLOT_LOOKUPS)) {
+    const res = await tickets.getOffers(e.eventId, quantity);
     if (!res.ok) continue;
     const best = rankOffers(res.value, quantity, now)[0];
     if (best === undefined) continue;
-    return closestSlotText({
-      what: shortEventName(alt.name),
-      on,
-      when: slotWhen(alt.startsAt, tz, now),
+    slots.push({
+      name: shortEventName(e.name),
+      night: nightOf(e.startsAt, tz),
+      startsAt: e.startsAt,
+      when: formatTime(e.startsAt, tz, now),
+      minute: minuteOfDay(e.startsAt, tz),
       each: money(best.unitPrice.amountMinor + best.unitFees.amountMinor, best.unitPrice.currency),
       refundable: refundableNow(best, now),
     });
   }
-  const what = shortEventName(sorted[0]!.name);
-  return `nothing for ${what} ${on} that i can book, and no other night has ${quantity === 1 ? 'a ticket' : `${quantity} tickets`} i can book either. no charge`;
+  const ranked = rankSlots(slots, night, asked);
+  return (
+    closestSlotText({ what, on, named: noun === undefined, ranked }) ??
+    `nothing for ${what} ${on} that i can book, and no other night has ${quantity === 1 ? 'a ticket' : `${quantity} tickets`} i can book either. no charge`
+  );
 }
 
 /** A bare https URL safe to post on its own line (VOICE §3.8); anything else ⇒ undefined. */
@@ -624,35 +735,57 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
     const tonight = nightOf(now, tz);
     const namedNight =
       input.date ?? (input.day !== undefined ? resolveNight(input.day, tonight, trip) : undefined);
+    const asked = input.time === undefined ? [] : askedMinutes(input.time);
+    const time = asked.length > 0 ? input.time : undefined;
+    const elsewhere = async (night: IsoDate): Promise<ProposeResult> => ({
+      kind: 'unavailable',
+      reason: 'not_found',
+      text: await otherNightText({
+        tickets,
+        upcoming,
+        night,
+        now,
+        tz,
+        // Enough for the party as asked; unsaid ⇒ everyone active, never just 1.
+        quantity:
+          input.quantity ??
+          input.attendeeNames?.length ??
+          input.attendeeMemberIds?.length ??
+          Math.max(1, active.length - (input.excludedNames?.length ?? 0)),
+        familyMode,
+        query: input.query,
+        ...(time !== undefined ? { time } : {}),
+      }),
+    });
     if (input.eventId !== undefined) {
       candidates = searched.value.filter((e) => e.eventId === input.eventId);
     } else {
       const wanted = namedNight ?? tonight;
       const sameNight = upcoming.filter((e) => nightOf(e.startsAt, tz) === wanted);
-      if (sameNight.length > 0) candidates = sameNight;
-      else if (namedNight !== undefined && upcoming.length > 0) {
+      if (sameNight.length > 0) {
+        candidates = sameNight;
+        if (asked.length > 0) {
+          // A time was asked (T-143 r1 #3): only a start within the hour is
+          // that slot. Otherwise say so and name the closest. No hold.
+          const near = sameNight.filter(
+            (e) => minutesOff(asked, minuteOfDay(e.startsAt, tz)) <= TIME_SLACK_MINUTES,
+          );
+          if (near.length === 0) return await elsewhere(wanted);
+          candidates = near;
+        }
+      } else if (namedNight !== undefined && upcoming.length > 0) {
         // The member named a night and there is nothing then (T-081): say so
         // and name the closest one. No hold, no proposal for a night nobody asked for.
-        return {
-          kind: 'unavailable',
-          reason: 'not_found',
-          text: await otherNightText(
-            tickets,
-            upcoming,
-            namedNight,
-            now,
-            tz,
-            // Enough for the party as asked; unsaid ⇒ everyone active, never just 1.
-            input.quantity ??
-              input.attendeeNames?.length ??
-              input.attendeeMemberIds?.length ??
-              Math.max(1, active.length - (input.excludedNames?.length ?? 0)),
-            familyMode,
-          ),
-        };
+        return await elsewhere(namedNight);
       }
     }
-    candidates = [...candidates].sort((a, b) => parseIso(a.startsAt) - parseIso(b.startsAt));
+    candidates = [...candidates].sort(
+      (a, b) =>
+        (asked.length > 0
+          ? minutesOff(asked, minuteOfDay(a.startsAt, tz)) -
+            minutesOff(asked, minuteOfDay(b.startsAt, tz))
+          : 0) || parseIso(a.startsAt) - parseIso(b.startsAt),
+    );
     const event = candidates[0];
     const noun = input.eventId === undefined ? categoryOnly(input.query) : undefined;
     if (event === undefined && noun !== undefined) {
@@ -662,12 +795,13 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
       // asks no headcount for it.
       const said = familyMode && safety.isRestrictedText(noun) ? 'one' : noun;
       const thing = said === 'one' ? 'one' : `a ${said}`;
-      const when = onNight(namedNight ?? tonight, tonight);
+      const night = namedNight ?? tonight;
+      const when = onNight(night, tonight);
       return {
         kind: 'clarify',
         question: familyMode
           ? `i can't see ${thing} i can book ${when}\nwhich ${said} did you mean?`
-          : `i can't see ${thing} i can book ${when}\nwhich ${said} did you mean, and is it ${names(order, byId)}?`,
+          : `i can't see ${thing} i can book ${when}\nwhich ${said} did you mean, and ${whoIsInThat(group, trip, night, order, byId)}`,
         problems: ['unnamed_venue'],
       };
     }
@@ -814,13 +948,40 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
     const outIds = addOn ? [] : order.filter((id) => !attendees.includes(id));
     const quantity = attendees.length;
 
+    // An age-limited or adults-only plan with someone under 18 on it is a
+    // no before anything is priced or held (T-143 follow-up; the same rule
+    // `checkProposalConsistency` applies after the hold, SAFETY §2.7).
+    const restrictedPlan =
+      event.minimumAge !== undefined ||
+      safety.isRestrictedContent(event.contentFlags) ||
+      (activity !== null &&
+        (activity.kind === 'nightlife' ||
+          activity.ageRestriction !== null ||
+          safety.isRestrictedContent(activity.contentTags)));
+    if (
+      restrictedPlan &&
+      attendees.some((id) => {
+        const m = byId.get(id);
+        return m !== undefined && safety.isMinor(m, now);
+      })
+    ) {
+      // The roster still reads as asked, with the minor kept off (T-153), as it did after the hold.
+      if (activity !== null) syncRoster(group, activity, attendees, outIds, ctx, now);
+      return {
+        kind: 'clarify',
+        question: ageLimitText(event.minimumAge ?? activity?.ageRestriction ?? null),
+        problems: ['minor_on_restricted'],
+      };
+    }
+
     // ---- 3. the offer and the hold ----
+    const soldOut = (): string => soldOutText(event, searched.value, tz, quantity, now, familyMode);
     const offersRes = await tickets.getOffers(event.eventId, quantity);
     if (!offersRes.ok) {
       return {
         kind: 'unavailable',
         reason: offersRes.error.code === 'sold_out' ? 'sold_out' : 'provider_unavailable',
-        text: soldOutText(event, searched.value, tz, quantity, now),
+        text: soldOut(),
       };
     }
     const ranked = rankOffers(offersRes.value, quantity, now);
@@ -844,10 +1005,7 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
       return {
         kind: 'unavailable',
         reason: redirect !== undefined ? 'redirect_only' : 'sold_out',
-        text:
-          redirect !== undefined
-            ? redirectText(event, redirect, now)
-            : soldOutText(event, searched.value, tz, quantity, now),
+        text: redirect !== undefined ? redirectText(event, redirect, now) : soldOut(),
       };
     }
 
@@ -888,7 +1046,7 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
         reason: heldRes.error.code === 'sold_out' ? 'sold_out' : 'provider_unavailable',
         text:
           heldRes.error.code === 'sold_out'
-            ? soldOutText(event, searched.value, tz, quantity, now)
+            ? soldOut()
             : "ticket site's not responding. no charge went through\n@ me again in a few",
       };
     }
@@ -1258,6 +1416,43 @@ export function bookedAttendees(
   return out;
 }
 
+/**
+ * The "who's in" half of the which-one question (T-143 r1 #1, VOICE §4.11 A):
+ * from the plan that night when one has attendance ("is it Dean, Maya,
+ * Jordan, Priya, Sam? Henry's out"), else everyone active. One "?" only,
+ * no reason why anyone is out.
+ */
+function whoIsInThat(
+  group: Stores['group'],
+  trip: Trip,
+  night: IsoDate,
+  order: readonly MemberId[],
+  byId: ReadonlyMap<MemberId, Member>,
+): string {
+  const tz = trip.timeZone;
+  const rows = group.trips
+    .listActivities(trip.tripId)
+    .filter((a) => a.startsAt !== undefined && nightOf(a.startsAt, tz) === night)
+    .map((a) => group.trips.listAttendance(a.activityId))
+    .find((r) => r.length > 0);
+  if (rows === undefined) return `is it ${names([...order], byId)}?`;
+  const ins = inOrder(
+    rows.filter((r) => r.status === 'in').map((r) => r.memberId),
+    order,
+  );
+  const outs = inOrder(
+    rows.filter((r) => r.status === 'out').map((r) => r.memberId),
+    order,
+  );
+  if (ins.length === 0) return "who's in?";
+  const who = `is it ${names(ins, byId)}?`;
+  if (outs.length === 0) return who;
+  const out = outs.map((id) => sanitizeInline(byId.get(id)?.displayName ?? id, 40));
+  const list =
+    out.length === 1 ? out[0]! : `${out.slice(0, -1).join(', ')} and ${out[out.length - 1]!}`;
+  return `${who} ${list}${out.length === 1 ? "'s" : ' are'} out`;
+}
+
 function findActivity(
   group: Stores['group'],
   trip: Trip,
@@ -1382,17 +1577,22 @@ function soldOutText(
   tz: string,
   quantity: number,
   now: IsoDateTime,
+  familyMode: boolean,
 ): string {
   const night = nightOf(event.startsAt, tz);
+  // A family group never hears an adults-only name (VOICE §8, T-143 follow-up).
   const alt = all.find(
     (e) =>
       e.eventId !== event.eventId &&
       nightOf(e.startsAt, tz) === night &&
       parseIso(e.startsAt) > parseIso(now) &&
-      e.category === event.category,
+      e.category === event.category &&
+      !(familyMode && adultsOnlyEvent(e)),
   );
   const when = night === nightOf(now, tz) ? 'tonight' : formatClockTime(event.startsAt, tz);
-  const first = `${shortEventName(event.name)} is sold out ${when}`;
+  const what =
+    familyMode && adultsOnlyEvent(event) ? "that one's" : `${shortEventName(event.name)} is`;
+  const first = `${what} sold out ${when}`;
   if (alt === undefined) return `${first}\nnothing else i can grab for ${quantity} on that night`;
   return `${first}\n${sanitizeInline(alt.venue.name, 40)} has tickets the same night. @ me for ${quantity} of those instead`;
 }

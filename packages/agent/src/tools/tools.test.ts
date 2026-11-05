@@ -589,9 +589,7 @@ describe('booking tools stop at a proposal', () => {
       tripStart: '2026-03-12',
       tripEnd: '2026-03-17',
     });
-    expect(res.events.map((e) => [e.night, e.when])).toEqual([
-      ['2026-03-13', 'friday mar 13 10am'],
-    ]);
+    expect(res.events.map((e) => [e.night, e.when])).toEqual([['2026-03-13', 'fri mar 13 10am']]);
     // A 12am club start belongs to the night before; within 48 hours it's said relative.
     h.clock.set('2026-03-14T21:40:00+01:00');
     const razz = (await h.runtime.tools.run('search_events', { query: 'razzmatazz' }, ctx(h))) as {
@@ -681,6 +679,57 @@ describe('propose_booking with no venue named (T-143)', () => {
       ctx(h),
     )) as ProposeResult;
     expect(res.kind).toBe('unavailable');
+  });
+
+  it('follow-up: a sold-out adults-only event in a family group is not named (adults-only party)', async () => {
+    const h = harness();
+    minor(h);
+    h.clock.set('2026-03-15T18:00:00+01:00');
+    const res = (await h.runtime.tools.run(
+      'propose_booking',
+      {
+        kind: 'ticket',
+        query: 'razzmatazz tickets',
+        day: 'tonight',
+        attendeeNames: ['Dean', 'Maya'],
+      },
+      ctx(h),
+    )) as ProposeResult;
+    expect(res.kind).toBe('unavailable');
+    const text = res.kind === 'unavailable' ? res.text : '';
+    expect(text).toMatch(/^that one's sold out tonight/);
+    expect(text).not.toMatch(/razzmatazz|apolo/i);
+  });
+
+  it('follow-up: a minor on an age-limited plan is refused before anything is held', async () => {
+    const h = harness();
+    minor(h);
+    const res = (await h.runtime.tools.run(
+      'propose_booking',
+      { kind: 'ticket', query: 'razzmatazz tickets', day: 'tonight' },
+      ctx(h),
+    )) as ProposeResult;
+    expect(res.kind === 'clarify' && res.problems).toEqual(['minor_on_restricted']);
+    expect(h.tickets.holdCount()).toBe(0);
+  });
+
+  it('r1 #3: propose_booking takes the asked time; a bad one is refused at parse', async () => {
+    const h = harness();
+    h.clock.set('2026-03-10T12:05:00-04:00');
+    const off = (await h.runtime.tools.run(
+      'propose_booking',
+      { kind: 'ticket', query: 'sagrada familia tickets', day: 'friday', time: '3pm', quantity: 6 },
+      ctx(h),
+    )) as ProposeResult;
+    expect(off.kind).toBe('unavailable');
+    expect(h.tickets.holdCount()).toBe(0);
+    await expect(
+      h.runtime.tools.run(
+        'propose_booking',
+        { kind: 'ticket', query: 'sagrada', time: 'teatime' },
+        ctx(h),
+      ),
+    ).rejects.toMatchObject({ code: 'invalid_argument' });
   });
 });
 

@@ -133,7 +133,7 @@ describe('booking request responder (T-081)', () => {
           venue: 'Camp Nou',
           startsAt: '2026-03-15T21:00:00+01:00',
           night: '2026-03-15',
-          when: 'sunday mar 15 9pm',
+          when: 'sun mar 15 9pm',
           bookable: true,
           tiers: [{ amountMinor: 9500, currency: 'EUR', refundable: true }],
         },
@@ -198,7 +198,7 @@ describe('booking request responder: a named night with nothing on (T-143)', () 
     venue: 'Sagrada Família',
     startsAt: '2026-03-13T10:00:00+01:00',
     night: '2026-03-13',
-    when: 'friday mar 13 10am',
+    when: 'fri mar 13 10am',
     bookable: true,
     adultsOnly: false,
     tiers: [
@@ -225,8 +225,8 @@ describe('booking request responder: a named night with nothing on (T-143)', () 
     )!;
     expect(res.toolCalls).toEqual([]);
     expect(res.text.split('\n')).toEqual([
-      'nothing for sagrada família on saturday that i can book. no charge',
-      'closest is friday mar 13 10am, €26 each · refundable. @ me if you want those instead',
+      'nothing for sagrada família on saturday at 3 that i can book. no charge',
+      'closest is fri mar 13 10am, €26 each · refundable. @ me if you want those instead',
     ]);
   });
 
@@ -248,12 +248,12 @@ describe('booking request responder: a named night with nothing on (T-143)', () 
       venue: 'Park Güell',
       startsAt: '2026-03-16T09:30:00+01:00',
       night: '2026-03-16',
-      when: 'monday mar 16 9:30am',
+      when: 'mon mar 16 9:30am',
       tiers: [{ amountMinor: 1800, currency: 'EUR', refundable: false }],
     };
     const res = book.complete(after(first, look, { calendar: CAL, events: [guell] }))!;
     expect(res.text).toContain('nothing for park güell on friday');
-    expect(res.text).toContain('closest is monday mar 16 9:30am, €18 each · non-refundable');
+    expect(res.text).toContain('closest is mon mar 16 9:30am, €18 each · non-refundable');
     const mixed = {
       ...guell,
       tiers: [
@@ -273,10 +273,10 @@ describe('booking request responder: a named night with nothing on (T-143)', () 
       ...sagrada,
       startsAt: '2026-03-15T10:00:00+01:00',
       night: '2026-03-15',
-      when: 'sunday mar 15 10am',
+      when: 'sun mar 15 10am',
     };
     const res = book.complete(after(first, look, { calendar: CAL, events: [sagrada, sunday] }))!;
-    expect(res.text).toContain('closest is sunday mar 15 10am');
+    expect(res.text).toContain('closest is sun mar 15 10am');
   });
 
   it('anything matching on that night (even sold out or site-only), no calendar, or nothing bookable at all ⇒ propose_booking decides', () => {
@@ -351,6 +351,36 @@ describe('booking request responder: a named night with nothing on (T-143)', () 
     ).toBe('propose_booking');
   });
 
+  it('r1 #6: a cut-short search, or tiers that missed a refundable one, hand off to propose_booking', () => {
+    const first = groupAsk('Maya: @trav sagrada tickets for all of us saturday');
+    const look = book.complete(first)!.toolCalls[0]!;
+    const cut = book.complete(
+      after(first, look, { calendar: CAL, events: [sagrada], truncated: true }),
+    )!;
+    expect(cut.toolCalls.map((c) => c.name)).toEqual(['propose_booking']);
+    const nonRef = {
+      ...sagrada,
+      refundableOption: true,
+      tiers: [{ amountMinor: 2600, currency: 'EUR', refundable: false }],
+    };
+    const missed = book.complete(after(first, look, { calendar: CAL, events: [nonRef] }))!;
+    expect(missed.toolCalls.map((c) => c.name)).toEqual(['propose_booking']);
+  });
+
+  it('r1 #3: the asked time rides along to propose_booking and into the line', () => {
+    const first = groupAsk('Maya: @trav sagrada familia tickets for all of us saturday at 3');
+    const look = book.complete(first)!.toolCalls[0]!;
+    const res = book.complete(after(first, look, { calendar: CAL, events: [sagrada] }))!;
+    expect(res.text).toContain('on saturday at 3 that i can book');
+    const onThatNight = book.complete(
+      after(first, look, { calendar: CAL, events: [{ ...sagrada, night: '2026-03-14' }] }),
+    )!;
+    expect(onThatNight.toolCalls[0]).toMatchObject({
+      name: 'propose_booking',
+      input: { day: 'saturday', time: '3' },
+    });
+  });
+
   it('answers only its own search round', () => {
     const first = groupAsk('Maya: @trav sagrada tickets saturday for 6');
     const other = { id: 'toolu_offline_venueq_1_x', name: 'search_events', input: {} };
@@ -411,14 +441,14 @@ describe('a named night with nothing on, through the loop (T-143)', () => {
     );
     expect(sagrada.toolCalls).toEqual(['search_events']);
     expect(textOf(sagrada).split('\n')).toEqual([
-      'nothing for sagrada família on saturday that i can book. no charge',
-      'closest is friday mar 13 10am, €26 each · refundable. @ me if you want those instead',
+      'nothing for sagrada família on saturday at 3 that i can book. no charge',
+      'closest is fri mar 13 10am, €26 each · refundable. @ me if you want those instead',
     ]);
     h.clock.set('2026-03-10T12:20:00-04:00');
     const guell = await h.say('h_jordan', '@trav park güell friday 10am for 6');
     expect(guell.toolCalls).toEqual(['search_events']);
     expect(textOf(guell)).toContain('nothing for park güell on friday');
-    expect(textOf(guell)).toContain('closest is monday mar 16 9:30am, €18 each · non-refundable');
+    expect(textOf(guell)).toContain('closest is mon mar 16 9:30am, €18 each · non-refundable');
     // Offering a slot is read-only: no hold, proposal, approval or purchase.
     expect(h.tickets.holdCount()).toBe(0);
     expect(h.pending()).toEqual([]);
@@ -434,6 +464,78 @@ describe('a named night with nothing on, through the loop (T-143)', () => {
     expect(pick.toolCalls).toEqual(['search_events', 'propose_booking']);
     expect(h.pending()).toHaveLength(1);
     expect(h.auditTypes()).toContain('policy.evaluated');
+    expect(h.tickets.purchaseCount()).toBe(0);
+  });
+
+  const makeMinor = (h: ReturnType<typeof harness>): void => {
+    const stores = h.runtime.stores;
+    const sam = stores.group.members
+      .listByGroup(BARCELONA.groupId)
+      .find((m) => m.memberId === 'mem_sam')!;
+    stores.group.members.upsert({ ...sam, birthDate: '2010-05-01', ageBand: 'under18' });
+  };
+
+  it("r1 #3: an asked time that isn't on is said, nothing held; the matching time proposes", async () => {
+    const h = harness();
+    h.clock.set('2026-03-10T12:05:00-04:00');
+    const at3 = await h.say('h_maya', '@trav sagrada familia tickets for all of us friday at 3');
+    expect(at3.toolCalls).toEqual(['search_events', 'propose_booking']);
+    expect(textOf(at3).split('\n')).toEqual([
+      'nothing for sagrada família on friday at 3 that i can book. no charge',
+      'closest is fri mar 13 10am, €26 each · refundable. @ me if you want those instead',
+    ]);
+    expect(h.tickets.holdCount()).toBe(0);
+    expect(h.pending()).toEqual([]);
+    const pm = await h.say('h_maya', '@trav sagrada familia tickets for all of us friday 4pm');
+    expect(textOf(pm)).toContain('on friday at 4pm that i can book');
+    expect(h.tickets.holdCount()).toBe(0);
+    // Within the hour of the start is that slot: a normal proposal, a 👍 away.
+    const ten = await h.say(
+      'h_maya',
+      '@trav sagrada familia tickets for all of us friday at 10:30am',
+    );
+    expect(ten.toolCalls).toEqual(['search_events', 'propose_booking']);
+    expect(h.pending()).toHaveLength(1);
+    expect(h.tickets.purchaseCount()).toBe(0);
+  });
+
+  it('r1 #5: a category ask on a night with nothing lists the venues of the closest night', async () => {
+    const h = harness();
+    h.clock.set('2026-03-10T12:05:00-04:00');
+    const t = await h.say('h_sam', '@trav club tickets for all of us monday');
+    expect(t.toolCalls).toEqual(['search_events']);
+    const lines = textOf(t).split('\n');
+    expect(lines[0]).toBe('nothing for clubs on monday that i can book, no charge. closest:');
+    expect(lines).toHaveLength(4);
+    expect(lines[1]).toMatch(/^razzmatazz · sun mar 15 12am · €\d+ each · /);
+    expect(lines[2]).toMatch(/^apolo · sun mar 15 12:30am · €\d+ each · /);
+    expect(lines[3]).toBe('@ me with the one you want');
+    expect(h.tickets.holdCount()).toBe(0);
+  });
+
+  it('r1 #2: a family group never hears an adults-only venue named for a night with nothing on', async () => {
+    const h = harness();
+    makeMinor(h);
+    h.clock.set('2026-03-10T12:05:00-04:00');
+    for (const ask of [
+      '@trav club tickets for all of us monday',
+      '@trav razzmatazz tickets for all of us monday',
+    ]) {
+      const t = await h.say('h_dean', ask);
+      expect(textOf(t), ask).not.toMatch(/razzmatazz|apolo|\bclubs?\b/i);
+    }
+    expect(h.tickets.holdCount()).toBe(0);
+    expect(h.pending()).toEqual([]);
+  });
+
+  it("follow-up (SAFETY minors): a family group's adults-only ask is refused before any hold, sold out names nothing adults-only", async () => {
+    const h = harness();
+    makeMinor(h);
+    h.clock.set('2026-03-10T12:05:00-04:00');
+    const thu = await h.say('h_dean', '@trav club tickets for all of us thursday');
+    expect(textOf(thu)).not.toMatch(/razzmatazz|apolo/i);
+    expect(h.tickets.holdCount()).toBe(0);
+    expect(h.pending()).toEqual([]);
     expect(h.tickets.purchaseCount()).toBe(0);
   });
 

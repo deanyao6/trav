@@ -3,12 +3,17 @@ import type { BookingProposal, Member, MemberId } from '@trav/core';
 import { approval, defaultSpendingPolicy, money } from '@trav/core';
 import type { TicketEvent } from '@trav/adapters';
 import {
+  askedThing,
   bestMatchesBy,
   categoryOnly,
+  categoryPlural,
   closestSlotText,
+  minuteOfDay,
+  minutesOff,
   onNight,
+  rankSlots,
   renderProposalText,
-  slotWhen,
+  type SlotOption,
 } from './proposals.js';
 
 const NOW = '2026-03-14T21:40:00+01:00';
@@ -141,29 +146,88 @@ describe('T-143 helpers: unnamed asks and the closest slot', () => {
     expect(categoryOnly(undefined)).toBeUndefined();
   });
 
-  it('slotWhen: relative within 48 hours, else the date with the weekday spelled out', () => {
-    const tz = 'Europe/Madrid';
-    const now = '2026-03-10T17:05:00+01:00';
-    expect(slotWhen('2026-03-13T10:00:00+01:00', tz, now)).toBe('friday mar 13 10am');
-    expect(slotWhen('2026-03-16T09:30:00+01:00', tz, now)).toBe('monday mar 16 9:30am');
-    expect(slotWhen('2026-03-11T10:00:00+01:00', tz, now)).toBe('tomorrow 10am');
-    expect(slotWhen('2026-03-11T00:00:00+01:00', tz, now)).toBe('tonight 12am');
+  const slot = (o: Partial<SlotOption> = {}): SlotOption => ({
+    name: 'park güell',
+    night: '2026-03-16',
+    startsAt: '2026-03-16T09:30:00+01:00',
+    when: 'mon mar 16 9:30am',
+    minute: 570,
+    each: money(1800, 'EUR'),
+    refundable: false,
+    ...o,
   });
 
-  it('closestSlotText: says no charge, the price with refundability, and what to say next', () => {
+  it('closestSlotText (named): no charge, the VOICE §3.9 date, price with refundability, what to say next', () => {
     expect(
       closestSlotText({
         what: 'park güell',
         on: onNight('2026-03-13', '2026-03-10'),
-        when: 'monday mar 16 9:30am',
-        each: money(1800, 'EUR'),
-        refundable: false,
+        named: true,
+        ranked: [slot()],
       }),
     ).toBe(
-      'nothing for park güell on friday that i can book. no charge\nclosest is monday mar 16 9:30am, €18 each · non-refundable. @ me if you want those instead',
+      'nothing for park güell on friday that i can book. no charge\nclosest is mon mar 16 9:30am, €18 each · non-refundable. @ me if you want those instead',
     );
+    expect(closestSlotText({ what: 'x', on: 'tonight', named: true, ranked: [] })).toBeUndefined();
     expect(onNight('2026-03-10', '2026-03-10')).toBe('tonight');
     expect(onNight('2026-03-11', '2026-03-10')).toBe('tomorrow');
+    expect(onNight('2026-03-13', '2026-03-10', '3')).toBe('on friday at 3');
+  });
+
+  it('closestSlotText (category, r1 #5): plural ask, names the venue; two venues that night are listed', () => {
+    const razz = slot({
+      name: 'razzmatazz',
+      night: '2026-03-14',
+      startsAt: '2026-03-15T00:00:00+01:00',
+      when: 'sun mar 15 12am',
+      minute: 0,
+      refundable: true,
+    });
+    const apolo = { ...razz, name: 'apolo', when: 'sun mar 15 12:30am', each: money(1500, 'EUR') };
+    const on = onNight('2026-03-16', '2026-03-10');
+    expect(closestSlotText({ what: 'clubs', on, named: false, ranked: [razz] })).toBe(
+      'nothing for clubs on monday that i can book. no charge\nclosest is razzmatazz, sun mar 15 12am, €18 each · refundable. @ me if you want those instead',
+    );
+    const two = closestSlotText({ what: 'clubs', on, named: false, ranked: [razz, apolo] })!;
+    expect(two.split('\n')).toEqual([
+      'nothing for clubs on monday that i can book, no charge. closest:',
+      'razzmatazz · sun mar 15 12am · €18 each · refundable',
+      'apolo · sun mar 15 12:30am · €15 each · refundable',
+      '@ me with the one you want',
+    ]);
+    const third = { ...apolo, name: 'sala x' };
+    expect(
+      closestSlotText({ what: 'clubs', on, named: false, ranked: [razz, apolo, third] })!
+        .split('\n')
+        .at(-1),
+    ).toBe('@ me with the one you want (+1 more that night)');
+  });
+
+  it('askedThing / categoryPlural: never an adults-only name or a nightlife word in a family group', () => {
+    const evs = [
+      { name: 'Razzmatazz: Monday', adultsOnly: true },
+      { name: 'Park Güell: monumental zone', adultsOnly: false },
+    ];
+    expect(askedThing(undefined, evs, false)).toBe('razzmatazz');
+    expect(askedThing(undefined, evs, true)).toBe('park güell');
+    expect(askedThing(undefined, [evs[0]!], true)).toBe('that');
+    expect(askedThing('club', evs, false)).toBe('clubs');
+    expect(askedThing('club', evs, true)).toBe('that');
+    expect(askedThing('match', evs, true)).toBe('matches');
+    expect(categoryPlural('party')).toBe('parties');
+    expect(categoryPlural('one')).toBe('that');
+  });
+
+  it('times: minute of day in the trip zone, round-the-clock distance, ranking by night then time', () => {
+    expect(minuteOfDay('2026-03-13T10:00:00+01:00', 'Europe/Madrid')).toBe(600);
+    expect(minuteOfDay('2026-03-13T09:00:00Z', 'Europe/Madrid')).toBe(600);
+    expect(minutesOff([180, 900], 600)).toBe(300);
+    expect(minutesOff([15], 1430)).toBe(25);
+    const ten = slot({ night: '2026-03-13', minute: 600, startsAt: '2026-03-13T10:00:00+01:00' });
+    const four = slot({ night: '2026-03-13', minute: 960, startsAt: '2026-03-13T16:00:00+01:00' });
+    const far = slot({ night: '2026-03-16', minute: 900 });
+    expect(rankSlots([far, ten, four], '2026-03-13', [900])).toEqual([four, ten, far]);
+    expect(rankSlots([far, four, ten], '2026-03-13', [])).toEqual([ten, four, far]);
   });
 
   it('bestMatchesBy: distinctive words win; category words never score', () => {

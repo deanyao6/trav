@@ -284,7 +284,8 @@ function describeSplit(split: SplitSpec, name: (id: MemberId) => string): string
 function memberLine(mem: Member, now: IsoDateTime): string {
   const tags: string[] = [sid(mem.role)];
   if (safety.isMinor(mem, now)) tags.push('under 18');
-  if (!mem.active) tags.push('left the group');
+  // Inactive or with a leave date: not on the trip's headcount (T-143 r1 #7).
+  if (!mem.active || mem.leftAt !== undefined) tags.push('left the group');
   return `- ${sanitizeInline(mem.displayName, 60)} (${sid(mem.memberId)}) · ${tags.join(' · ')}`;
 }
 

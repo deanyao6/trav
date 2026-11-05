@@ -339,7 +339,39 @@ export interface BookingRequest {
   readonly day?: string;
   /** Words the offer's tier name must contain ("lateral", "vip"). */
   readonly tier?: readonly string[];
+  /** The start time the member asked for, as `askedTime` reads it ("3pm", "10:30am", "3"), T-143. */
+  readonly time?: string;
   readonly requestText: string;
+}
+
+/**
+ * The start time in an ask (T-143 r1 #3): "3pm", "at 10:30am", "at 3".
+ * Returns a canonical label: `<h>[:mm](am|pm)`, or a bare `<h>[:mm]` when the
+ * member gave no am/pm (then both are read, the closer one wins).
+ */
+export function askedTime(folded: string): string | undefined {
+  const m =
+    /\b(\d{1,2})(?::(\d{2}))?\s?(am|pm)\b/.exec(folded) ??
+    /\bat (\d{1,2})(?::(\d{2}))?\b(?!\s*(?:of us|people|tickets|tix|each))/.exec(folded);
+  if (m === null) return undefined;
+  const h = Number(m[1]);
+  const min = m[2] === undefined ? 0 : Number(m[2]);
+  if (h < 1 || h > 12 || min > 59) return undefined;
+  return `${String(h)}${min === 0 ? '' : `:${String(min).padStart(2, '0')}`}${m[3] ?? ''}`;
+}
+
+/** Minutes after midnight an `askedTime` label can mean (two for a bare hour); [] when it isn't one. */
+export function askedMinutes(label: string): number[] {
+  const m = /^(\d{1,2})(?::(\d{2}))?(am|pm)?$/.exec(label.trim().toLowerCase());
+  if (m === null) return [];
+  const h = Number(m[1]);
+  const min = m[2] === undefined ? 0 : Number(m[2]);
+  if (h < 1 || h > 12 || min > 59) return [];
+  const am = (h % 12) * 60 + min;
+  const pm = am + 12 * 60;
+  if (m[3] === 'am') return [am];
+  if (m[3] === 'pm') return [pm];
+  return [am, pm];
 }
 
 const BOOK_VERB = /\b(?:get|grab|book|buy|reserve|snag|score|order|lock in|sort)\b/;
@@ -866,6 +898,7 @@ export function parseBookingRequest(
   const excludedNames = exclusions(original, folded, sender);
   const day = parseDayWord(t);
   const tier = tierWords(t, venue);
+  const time = askedTime(folded);
   return {
     kind: 'ticket',
     query: `${terms.join(' ')} tickets`,
@@ -876,6 +909,7 @@ export function parseBookingRequest(
     ...(list !== undefined ? { attendeeNames: list.names } : {}),
     ...(day !== undefined ? { day } : {}),
     ...(tier.length > 0 ? { tier } : {}),
+    ...(time !== undefined ? { time } : {}),
     requestText: original,
   };
 }

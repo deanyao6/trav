@@ -22,9 +22,17 @@
  * tool result from anything else is never theirs to answer. Each returns
  * `undefined` to pass.
  */
-import { daysBetween, formatMoney, money } from '@trav/core';
+import { formatMoney, money } from '@trav/core';
 import type { CurrencyCode } from '@trav/core';
-import { bestMatchesBy, closestSlotText, onNight } from '../../booking/proposals.js';
+import {
+  askedThing,
+  bestMatchesBy,
+  categoryOnly,
+  closestSlotText,
+  onNight,
+  rankSlots,
+  type SlotOption,
+} from '../../booking/proposals.js';
 import { loadAllTicketInventories } from '@trav/adapters';
 import type {
   CompletionRequest,
@@ -244,6 +252,7 @@ export function createBookingRequestResponder(
     ...(r.attendeeNames !== undefined ? { attendeeNames: r.attendeeNames } : {}),
     ...(r.day !== undefined ? { day: r.day } : {}),
     ...(r.tier !== undefined ? { tier: r.tier } : {}),
+    ...(r.time !== undefined ? { time: r.time } : {}),
     // No `requestText`: the member's words can carry a reason ("Henry's
     // sick") and the tool input must not (SAFETY privacy, T-081).
   });
@@ -310,16 +319,20 @@ function partySize(req: CompletionRequest, r: BookingRequest): number | undefine
 
 /**
  * VOICE §4.10 B from a `search_events` result (T-143): the asked night has
- * nothing that matches the ask, so the closest night Trav could book for the
- * party, with its price (refundable first, like `rankOffers`). Undefined ⇒
- * hand the ask to `propose_booking`: something matches that night (it
- * proposes, or says sold out / site-only / which one), the night can't be
- * read, or nothing bookable is on at all. A family group's alternative is
- * never an adults-only event (VOICE §8).
+ * nothing that matches the ask, so the closest slot Trav could book for the
+ * party, with its price (refundable first, like `rankOffers`); a category
+ * ask ("club tickets") lists the venues of the closest night. Undefined ⇒
+ * hand the ask to `propose_booking`, whose reads hold nothing until a slot
+ * matches: something matches that night (it proposes, or says sold out /
+ * site-only / which one / not at that time), the night can't be read, the
+ * results were cut short, or nothing bookable is on at all. A family group's
+ * alternative is never an adults-only event (VOICE §8).
  */
 function closestSlotFromSearch(r: BookingRequest, result: unknown): string | undefined {
   if (!isRecord(result) || !Array.isArray(result['events']) || r.day === undefined)
     return undefined;
+  // A cut-short list is not the whole picture (T-143 r1 #6).
+  if (result['truncated'] === true) return undefined;
   const cal = result['calendar'];
   if (
     !isRecord(cal) ||
@@ -344,29 +357,40 @@ function closestSlotFromSearch(r: BookingRequest, result: unknown): string | und
         (e) =>
           typeof e['name'] === 'string' &&
           typeof e['night'] === 'string' &&
-          typeof e['when'] === 'string',
+          typeof e['when'] === 'string' &&
+          typeof e['startsAt'] === 'string',
       ),
     r.query,
     (e) => `${String(e['name'])} ${typeof e['venue'] === 'string' ? e['venue'] : ''}`,
   );
   if (events.some((e) => e['night'] === night)) return undefined;
-  const alt = events
-    .filter((e) => e['bookable'] === true && !(family && e['adultsOnly'] === true))
-    .map((e) => ({ e, tier: pickTier(e) }))
-    .filter((x): x is { e: Record<string, unknown>; tier: SlotTier } => x.tier !== undefined)
-    .sort(
-      (a, b) =>
-        Math.abs(daysBetween(night, String(a.e['night']))) -
-          Math.abs(daysBetween(night, String(b.e['night']))) ||
-        Date.parse(String(a.e['startsAt'])) - Date.parse(String(b.e['startsAt'])),
-    )[0];
-  if (alt === undefined) return undefined;
+  const slots: SlotOption[] = [];
+  for (const e of events) {
+    if (e['bookable'] !== true || (family && e['adultsOnly'] === true)) continue;
+    const tier = pickTier(e);
+    if (tier === undefined) continue;
+    // The listed tiers (4 at most) missed a refundable one the event has: not complete.
+    if (!tier.refundable && e['refundableOption'] === true) return undefined;
+    slots.push({
+      name: shortName(String(e['name'])),
+      night: String(e['night']),
+      startsAt: String(e['startsAt']),
+      when: String(e['when']),
+      minute: 0,
+      each: money(tier.amountMinor, tier.currency as CurrencyCode),
+      refundable: tier.refundable,
+    });
+  }
+  const noun = categoryOnly(r.query);
   return closestSlotText({
-    what: shortName(String(alt.e['name'])),
-    on: onNight(night, tonight),
-    when: String(alt.e['when']),
-    each: money(alt.tier.amountMinor, alt.tier.currency as CurrencyCode),
-    refundable: alt.tier.refundable,
+    what: askedThing(
+      noun,
+      events.map((e) => ({ name: String(e['name']), adultsOnly: e['adultsOnly'] === true })),
+      family,
+    ),
+    on: onNight(night, tonight, r.time),
+    named: noun === undefined,
+    ranked: rankSlots(slots, night, []),
   });
 }
 

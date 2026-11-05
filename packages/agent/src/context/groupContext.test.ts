@@ -51,12 +51,9 @@ function build(seed: TripSeed) {
     privateCounts: priv.store,
     clock: testClock(seed.now),
   };
-  const ctx = buildGroupContext(
-    deps,
-    seed.groupId,
-    seed.tripId,
-    { recentMessages: seed.recentMessages },
-  );
+  const ctx = buildGroupContext(deps, seed.groupId, seed.tripId, {
+    recentMessages: seed.recentMessages,
+  });
   return { ctx, privateCalls: priv.calls };
 }
 
@@ -229,7 +226,10 @@ describe('renderGroupPrompt privacy scan (SAFETY C2) across the three trip fixtu
     }
     // Members' chat lines are not Trav's structure: the scan stops at the transcript.
     expect(
-      pendingCountLeaks('rules\nrecent messages in the group:\n- Sam: i have 2 charges pending', names),
+      pendingCountLeaks(
+        'rules\nrecent messages in the group:\n- Sam: i have 2 charges pending',
+        names,
+      ),
     ).toEqual([]);
     // ...but anything Trav appends after the transcript is scanned again.
     expect(
@@ -287,6 +287,18 @@ describe('renderGroupPrompt privacy scan (SAFETY C2) across the three trip fixtu
     expect(context).toContain('€84');
     expect(context).toContain('everyone except Henry');
     expect(context).toMatch(/balances \(positive = is owed\): Dean \+€/);
+  });
+
+  it('T-143 r1 #7: a member with a leave date reads as left, even while still marked active', () => {
+    const seed = seedTrip('barcelona');
+    const henry = seed.group.members.find((m) => m.displayName === 'Henry')!;
+    seed.group.members[seed.group.members.indexOf(henry)] = {
+      ...henry,
+      leftAt: '2026-03-13T09:00:00+01:00',
+    };
+    const { ctx } = build(seed);
+    const { context } = renderGroupPrompt(ctx, VOICE);
+    expect(context).toMatch(/- Henry \(\w+\) · [^\n]*· left the group/);
   });
 
   it('sanitizeInline strips invisibles, collapses newlines, escapes tags, caps length', () => {
