@@ -29,7 +29,7 @@ It checks 55 things along the way (ledger sums in integer cents, the approval an
 - `pnpm demo:barcelona --no-write` prints without touching `docs/DEMO_TRANSCRIPT.md`.
 - `pnpm demo:barcelona --quiet` prints only the PASS/FAIL line (and any failed checks).
 
-The demo is always offline, even if a key is set. Flights, the stay and the Uber rider split all run in chat now. The transcript header lists the one step that still doesn't run fully in chat: settle-up. A 👍 or [Paid] on the card ticks off the payer's row, but payee confirmation isn't built yet (T-166), so the demo applies the remaining transfers itself and checks that everyone ends at €0.
+The demo is always offline, even if a key is set. Flights, the stay and the Uber rider split all run in chat now. The transcript header lists the one step that still doesn't run fully in chat: settle-up. "@trav settle now" posts the card and DMs each payer how to pay (Chase gets a `venmo://paycharge` link with Dean, the amount and the note filled in; Henry gets Dean's zelle contact to copy; Piotr, who shares no app with Dean, gets Dean's handles). Chase taps [Sent] and the row reads "Chase says sent … to Dean" while it's still owed; only Dean's 👍 as the payee clears it (T-166). Links are built locally and never opened, and no money moves. Nobody else pays in the demo, so it applies the remaining transfers itself and checks that everyone ends at €0.
 
 ## The group chat simulator
 

@@ -34,7 +34,7 @@ function expectGroupClean(state: SimState): void {
 
 describe('parseScript', () => {
   it('reads every line of fixtures/chats/barcelona.jsonl', () => {
-    expect(SCRIPT).toHaveLength(201); // 199 + the two receipt 👍 lines (T-083, D-039)
+    expect(SCRIPT).toHaveLength(202); // 199 + the two receipt 👍 lines (T-083, D-039) + the payee 👍 on the final settle (T-166)
     const kinds = new Set(SCRIPT.map((l) => l.kind));
     expect(kinds).toEqual(
       new Set(['message', 'reaction', 'button_tap', 'clock', 'system', 'member_joined']),
@@ -227,7 +227,7 @@ describe('withReplay (real runtime, opened on the seeded chat)', () => {
     const b = withReplay(await demoBackend(), SCRIPT);
     const before = b.state();
     expect(before.controls.replay).toBe(true);
-    expect(before.replay).toMatchObject({ cursor: 0, total: 201, running: false });
+    expect(before.replay).toMatchObject({ cursor: 0, total: 202, running: false });
     expect(before.replay?.next).toBe('Dean: ok its official. BARCELONA mar 12-17 🇪🇸…');
 
     const v1 = await b.replay.step();
@@ -261,7 +261,7 @@ describe('withReplay (real runtime, opened on the seeded chat)', () => {
   it('play all runs every line exactly once, terminates, and the group thread stays clean', async () => {
     const b = withReplay(await demoBackend(), SCRIPT);
     const v = await b.replay.all();
-    expect(v).toMatchObject({ cursor: 201, total: 201, running: false });
+    expect(v).toMatchObject({ cursor: 202, total: 202, running: false });
     expect(v.next).toBeUndefined();
     const s = b.state();
     expect(s.now).toBe('2026-03-18T10:00:00+01:00');
@@ -278,7 +278,7 @@ describe('withReplay (real runtime, opened on the seeded chat)', () => {
       false,
     );
     // Nothing left to run.
-    expect(await b.replay.step()).toMatchObject({ cursor: 201 });
+    expect(await b.replay.step()).toMatchObject({ cursor: 202 });
   });
 
   it('a line that cannot run is skipped with a reason, and the replay goes on', async () => {
@@ -335,7 +335,7 @@ describe('withReplay (agent backend, real offline runtime)', () => {
   it('plays the whole script: terminates, flagship ask gets a proposal, group never holds private cards', async () => {
     const b = withReplay(await loadAgentBackend({}), SCRIPT);
     const v = await b.replay.all();
-    expect(v.cursor).toBe(201);
+    expect(v.cursor).toBe(202);
     const s = b.state();
     expect(s.lastError).toBeUndefined();
     expectGroupClean(s);

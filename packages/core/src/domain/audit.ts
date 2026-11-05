@@ -38,6 +38,18 @@ export type AuditEventType =
   | 'ledger.written'
   /** T-141: a member said they paid a settle-up transfer (no money moved through Trav). */
   | 'settlement.marked_paid'
+  /** T-166: the payer said they sent a settle-up transfer (pending; balances unchanged). */
+  | 'settlement.sent'
+  /** T-166: the payee confirmed receipt; only this reduces what is owed. */
+  | 'settlement.received'
+  /** T-166: a payer took back their Sent, or a payee their Got it. */
+  | 'settlement.undone'
+  /** T-166: Trav DMed a payer how to pay one transfer (owner-visible; rail and amount, never the handle). */
+  | 'settlement.pay_details_sent'
+  /** T-166: a member changed their payment apps, favourite or a handle (owner-visible; never the handle). */
+  | 'payment_profile.updated'
+  /** T-166: Trav asked a member once, in DM, which payment apps they use (owner-visible). */
+  | 'payment_profile.asked'
   | 'private.item_ingested'
   | 'private.item_promoted'
   | 'private.item_dismissed'

@@ -162,13 +162,31 @@
       "id": "4.6-b",
       "section": "4.6",
       "kind": "settle_up",
-      "text": "final settle, 4 transfers and everyone's square\nChase → Dean €31.60\nArjun → Dean €22.80\nCrowley → Dean €6.80\nCrowley → Piotr €12\n👍 on this message when you've paid, i'll tick you off"
+      "text": "final settle, 4 transfers and everyone's square\nChase → Dean €31.60\nArjun → Dean €22.80\nCrowley → Dean €6.80\nCrowley → Piotr €12\ntap Sent when you've paid. whoever's getting it taps Got it or 👍, that's what clears it"
     },
     {
       "id": "4.6-c",
       "section": "4.6",
       "kind": "reply",
       "text": "nobody owes anybody. rare. enjoy it"
+    },
+    {
+      "id": "4.6-d",
+      "section": "4.6",
+      "kind": "dm",
+      "text": "quick one so settling up is painless later: which of these do you use? venmo, cash app, paypal, zelle, apple cash, cash. and which is your favourite?\nlike \"venmo and zelle, venmo's my fave\". i only ask once, and it stays between us"
+    },
+    {
+      "id": "4.6-e",
+      "section": "4.6",
+      "kind": "dm",
+      "text": "your settle: €372.48 (≈$406.08) to Dean on venmo\nit opens with Dean, the amount and the note filled in. tap Sent on the group card once it's gone\nvenmo://paycharge?txn=pay&recipients=dean-trav&amount=406.08&note=Barcelona%20spring%20break%20settle-up"
+    },
+    {
+      "id": "4.6-f",
+      "section": "4.6",
+      "kind": "settle_up",
+      "text": "Dean, tap Got it or 👍 once it lands\nfinal settle, 5 transfers and everyone's square\nHenry → Dean €319 · zelle\nChase says sent €372.48 to Dean\nPiotr → Dean €237.13\nArjun → Dean €344.53 · venmo\nCrowley → Dean €325.73 · venmo\npay details are in your dms. tap Sent when you've paid. whoever's getting it taps Got it or 👍, that's what clears it"
     },
 
     {

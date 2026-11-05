@@ -70,9 +70,13 @@ const V2 = [
   unique('settlements', ['source_key']),
 ].join('\n\n');
 
+/** T-166 (D-043): members' payment apps, favourite and handles (PrivateStore). */
+const V3 = table('payment_profiles', ['owner_member_id']);
+
 export const MIGRATIONS: readonly Migration[] = [
   { version: 1, sql: V1 },
   { version: 2, sql: V2 },
+  { version: 3, sql: V3 },
 ];
 
 export const LATEST_SCHEMA_VERSION = MIGRATIONS[MIGRATIONS.length - 1]?.version ?? 0;

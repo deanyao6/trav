@@ -70,6 +70,36 @@ export function convertMoney(amount: Money, to: CurrencyCode, rate: string): Mon
 }
 
 /**
+ * The other direction (T-166): trip money `amount` expressed in `to`, at the
+ * same table `rate` (units of `to` per 1 `amount.currency`, e.g. "1.0928" USD
+ * per EUR), so €20.70 → $22.62. Exact BigInt math, half away from zero.
+ * Same currency ⇒ the amount unchanged (the rate must then be "1").
+ */
+export function convertByRate(amount: Money, to: CurrencyCode, rate: string): Money {
+  const r = parseRate(rate);
+  if (amount.currency === to) {
+    if (r.num !== 10n ** BigInt(r.scale)) {
+      throw new TravError('invalid_argument', 'fx rate between one currency and itself must be 1');
+    }
+    return amount;
+  }
+  const fromExp = currencyExponent(amount.currency);
+  const toExp = currencyExponent(to);
+  // minor_to = minor_from × rate × 10^toExp / 10^fromExp, rate = num / 10^scale
+  let num = BigInt(amount.amountMinor) * r.num * 10n ** BigInt(toExp);
+  const den = 10n ** BigInt(fromExp + r.scale);
+  const negative = num < 0n;
+  if (negative) num = -num;
+  const q = num / den;
+  const rounded = (num % den) * 2n >= den ? q + 1n : q;
+  const out = negative ? -rounded : rounded;
+  if (out > BigInt(Number.MAX_SAFE_INTEGER) || out < BigInt(Number.MIN_SAFE_INTEGER)) {
+    throw new TravError('invalid_argument', 'convertByRate: result overflows safe integer range');
+  }
+  return money(Number(out), to);
+}
+
+/**
  * Parts of an original-currency amount carried over to an already converted
  * total, so they sum EXACTLY to it: `convertedTotal` is allocated in
  * proportion to the original parts (largest remainder, ties to the lowest

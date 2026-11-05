@@ -24,6 +24,7 @@ import type {
   Member,
   MemberId,
   Outbound,
+  PaymentProfile,
   ScheduledJob,
   Scheduler,
   Stores,
@@ -447,7 +448,10 @@ export const BARCELONA: BarcelonaSeed = {
 };
 
 /** Six adults, Dean leads, €60/person cap, trip 12–17 mar 2026, Razzmatazz planned for saturday night with everyone in. */
-export function seedBarcelona(stores: Stores): BarcelonaSeed {
+export function seedBarcelona(
+  stores: Stores,
+  opts: { readonly paymentProfiles?: boolean } = {},
+): BarcelonaSeed {
   const created = '2026-02-03T20:00:00-05:00';
   const b = BARCELONA;
   if (stores.group.groups.get(b.groupId) !== undefined) {
@@ -528,5 +532,65 @@ export function seedBarcelona(stores: Stores): BarcelonaSeed {
     };
     stores.group.trips.setAttendance(row);
   }
+  if (opts.paymentProfiles !== false) {
+    // T-166: everyone answered Trav's one sign-up ask in DM in february.
+    for (const p of BARCELONA_PAYMENT_PROFILES) {
+      stores.private.putPaymentProfile(p.memberId, {
+        ...p,
+        askedAt: created,
+        askedFor: 'sign_up',
+        answeredAt: created,
+        updatedAt: created,
+      });
+    }
+  }
   return b;
 }
+
+/**
+ * T-166: the Barcelona group's payment profiles (each in its owner's private
+ * store), made up for the demo. Mixed on purpose: Dean and Chase share venmo,
+ * Henry is zelle-only (the copy path), Piotr has paypal and cash only (nothing
+ * in common with Dean), Arjun prefers apple cash.
+ */
+export const BARCELONA_PAYMENT_PROFILES: readonly Pick<
+  PaymentProfile,
+  'memberId' | 'apps' | 'favourite' | 'handles'
+>[] = [
+  {
+    memberId: 'mem_dean',
+    apps: ['venmo', 'zelle'],
+    favourite: 'venmo',
+    handles: { venmo: 'dean-trav', zelle: 'dean@example.com' },
+  },
+  {
+    memberId: 'mem_henry',
+    apps: ['zelle'],
+    favourite: 'zelle',
+    handles: { zelle: 'henry@example.com' },
+  },
+  {
+    memberId: 'mem_chase',
+    apps: ['venmo', 'cashapp'],
+    favourite: 'venmo',
+    handles: { venmo: 'chase-w', cashapp: 'chasew' },
+  },
+  {
+    memberId: 'mem_piotr',
+    apps: ['paypal', 'cash'],
+    favourite: 'paypal',
+    handles: { paypal: 'piotrk' },
+  },
+  {
+    memberId: 'mem_arjun',
+    apps: ['venmo', 'apple_cash'],
+    favourite: 'apple_cash',
+    handles: { venmo: 'arjun-m' },
+  },
+  {
+    memberId: 'mem_crowley',
+    apps: ['cashapp', 'venmo'],
+    favourite: 'cashapp',
+    handles: { cashapp: 'crowleyc', venmo: 'crowley-c' },
+  },
+];

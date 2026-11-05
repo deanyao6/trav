@@ -68,6 +68,7 @@ import {
   approval,
   formatMoney,
   isReaction,
+  isSettlementPending,
   ledger,
   money,
   parseIso,
@@ -183,7 +184,9 @@ import {
   type SettingsTurnContext,
 } from './settings/flow.js';
 import { balancesFor, renderSettleUpFor } from './tools/ledger.js';
-import { markPaid } from './balances/markPaid.js';
+import { createSettleFlow } from './settle/flow.js';
+import { settleReplyAction, type SettleAction } from './settle/actions.js';
+import { WHICH_ROW_TEXT, type PendingAsk } from './settle/profiles.js';
 import {
   myPositionText,
   NO_TRIP_BALANCE_TEXT,
@@ -723,6 +726,13 @@ export function createTravAgent(input: AgentDeps): TravAgent {
   });
   /** Settings, consent, roast mode and roast requests (T-017): rules only, never the model. */
   const settings = createSettingsFlow({ stores, clock, ids });
+  /** Settle-up (T-166): final card + payer DMs, Sent → Got it, payment profiles. Rules only. */
+  const settleFlow = createSettleFlow({
+    stores,
+    ids,
+    clock,
+    ...(deps.fx !== undefined ? { fx: deps.fx } : {}),
+  });
 
   const remember = (key: string): boolean => {
     if (seen.has(key)) return false;
@@ -1602,14 +1612,15 @@ export function createTravAgent(input: AgentDeps): TravAgent {
       ) {
         // "@trav settle now" (VOICE §4.6): the tab goes out as the settle_up
         // card (10-line limit), not as a 4-line reply.
-        const card = renderSettleUpFor(toolCtx, 'final', {
+        // T-166: the card, then one DM per payer on how to pay.
+        const rctx = {
           groupId: r.group.groupId,
           members: r.members,
           timeZone: r.trip.timeZone,
           now: r.now,
           ids,
-        });
-        drafts.push(card);
+        };
+        drafts.push(...(await settleFlow.finalSettle({ ctx: toolCtx, rctx, trip: r.trip })));
         note = 'tool:get_balances:settle_up';
         text = '';
       } else if (
@@ -1929,6 +1940,15 @@ export function createTravAgent(input: AgentDeps): TravAgent {
       );
     }
 
+    // 1·. a quote-reply on the final settle card (T-166): "sent", "got it", "undo".
+    if (me !== null && boundRef !== undefined && isFinalSettleCard(r, boundRef)) {
+      const said = settleReplyAction(rawText);
+      if (said !== undefined) {
+        recordInbound();
+        return settleTurn(r, boundRef, said, 'text', event.messageId);
+      }
+    }
+
     // 1a. "actually nah, staying in. cancel that" (T-137): the sender's own
     // pending proposal, dropped like their 👎. It binds only to a proposal the
     // sender asked for (a quote-reply to someone else's card, or nothing of
@@ -2177,6 +2197,35 @@ export function createTravAgent(input: AgentDeps): TravAgent {
       if (out !== undefined) {
         recordInbound();
         return settingsTurn(r, out, before);
+      }
+    }
+
+    // 4·· payment apps and handles (T-166): "my venmo is @chase-w" or "venmo
+    // and zelle, venmo's my fave" in a DM is saved to the member's private
+    // profile; a handle said to Trav in the group is not stored (one line).
+    if (canRequest(r.identity) && event.forwarded !== true) {
+      const before = snapshotAudit(r.group.groupId);
+      const pay = await settleFlow.profileTurn({
+        groupId: r.group.groupId,
+        trip: r.trip,
+        members: r.members,
+        me,
+        lane: r.lane,
+        text,
+        addressed: mention.addressed && mention.reason !== 'thanks',
+        now: r.now,
+      });
+      if (pay !== undefined) {
+        recordInbound();
+        const sent = await send(r, pay.drafts);
+        return {
+          outbound: sent,
+          toolCalls: [],
+          auditEventIds: auditIdsSince(r.group.groupId, before),
+          silent: sent.length === 0,
+          modelSources: [],
+          note: pay.note,
+        };
       }
     }
 
@@ -2482,8 +2531,12 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     };
     let draft: OutboundMessage;
     let note: string;
+    // T-166: the final card goes out with one DM per payer on how to pay.
+    let payerDms: OutboundMessage[] = [];
     if (r.lane === 'group' && ask === 'settle') {
-      draft = renderSettleUpFor(ctx, 'final', rctx);
+      const [card, ...dms] = await settleFlow.finalSettle({ ctx, rctx, trip });
+      draft = card!;
+      payerDms = dms;
       note = 'balances:settle_up';
     } else if (r.lane === 'group' && ask === 'tab') {
       // "who's paid for what so far" (T-085): the running tab with the total.
@@ -2506,7 +2559,7 @@ export function createTravAgent(input: AgentDeps): TravAgent {
       draft = message(r, text);
       note = 'balances:mine';
     }
-    const sent = await send(r, [draft]);
+    const sent = await send(r, [draft, ...payerDms]);
     return {
       outbound: sent,
       toolCalls: ['get_balances'],
@@ -2894,19 +2947,44 @@ export function createTravAgent(input: AgentDeps): TravAgent {
   }
 
   /**
-   * 👍 / [Paid] from a payer on the final settle card: record their outgoing
-   * transfer(s) on that card as paid (`balances/markPaid.ts`; their word, no
-   * money moves), audit it, and post the card again with the row ticked and
-   * what is still owed. A payee, anyone else, a guest or a minor changes
-   * nothing (silent). A second tick is silent. On a card the tab has moved
-   * past, their rows are still recorded at the card's amounts (the repost
-   * opens "tab changed since that card"), unless they have paid since it went
-   * out: then nothing is recorded and they get the current card once.
+   * What a 👍 on the final settle card means for this sender (T-166): Got it
+   * when someone said they sent them money, else Sent when they still owe on
+   * an unsent row, else Got it when they are owed (a payee with no Sent yet),
+   * else Sent (which then finds nothing of theirs and stays silent).
    */
-  async function markPaidTurn(
+  function thumbsUpAction(r: Resolved, ref: PendingCardRef): SettleAction {
+    if (ref.card.type !== 'settle_up' || r.me === null || r.trip === null) return 'sent';
+    const me = r.me.memberId;
+    const open = ref.card.transfers.filter((t) => t.paid !== true);
+    const pendingToMe = stores.group.settlements
+      .listByTrip(r.trip.tripId)
+      .some(
+        (p) =>
+          p.to === me &&
+          isSettlementPending(p) &&
+          open.some((t) => t.from === p.from && t.to === me),
+      );
+    if (pendingToMe) return 'got_it';
+    if (open.some((t) => t.from === me && t.pending !== true)) return 'sent';
+    if (open.some((t) => t.to === me)) return 'got_it';
+    return 'sent';
+  }
+
+  /**
+   * Sent / Got it / Undo on the final settle card (T-166, D-043;
+   * `settle/actions.ts`): the payer's Sent marks their rows pending, only the
+   * payee's Got it clears them, and either takes back their own step. Each
+   * change is audited (no money moves) and the card goes out again with what
+   * is still owed. Someone with nothing to do on the card, a guest, a minor or
+   * a second tap is silent. On a card the tab has moved past, rows are still
+   * recorded at the card's amounts (lead "tab changed since that card"),
+   * unless that pair was confirmed since: then they get the current card once.
+   */
+  async function settleTurn(
     r: Resolved,
     ref: PendingCardRef,
-    via: 'reaction' | 'button',
+    action: SettleAction,
+    via: 'reaction' | 'button' | 'text',
     messageId: MessageId,
     value?: string,
   ): Promise<TurnResult> {
@@ -2914,13 +2992,18 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     const trip = r.trip;
     if (r.lane !== 'group' || trip === null) return silent('settle:no_trip');
     if (r.me === null || !canRequest(r.identity)) return silent('settle:guest');
-    // [Paid] carries `from:to`; a tap on someone else's row does nothing.
-    let onlyTo: string | undefined;
+    // A tap may carry `from:to`: that row only, and only if the tapper is on it.
+    let only: { from: MemberId; to: MemberId } | undefined;
     if (value !== undefined && value.length > 0) {
       const [from, to] = value.split(':');
-      if (from !== r.me.memberId || to === undefined || to.length === 0)
-        return silent('settle:not_payer');
-      onlyTo = to;
+      if (
+        from === undefined ||
+        to === undefined ||
+        to.length === 0 ||
+        (from !== r.me.memberId && to !== r.me.memberId)
+      )
+        return silent('settle:not_party');
+      only = { from, to };
     }
     const ctx = {
       groupId: r.group.groupId,
@@ -2933,24 +3016,28 @@ export function createTravAgent(input: AgentDeps): TravAgent {
       ids,
       stores,
     };
-    const outcome = markPaid(ctx, {
+    const before = snapshotAudit(r.group.groupId);
+    const outcome = settleFlow.act(ctx, {
       card: ref.card,
       cardMessageId: ref.messageId,
       cardSentAt: ref.sentAt,
+      action,
       via,
       messageId,
-      ...(onlyTo !== undefined ? { onlyTo } : {}),
+      ...(only !== undefined ? { only } : {}),
     });
-    if (outcome.kind === 'not_applicable' || outcome.kind === 'not_payer')
-      return silent(`settle:${outcome.kind}`);
-    if (outcome.kind === 'already_paid') return silent('settle:already_paid');
+    if (
+      outcome.kind === 'not_applicable' ||
+      outcome.kind === 'not_party' ||
+      outcome.kind === 'already'
+    )
+      return silent(`settle:${action}:${outcome.kind}`);
     // A card behind them gets the current one at most once per (card, member).
     const staleKey = `${ref.messageId}|${r.me.memberId}`;
     if (outcome.kind === 'stale') {
       if (settleStaleReplied.has(staleKey)) return silent('settle:stale_repeat');
       settleStaleReplied.add(staleKey);
     }
-    const before = snapshotAudit(r.group.groupId);
     const rctx = {
       groupId: r.group.groupId,
       members: r.members,
@@ -2958,30 +3045,56 @@ export function createTravAgent(input: AgentDeps): TravAgent {
       now: r.now,
       ids,
     };
-    // One group message per turn (VOICE §3.7): a "tab changed" lead goes on
-    // the card's first line (VOICE §4.6).
-    const name = sanitizeInline(r.me.displayName, 40);
-    const amounts =
-      outcome.kind === 'marked' ? outcome.payments.map((p) => formatMoney(p.amount)) : [];
-    const lead =
-      outcome.kind === 'stale'
-        ? "tab changed since that card, here's where it stands now"
-        : outcome.tabMoved
-          ? `tab changed since that card. ticked off ${name}'s ${amounts.join(' and ')}, here's what's left`
-          : undefined;
-    const sent = await send(r, [
-      renderSettleUpFor(ctx, 'final', rctx, lead !== undefined ? { lead } : {}),
-    ]);
+    let drafts: OutboundMessage[];
+    if (outcome.kind === 'which_row') {
+      // A bare Got it with several rows and nobody said sent: never guess (D-043).
+      drafts = [message(r, WHICH_ROW_TEXT)];
+    } else if (outcome.kind === 'payee_confirmed') {
+      // Only the payee takes back their own Got it (D-043).
+      const names = outcome.payees.map((id) =>
+        sanitizeInline(r.members.find((m) => m.memberId === id)?.displayName ?? 'they', 40),
+      );
+      const who = names.join(' and ');
+      drafts = [
+        message(
+          r,
+          `${who} already said got it on that one, so only ${names.length > 1 ? 'they' : who} can undo it`,
+        ),
+      ];
+    } else {
+      // One group message per turn (VOICE §3.7): any lead goes on the card's first line.
+      let lead: string | undefined;
+      if (outcome.kind === 'stale' || outcome.tabMoved) {
+        lead = "tab changed since that card, here's where it stands now";
+      } else if (outcome.action === 'sent') {
+        // The payee has something to do now (VOICE §3.5): name them.
+        const payees = [...new Set(outcome.changed.map((p) => p.to))].map((id) =>
+          sanitizeInline(r.members.find((m) => m.memberId === id)?.displayName ?? '', 40),
+        );
+        lead = `${payees.join(' and ')}, tap Got it or 👍 once it lands`;
+      }
+      drafts = await settleFlow.finalSettle({
+        ctx,
+        rctx,
+        trip,
+        ...(lead !== undefined ? { lead } : {}),
+      });
+    }
+    const sent = await send(r, drafts);
     return {
       outbound: sent,
       toolCalls: [],
-      auditEventIds: [
-        ...(outcome.kind === 'marked' ? outcome.auditEventIds : []),
-        ...auditIdsSince(r.group.groupId, before),
-      ],
+      auditEventIds: auditIdsSince(r.group.groupId, before),
       silent: sent.length === 0,
       modelSources: [],
-      note: outcome.kind === 'marked' ? 'settle:marked_paid' : 'settle:stale',
+      note:
+        outcome.kind === 'done'
+          ? `settle:${outcome.action}`
+          : outcome.kind === 'stale'
+            ? 'settle:stale'
+            : outcome.kind === 'which_row'
+              ? 'settle:got_it:which_row'
+              : 'settle:undo:payee_confirmed',
     };
   }
 
@@ -3077,9 +3190,16 @@ export function createTravAgent(input: AgentDeps): TravAgent {
         const ref = cards.get(event.targetMessageId);
         if (intent === 'decline' && ref !== undefined && isLoggedExpenseCard(ref))
           return undoExpense(r, ref, 'reaction', event.messageId);
-        // 👍 on the final settle card: "i've paid, tick me off" (VOICE §4.6, T-141).
-        if (intent === 'approve' && ref !== undefined && isFinalSettleCard(r, ref))
-          return markPaidTurn(r, ref, 'reaction', event.messageId);
+        // On the final settle card (VOICE §4.6, T-166): a payee's 👍 is Got it,
+        // a payer's 👍 is Sent, 👎 takes back the reactor's own last step.
+        if (
+          (intent === 'approve' || intent === 'decline') &&
+          ref !== undefined &&
+          isFinalSettleCard(r, ref)
+        ) {
+          const action: SettleAction = intent === 'decline' ? 'undo' : thumbsUpAction(r, ref);
+          return settleTurn(r, ref, action, 'reaction', event.messageId);
+        }
         if (intent === undefined || ref?.proposalId === undefined)
           return silent('reaction:not_approval');
         return routeApproval(r, event, intent, '', 'reaction', ref.proposalId, event.messageId);
@@ -3097,9 +3217,20 @@ export function createTravAgent(input: AgentDeps): TravAgent {
         const ref = cards.get(event.cardMessageId);
         if (event.actionId === 'undo' && ref !== undefined && isLoggedExpenseCard(ref))
           return undoExpense(r, ref, 'button', event.messageId);
-        // [Paid] on a transfer row (T-141, the T-037 button): value is `from:to`.
-        if (event.actionId === 'paid' && ref !== undefined && isFinalSettleCard(r, ref))
-          return markPaidTurn(r, ref, 'button', event.messageId, event.value);
+        // [Sent] / [Got it] / [Undo] on the final settle card (T-166); [Paid] on
+        // a card from before T-166 is a Sent. A value is `from:to`.
+        if (ref !== undefined && isFinalSettleCard(r, ref)) {
+          const action: SettleAction | undefined =
+            event.actionId === 'sent' || event.actionId === 'paid'
+              ? 'sent'
+              : event.actionId === 'got_it'
+                ? 'got_it'
+                : event.actionId === 'undo'
+                  ? 'undo'
+                  : undefined;
+          if (action !== undefined)
+            return settleTurn(r, ref, action, 'button', event.messageId, event.value);
+        }
         // A tap on a group flight option (T-074) is "book option N" from the
         // tapper: a proposal through the approval policy, never a purchase.
         if (event.actionId === 'pick' && ref?.card.type === 'options') {
@@ -3128,6 +3259,48 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     }
   }
 
+  /**
+   * T-166: the one "which apps do you use?" DM, after the turn: to a member
+   * who just joined (sign-up), and to anyone who now owes or is owed money and
+   * was never asked. Never twice, never to a guest or a minor
+   * (`settle/profiles.ts`). A failure here never undoes the turn.
+   */
+  async function withProfileAsks(
+    r: Resolved,
+    event: InboundEvent,
+    res: TurnResult,
+  ): Promise<TurnResult> {
+    if (event.type === 'member_left') return res;
+    try {
+      const now = clock.now();
+      const groupId = r.group.groupId;
+      const before = snapshotAudit(groupId);
+      const trip = stores.group.trips.current(groupId, now) ?? null;
+      const asks: PendingAsk[] = [];
+      if (event.type === 'member_joined' && r.me !== null)
+        asks.push(...settleFlow.askOnJoin({ groupId, trip, member: r.me, now }));
+      const members = stores.group.members.listByGroup(groupId);
+      for (const a of settleFlow.asksForBalances({ groupId, trip, members, now }))
+        if (!asks.some((x) => x.memberId === a.memberId)) asks.push(a);
+      if (asks.length === 0) return res;
+      const sent = await send(
+        r,
+        asks.map((a) => a.message),
+      );
+      // Recorded as asked only once the DM really went out: never twice, never lost.
+      const sentIds = new Set(sent.filter((o) => !isReaction(o)).map((o) => o.id));
+      for (const a of asks) if (sentIds.has(a.message.id)) a.commit();
+      return {
+        ...res,
+        outbound: [...res.outbound, ...sent],
+        auditEventIds: [...new Set([...res.auditEventIds, ...auditIdsSince(groupId, before)])],
+        silent: res.silent && sent.length === 0,
+      };
+    } catch {
+      return res;
+    }
+  }
+
   async function handleInbound(event: InboundEvent): Promise<TurnResult> {
     if (!remember(dedupeKey(event))) return silent('duplicate');
     let r: Resolved | undefined;
@@ -3136,7 +3309,7 @@ export function createTravAgent(input: AgentDeps): TravAgent {
       r = resolve(event);
       if (r === undefined) return silent('unknown_conversation');
       before = snapshotAudit(r.group.groupId);
-      return await dispatch(r, event);
+      return await withProfileAsks(r, event, await dispatch(r, event));
     } catch (e) {
       return failTurn(r, e, 'messageId' in event ? event.messageId : undefined, before);
     } finally {

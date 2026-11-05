@@ -1025,6 +1025,8 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
             'listMemberMemory',
             'putTicket',
             'listTickets',
+            'getPaymentProfile',
+            'putPaymentProfile',
             'deletePartition',
             'purgeRawInputs',
           ].sort(),
@@ -1099,6 +1101,59 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
           );
         }
         expect(stores.group.settlements.listByTrip(TRIP)).toEqual([]);
+      });
+
+      it('T-166: update changes the state only, never who, what or which card', () => {
+        stores.group.settlements.record(makePayment('pay_1', { status: 'sent', sentAt: T0 }));
+        stores.group.settlements.update(
+          makePayment('pay_1', {
+            status: 'received',
+            sentAt: T0,
+            receivedAt: T0,
+            receivedBy: DEAN,
+          }),
+        );
+        expect(stores.group.settlements.listByTrip(TRIP)).toEqual([
+          makePayment('pay_1', {
+            status: 'received',
+            sentAt: T0,
+            receivedAt: T0,
+            receivedBy: DEAN,
+          }),
+        ]);
+        expectTravError(
+          () => stores.group.settlements.update(makePayment('pay_nope')),
+          'not_found',
+        );
+        for (const over of [
+          { to: HENRY },
+          { amount: { amountMinor: 1, currency: 'EUR' } },
+          { cardMessageId: 'msg_other' },
+        ] as const) {
+          expectTravError(
+            () => stores.group.settlements.update(makePayment('pay_1', over)),
+            'invalid_argument',
+          );
+        }
+        expect(stores.group.settlements.listByTrip(TRIP)[0]?.status).toBe('received');
+      });
+    });
+
+    describe('payment profiles (T-166, owner-private)', () => {
+      it('round-trips per owner; another owner can neither write nor see it', () => {
+        expect(stores.private.getPaymentProfile(DEAN)).toBeUndefined();
+        const p = {
+          memberId: DEAN,
+          apps: ['venmo', 'zelle'] as const,
+          favourite: 'venmo' as const,
+          handles: { venmo: 'dean-trav' },
+          updatedAt: T0,
+        };
+        stores.private.putPaymentProfile(DEAN, p);
+        expect(stores.private.getPaymentProfile(DEAN)).toEqual(p);
+        expect(stores.private.getPaymentProfile(CHASE)).toBeUndefined();
+        expect(() => stores.private.putPaymentProfile(CHASE, p)).toThrow();
+        expect(stores.private.getPaymentProfile(DEAN)).toEqual(p);
       });
     });
 
@@ -1307,6 +1362,12 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         });
         stores.private.putMemberMemory(DEAN, makeMemberFact('mf_1', DEAN));
         stores.private.putTicket(DEAN, makeTicket('priv_t1', DEAN));
+        stores.private.putPaymentProfile(DEAN, {
+          memberId: DEAN,
+          apps: ['venmo'],
+          handles: { venmo: 'dean-trav' },
+          updatedAt: T0,
+        });
         stores.private.putCardTransaction(CHASE, makeCard('priv_m1', CHASE));
         stores.private.putPendingItem(CHASE, makePending('priv_p9', CHASE));
 
@@ -1319,7 +1380,9 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
           member_prefs: 1,
           member_memory: 1,
           ticket_artifacts: 1,
+          payment_profiles: 1,
         });
+        expect(stores.private.getPaymentProfile(DEAN)).toBeUndefined();
         expect(stores.private.listCardTransactions(DEAN, G)).toEqual([]);
         expect(stores.private.getConsent(DEAN, G)).toBeUndefined();
         expect(stores.private.getPrefs(DEAN)).toBeUndefined();

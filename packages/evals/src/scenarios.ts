@@ -260,6 +260,7 @@ const STEP_EXPECT = {
   transfers: opt(derivedOnly),
   nightOutFraming: opt(derivedOnly),
   markedPaidBy: opt(derivedOnly),
+  markedSentBy: opt(derivedOnly),
   suggestionAudience: opt(derivedOnly),
   explicitAdultRequest: opt(derivedOnly),
   // Set by the replay expansion only: a scenario file states its gap with the scenario-level `pending`.

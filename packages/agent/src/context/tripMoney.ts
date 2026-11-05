@@ -27,7 +27,7 @@ import type {
   SettlementPayment,
   Trip,
 } from '@trav/core';
-import { ledger } from '@trav/core';
+import { isSettlementCleared, ledger } from '@trav/core';
 
 export type TripLedgerView = ReturnType<typeof ledger.tripLedger>;
 
@@ -39,7 +39,7 @@ export interface TripMoneyInput {
   /** The persisted ledger rows for `expenses`. */
   readonly entries: readonly LedgerEntry[];
   readonly now: IsoDateTime;
-  /** T-141: settle-up transfers members said they paid (`store.settlements`). */
+  /** T-141, T-166: settle-up transfers (`store.settlements`); only payee-confirmed (`received`) ones count. */
   readonly payments?: readonly SettlementPayment[];
 }
 
@@ -56,7 +56,8 @@ export type TripMoney =
 
 export function tripMoney(input: TripMoneyInput): TripMoney {
   const payments = (input.payments ?? [])
-    .filter((p) => p.status === 'marked_paid')
+    // T-166 (D-043): only a payee-confirmed transfer reduces what is owed.
+    .filter((p) => isSettlementCleared(p))
     .map((p) => ({ from: p.from, to: p.to, amount: p.amount }));
   try {
     return {

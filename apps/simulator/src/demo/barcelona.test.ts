@@ -67,13 +67,22 @@ describe('pnpm demo:barcelona (T-021)', () => {
     const step6Text = chat.split('\n### ').find((s) => s.startsWith('6.')) ?? '';
     expect(step6Text).toMatch(/El Born → Eixample, 4 riders/);
     expect(step6Text).toMatch(/split with Dean, Piotr,? (?:and )?Crowley\?/);
-    expect(result.notes.some((n) => /\[Paid\]/.test(n) && /T-141/.test(n))).toBe(true);
-    // Step 10 (T-141): Chase's 👍 on the final settle card ticks Chase's row, audited.
+    expect(result.notes.some((n) => /\[Sent\]/.test(n) && /T-166/.test(n))).toBe(true);
+    // Step 10 (T-166): a venmo link in Chase's DM, [Sent] is pending, Dean's 👍 clears it.
     const step10 = result.checks.filter((c) => c.step.startsWith('10.'));
-    expect(step10.find((c) => /Chase's 👍 ticks Chase's transfer paid/.test(c.name))?.ok).toBe(
-      true,
+    for (const name of [
+      /venmo link prefilled with Dean's handle, the amount and the note/,
+      /names the rail, never a handle/,
+      /Chase taps \[Sent\]/,
+      /Dean's 👍 \(the payee\) clears/,
+      /sent and received are audited/,
+    ]) {
+      expect(step10.find((c) => name.test(c.name))?.ok, String(name)).toBe(true);
+    }
+    const step10Text = chat.split('\n### ').find((s) => s.startsWith('10.')) ?? '';
+    expect(step10Text).toMatch(
+      /venmo:\/\/paycharge\?txn=pay&recipients=dean-trav&amount=\d+\.\d\d&note=/,
     );
-    expect(step10.find((c) => /marking paid is audited/.test(c.name))?.ok).toBe(true);
   }, 60_000);
 
   it('is deterministic: two runs give the same transcript', async () => {

@@ -778,7 +778,9 @@ export function barcelonaChat(opts = {}) {
     expense: exp({ payer: g.dean, total: eur(4720), split: eq(g.all), category: 'groceries', description: 'groceries for the apartment', source: 'card_transaction', occurredAt: '2026-03-13T11:40:00+01:00' }),
   }, { lane: 'direct', value: 'txn_dean_groceries_0313' });
   c.say(B(17, '09:00'), s('dean'), '@trav settle now', { addressed: true, action: 'settle_up', cardRef: 'final_settle', toolCalls: [{ name: 'get_balances' }], groundTruth: 'fixtures/ledger/barcelona.json#final', maxTransfers: 5 });
-  c.react(B(17, '09:05'), s('chase'), '👍', 'final_settle', { action: 'mark_paid', paidBy: g.chase });
+  // T-166 (D-043): Chase's 👍 is a Sent (pending); only Dean's 👍 as the payee clears it.
+  c.react(B(17, '09:05'), s('chase'), '👍', 'final_settle', { action: 'mark_sent', sentBy: g.chase });
+  c.react(B(17, '09:12'), s('dean'), '👍', 'final_settle', { action: 'mark_paid', paidBy: g.chase });
   c.clock(B(17, '10:00'), { scheduledJob: 'morning_after', recapMode: 'full', groundTruth: 'fixtures/recaps/barcelona.json#2026-03-17' });
   c.say(B(17, '11:00'), s('henry'), 'thanks trav ❤️', { addressed: true, action: 'react', reaction: '❤️', textMessages: 0 });
   c.say(B(17, '15:00'), s('crowley'), 'landed in seattle 🤠', silent());

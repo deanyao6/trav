@@ -13,6 +13,7 @@ import type {
   MemberId,
   Money,
   OutboundMessage,
+  PaymentRail,
   SplitSpec,
   Trip,
 } from '@trav/core';
@@ -23,6 +24,7 @@ import {
   formatMoney,
   formatShares,
   formatTransfer,
+  isSettlementPending,
   ledger,
   localDate,
   money,
@@ -766,6 +768,14 @@ export function settleUpFor(ctx: ToolContext, mode: 'running' | 'final'): Settle
     };
   }
   const view = tm.ledger;
+  // T-166: a payer's Sent the payee hasn't confirmed: shown on its row, still owed.
+  const pending =
+    mode === 'final' && view.mode !== 'family_tab'
+      ? ctx.stores.group.settlements
+          .listByTrip(trip.tripId)
+          .filter((p) => isSettlementPending(p))
+          .map((p) => ({ from: p.from, to: p.to, amount: p.amount }))
+      : [];
   return {
     kind: 'ok',
     input: {
@@ -773,8 +783,9 @@ export function settleUpFor(ctx: ToolContext, mode: 'running' | 'final'): Settle
       currency: trip.currency,
       balances: shownBalances(view, members),
       transfers: view.transfers,
-      // T-141: final cards list what members already said they paid, ticked.
+      // T-141, T-166: final cards list what payees confirmed, ticked.
       ...(mode === 'final' && view.paid.length > 0 ? { paid: view.paid } : {}),
+      ...(pending.length > 0 ? { pending } : {}),
       totalSpent: view.total,
       ...(view.mode === 'family_tab' ? { familyTab: true } : {}),
     },
@@ -789,7 +800,12 @@ export function renderSettleUpFor(
   ctx: ToolContext,
   mode: 'running' | 'final',
   rctx: RenderContext,
-  opts: { readonly showTotal?: boolean; readonly lead?: string } = {},
+  opts: {
+    readonly showTotal?: boolean;
+    readonly lead?: string;
+    /** T-166: the rail per open transfer (`settle/flow.ts`). */
+    readonly rails?: ReadonlyMap<string, PaymentRail>;
+  } = {},
 ): OutboundMessage {
   const r = settleUpFor(ctx, mode);
   if (r.kind === 'needs_guardian') return textMessage(rctx, GROUP, [r.question]);
@@ -798,6 +814,7 @@ export function renderSettleUpFor(
       ...r.input,
       ...(opts.showTotal === true ? { showTotal: true } : {}),
       ...(opts.lead !== undefined ? { lead: opts.lead } : {}),
+      ...(opts.rails !== undefined && opts.rails.size > 0 ? { rails: opts.rails } : {}),
     },
     rctx,
   );

@@ -138,13 +138,29 @@ export interface Transfer {
 }
 
 /**
- * A settle-up transfer a member SAYS they paid (T-141, D-034). No money moves
- * through Trav: this records the payer's word, from a 👍 or [Paid] on a final
- * settle card. Balances apply it (`ledger.tripLedger` `payments`), so what is
- * still owed drops by `amount`. Only the payer (`from`) can mark it, never a
- * minor (transfers never name one). `marked_paid` is the only state in v0;
- * T-037 adds payee confirm, dispute and cancel.
+ * A settle-up transfer between two members (T-141, T-166; D-043 supersedes
+ * D-034). No money moves through Trav: this records what members SAY. The
+ * payer's Sent makes it `sent` (pending: balances unchanged, the card reads
+ * "Chase says sent €42 to Dean"); only the payee's Got it or 👍 makes it
+ * `received`, and only `received` rows reduce what is owed
+ * (`isSettlementCleared`). Either side can undo their own step: the payee's
+ * undo takes `received` back to `sent` (or `undone` if the payer never said
+ * sent), the payer's undo takes `sent` to `undone`. `marked_paid` is a row
+ * from before T-166 (the payer's word alone) and reads as `sent`. Never names
+ * a minor (transfers never do).
  */
+export type SettlementStatus = 'sent' | 'received' | 'undone' | 'marked_paid';
+
+/** Only a payee-confirmed transfer reduces balances (T-166). */
+export function isSettlementCleared(p: Pick<SettlementPayment, 'status'>): boolean {
+  return p.status === 'received';
+}
+
+/** The payer said they sent it and the payee hasn't confirmed yet (a pre-T-166 `marked_paid` too). */
+export function isSettlementPending(p: Pick<SettlementPayment, 'status'>): boolean {
+  return p.status === 'sent' || p.status === 'marked_paid';
+}
+
 export interface SettlementPayment {
   /** `pay_` id. */
   readonly paymentId: string;
@@ -153,11 +169,18 @@ export interface SettlementPayment {
   readonly from: MemberId;
   readonly to: MemberId;
   readonly amount: Money;
-  /** Who said it was paid; always `from` in v0. */
+  /** Who recorded it first: the payer (Sent) or the payee (Got it with no Sent before it). */
   readonly markedBy: MemberId;
   readonly markedAt: IsoDateTime;
-  readonly via: 'reaction' | 'button';
-  /** The settle_up card the transfer was ticked on; with from/to it is the idempotency key. */
+  readonly via: 'reaction' | 'button' | 'text';
+  /** The settle_up card the transfer was first acted on; with from/to it is the idempotency key. */
   readonly cardMessageId: MessageId;
-  readonly status: 'marked_paid';
+  readonly status: SettlementStatus;
+  /** The payer's Sent (absent when the payee confirmed without one). */
+  readonly sentAt?: IsoDateTime;
+  /** The payee's Got it. */
+  readonly receivedAt?: IsoDateTime;
+  readonly receivedBy?: MemberId;
+  /** Last change, undo included. */
+  readonly updatedAt?: IsoDateTime;
 }

@@ -16,6 +16,7 @@ import type { Booking, BookingProposal } from '../../domain/booking.js';
 import type { ApprovalGrant, MemberSpendingPrefs, PolicyDecision } from '../../domain/approval.js';
 import type { AuditEvent } from '../../domain/audit.js';
 import type { ConsentFlags } from '../../domain/consent.js';
+import type { PaymentProfile } from '../../domain/payments.js';
 import type { GroupMemoryFact, MemberMemoryFact } from '../../domain/memory.js';
 import type {
   CardTransaction,
@@ -241,6 +242,13 @@ export const ticketArtifactsSpec: TableSpec<TicketArtifact> = {
   },
 };
 
+/** T-166 (D-043): a member's payment apps, favourite and handles. Owner-private. */
+export const paymentProfilesSpec: TableSpec<PaymentProfile> = {
+  name: 'payment_profiles',
+  key: (p) => p.memberId,
+  columns: { owner_member_id: (p) => p.memberId },
+};
+
 /** Every spec, keyed by table name (the SQLite schema test iterates this). */
 export const ALL_SPECS: Readonly<Record<TableName, TableSpec<never>>> = {
   groups: groupsSpec as TableSpec<never>,
@@ -265,4 +273,5 @@ export const ALL_SPECS: Readonly<Record<TableName, TableSpec<never>>> = {
   member_prefs: memberPrefsSpec as TableSpec<never>,
   member_memory: memberMemorySpec as TableSpec<never>,
   ticket_artifacts: ticketArtifactsSpec as TableSpec<never>,
+  payment_profiles: paymentProfilesSpec as TableSpec<never>,
 };

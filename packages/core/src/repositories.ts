@@ -38,6 +38,7 @@ import type { Booking, BookingProposal } from './domain/booking.js';
 import type { ApprovalGrant, MemberSpendingPrefs, PolicyDecision } from './domain/approval.js';
 import type { AuditEvent, AuditEventInput, AuditEventType } from './domain/audit.js';
 import type { ConsentFlags } from './domain/consent.js';
+import type { PaymentProfile } from './domain/payments.js';
 import type { GroupMemoryFact, MemberMemoryFact } from './domain/memory.js';
 import type {
   CardTransaction,
@@ -123,6 +124,12 @@ export interface ExpenseRepository {
 export interface SettlementRepository {
   /** Throws `duplicate` on an existing paymentId or the same (cardMessageId, from, to). */
   record(payment: SettlementPayment): void;
+  /**
+   * T-166: replace a recorded payment's state (Sent → Got it, undo). Same
+   * paymentId, trip and (cardMessageId, from, to, amount); `not_found` for an
+   * unknown id, `invalid_argument` if any of those changed.
+   */
+  update(payment: SettlementPayment): void;
   /** In the order they were recorded. */
   listByTrip(tripId: TripId): readonly SettlementPayment[];
 }
@@ -235,6 +242,10 @@ export interface PrivateStore {
   // tickets
   putTicket(ownerMemberId: MemberId, ticket: TicketArtifact): void;
   listTickets(ownerMemberId: MemberId, bookingId: BookingId): readonly TicketArtifact[];
+
+  // payment profile (T-166): apps, favourite, handles. Owner-only like the rest.
+  getPaymentProfile(ownerMemberId: MemberId): PaymentProfile | undefined;
+  putPaymentProfile(ownerMemberId: MemberId, profile: PaymentProfile): void;
 
   // retention (SAFETY §2.9)
   /** Deletes the whole partition; returns per-table row counts for `data.deleted`. */
