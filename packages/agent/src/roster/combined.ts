@@ -390,7 +390,24 @@ export type PartyPlan =
       /** Rows to set, in member order (named changes plus any fill). */
       readonly rows: readonly { readonly memberId: MemberId; readonly status: AttendanceStatus }[];
     }
-  | { readonly kind: 'mismatch'; readonly text: string };
+  | {
+      readonly kind: 'mismatch';
+      readonly text: string;
+      /** Minors this text already says stay off the adult-only plan (absent ⇒ it names none). */
+      readonly keptOff?: readonly MemberId[];
+    };
+
+/**
+ * "Sam stays off this plan, it's not all-ages" (VOICE §4.12 C, §8): names the
+ * minors so the adults know whose plan changes, never an age or a reason.
+ * Positive "all-ages" phrasing (VOICE §8 wording rules): "adults only" is an
+ * 18+ term the outbound screen suppresses in a group with a minor, so a line
+ * carrying it would never reach the chat (T-153).
+ */
+export function keptOffLine(ids: readonly MemberId[], members: readonly Member[]): string {
+  const list = names(ids, members).replace(/, ([^,]*)$/, ' and $1');
+  return `${list} ${ids.length === 1 ? 'stays' : 'stay'} off this plan, it's not all-ages`;
+}
 
 export interface PlanInput {
   readonly members: readonly Member[];
@@ -400,6 +417,12 @@ export interface PlanInput {
   readonly all: boolean;
   /** Members never filled in by the headcount (minors for an 18+/alcohol activity); naming them still works. */
   readonly noFill?: ReadonlySet<MemberId>;
+  /**
+   * Members of `noFill` the message named in (or a maybe) and the turn
+   * refused (T-153): kept off like an unanswered minor, whatever their row
+   * says, so a short count gets the "stays off" line and never "who else is in?".
+   */
+  readonly refused?: ReadonlySet<MemberId>;
 }
 
 function names(ids: readonly MemberId[], members: readonly Member[]): string {
@@ -456,12 +479,16 @@ export function planParty(input: PlanInput): PartyPlan {
   // Short only because minors are kept off an adult-only plan: say so, and
   // never ask "who else is in?", whose only answer would be the minor.
   const keptOff = order.filter(
-    (id) => input.noFill?.has(id) === true && !answered.has(id) && !named.has(id),
+    (id) =>
+      input.noFill?.has(id) === true &&
+      !applied.has(id) &&
+      ((!answered.has(id) && !named.has(id)) || input.refused?.has(id) === true),
   );
   if (filled.length < want && keptOff.length > 0 && filled.length + keptOff.length >= want) {
     return {
       kind: 'mismatch',
-      text: `that's ${k} for this one: ${list}. ${names(keptOff, members)} stays off this plan, it's adults only`,
+      text: `that's ${k} for this one: ${list}. ${keptOffLine(keptOff, members)}`,
+      keptOff,
     };
   }
   return filled.length > want

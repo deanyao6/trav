@@ -525,6 +525,7 @@ export async function importEmailReceipts(
       {
         ownerMemberId: owner.memberId,
         occurredAt: receipt.occurredAt,
+        members,
         ...(deps.groupMessages !== undefined ? { groupMessages: deps.groupMessages } : {}),
       },
     );
@@ -546,6 +547,7 @@ export async function importEmailReceipts(
       ...(plan.askRiders !== undefined
         ? { ridersToName: plan.askRiders }
         : { suggestedParticipants: plan.participants }),
+      ...(plan.riders !== undefined ? { receiptRiders: plan.riders } : {}),
       ...(plan.activityId !== undefined ? { suggestedActivityId: plan.activityId } : {}),
     });
     stores.private.putPendingItem(owner.memberId, item);

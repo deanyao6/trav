@@ -37,6 +37,31 @@ export function demoBackend(): Promise<SimulatorBackend> {
   return loadAgentBackend({ offline: true, seed: true });
 }
 
+/** Sam at the club (fixtures/chats/barcelona.jsonl msg_bcn_0139): the charge is on the tab from chat. */
+export const SAM_WATERS = '@trav 2 waters in here were €28, €14 EACH, me and maya';
+
+/**
+ * T-067: move on to 9am the morning after Razzmatazz, past Sam's 2:14am Uber
+ * (his card sync only sees charges that already happened). With `waters`
+ * (default), Sam logs his €28 of waters at the club at 1:30am first, as in the
+ * script, so his card's only new shared-looking charge is the Uber.
+ */
+export async function toMorningAfterRide(
+  b: SimulatorBackend,
+  opts: { readonly waters?: boolean } = {},
+): Promise<void> {
+  if (opts.waters !== false) {
+    await b.advanceClock!({ to: '2026-03-15T01:30:00+01:00', groupId: BARCELONA.groupId });
+    await b.inject({
+      type: 'message',
+      from: 'h_sam',
+      text: SAM_WATERS,
+      groupId: BARCELONA.groupId,
+    });
+  }
+  await b.advanceClock!({ to: '2026-03-15T09:00:00+01:00', groupId: BARCELONA.groupId });
+}
+
 /** Mock purchases so far: one `receipt` card per completed booking, across every group thread. */
 export function bookingCount(backend: Pick<SimulatorBackend, 'state'>): number {
   return backend

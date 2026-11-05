@@ -639,7 +639,144 @@ describe('handleRosterMessage (the roster turn)', () => {
   });
 });
 
+describe('a minor named onto an adult-only plan (T-153, single overrides)', () => {
+  function minorWorld(): ReturnType<typeof world> {
+    const w = world();
+    const sam = w.members.find((m) => m.memberId === 'mem_sam')!;
+    w.stores.group.members.upsert({ ...sam, birthDate: '2010-05-01', ageBand: 'under18' });
+    return { ...w, members: w.stores.group.members.listByGroup(G) };
+  }
+  function say(stores: Stores, text: string, from: string, expectInCount?: number) {
+    const members = stores.group.members.listByGroup(G);
+    return handleRosterMessage({
+      group: stores.group,
+      trip: stores.group.trips.get(BARCELONA.tripId)!,
+      members,
+      me: members.find((m) => m.memberId === from)!,
+      text,
+      messageId: 'msg_t',
+      now: BARCELONA_NOW,
+      ...(expectInCount !== undefined ? { expectInCount } : {}),
+    });
+  }
+  const sam = (stores: Stores) =>
+    stores.group.trips.listAttendance(ACT).find((a) => a.memberId === 'mem_sam')?.status;
+
+  it('"@trav sam is in" for 18+ razzmatazz: nothing written, the adults-only line, no age', () => {
+    const { stores } = minorWorld();
+    for (const id of ['mem_dean', 'mem_henry', 'mem_maya', 'mem_jordan', 'mem_priya']) {
+      mark(stores, id, 'in');
+    }
+    mark(stores, 'mem_sam', 'out');
+    const before = stores.group.audit.listByGroup(G).length;
+    for (const text of ['@trav sam is in', "@trav sam's in for razzmatazz", '@trav count sam in']) {
+      const r = say(stores, text, 'mem_dean');
+      expect(r?.kind, text).toBe('kept_off');
+      if (r?.kind !== 'kept_off') return;
+      expect(r.memberIds).toEqual(['mem_sam']);
+      expect(r.notice).toBeUndefined();
+      expect(r.text).toBe("Sam stays off this plan, it's not all-ages. that's 5 in");
+      expect(r.text).not.toMatch(/\b(?:1[0-7]|under|age|minor|kid|child|adults?)\b/i);
+      expect(safety.lintVoice(r.text, { kind: 'reply', properNouns: ['Sam'] }).violations).toEqual(
+        [],
+      );
+    }
+    expect(sam(stores)).toBe('out');
+    expect(stores.group.audit.listByGroup(G).length).toBe(before);
+  });
+
+  it('a stale in or maybe row for the minor is set to out in the same turn, audited with ids only', () => {
+    for (const stale of ['in', 'maybe'] as const) {
+      const { stores } = minorWorld();
+      mark(stores, 'mem_sam', stale);
+      const r = say(stores, '@trav sam is in', 'mem_dean');
+      expect(r?.kind).toBe('kept_off');
+      if (r?.kind !== 'kept_off') return;
+      expect(r.notice?.changes).toEqual([{ memberId: 'mem_sam', status: 'out' }]);
+      expect(sam(stores)).toBe('out');
+      const last = stores.group.audit.listByGroup(G).at(-1)!;
+      expect(last.type).toBe('roster.changed');
+      expect(last.payload).toEqual({
+        activityId: ACT,
+        changes: [{ memberId: 'mem_sam', status: 'out' }],
+        sourceMessageId: 'msg_t',
+      });
+      // A second ask writes nothing more.
+      const n = stores.group.audit.listByGroup(G).length;
+      expect(say(stores, '@trav sam is in', 'mem_dean')?.kind).toBe('kept_off');
+      expect(stores.group.audit.listByGroup(G).length).toBe(n);
+    }
+  });
+
+  it('unknown age is kept off an 18+ plan until a lead confirms everyone is 18+ (SAFETY §2.7)', () => {
+    const { stores } = minorWorld();
+    const m = stores.group.members.get('mem_maya')!;
+    const { birthDate: _b, ...rest } = m;
+    stores.group.members.upsert({ ...rest, ageBand: 'unknown' });
+    const g = stores.group.groups.get(G)!;
+    stores.group.groups.update({ ...g, settings: { ...g.settings, allAdultsConfirmed: false } });
+    mark(stores, 'mem_maya', 'out');
+    expect(say(stores, "@trav maya's in", 'mem_dean')?.kind).toBe('kept_off');
+    expect(
+      stores.group.trips.listAttendance(ACT).find((a) => a.memberId === 'mem_maya')?.status,
+    ).toBe('out');
+    stores.group.groups.update({ ...g, settings: { ...g.settings, allAdultsConfirmed: true } });
+    expect(say(stores, "@trav maya's in", 'mem_dean')?.kind).toBe('changed');
+  });
+
+  it('a maybe, "count me in" from the minor, and a headcount tail are all kept off; an earlier "out" stays', () => {
+    const { stores } = minorWorld();
+    mark(stores, 'mem_sam', 'out');
+    const before = stores.group.audit.listByGroup(G).length;
+    expect(say(stores, "@trav sam's a maybe for razzmatazz", 'mem_dean')?.kind).toBe('kept_off');
+    expect(say(stores, '@trav count me in', 'mem_sam')?.kind).toBe('kept_off');
+    expect(say(stores, "sam's in", 'mem_dean', 6)?.kind).toBe('kept_off');
+    expect(sam(stores)).toBe('out');
+    expect(stores.group.audit.listByGroup(G).length).toBe(before);
+  });
+
+  it('marking the minor out still works', () => {
+    const { stores } = minorWorld();
+    const r = say(stores, "@trav sam's out", 'mem_dean');
+    expect(r?.kind).toBe('changed');
+    expect(sam(stores)).toBe('out');
+  });
+
+  it('an all-ages plan: the minor is written in as usual', () => {
+    const { stores } = minorWorld();
+    const razz = stores.group.trips.getActivity(ACT)!;
+    stores.group.trips.upsertActivity({ ...razz, ageRestriction: null, contentTags: [] });
+    mark(stores, 'mem_sam', 'out');
+    expect(say(stores, '@trav sam is in', 'mem_dean')?.kind).toBe('changed');
+    expect(sam(stores)).toBe('in');
+  });
+
+  it('an adult in the same group is written in as usual', () => {
+    const { stores } = minorWorld();
+    mark(stores, 'mem_henry', 'out');
+    expect(say(stores, "@trav henry's in", 'mem_dean')?.kind).toBe('changed');
+  });
+});
+
 describe('roster turns through the loop (offline, no model)', () => {
+  it('"@trav sam is in" with Sam under 18: kept off, no model call, no roster write (T-153)', async () => {
+    const h = harness();
+    const stores = h.runtime.stores;
+    const samM = stores.group.members.listByGroup(G).find((m) => m.memberId === 'mem_sam')!;
+    stores.group.members.upsert({ ...samM, birthDate: '2010-05-01', ageBand: 'under18' });
+    mark(stores, 'mem_sam', 'out');
+    const turn = await h.say('h_dean', '@trav sam is in');
+    expect(turn.note).toBe('roster:kept_off');
+    expect(h.model.completions).toEqual([]);
+    expect(messages(turn)).toHaveLength(1);
+    // Reaches the chat: the outbound screen in a group with a minor lets it through.
+    expect(messages(turn)[0]!.text).toBe("Sam stays off this plan, it's not all-ages. that's 5 in");
+    expect(
+      stores.group.trips.listAttendance(ACT).find((a) => a.memberId === 'mem_sam')?.status,
+    ).toBe('out');
+    expect(h.audit().filter((e) => e.type === 'roster.changed')).toEqual([]);
+  });
+
   it('"@trav who\'s in tonight?" is answered without a model call', async () => {
     const h = harness();
     const turn = await h.say('h_dean', "@trav who's in tonight?");

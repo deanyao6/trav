@@ -39,6 +39,8 @@ export type AuditEventType =
   | 'private.item_ingested'
   | 'private.item_promoted'
   | 'private.item_dismissed'
+  /** T-067: a scheduled card import ran for one owner (owner-visible; counts and status only). */
+  | 'card_import.ran'
   | 'consent.changed'
   | 'policy.changed'
   | 'settings.changed'

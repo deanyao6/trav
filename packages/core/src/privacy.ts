@@ -184,10 +184,29 @@ export type PendingPrivateItem = Private<
      * `suggestedParticipants` (no guess); the owner's typed answer is the split.
      */
     readonly ridersToName?: number;
+    /**
+     * T-135: the receipt's rider count on a ride card that did propose a split
+     * (the roster, or the roster minus who left that night). A names answer
+     * from the owner replaces that split; a count that disagrees is confirmed first.
+     */
+    readonly receiptRiders?: number;
+    /**
+     * T-135: names the owner sent that disagree with the rider count, waiting
+     * on their "log it N ways anyway?" 👍. Nothing is on the tab until then.
+     */
+    readonly namedRiders?: readonly MemberId[];
+    /** T-135: the "log it N ways anyway?" question's id; a tapback or quote-reply on it answers it. */
+    readonly mismatchMessageId?: string;
     /** The plan `suggestedParticipants` came from (set at ingestion; the expense links to it only when the split still matches). */
     readonly suggestedActivityId?: ActivityId;
     readonly promotedExpenseId?: ExpenseId;
     readonly cardMessageId?: MessageId;
+    /**
+     * T-067: held for the owner's next digest slot (VOICE §2 batching: several
+     * items go out together at 10:00 or 20:00 trip time). No card yet, so it
+     * cannot be answered until then; the next scheduled card import sends it.
+     */
+    readonly heldForDigest?: true;
     /** `false` when the source gave only a date and `occurredAt` is a placeholder (local noon). */
     readonly timeKnown?: false;
     /** Set when Trav dropped the item (the owner never answered it); absent for an owner's "keep private". */

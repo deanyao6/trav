@@ -24,6 +24,8 @@ const SCRIPT = loadBarcelonaScript();
 /** Last line of the Razzmatazz moment (Sam's late Approve on a done proposal). */
 const AFTER_FLAGSHIP = SCRIPT.findIndex((l) => l.id === 'msg_bcn_0134') + 1;
 const FLAGSHIP_ASK = SCRIPT.findIndex((l) => l.id === 'msg_bcn_0130');
+/** Through Sam's waters at the club (msg_bcn_0139); the next line is his card sync (sys_bcn_0155). */
+const BEFORE_SAM_SYNC = SCRIPT.findIndex((l) => l.id === 'msg_bcn_0139') + 1;
 
 function bcn(state: SimState): GroupView {
   return state.groups.find((g) => g.group.groupId === BARCELONA.groupId)!;
@@ -135,9 +137,22 @@ describe.each<Kind>(['seeded', 'bare'])('demo clicked in order (real runtime, %s
       ).toHaveLength(1);
     }
 
-    // --- state 4: send as Sam; his DM rail offers his own card charge; feed it.
-    expect(bcn(s3).intake['mem_sam']).toEqual([{ docId: 'doc_bcn_sam_card_1', kind: 'card' }]);
+    // --- state 4: the night goes on (Sam's waters at the club go on the tab from chat,
+    // msg_bcn_0139); Sam's 2:14am ride hasn't happened yet, so his rail offers no card sync.
+    expect(bcn(s3).intake['mem_sam']).toEqual([]);
+    const s3b = await replayTo(b, BEFORE_SAM_SYNC);
+    expect(s3b.now).toBe('2026-03-15T01:30:00+01:00');
+    expect(bcn(s3b).intake['mem_sam']).toEqual([]);
+    // +1 hour: after the ride. Send as Sam; his rail offers his card; it syncs for real
+    // (T-067: the runtime's provider on the simulated clock) and asks about the Uber only.
+    const s3c = await post(b, '/api/clock', { step: 'hour', groupId: BARCELONA.groupId });
+    expect(bcn(s3c).intake['mem_sam']).toEqual([{ docId: 'doc_bcn_sam_card_1', kind: 'card' }]);
     const s4 = await post(b, '/api/intake', { docId: 'doc_bcn_sam_card_1' });
+    expect(
+      messages(bcn(s4).dms['mem_sam']!).filter(
+        (m) => m.card?.type === 'expense_confirm' && m.card.status === 'pending',
+      ),
+    ).toHaveLength(1);
     const prompt = messages(bcn(s4).dms['mem_sam']!).find(
       (m) => m.card?.type === 'expense_confirm' && m.card.status === 'pending',
     )!;

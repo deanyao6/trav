@@ -39,12 +39,13 @@ import {
   TravError,
 } from '@trav/core';
 import { createMemoryStores } from '@trav/core/storage';
-import type { AlbumAdapter, ChannelAdapter } from '@trav/adapters';
+import type { AlbumAdapter, ChannelAdapter, TransactionsAdapter } from '@trav/adapters';
 import {
   createMockBookingPayments,
   createMockFlights,
   createMockLodging,
   createMockTickets,
+  createMockTransactions,
   loadAllTicketInventories,
 } from '@trav/adapters';
 import type { ApprovalHandler } from './approval/events.js';
@@ -95,6 +96,13 @@ export interface TravRuntimeOptions {
   readonly providers?: Partial<ProviderRegistry>;
   /** Shared album for Wrapped's photos (T-016/T-029). Default: none (no photos). */
   readonly album?: AlbumAdapter;
+  /**
+   * Linked cards (T-067). Default: the Plaid-shaped mock on this runtime's
+   * clock (only charges that already happened), synced at the VOICE §2 digest
+   * slots for every owner with `cardImport` on. `false` ⇒ no provider and no
+   * scheduled card imports (callers that drive imports themselves).
+   */
+  readonly transactions?: TransactionsAdapter | false;
   readonly scheduler?: Scheduler;
   /** Default: `outbound/send.ts` (screen → voice lint → lane → audit). */
   readonly sendTurn?: TurnSender;
@@ -131,6 +139,8 @@ export interface TravRuntime {
   readonly groupMemory: GroupMemory;
   readonly memberMemory: MemberMemory;
   readonly proposals: ProposalService;
+  /** The linked-card provider scheduled imports sync from (undefined when turned off). */
+  readonly transactions?: TransactionsAdapter;
   /** Turns produced by the channel subscription and `drain()`, in order. */
   readonly turns: readonly TurnResult[];
   /** Run every due scheduled job (`scheduler.drain(clock.now())`) through the agent. */
@@ -170,6 +180,10 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
     payments: options.providers?.payments ?? createMockBookingPayments({ clock }),
   };
   const scheduler = options.scheduler ?? createInMemoryScheduler();
+  const transactions =
+    options.transactions === false
+      ? undefined
+      : (options.transactions ?? createMockTransactions({ clock }));
   // Every planned or active trip's Morning Afters (T-015, 10am each morning
   // after a trip night) and end-of-trip Wrapped (T-016/T-142, 10am the day
   // after) still ahead, whoever seeded the stores (the demo seed, the evals,
@@ -218,6 +232,7 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
     approval: { normalize: normalizeApprovalEvent, handler: approvalHandler },
     ...(options.album !== undefined ? { album: options.album } : {}),
     ...(options.maxToolRounds !== undefined ? { maxToolRounds: options.maxToolRounds } : {}),
+    ...(transactions !== undefined ? { transactions } : {}),
   };
   const agent = createTravAgent(deps);
 
@@ -246,6 +261,7 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
     groupMemory,
     memberMemory,
     proposals,
+    ...(transactions !== undefined ? { transactions } : {}),
     turns,
     async drain() {
       const out: TurnResult[] = [];

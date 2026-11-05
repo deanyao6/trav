@@ -6,6 +6,8 @@
 import type { Activity, AttendanceStatus, MemberId } from '@trav/core';
 import { TravError } from '@trav/core';
 import { sanitizeInline } from '../context/groupContext.js';
+import { keptOffLine } from '../roster/combined.js';
+import { keptOffFor, setAttendance } from '../roster/index.js';
 import type { ToolContext, ToolDefinition } from './registry.js';
 import {
   activeMembers,
@@ -91,11 +93,16 @@ export interface SetAttendanceInput {
 
 export const setAttendanceTool: ToolDefinition<
   SetAttendanceInput,
-  { readonly kind: 'attendance_set'; readonly roster: RosterView; readonly text: string }
+  {
+    /** `kept_off`: the member can't be in or a maybe for this plan; nothing but an out was written. */
+    readonly kind: 'attendance_set' | 'kept_off';
+    readonly roster: RosterView;
+    readonly text: string;
+  }
 > = {
   name: 'set_attendance',
   description:
-    "Mark a member in, out or maybe for an activity ('Henry's sick' ⇒ out; 'maybe' counts as out at booking time). Only members may change the roster. Never pass the reason; it is not stored.",
+    "Mark a member in, out or maybe for an activity ('Henry's sick' ⇒ out; 'maybe' counts as out at booking time). Only members may change the roster. Never pass the reason; it is not stored. One call per member. kind 'kept_off' means that member stays off this plan: say the returned line, never why.",
   inputSchema: {
     type: 'object',
     properties: {
@@ -127,28 +134,32 @@ export const setAttendanceTool: ToolDefinition<
     const memberId = resolveMemberRef(members, input.member);
     if (memberId === undefined)
       throw new TravError('not_found', `no member "${input.member}" on this trip`);
-    const messageId = messageIdOf(ctx);
-    ctx.stores.group.trips.setAttendance({
-      activityId: activity.activityId,
-      memberId,
-      status: input.status,
-      updatedAt: ctx.now,
-      sourceMessageId: messageId,
-      setBy: me.memberId,
-    });
-    ctx.stores.group.audit.append({
-      groupId: ctx.groupId,
-      tripId: trip.tripId,
-      type: 'roster.changed',
-      actor: { kind: 'member', id: me.memberId },
-      visibility: 'group',
-      payload: {
+    // One write path (`roster/index.ts` `setAttendance`): an in or maybe for
+    // a member kept off an 18+/alcohol plan is never written (T-153); a stale
+    // in/maybe of theirs is set to out. One audited event per real change.
+    const write = setAttendance(
+      ctx.stores.group,
+      {
         activityId: activity.activityId,
-        changes: [{ memberId, status: input.status }],
-        sourceMessageId: messageId,
+        memberId,
+        status: input.status,
+        setBy: me.memberId,
+        sourceMessageId: messageIdOf(ctx),
       },
-    });
+      members,
+      ctx.now,
+      activity,
+    );
     const roster = rosterView(ctx, activity);
+    if (write.refused === true) {
+      const keptOff = keptOffFor(ctx.stores.group, activity, members, ctx.now);
+      const inCount = roster.in.filter((m) => !keptOff.has(m.memberId)).length;
+      return {
+        kind: 'kept_off',
+        roster,
+        text: `${keptOffLine([memberId], members)}. that's ${String(inCount)} in`,
+      };
+    }
     const who = nameOf(members, memberId);
     const label = sanitizeInline(activity.name, 40).toLowerCase();
     const text =

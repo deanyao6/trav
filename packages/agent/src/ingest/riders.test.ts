@@ -13,6 +13,7 @@ import {
   leftTheGroup,
   LEFT_LOOKBACK_MIN,
   LEFT_MIN_LEAD_MIN,
+  LOST_MIN_LEAD_MIN,
   MAX_RIDERS,
   parseRiderNames,
   validRiders,
@@ -96,13 +97,15 @@ describe('applyRiders', () => {
   });
 
   it('count matches the roster: the plan as it was (label, guess, plan link kept)', () => {
-    expect(applyRiders(rosterPlan, 5, ctx())).toBe(rosterPlan);
+    // Plus the count, so the card takes a names correction (T-135 r1 #3).
+    expect(applyRiders(rosterPlan, 5, ctx())).toEqual({ ...rosterPlan, riders: 5 });
   });
 
   it("Priya's Uber, roster of 5: Maya lost the group, so the 4 are Dean, Jordan, Priya, Sam", () => {
     const plan = applyRiders(rosterPlan, 4, ctx());
     expect(plan).toEqual({
       participants: ['mem_dean', 'mem_jordan', 'mem_priya', 'mem_sam'],
+      riders: 4,
       guess: 'that the ride back from bars in el born?',
       activityId: 'act_bcn_elborn_d2',
     });
@@ -174,6 +177,8 @@ describe('leftTheGroup', () => {
     "i'm out for the night",
     'calling it a night',
     'made it home',
+    'ok im heading back',
+    'im beat, heading back. feel kinda off',
   ])('"%s" is leaving the others', (text) => {
     expect(left([line('2026-03-14T00:00:00+01:00', 'Sam', text)])).toEqual(['mem_sam']);
   });
@@ -187,6 +192,59 @@ describe('leftTheGroup', () => {
     'in',
   ])('"%s" is not', (text) => {
     expect(left([line('2026-03-14T00:00:00+01:00', 'Sam', text)])).toEqual([]);
+  });
+
+  // T-135 r1 #1: one regression per case the reviewer found.
+  it.each([
+    // about someone else
+    ['jordan is heading back, he said bye', 'another member named'],
+    ["he's heading home", 'he/she/they'],
+    ['they went back', 'he/she/they'],
+    ["we're heading back", 'we (the whole group)'],
+    // negations
+    ['not going home now', 'negation'],
+    ["i'm not out", 'negation'],
+    ["don't think im heading back", 'negation'],
+    // questions
+    ['where are you all sitting', 'a question that is not just "where are you"'],
+    ['should we all share an uber or get my own cab?', 'question'],
+    ['calling it a night soon? no way', 'question + negation'],
+    ['heading back?', 'question'],
+    // past tense
+    ['i got home safe last night', 'past'],
+    ['made it home yesterday', 'past'],
+    // same-line back
+    ['where r u guys? omw', 'same-line omw'],
+    ['where r u guys, coming', 'same-line coming'],
+    ['heading back to you guys', 'same-line with/you'],
+    // T-135 r2 #5: sarcasm and past tense
+    ['sure, im going home. totally', 'sarcasm'],
+    ['heading home jk', 'joke'],
+    ['went back', 'past (maybe back inside)'],
+  ])('"%s" does not take the sender out (%s)', (text) => {
+    expect(left([line('2026-03-14T00:00:00+01:00', 'Sam', text)])).toEqual([]);
+  });
+
+  it.each(['coming', 'found them', 'here', 'with you guys now', 'omw', 'be there in 5'])(
+    'a later "%s" from the same member cancels it',
+    (text) => {
+      expect(left([...NIGHT, line('2026-03-14T00:45:00+01:00', 'Maya', text)])).toEqual([
+        'mem_henry',
+      ]);
+    },
+  );
+
+  it('a line naming another member never takes the sender out (members given)', () => {
+    const msgs = [line('2026-03-14T00:00:00+01:00', 'Sam', 'jordan heading back')];
+    expect([...leftTheGroup(msgs, EVERYONE, PRIYA, RIDE_END, MEMBERS)]).toEqual([]);
+    // and Jordan isn't taken out either: only a member's own line counts
+  });
+
+  it('"where r u guys" counts up to 30 min before the ride ended; "heading back" up to 60', () => {
+    const at = (min: number) => new Date(Date.parse(RIDE_END) - min * 60_000).toISOString();
+    expect(left([line(at(LOST_MIN_LEAD_MIN + 1), 'Sam', 'where r u guys')])).toEqual(['mem_sam']);
+    expect(left([line(at(LOST_MIN_LEAD_MIN - 1), 'Sam', 'where r u guys')])).toEqual([]);
+    expect(left([line(at(LEFT_MIN_LEAD_MIN - 1), 'Sam', 'heading back')])).toEqual([]);
   });
 
   it('within the last hour before the ride ended, "heading back" is likely the ride itself', () => {
@@ -255,8 +313,43 @@ describe('parseRiderNames', () => {
     'just me',
     'priya',
     'everyone else',
+    // T-135 r1 #2: the owner paid and is on the receipt; taking themself out is no answer
+    'all except me',
+    'everyone but me',
+    'not me',
+    'not',
+    // T-135 r2 #3, #4: questions, mixed lists, a trailing negator
+    'wait was it dean jordan and maya?',
+    'sam?',
+    'was it sam?',
+    'dean, not jordan, sam',
+    'jordan not',
   ])('"%s" is not an answer naming riders', (text) => {
     expect(read(text)).toEqual({ kind: 'none' });
+  });
+
+  describe('corrections to a proposed split (T-135 r1 #3)', () => {
+    const PROPOSED = FOUR; // Dean, Jordan, Priya, Sam
+    const fix = (text: string) => parseRiderNames(text, MEMBERS, PRIYA, PROPOSED);
+
+    it.each([
+      ['no it was maya not jordan', ['mem_dean', 'mem_maya', 'mem_priya', 'mem_sam']],
+      ['maya instead of jordan', ['mem_dean', 'mem_maya', 'mem_priya', 'mem_sam']],
+      ['not jordan', ['mem_dean', 'mem_priya', 'mem_sam']],
+      ['minus jordan', ['mem_dean', 'mem_priya', 'mem_sam']],
+      // a plain list replaces the proposal
+      ['dean, maya and sam', ['mem_dean', 'mem_maya', 'mem_priya', 'mem_sam']],
+      ['dean', ['mem_dean', 'mem_priya']],
+    ])('"%s" on the 4-way card', (text, want) => {
+      expect(fix(text)).toEqual({ kind: 'names', memberIds: want });
+    });
+
+    it('without a proposal, "not maya" is everyone but Maya', () => {
+      expect(read('not maya')).toEqual({
+        kind: 'names',
+        memberIds: EVERYONE.filter((id) => id !== 'mem_maya'),
+      });
+    });
   });
 
   it('a name two members share is no answer; a guest or departed member is never matched', () => {

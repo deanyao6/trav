@@ -8,6 +8,7 @@ import {
   plaidAmountToMoney,
 } from './fixture.js';
 import { listFixtures, loadFixtureText } from '../fixtures.js';
+import { createSimulatedClock, parseIso } from '@trav/core';
 
 /** Private copy of the generator output, so fixed-value tests survive regeneration. */
 const PINNED = ['transactions', 'pinned'] as const;
@@ -468,5 +469,167 @@ describe('mock transactions: shared fixture files (value-agnostic)', () => {
         expect(domains).toEqual([]);
       }
     }
+  });
+});
+
+describe('mock transactions on the simulated clock (T-067)', () => {
+  const ids = (pages: readonly TransactionsSyncResult[]): string[] =>
+    rowsOf(pages).map((t) => t.transactionId);
+
+  it("Sam's card the morning after Razzmatazz: only what already happened, the posted Uber without its pending row", async () => {
+    const clock = createSimulatedClock('2026-03-15T09:00:00+01:00');
+    const adapter = createMockTransactions({ fixtureDir: PINNED, clock });
+    const { pages, cursor } = await syncAll(adapter, 'mem_sam');
+    expect(pages).toHaveLength(1);
+    const seen = ids(pages);
+    expect(seen).toContain('txn_sam_uber_0315');
+    expect(seen).toContain('txn_sam_waters_0315');
+    expect(seen).not.toContain('txn_sam_uber_0315_p');
+    expect(pages[0]!.removed).toEqual([]);
+    for (const later of [
+      'txn_sam_pizza_0316',
+      'txn_sam_sunglasses_refund_0316',
+      'txn_sam_apolo_0316',
+      'txn_sam_home_09',
+    ]) {
+      expect(seen).not.toContain(later);
+    }
+    // Every delivered row happened at or before now.
+    for (const t of rowsOf(pages)) {
+      expect(parseIso(t.datetime!)).toBeLessThanOrEqual(clock.nowMs());
+    }
+
+    // Nothing new until the clock moves; the cursor stays put.
+    const idle = await adapter.sync('mem_sam', cursor);
+    expect(idle).toEqual({
+      ok: true,
+      value: { added: [], modified: [], removed: [], nextCursor: cursor, hasMore: false },
+    });
+
+    // The next noon: the 2:30am pizza and the 11:00 refund, not the 17:05 Apolo.
+    clock.set('2026-03-16T12:00:00+01:00');
+    const next = await syncAll(adapter, 'mem_sam', cursor);
+    expect(ids(next.pages).sort()).toEqual([
+      'txn_sam_pizza_0316',
+      'txn_sam_sunglasses_refund_0316',
+    ]);
+    clock.set('2026-03-21T00:00:00+01:00');
+    const rest = await syncAll(adapter, 'mem_sam', next.cursor);
+    expect(ids(rest.pages)).toContain('txn_sam_apolo_0316');
+    expect(ids(rest.pages)).toContain('txn_sam_home_11');
+  });
+
+  it('before anything happened: an empty, final update; cursors ahead of the item or of another member are refused', async () => {
+    const clock = createSimulatedClock('2026-01-01T00:00:00Z');
+    const adapter = createMockTransactions({ fixtureDir: PINNED, clock });
+    const r = await adapter.sync('mem_sam');
+    expect(r).toEqual({
+      ok: true,
+      value: {
+        added: [],
+        modified: [],
+        removed: [],
+        nextCursor: 'txcur.v1.item_mem_sam.0',
+        hasMore: false,
+      },
+    });
+    const ahead = await adapter.sync('mem_sam', 'txcur.v1.item_mem_sam.1');
+    expect(ahead.ok ? 'ok' : ahead.error.code).toBe('invalid_request');
+    const stolen = await adapter.sync('mem_dean', 'txcur.v1.item_mem_sam.0');
+    expect(stolen.ok ? 'ok' : stolen.error.code).toBe('invalid_request');
+  });
+
+  it('a fresh initial sync replays the delivered pages in order (Plaid paging)', async () => {
+    const clock = createSimulatedClock('2026-03-14T00:00:00+01:00');
+    const adapter = createMockTransactions({ fixtureDir: PINNED, clock });
+    const first = await syncAll(adapter, 'mem_sam');
+    clock.set('2026-03-15T09:00:00+01:00');
+    const second = await syncAll(adapter, 'mem_sam', first.cursor);
+    const replay = await syncAll(adapter, 'mem_sam');
+    expect(replay.pages).toHaveLength(2);
+    expect(replay.pages[0]!.hasMore).toBe(true);
+    expect(ids(replay.pages)).toEqual([...ids(first.pages), ...ids(second.pages)]);
+    expect(replay.cursor).toBe(second.cursor);
+  });
+
+  it('a charge that posts a day later: the pending row first, then the posted row with the pending one removed', async () => {
+    const clock = createSimulatedClock('2026-03-15T03:00:00+01:00');
+    const fixture = parseTransactionsFixture({
+      ownerMemberId: 'mem_t',
+      accounts: [ACCOUNT],
+      pages: [
+        { added: [row('t_p', { pending: true, amount: { amountMinor: 1980, currency: 'EUR' } })] },
+        {
+          added: [
+            row('t_1', {
+              datetime: '2026-03-16T08:00:00+01:00',
+              date: '2026-03-16',
+              amount: { amountMinor: 2340, currency: 'EUR' },
+              pendingTransactionId: 't_p',
+            }),
+          ],
+        },
+      ],
+    });
+    const adapter = createMockTransactions({ fixtures: [fixture], clock });
+    const a = await syncAll(adapter, 'mem_t');
+    expect(rowsOf(a.pages).map((t) => [t.transactionId, t.pending])).toEqual([['t_p', true]]);
+    clock.set('2026-03-16T07:59:00+01:00');
+    expect((await syncAll(adapter, 'mem_t', a.cursor)).pages[0]!.added).toEqual([]);
+    clock.set('2026-03-16T08:00:00+01:00');
+    const b = await syncAll(adapter, 'mem_t', a.cursor);
+    expect(b.pages[0]!.added.map((t) => t.transactionId)).toEqual(['t_1']);
+    expect(b.pages[0]!.removed).toEqual([{ transactionId: 't_p', accountId: 'acc_t_1' }]);
+  });
+
+  it('a pending authorization dropped with no posted row is removed only after it was delivered', async () => {
+    const clock = createSimulatedClock('2026-03-16T00:00:00+01:00');
+    const fixture = parseTransactionsFixture({
+      ownerMemberId: 'mem_t',
+      accounts: [ACCOUNT],
+      pages: [
+        { added: [row('t_p', { pending: true })] },
+        { removed: [{ transactionId: 't_p', accountId: 'acc_t_1' }] },
+      ],
+    });
+    const adapter = createMockTransactions({ fixtures: [fixture], clock });
+    const a = await syncAll(adapter, 'mem_t');
+    expect(a.pages[0]!.added.map((t) => t.transactionId)).toEqual(['t_p']);
+    expect(a.pages[0]!.removed).toEqual([]);
+    const b = await syncAll(adapter, 'mem_t', a.cursor);
+    expect(b.pages[0]!.removed).toEqual([{ transactionId: 't_p', accountId: 'acc_t_1' }]);
+  });
+
+  it('pushUpdate on a clock: available from the push, never before the row itself happened', async () => {
+    const clock = createSimulatedClock('2026-03-15T10:00:00+01:00');
+    const fixture = parseTransactionsFixture({
+      ownerMemberId: 'mem_t',
+      accounts: [ACCOUNT],
+      pages: [{ added: [row('t_p', { pending: true })] }],
+    });
+    const adapter = createMockTransactions({ fixtures: [fixture], clock });
+    const a = await syncAll(adapter, 'mem_t');
+    const pushed = adapter.pushUpdate('mem_t', {
+      added: [
+        row('t_1', { amount: { amountMinor: 2340, currency: 'EUR' }, pendingTransactionId: 't_p' }),
+        row('t_future', { datetime: '2026-03-16T20:00:00+01:00', date: '2026-03-16' }),
+      ],
+    });
+    expect(pushed.ok).toBe(true);
+    const b = await syncAll(adapter, 'mem_t', a.cursor);
+    expect(b.pages[0]!.added.map((t) => t.transactionId)).toEqual(['t_1']);
+    expect(b.pages[0]!.removed).toEqual([{ transactionId: 't_p', accountId: 'acc_t_1' }]);
+    clock.set('2026-03-16T20:00:00+01:00');
+    const c = await syncAll(adapter, 'mem_t', b.cursor);
+    expect(c.pages[0]!.added.map((t) => t.transactionId)).toEqual(['t_future']);
+  });
+
+  it('a modified row waits for the row it modifies', async () => {
+    const clock = createSimulatedClock('2026-03-15T09:00:00+01:00');
+    const early = await syncAll(createMockTransactions({ fixtureDir: PINNED, clock }), 'mem_dean');
+    expect(ids(early.pages)).not.toContain('txn_dean_coffee_0315');
+    clock.set('2026-03-15T09:20:00+01:00');
+    const later = await syncAll(createMockTransactions({ fixtureDir: PINNED, clock }), 'mem_dean');
+    expect(ids(later.pages)).toContain('txn_dean_coffee_0315');
   });
 });

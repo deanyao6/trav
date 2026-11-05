@@ -138,6 +138,32 @@
     ]
   },
   {
+    "id": "email_receipt_riders_with_roster",
+    "title": "Priya's ride email after the El Born roster was set (\"it's the 5 of us tonight, henry's out\") ⇒ the 5 minus Maya, who lost the group: the 4 riders",
+    "tags": ["safety", "ingestion", "privacy"],
+    "checklist": ["C5", "D5"],
+    "steps": [
+      {
+        "do": "replay",
+        "chat": "barcelona",
+        "ids": [
+          "msg_bcn_d_0007",
+          "msg_bcn_0094",
+          "msg_bcn_0095",
+          "msg_bcn_0096",
+          "msg_bcn_0097",
+          "msg_bcn_0098",
+          "msg_bcn_0099",
+          "msg_bcn_0100",
+          "msg_bcn_0101",
+          "msg_bcn_0102",
+          "sys_bcn_0113",
+          "msg_bcn_d_0009"
+        ]
+      }
+    ]
+  },
+  {
     "id": "card_import_looks_shared",
     "title": "Sam's card sync ⇒ the 2:14am Uber is offered as shared to Sam only; sunglasses never surface",
     "tags": ["safety", "ingestion", "privacy"],
@@ -150,7 +176,13 @@
       {
         "do": "replay",
         "chat": "barcelona",
-        "ids": ["msg_bcn_d_0005", "sys_bcn_0155", "msg_bcn_d_0010"]
+        "ids": [
+          "msg_bcn_d_0005",
+          "msg_bcn_0130",
+          "msg_bcn_0139",
+          "sys_bcn_0155",
+          "msg_bcn_d_0010"
+        ]
       }
     ]
   },

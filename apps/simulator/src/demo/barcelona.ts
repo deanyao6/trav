@@ -9,8 +9,10 @@
  *
  * Every chat line, tapback and button tap goes through the simulator channel
  * into `agent.handleInbound`; every clock move drains the scheduler through
- * `agent.runScheduled`; card and email documents go through
- * `agent.intakeDocument`. The two planning steps v0 has no booking flow for
+ * `agent.runScheduled` (the Morning Afters, Wrapped, and every consenting
+ * owner's card import at 10:00 and 20:00, T-067); Sam's card syncing at 9am
+ * is the real `agent.importCardTransactions` on the simulated clock, and the
+ * email documents go through `agent.intakeDocument`. The two planning steps v0 has no booking flow for
  * yet (group flights, lodging) also run the real core optimizer and the mock
  * lodging provider directly and say so in the transcript header.
  *
@@ -455,12 +457,46 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
         ),
     );
 
+    // At the club (fixtures/chats/barcelona.jsonl msg_bcn_0139): on the tab
+    // from chat, so Sam's card charge for it is never asked about.
+    const waters = await say(
+      'Sam',
+      '@trav 2 waters in here were €28, €14 EACH, me and maya',
+      '2026-03-15T01:30:00+01:00',
+    );
+    check(
+      "Sam's €28 of waters logged from chat, split with Maya",
+      sameSet(sharesOf(rt(), expenseWith(rt(), 2800)), ['mem_sam', 'mem_maya']),
+      waters.map((m) => m.text).join(' | '),
+    );
+
     // ---------------- 8. card confirm ----------------
     await section("8. card import: Sam's 2am Uber", '2026-03-15T09:00:00+01:00');
-    emit("- _Sam's card syncs (Plaid-shaped mock)_");
+    const samRuns = auditLog().filter(
+      (e) => e.type === 'card_import.ran' && e.ownerId === 'mem_sam',
+    );
+    check(
+      "Sam's card synced on the clock at the 10am/8pm slots since he turned it on (a slot the clock jumped past waits for the next), owner-only in the audit log, nothing to ask yet",
+      samRuns.some((e) => e.payload['status'] === 'imported') &&
+        samRuns.every(
+          (e) =>
+            e.visibility === 'owner' &&
+            (e.payload['status'] === 'stale' || e.payload['prompted'] === 0),
+        ),
+      samRuns.map((e) => `${String(e.payload['slot'])}:${String(e.payload['status'])}`).join(', '),
+    );
+    emit("- _Sam's card syncs (Plaid-shaped mock, simulated clock)_");
     await backend.intake!('doc_bcn_sam_card_1');
-    const cardPrompt = (flush().dms.get('mem_sam') ?? []).find(isPendingPrompt);
+    const samDms = flush().dms.get('mem_sam') ?? [];
+    const cardPrompt = samDms.find(isPendingPrompt);
     check('"looks shared?" prompt goes to Sam\'s DM only', cardPrompt !== undefined);
+    check(
+      'the 9am sync asks about the €23.40 Uber only: no later-day charges, not the waters already on the tab',
+      samDms.filter(isPendingPrompt).length === 1 &&
+        cardPrompt !== undefined &&
+        cardPrompt.text.startsWith('saw €23.40 from Uber at 2:14am'),
+      cardPrompt?.text,
+    );
     if (cardPrompt) await tap('Sam', cardPrompt, 'confirm');
     check(
       "Sam's €23.40 Uber is shared with the 5 who went",
@@ -473,7 +509,20 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
 
     // ---------------- 9. Morning After ----------------
     await section('9. Morning After');
+    const samPrompts = (): number =>
+      messages(view().dms['mem_sam'] ?? []).filter(isPendingPrompt).length;
+    const promptsBefore = samPrompts();
     const morning = await clock('2026-03-15T10:00:00+01:00', 'next morning');
+    check(
+      "Sam's 10am scheduled sync finds nothing new and stays quiet (the Uber was asked once)",
+      samPrompts() === promptsBefore &&
+        auditLog().some(
+          (e) =>
+            e.type === 'card_import.ran' &&
+            e.ownerId === 'mem_sam' &&
+            e.payload['slot'] === '2026-03-15T10:00:00+01:00',
+        ),
+    );
     const recap = morning.find((m) => m.card?.type === 'recap');
     check('Morning After recap posted at 10am', recap !== undefined);
     check(

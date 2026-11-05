@@ -69,6 +69,7 @@ const JOB_KINDS: readonly ScheduledJobKind[] = [
   'proposal_expiry',
   'hold_expiry',
   'private_digest',
+  'card_import',
   'day_of_reminder',
   'budget_check',
 ];
@@ -97,7 +98,10 @@ export function parseScript(text: string): ReplayLine[] {
     const kind = str(o, 'kind');
     const lane = str(o, 'lane');
     if (id === undefined || ts === undefined || kind === undefined) {
-      throw new TravError('invalid_argument', `chat script line ${String(i + 1)} needs id, ts, kind`);
+      throw new TravError(
+        'invalid_argument',
+        `chat script line ${String(i + 1)} needs id, ts, kind`,
+      );
     }
     parseIso(ts); // throws on a bad timestamp
     const target = o['target'];
@@ -303,7 +307,9 @@ export function withReplay(
             : (view?.thread ?? []);
         const target = findTargetCard(entries, line);
         if (target === undefined) {
-          throw new Skip(`no ${line.cardRef ?? 'card'} on screen to ${line.kind === 'reaction' ? 'react to' : 'tap'}`);
+          throw new Skip(
+            `no ${line.cardRef ?? 'card'} on screen to ${line.kind === 'reaction' ? 'react to' : 'tap'}`,
+          );
         }
         if (line.kind === 'reaction') {
           await backend.inject({
@@ -337,12 +343,19 @@ export function withReplay(
         return label;
       }
       case 'system': {
-        const kind = line.event === 'email_arrived' ? 'email' : line.event === 'card_sync' ? 'card' : undefined;
-        if (kind === undefined || line.memberId === undefined) throw new Skip(`unknown system event ${line.event ?? ''}`);
+        const kind =
+          line.event === 'email_arrived'
+            ? 'email'
+            : line.event === 'card_sync'
+              ? 'card'
+              : undefined;
+        if (kind === undefined || line.memberId === undefined)
+          throw new Skip(`unknown system event ${line.event ?? ''}`);
         if (!backend.intake) throw new Skip('this backend cannot ingest documents');
-        const offers = (stateNow().groups.find((g) => g.group.groupId === group.groupId)?.intake[line.memberId] ?? []).filter(
-          (o) => o.kind === kind,
-        );
+        const offers = (
+          stateNow().groups.find((g) => g.group.groupId === group.groupId)?.intake[line.memberId] ??
+          []
+        ).filter((o) => o.kind === kind);
         if (offers.length === 0) {
           const known = documentsFor(group.groupId).some(
             (d) => d.ownerMemberId === line.memberId && d.kind === kind,

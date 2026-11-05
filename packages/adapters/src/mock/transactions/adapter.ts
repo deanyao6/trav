@@ -16,11 +16,22 @@
  *   Refunds are `direction: 'credit'` with a positive amount.
  * - Consent (`cardImport`, SAFETY §2.6) is the ingestion caller's check; this
  *   adapter only models the provider.
+ * - On a clock (T-067, `options.clock`): a row exists for the provider only
+ *   once it has happened. Each row is available at its `datetime` (a date-only
+ *   row at noon UTC of its `date`, which has started in every zone), a posted
+ *   row no earlier than the pending row it replaces, and a pushed row no
+ *   earlier than the push. The fixture pages are then a history, not the
+ *   paging: a sync at the end of what was delivered returns, as one new page,
+ *   whatever became available since (a pending row and the posted row that
+ *   replaces it arriving together come as the posted row only; a removal comes
+ *   only after the row it removes was delivered). Delivered pages are kept, so
+ *   a fresh initial sync replays them in order (Plaid semantics), and a
+ *   later-day charge never appears before its time.
  *
- * Read-only: no money moves. No network, no wall clock.
+ * Read-only: no money moves. No network, no wall clock (the clock is injected).
  */
-import { TravError } from '@trav/core';
-import type { MemberId } from '@trav/core';
+import { TravError, parseIso } from '@trav/core';
+import type { Clock, MemberId } from '@trav/core';
 import type { AdapterError, AdapterInfo, Result } from '../../interfaces/common.js';
 import type {
   LinkedAccount,
@@ -44,6 +55,12 @@ export interface MockTransactionsOptions {
   readonly fixtures?: readonly MemberTransactionsFixture[];
   /** Default `['transactions']`. */
   readonly fixtureDir?: readonly string[];
+  /**
+   * The simulated clock (T-067): sync returns only rows posted or pending at or
+   * before `clock.now()`. Omitted ⇒ the fixture pages as written, whatever the
+   * time (tests that read the whole history).
+   */
+  readonly clock?: Clock;
 }
 
 export interface MockTransactionsAdapter extends TransactionsAdapter {
@@ -79,10 +96,121 @@ function parseCursor(cursor: string): { itemId: string; index: number } | undefi
   return { itemId, index: Number(indexStr) };
 }
 
+/** One row-level change in an item's history, with the instant the provider has it (clock mode). */
+interface HistoryEntry {
+  readonly kind: 'added' | 'modified' | 'removed';
+  readonly tx?: ProviderTransaction;
+  readonly removal?: TransactionsSyncResult['removed'][number];
+  readonly availableAtMs: number;
+  released: boolean;
+}
+
+/** Clock mode: the history and the pages already delivered from it. */
+interface Timeline {
+  readonly entries: HistoryEntry[];
+  /** availableAt of each added row, by transaction id. */
+  readonly addedAt: Map<string, number>;
+  /** Pages delivered so far; cursor n means "the first n were delivered". */
+  readonly releases: TransactionsPage[];
+  /** Ids delivered as added rows. */
+  readonly delivered: Set<string>;
+  /** Pending ids never delivered because their posted row came in the same page. */
+  readonly skipped: Set<string>;
+}
+
 interface ItemState {
   readonly itemId: string;
   readonly builder: TransactionsLedgerBuilder;
+  readonly timeline?: Timeline;
   connected: boolean;
+}
+
+/** When the provider has a row: its datetime, else noon UTC of its date (started in every zone). */
+export function rowAvailableAtMs(tx: Pick<ProviderTransaction, 'date' | 'datetime'>): number {
+  return parseIso(tx.datetime ?? `${tx.date}T12:00:00Z`);
+}
+
+/** Appends one validated page to a timeline; `pushedAtMs` is -Infinity for the fixture history. */
+function appendHistory(t: Timeline, page: TransactionsPage, pushedAtMs: number): void {
+  const rows = [...page.added, ...page.modified];
+  const newest = rows.reduce((m, tx) => Math.max(m, rowAvailableAtMs(tx)), -Infinity);
+  for (const tx of page.added) {
+    const replaces =
+      tx.pendingTransactionId !== undefined
+        ? (t.addedAt.get(tx.pendingTransactionId) ?? -Infinity)
+        : -Infinity;
+    const at = Math.max(rowAvailableAtMs(tx), pushedAtMs, replaces);
+    t.addedAt.set(tx.transactionId, at);
+    t.entries.push({ kind: 'added', tx, availableAtMs: at, released: false });
+  }
+  for (const tx of page.modified) {
+    const at = Math.max(
+      rowAvailableAtMs(tx),
+      pushedAtMs,
+      t.addedAt.get(tx.transactionId) ?? -Infinity,
+    );
+    t.entries.push({ kind: 'modified', tx, availableAtMs: at, released: false });
+  }
+  for (const removal of page.removed) {
+    const tied = page.added.find((tx) => tx.pendingTransactionId === removal.transactionId);
+    const at =
+      tied !== undefined
+        ? (t.addedAt.get(tied.transactionId) ?? pushedAtMs)
+        : Math.max(t.addedAt.get(removal.transactionId) ?? -Infinity, pushedAtMs, newest);
+    t.entries.push({ kind: 'removed', removal, availableAtMs: at, released: false });
+  }
+}
+
+/**
+ * The next page of a timeline at `nowMs`: every unreleased entry that is due,
+ * or undefined when nothing new is due (see the header for the rules).
+ */
+function releaseDue(t: Timeline, nowMs: number): TransactionsPage | undefined {
+  const due = t.entries.filter((e) => !e.released && e.availableAtMs <= nowMs);
+  const supersededHere = new Set(
+    due
+      .map((e) => (e.kind === 'added' ? e.tx?.pendingTransactionId : undefined))
+      .filter((id): id is string => id !== undefined),
+  );
+  const deliveredBefore = new Set(t.delivered);
+  const added: ProviderTransaction[] = [];
+  const modified: ProviderTransaction[] = [];
+  const removed: TransactionsSyncResult['removed'][number][] = [];
+  for (const e of due) {
+    if (e.kind !== 'added' || e.tx === undefined) continue;
+    const tx = e.tx;
+    e.released = true;
+    if (tx.pending && supersededHere.has(tx.transactionId)) {
+      t.skipped.add(tx.transactionId); // its posted row is in this page: deliver that one only
+      continue;
+    }
+    added.push(tx);
+    t.delivered.add(tx.transactionId);
+  }
+  for (const e of due) {
+    if (e.kind === 'modified' && e.tx !== undefined) {
+      if (t.skipped.has(e.tx.transactionId)) {
+        e.released = true;
+        continue;
+      }
+      if (!t.delivered.has(e.tx.transactionId)) continue; // its row is not out yet
+      e.released = true;
+      modified.push(e.tx);
+    } else if (e.kind === 'removed' && e.removal !== undefined) {
+      const r = e.removal;
+      if (t.skipped.has(r.transactionId)) {
+        e.released = true; // never delivered, nothing to remove
+        continue;
+      }
+      if (!deliveredBefore.has(r.transactionId)) continue; // only after the row itself went out
+      e.released = true;
+      removed.push(r);
+    }
+  }
+  if (added.length === 0 && modified.length === 0 && removed.length === 0) return undefined;
+  const page: TransactionsPage = { added, modified, removed };
+  t.releases.push(page);
+  return page;
 }
 
 export function createMockTransactions(
@@ -115,7 +243,23 @@ export function createMockTransactions(
     // Rebuild through the builder so provided fixtures get the same validation.
     const builder = new TransactionsLedgerBuilder(member, fixture.accounts);
     fixture.pages.forEach((p, i) => builder.addPage(p, `${member} page ${i}`));
-    const state: ItemState = { itemId: `item_${member}`, builder, connected: true };
+    let timeline: Timeline | undefined;
+    if (options.clock !== undefined) {
+      timeline = {
+        entries: [],
+        addedAt: new Map(),
+        releases: [],
+        delivered: new Set(),
+        skipped: new Set(),
+      };
+      for (const p of builder.pages) appendHistory(timeline, p, -Infinity);
+    }
+    const state: ItemState = {
+      itemId: `item_${member}`,
+      builder,
+      ...(timeline !== undefined ? { timeline } : {}),
+      connected: true,
+    };
     items.set(member, state);
     return state;
   }
@@ -172,6 +316,33 @@ export function createMockTransactions(
         }
         index = parsed.index;
       }
+      if (s.timeline !== undefined && options.clock !== undefined) {
+        const t = s.timeline;
+        if (index > t.releases.length)
+          return Promise.resolve(err('invalid_request', 'cursor is ahead of the item'));
+        syncs += 1;
+        const page =
+          index < t.releases.length ? t.releases[index] : releaseDue(t, options.clock.nowMs());
+        if (page === undefined) {
+          const empty: TransactionsSyncResult = {
+            added: [],
+            modified: [],
+            removed: [],
+            nextCursor: cursorFor(s.itemId, index),
+            hasMore: false,
+          };
+          return Promise.resolve({ ok: true, value: empty });
+        }
+        assertScoped(ownerMemberId, page, s.builder.accounts);
+        const value: TransactionsSyncResult = {
+          added: page.added,
+          modified: page.modified,
+          removed: page.removed,
+          nextCursor: cursorFor(s.itemId, index + 1),
+          hasMore: index + 1 < t.releases.length,
+        };
+        return Promise.resolve({ ok: true, value });
+      }
       const pages = s.builder.pages;
       if (index > pages.length)
         return Promise.resolve(err('invalid_request', 'cursor is ahead of the item'));
@@ -214,7 +385,11 @@ export function createMockTransactions(
       const s = connected(ownerMemberId);
       if (s === undefined) return err('not_found', 'no linked accounts for this member');
       try {
-        s.builder.addPage(page, `${ownerMemberId} pushed page`);
+        const added = s.builder.addPage(page, `${ownerMemberId} pushed page`);
+        // Clock mode: what arrives now is available now (and never before its own time).
+        if (s.timeline !== undefined && options.clock !== undefined) {
+          appendHistory(s.timeline, added, options.clock.nowMs());
+        }
       } catch (e) {
         if (e instanceof TravError) return err('invalid_request', e.message);
         throw e;

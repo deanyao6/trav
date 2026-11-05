@@ -261,6 +261,7 @@ export function intakeDocument(
     {
       ownerMemberId: owner.memberId,
       occurredAt,
+      members,
       ...(deps.groupMessages !== undefined ? { groupMessages: deps.groupMessages } : {}),
     },
   );
@@ -283,6 +284,7 @@ export function intakeDocument(
     ...(plan.askRiders !== undefined
       ? { ridersToName: plan.askRiders }
       : { suggestedParticipants: plan.participants }),
+    ...(plan.riders !== undefined ? { receiptRiders: plan.riders } : {}),
     ...(plan.activityId !== undefined ? { suggestedActivityId: plan.activityId } : {}),
   });
   const dm = promptable

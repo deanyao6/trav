@@ -67,10 +67,6 @@ export const LINE_PENDING: Readonly<Record<string, LinePending>> = Object.fromEn
     'msg_bcn_0147',
   ]),
   ...gap('T-140', 'low-confidence looks-shared DM wording', ['sys_bcn_0176']),
-  ...gap('T-067', 'card sync returns later-dated rows, so Sam gets a digest, not one card', [
-    'sys_bcn_0155',
-    'msg_bcn_d_0010',
-  ]),
   ...gap('T-144', "Dean's two-row digest vs separate cards; digest confirm by row id", [
     'sys_bcn_0192',
     'msg_bcn_d_0012',

@@ -105,6 +105,85 @@ describe('roster tools', () => {
       ),
     ).rejects.toMatchObject({ code: 'invalid_argument' });
   });
+
+  describe('set_attendance never puts a minor on an 18+ plan (T-153)', () => {
+    type Res = { kind: string; roster: RosterView; text: string };
+    function patch(h: Harness, memberId: string, over: object): void {
+      const m = h.runtime.stores.group.members.get(memberId)!;
+      h.runtime.stores.group.members.upsert({ ...m, ...over } as typeof m);
+    }
+    const row = (h: Harness, memberId: string) =>
+      h.runtime.stores.group.trips.listAttendance(RAZZ).find((a) => a.memberId === memberId)
+        ?.status;
+    const rosterEvents = (h: Harness) =>
+      h.runtime.stores.group.audit.listByGroup(G).filter((e) => e.type === 'roster.changed');
+    const set = (h: Harness, member: string, status: string) =>
+      h.runtime.tools.run(
+        'set_attendance',
+        { activityId: RAZZ, member, status },
+        ctx(h),
+      ) as Promise<Res>;
+
+    it('Sam (under 18) in for razzmatazz: nothing written, the stays-off line, no age', async () => {
+      const h = harness();
+      patch(h, 'mem_sam', { birthDate: '2010-05-01', ageBand: 'under18' });
+      await set(h, 'Sam', 'out');
+      const events = rosterEvents(h).length;
+      for (const status of ['in', 'maybe']) {
+        const res = await set(h, 'Sam', status);
+        expect(res.kind).toBe('kept_off');
+        expect(res.text).toBe("Sam stays off this plan, it's not all-ages. that's 5 in");
+        expect(res.text).not.toMatch(/\b(?:1[0-7]|under|age|minor|kid|child|adults?)\b/i);
+      }
+      expect(row(h, 'mem_sam')).toBe('out');
+      expect(rosterEvents(h)).toHaveLength(events);
+    });
+
+    it('a stale in row for the minor is set to out in the same call (one audited change)', async () => {
+      const h = harness(); // Barcelona seeds everyone in
+      patch(h, 'mem_sam', { birthDate: '2010-05-01', ageBand: 'under18' });
+      expect(row(h, 'mem_sam')).toBe('in');
+      const res = await set(h, 'Sam', 'in');
+      expect(res.kind).toBe('kept_off');
+      expect(res.roster.in.map((m) => m.memberId)).not.toContain('mem_sam');
+      expect(row(h, 'mem_sam')).toBe('out');
+      const last = rosterEvents(h).at(-1)!;
+      // Ids and statuses only: no age, no reason.
+      expect(last.payload).toEqual({
+        activityId: RAZZ,
+        changes: [{ memberId: 'mem_sam', status: 'out' }],
+        sourceMessageId: 'msg_test_1',
+      });
+    });
+
+    it('"everyone\'s in" one call per member: the adults are written, the minor is skipped', async () => {
+      const h = harness();
+      patch(h, 'mem_sam', { birthDate: '2010-05-01', ageBand: 'under18' });
+      for (const name of ['Dean', 'Henry', 'Maya', 'Jordan', 'Priya', 'Sam'])
+        await set(h, name, 'out');
+      const kinds: string[] = [];
+      for (const name of ['Dean', 'Henry', 'Maya', 'Jordan', 'Priya', 'Sam']) {
+        kinds.push((await set(h, name, 'in')).kind);
+      }
+      expect(kinds).toEqual([...Array(5).fill('attendance_set'), 'kept_off']);
+      expect(row(h, 'mem_sam')).toBe('out');
+      expect(row(h, 'mem_henry')).toBe('in');
+    });
+
+    it('unknown age is kept off until a lead confirms everyone is 18+ (SAFETY §2.7)', async () => {
+      const h = harness();
+      patch(h, 'mem_sam', { birthDate: undefined, ageBand: 'unknown' });
+      const groups = h.runtime.stores.group.groups;
+      const g = groups.get(G)!;
+      groups.update({ ...g, settings: { ...g.settings, allAdultsConfirmed: false } });
+      await set(h, 'Sam', 'out');
+      expect((await set(h, 'Sam', 'in')).kind).toBe('kept_off');
+      expect(row(h, 'mem_sam')).toBe('out');
+      groups.update({ ...g, settings: { ...g.settings, allAdultsConfirmed: true } });
+      expect((await set(h, 'Sam', 'in')).kind).toBe('attendance_set');
+      expect(row(h, 'mem_sam')).toBe('in');
+    });
+  });
 });
 
 describe('ledger tools', () => {
@@ -489,6 +568,56 @@ describe('get_my_pending_items (DM only)', () => {
     )) as { items: unknown[] };
     expect(deans.items).toEqual([]);
     expect(JSON.stringify(mine)).not.toMatch(/last4|accountId|merchantRaw/);
+  });
+
+  it('shows a ride card asking who rode (ridersToName) and the count on a proposed ride split (T-135)', async () => {
+    const h = harness();
+    const base = {
+      groupId: G,
+      tripId: T,
+      createdAt: h.clock.now(),
+      source: 'email' as const,
+      status: 'pending' as const,
+      amount: { amountMinor: 1860, currency: 'EUR' },
+      occurredAt: h.clock.now(),
+      merchantDisplay: 'Uber',
+      category: 'transport' as const,
+      lowConfidence: false,
+      ownerMemberId: 'mem_priya',
+    };
+    h.runtime.stores.private.putPendingItem(
+      'mem_priya',
+      markPrivate({ ...base, id: 'priv_ask', sourceItemId: 'em_1', ridersToName: 4 }),
+    );
+    h.runtime.stores.private.putPendingItem(
+      'mem_priya',
+      markPrivate({
+        ...base,
+        id: 'priv_guess',
+        sourceItemId: 'em_2',
+        receiptRiders: 4,
+        suggestedParticipants: ['mem_dean', 'mem_jordan', 'mem_priya', 'mem_sam'],
+      }),
+    );
+    const res = (await h.runtime.tools.run(
+      'get_my_pending_items',
+      {},
+      as(h, 'mem_priya', { lane: 'dm' }),
+    )) as {
+      items: {
+        id: string;
+        ridersToName: number | null;
+        receiptRiders: number | null;
+        suggestedParticipants: string[];
+      }[];
+    };
+    const byId = new Map(res.items.map((i) => [i.id, i]));
+    expect(byId.get('priv_ask')).toMatchObject({
+      ridersToName: 4,
+      receiptRiders: null,
+      suggestedParticipants: [],
+    });
+    expect(byId.get('priv_guess')).toMatchObject({ ridersToName: null, receiptRiders: 4 });
   });
 
   it('unknown tool names and TravError codes surface to the loop as errors', async () => {

@@ -17,7 +17,7 @@ import type { ClockStep, SimState, ThreadMessage } from '../shared/types.js';
 import { BARCELONA, RAZZMATAZZ_ASK } from '../server/groups.js';
 import { handleApi } from '../server/routes.js';
 import { loadBarcelonaScript, withReplay } from '../server/replay.js';
-import { bookingCount, demoBackend } from '../server/testkit.js';
+import { bookingCount, demoBackend, toMorningAfterRide } from '../server/testkit.js';
 import { AppView } from './App.js';
 import type { AppViewProps } from './App.js';
 import { TapbackPicker } from './components/Thread.js';
@@ -55,7 +55,10 @@ type AnyProps = Record<string, unknown> & { children?: ReactNode };
  * hooks (a component that calls a hook outside a render throws; its subtree,
  * e.g. a thread bubble, is skipped).
  */
-function hostElements(node: ReactNode, out: ReactElement<AnyProps>[] = []): ReactElement<AnyProps>[] {
+function hostElements(
+  node: ReactNode,
+  out: ReactElement<AnyProps>[] = [],
+): ReactElement<AnyProps>[] {
   if (Array.isArray(node)) {
     for (const n of node) hostElements(n as ReactNode, out);
     return out;
@@ -89,13 +92,23 @@ function click(root: ReactNode, id: string): void {
 
 async function state3() {
   const b = await demoBackend();
-  await b.inject({ type: 'message', from: 'h_dean', text: RAZZMATAZZ_ASK, groupId: BARCELONA.groupId });
+  await b.inject({
+    type: 'message',
+    from: 'h_dean',
+    text: RAZZMATAZZ_ASK,
+    groupId: BARCELONA.groupId,
+  });
   const proposal = b
     .state()
     .groups[0]!.thread.find(
       (e): e is ThreadMessage => e.kind === 'message' && e.card?.type === 'booking_proposal',
     )!;
-  await b.inject({ type: 'button_tap', from: 'h_dean', cardMessageId: proposal.messageId, actionId: 'approve' });
+  await b.inject({
+    type: 'button_tap',
+    from: 'h_dean',
+    cardMessageId: proposal.messageId,
+    actionId: 'approve',
+  });
   return b;
 }
 
@@ -193,14 +206,17 @@ describe('DM rail', () => {
     const b = await state3();
     const s = b.state();
     const markup = html(props(s, 'h_priya'));
-    expect(markup).toContain("Trav&#x27;s DMs");
-    for (const m of BARCELONA.members) expect(markup).toContain(`data-testid="dm-tab-${m.memberId}"`);
+    expect(markup).toContain('Trav&#x27;s DMs');
+    for (const m of BARCELONA.members)
+      expect(markup).toContain(`data-testid="dm-tab-${m.memberId}"`);
     expect(markup).toContain('data-testid="dm-header">🔒 only Priya sees this');
     const root = <AppView {...props(s, 'h_priya')} />;
-    const tabs = hostElements(root).filter((e) => String(e.props['data-testid']).startsWith('dm-tab-'));
-    expect(tabs.filter((t) => t.props['data-me'] === 'true').map((t) => t.props['data-testid'])).toEqual([
-      'dm-tab-mem_priya',
-    ]);
+    const tabs = hostElements(root).filter((e) =>
+      String(e.props['data-testid']).startsWith('dm-tab-'),
+    );
+    expect(
+      tabs.filter((t) => t.props['data-me'] === 'true').map((t) => t.props['data-testid']),
+    ).toEqual(['dm-tab-mem_priya']);
     expect(String(byTestId(root, 'dm-tab-mem_priya').props['className'])).toContain('me');
   });
 
@@ -234,6 +250,9 @@ describe('DM rail', () => {
 
   it("Sam's tab offers his own card charge only while sending as Sam; the button feeds that doc", async () => {
     const b = await state3();
+    // T-067: the card sync is offered once his 2:14am ride has happened.
+    expect(html(props(b.state(), 'h_sam'))).not.toContain('intake-doc_bcn_sam_card_1');
+    await toMorningAfterRide(b);
     const s = b.state();
     const fed: string[] = [];
     const asSam = props(s, 'h_sam', { onIntake: (id) => fed.push(id) });
@@ -254,10 +273,18 @@ describe('DM rail', () => {
       path: '/api/messages',
       body: { from: 'h_sam', text: 'card import on', lane: 'dm' },
     });
-    const res = await handleApi(b, { method: 'POST', path: '/api/intake', body: { docId: 'doc_bcn_sam_card_1' } });
+    await toMorningAfterRide(b);
+    const res = await handleApi(b, {
+      method: 'POST',
+      path: '/api/intake',
+      body: { docId: 'doc_bcn_sam_card_1' },
+    });
     const s = (res.body as { state: SimState }).state;
     const markup = html(props(s, 'h_sam'));
-    const thread = markup.slice(markup.indexOf('data-testid="thread"'), markup.indexOf('class="right-rail"'));
+    const thread = markup.slice(
+      markup.indexOf('data-testid="thread"'),
+      markup.indexOf('class="right-rail"'),
+    );
     const rail = markup.slice(markup.indexOf('class="right-rail"'));
     // The card renders in place of the bubble (VOICE §9.3); its text is the payload's.
     const prompt = s.groups[0]!.dms['mem_sam']!.find(
@@ -269,11 +296,14 @@ describe('DM rail', () => {
     expect(rail).toContain('>Share it<');
     expect(rail).toContain('>Keep private<');
     expect(thread).not.toContain('23.40');
-    expect(thread).not.toContain('card-expense_confirm');
+    // The group's only expense card is the waters Sam logged there; no Share it in the group.
+    expect(thread).not.toContain('>Share it<');
     // Everyone else's view of the group thread is just as clean.
     for (const m of BARCELONA.members) {
       const h = html(props(s, m.handle));
-      expect(h.slice(h.indexOf('data-testid="thread"'), h.indexOf('class="right-rail"'))).not.toContain('23.40');
+      expect(
+        h.slice(h.indexOf('data-testid="thread"'), h.indexOf('class="right-rail"')),
+      ).not.toContain('23.40');
     }
   });
 });
@@ -293,7 +323,12 @@ describe('tapback picker', () => {
 
   it('a 👍 picked on the proposal goes through /api/reactions and books, exactly like Approve', async () => {
     const b = await demoBackend();
-    await b.inject({ type: 'message', from: 'h_dean', text: RAZZMATAZZ_ASK, groupId: BARCELONA.groupId });
+    await b.inject({
+      type: 'message',
+      from: 'h_dean',
+      text: RAZZMATAZZ_ASK,
+      groupId: BARCELONA.groupId,
+    });
     const proposal = b
       .state()
       .groups[0]!.thread.find(
@@ -309,7 +344,9 @@ describe('tapback picker', () => {
     const s = (res.body as { state: SimState }).state;
     const thread = s.groups[0]!.thread.filter((e): e is ThreadMessage => e.kind === 'message');
     expect(thread.some((m) => m.card?.type === 'receipt')).toBe(true);
-    expect(thread.find((m) => m.messageId === proposal.messageId)?.cardState?.label).toBe('Approved by Dean');
+    expect(thread.find((m) => m.messageId === proposal.messageId)?.cardState?.label).toBe(
+      'Approved by Dean',
+    );
     const markup = html(props(s, 'h_dean'));
     expect(markup).toContain('tapback-pill');
     expect(bookingCount(b)).toBe(1);
@@ -319,7 +356,10 @@ describe('tapback picker', () => {
     const b = await state3();
     const s = b.state();
     const markup = html(props(s, 'h_dean'));
-    const thread = markup.slice(markup.indexOf('data-testid="thread"'), markup.indexOf('class="right-rail"'));
+    const thread = markup.slice(
+      markup.indexOf('data-testid="thread"'),
+      markup.indexOf('class="right-rail"'),
+    );
     expect(thread).toContain('data-tapbacks="on"');
     const deanOnPriya = html(props(s, 'h_dean', { dmMemberId: 'mem_priya' }));
     const rail = deanOnPriya.slice(deanOnPriya.indexOf('class="right-rail"'));

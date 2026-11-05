@@ -110,7 +110,14 @@ export interface ClockOutcomeInput {
  * something (the post speaks for itself) or a replay `to` line changed
  * nothing worth saying. Never a Trav message; never names an amount.
  */
-export function clockStatus(input: ClockOutcomeInput): string | undefined {
+export function clockStatus(raw: ClockOutcomeInput): string | undefined {
+  // Card syncs (T-067) are background work in one owner's private lane: a
+  // quiet one is not news, and how many owners sync is not the group's business.
+  const input: ClockOutcomeInput = {
+    ...raw,
+    jobs: raw.jobs.filter((j) => j.kind !== 'card_import'),
+    results: raw.results.filter((r) => !r.note.startsWith('scheduled:card_import:')),
+  };
   const { request, group } = input;
   if (input.results.some((r) => !r.silent)) return undefined;
   const replayLine = 'to' in request;

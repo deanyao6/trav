@@ -279,7 +279,9 @@ describe('email receipts: amounts, time and place on the fixtures', () => {
       'Uber receipt from last night: €18.60, El Born → Eixample, 4 riders',
     );
     // T-135: the 4 riders (VOICE §4.5 C), not "everyone".
-    expect(dm.text.split('\n')[1]).toBe('split with Dean, Jordan, Sam? 👍 yes · 👎 just me');
+    expect(dm.text.split('\n')[1]).toBe(
+      'split with Dean, Jordan, Sam? 👍 yes · 👎 just me · or tell me who rode',
+    );
     expect(lintVoice(dm.text, 'dm').violations).toEqual([]);
     expect(dm.card).toMatchObject({
       type: 'expense_confirm',
@@ -1140,6 +1142,168 @@ describe('T-135: a ride receipt is split by its rider count, or the card asks wh
     expect(texts.some((t) => t.endsWith(ASK_LINE))).toBe(true);
     expect(texts.some((t) => /^split with .+\? 👍 yes · 👎 just me$/m.test(t))).toBe(true);
     for (const t of texts) expect(t).not.toMatch(/receipts that look shared/);
+  });
+
+  it("a busy night (30 more lines after Maya's) still finds the 4: the ride buffer is not the 20-line transcript (T-135 r1 #6)", async () => {
+    const h = harness();
+    const chatter: [string, string, string][] = Array.from({ length: 30 }, (_, i) => [
+      `2026-03-14T00:${String(42 + Math.floor(i / 2)).padStart(2, '0')}:00+01:00`,
+      i % 2 === 0 ? 'h_dean' : 'h_jordan',
+      i % 2 === 0 ? 'lol' : 'this bar is wild',
+    ]);
+    await replayNight(h, [...EL_BORN_NIGHT, ...chatter]);
+    h.clock.set(SAT_MORNING);
+    setConsent(h, PRIYA, true);
+    await priyaCard(h);
+    expect(items(h, PRIYA, 'pending')[0]!.suggestedParticipants).toEqual(RIDERS);
+  });
+
+  // T-135 r1 #2: the names are checked against the receipt's count.
+  it.each([
+    ['everyone', 6],
+    ['everyone but henry', 5],
+    ['dean', 2],
+  ])(
+    'asking card, "%s" disagrees with 4 riders: one question stating it, nothing logged',
+    async (text, n) => {
+      const h = setup(SAT_MORNING);
+      await priyaCard(h);
+      const res = await h.dm('h_priya', text);
+      expect(res.note).toBe('looks_shared:riders_mismatch');
+      const reply = msg(res.outbound[0]).text;
+      expect(reply).toBe(
+        `the receipt says 4 riders, you named ${String(n)}. log it ${String(n)} ways anyway? 👍 yes, or send me the right names`,
+      );
+      expect(lintVoice(reply, 'dm').violations).toEqual([]);
+      expect(emailExpenses(h)).toEqual([]);
+      expect(items(h, PRIYA, 'pending')).toHaveLength(1);
+    },
+  );
+
+  it('after the mismatch question, "yes" logs the names she gave; the right names log those instead', async () => {
+    const yes = setup(SAT_MORNING);
+    await priyaCard(yes);
+    await yes.dm('h_priya', 'everyone');
+    expect((await yes.dm('h_priya', 'yes')).note).toBe('looks_shared:shared');
+    expect(emailExpenses(yes)[0]!.split).toEqual({
+      method: 'equal',
+      participants: BARCELONA.members.map((m) => m.memberId),
+    });
+
+    const fixed = setup(SAT_MORNING);
+    await priyaCard(fixed);
+    await fixed.dm('h_priya', 'dean');
+    expect((await fixed.dm('h_priya', 'dean jordan and sam')).note).toBe('looks_shared:shared');
+    expect(emailExpenses(fixed)[0]!.split).toEqual({ method: 'equal', participants: RIDERS });
+  });
+
+  // T-135 r2 #2: every answer shape on the mismatch question works.
+  it('the mismatch question takes a 👍 tapback, a quoted "yes" and a typed "👍"', async () => {
+    const all = BARCELONA.members.map((m) => m.memberId);
+    const shapes: ((h: Harness, qId: string) => Promise<{ note?: string }>)[] = [
+      (h, qId) => h.react('h_priya', qId, '👍'),
+      async (h, qId) =>
+        h.runtime.agent.handleInbound(
+          await h.channel.injectMessage({
+            from: 'h_priya',
+            text: 'yes',
+            lane: 'dm',
+            replyToMessageId: qId,
+          }),
+        ),
+      (h) => h.dm('h_priya', '👍'),
+    ];
+    for (const answer of shapes) {
+      const h = setup(SAT_MORNING);
+      await priyaCard(h);
+      const q = await h.dm('h_priya', 'everyone');
+      expect(q.note).toBe('looks_shared:riders_mismatch');
+      expect((await answer(h, msg(q.outbound[0]).id)).note).toBe('looks_shared:shared');
+      expect(emailExpenses(h)[0]!.split).toEqual({ method: 'equal', participants: all });
+    }
+  });
+
+  // T-135 r2 #1: a 👍 on the guessed card means the card's split, not the names sent since.
+  it('guessed card: a 👍 on the card after the mismatch question logs the card split', async () => {
+    const h = await afterNight(SAT_MORNING);
+    const card = await priyaCard(h);
+    expect((await h.dm('h_priya', 'everyone')).note).toBe('looks_shared:riders_mismatch');
+    expect((await h.react('h_priya', card.id, '👍')).note).toBe('looks_shared:shared');
+    expect(emailExpenses(h)[0]!.split).toEqual({ method: 'equal', participants: RIDERS });
+  });
+
+  it('asking card: a 👍 on the card after the mismatch question asks again, logs nothing', async () => {
+    const h = setup(SAT_MORNING);
+    const card = await priyaCard(h);
+    await h.dm('h_priya', 'everyone');
+    expect((await h.react('h_priya', card.id, '👍')).note).toBe('looks_shared:needs_riders');
+    expect(emailExpenses(h)).toEqual([]);
+    expect(items(h, PRIYA, 'pending')[0]!.namedRiders).toBeUndefined();
+  });
+
+  // T-135 r2 #3: a question is never read as the riders.
+  it.each(['wait was it dean jordan and maya?', 'sam?', 'was it sam?'])(
+    'guessed card: "%s" logs nothing',
+    async (text) => {
+      const h = await afterNight(SAT_MORNING);
+      await priyaCard(h);
+      const res = await h.dm('h_priya', text);
+      expect(res.note ?? '').not.toMatch(/^looks_shared:(?:shared|riders)/);
+      expect(emailExpenses(h)).toEqual([]);
+    },
+  );
+
+  // T-135 r1 #3: a split Trav worked out can be corrected by names.
+  it('guessed card: "dean, maya and sam" replaces the proposed split', async () => {
+    const h = await afterNight(SAT_MORNING);
+    await priyaCard(h);
+    const res = await h.dm('h_priya', 'dean, maya and sam');
+    expect(res.note).toBe('looks_shared:shared');
+    expect(emailExpenses(h)[0]!.split).toEqual({
+      method: 'equal',
+      participants: ['mem_dean', 'mem_maya', 'mem_priya', 'mem_sam'],
+    });
+  });
+
+  it('guessed card: "no it was maya not jordan" quoted to the card swaps them', async () => {
+    const h = await afterNight(SAT_MORNING);
+    const card = await priyaCard(h);
+    const res = await h.runtime.agent.handleInbound(
+      await h.channel.injectMessage({
+        from: 'h_priya',
+        text: 'no it was maya not jordan',
+        lane: 'dm',
+        replyToMessageId: card.id,
+      }),
+    );
+    expect(res.note).toBe('looks_shared:shared');
+    expect(emailExpenses(h)[0]!.split).toEqual({
+      method: 'equal',
+      participants: ['mem_dean', 'mem_maya', 'mem_priya', 'mem_sam'],
+    });
+  });
+
+  it('guessed card: a correction that disagrees with the count asks first ("not jordan" ⇒ 3)', async () => {
+    const h = await afterNight(SAT_MORNING);
+    await priyaCard(h);
+    const res = await h.dm('h_priya', 'not jordan');
+    expect(res.note).toBe('looks_shared:riders_mismatch');
+    expect(emailExpenses(h)).toEqual([]);
+  });
+
+  it('guessed card: a quoted message that is not names is not taken for a correction', async () => {
+    const h = await afterNight(SAT_MORNING);
+    const card = await priyaCard(h);
+    const res = await h.runtime.agent.handleInbound(
+      await h.channel.injectMessage({
+        from: 'h_priya',
+        text: 'was this the one from el born?',
+        lane: 'dm',
+        replyToMessageId: card.id,
+      }),
+    );
+    expect(res.note ?? '').not.toMatch(/^looks_shared:(?:shared|riders)/);
+    expect(emailExpenses(h)).toEqual([]);
   });
 
   it('a flagged email keeps no ride facts, so no rider count is applied or mentioned', async () => {

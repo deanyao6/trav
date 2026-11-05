@@ -59,6 +59,7 @@ import {
 } from '@trav/core';
 import type { TicketEvent, TicketHold, TicketOffer, TicketsAdapter } from '@trav/adapters';
 import { sanitizeInline } from '../context/groupContext.js';
+import { keptOffFor } from '../roster/index.js';
 import { cardHolderFor, carrierOf, payersFor, type PayerRule } from './payers.js';
 import { CATEGORY_WORDS, foldText, resolveNight, weekdayName } from './request.js';
 
@@ -1216,10 +1217,14 @@ function syncRoster(
   const current = new Map(
     group.trips.listAttendance(activity.activityId).map((r) => [r.memberId, r.status]),
   );
+  // T-153: a minor (or an unattested unknown age) is never written in on an adult-only plan;
+  // the D9 check below still refuses the booking itself.
+  const keptOff = keptOffFor(group, activity, group.members.listByGroup(ctx.groupId), now);
   const changed: { memberId: MemberId; status: 'in' | 'out' }[] = [];
   const write = (memberId: MemberId, status: 'in' | 'out'): void => {
     const was = current.get(memberId);
     if (was === status || (status === 'out' && was === 'maybe')) return;
+    if (status === 'in' && keptOff.has(memberId)) return;
     group.trips.setAttendance({
       activityId: activity.activityId,
       memberId,

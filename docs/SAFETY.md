@@ -271,7 +271,8 @@ The hash commits to the payload only through its digest (D-016), so a §2.9 tomb
 | `booking.duplicate_override` | `originalBookingId, newIdempotencyKey, confirmedBy` |
 | `booking.cancelled` / `booking.refunded` | `providerRef, refundMinor, requestedBy` |
 | `ledger.entry_created` | `expenseId, bookingId?, splitMethod, participants, amounts` |
-| `ledger.entry_edited` / `ledger.entry_deleted` | `expenseId, memberId, before, after` |
+| `ledger.entry_edited` / `ledger.entry_deleted` | `expenseId, memberId, before, after` (T-067: a shared card charge that posted at another amount adds `cause: 'card_posted'`, actor `system`) |
+| `card_import.ran` (owner) | `jobId, slot, status` (`imported` \| `consent_off` \| `minor` \| `not_eligible` \| `no_trip` \| `not_linked` \| `sync_failed` \| `stale` \| `failed`), plus counts only: `stored, prompted, updated, ledgerUpdated, expired, dropped, messages`. Never an amount, merchant or descriptor (T-067) |
 | `private.item_ingested` (owner) | `source: 'card' \| 'email' \| 'photo_receipt', itemId, amountMinor, currency, classifierLabel, classifierScore` |
 | `private.item_promoted` (group) | `itemId, expenseId, strippedFields: string[]` |
 | `private.item_dismissed` (owner) | `itemId` (the owner dismissed a pending item). Consent-gate variant (T-090, document intake refused before anything is read or stored): `source, sourceItemId, cause: 'consent_missing' \| 'minor' \| 'not_eligible', flag` (ids only, no document text; `flag` is the import consent that was missing, e.g. `cardImport` / `emailImport`) |

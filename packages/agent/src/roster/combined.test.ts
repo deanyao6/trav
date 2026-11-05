@@ -292,7 +292,8 @@ describe('planParty', () => {
     });
     expect(plan).toEqual({
       kind: 'mismatch',
-      text: "that's 5 for this one: Dean, Henry, Maya, Jordan, Priya. Sam stays off this plan, it's adults only",
+      text: "that's 5 for this one: Dean, Henry, Maya, Jordan, Priya. Sam stays off this plan, it's not all-ages",
+      keptOff: ['mem_sam'],
     });
     expect(plan.kind === 'mismatch' && plan.text.includes('?')).toBe(false);
     expect(plan.kind === 'mismatch' && lint(plan.text)).toEqual([]);
@@ -497,6 +498,126 @@ describe('handleRosterMessage: combined sentences', () => {
     expect(statuses(stores, CLUB_D5.activityId)['mem_sam']).toBeUndefined();
   });
 
+  describe('a minor named in on an 18+ plan (T-153)', () => {
+    function minorWorld(): ReturnType<typeof world> {
+      const w = world();
+      const sam = w.members.find((m) => m.memberId === 'mem_sam')!;
+      w.stores.group.members.upsert({ ...sam, birthDate: '2010-05-01', ageBand: 'under18' });
+      return { ...w, members: w.stores.group.members.listByGroup(G) };
+    }
+    const ADULTS = ORDER.filter((id) => id !== 'mem_sam');
+    const LINE = "Sam stays off this plan, it's not all-ages";
+
+    it('"5 of us, sam\'s in": the 5 adults are written, Sam is not, one line says Sam stays off', () => {
+      const { stores } = minorWorld();
+      const r = turn(stores, "@trav it's the 5 of us tonight, sam's in", MON_1702, 'mem_dean');
+      expect(r?.kind).toBe('party');
+      if (r?.kind !== 'party') return;
+      expect(r.text.split('\n')).toEqual([
+        'last night out (apolo) tonight: 5 in · Dean, Henry, Maya, Jordan, Priya',
+        LINE,
+      ]);
+      expect(r.changes.map((c) => c.memberId)).toEqual(ADULTS);
+      expect(statuses(stores, CLUB_D5.activityId)).toEqual(
+        Object.fromEntries(ADULTS.map((id) => [id, 'in'])),
+      );
+      expect(r.text).not.toMatch(/\b(?:1[0-7]|under|age|minor|kid|child|adults?)\b/i);
+      expect(lint(r.text)).toEqual([]);
+    });
+
+    it('an adult and the minor named together: the adult is written, the minor stays off (and an earlier "out" stays)', () => {
+      const { stores } = minorWorld();
+      mark(stores, CLUB_D5.activityId, 'mem_henry', 'out');
+      mark(stores, CLUB_D5.activityId, 'mem_sam', 'out');
+      const r = turn(
+        stores,
+        "@trav it's the 5 of us tonight, henry and sam are in",
+        MON_1702,
+        'mem_dean',
+      );
+      expect(r?.kind).toBe('party');
+      expect(r?.text.split('\n').at(-1)).toBe(LINE);
+      if (r?.kind === 'party') {
+        expect(r.notice?.changes.some((c) => c.memberId === 'mem_sam')).toBe(false);
+      }
+      expect(statuses(stores, CLUB_D5.activityId)).toEqual({
+        ...Object.fromEntries(ADULTS.map((id) => [id, 'in'])),
+        mem_sam: 'out',
+      });
+    });
+
+    it('"5 of us tonight, i\'m in" from the minor: Sam is not written in', () => {
+      const { stores } = minorWorld();
+      const r = turn(stores, "@trav 5 of us tonight, i'm in", MON_1702, 'mem_sam');
+      expect(r?.text.split('\n').at(-1)).toBe(LINE);
+      expect(statuses(stores, CLUB_D5.activityId)['mem_sam']).toBeUndefined();
+    });
+
+    it('"all 6, sam\'s in": one question-free line naming Sam once, nothing written', () => {
+      const { stores } = minorWorld();
+      const before = stores.group.audit.listByGroup(G).length;
+      const r = turn(stores, "@trav all 6, sam's in", MON_1702, 'mem_dean');
+      expect(r?.kind).toBe('clarify');
+      expect(r?.text).toBe(
+        "that's 5 for this one: Dean, Henry, Maya, Jordan, Priya. Sam stays off this plan, it's not all-ages",
+      );
+      expect(stores.group.trips.listAttendance(CLUB_D5.activityId)).toEqual([]);
+      expect(stores.group.audit.listByGroup(G).length).toBe(before);
+    });
+
+    it('"6 of us tonight, sam\'s in" with Sam already out: the no-question line, Sam named once', () => {
+      const { stores } = minorWorld();
+      mark(stores, CLUB_D5.activityId, 'mem_sam', 'out');
+      const r = turn(stores, "@trav it's the 6 of us tonight, sam's in", MON_1702, 'mem_dean');
+      expect(r?.kind).toBe('clarify');
+      expect(r?.text).toBe(`that's 5 for this one: Dean, Henry, Maya, Jordan, Priya. ${LINE}`);
+      expect(r?.text).not.toContain('?');
+      expect(statuses(stores, CLUB_D5.activityId)).toEqual({ mem_sam: 'out' });
+    });
+
+    it('a different mismatch still says Sam stays off, once', () => {
+      const { stores } = minorWorld();
+      mark(stores, CLUB_D5.activityId, 'mem_sam', 'out');
+      const r = turn(stores, "@trav it's the 8 of us tonight, sam's in", MON_1702, 'mem_dean');
+      expect(r?.kind).toBe('clarify');
+      const text = r?.text ?? '';
+      expect(text.split('\n').at(-1)).toBe(LINE);
+      expect(text.match(/Sam stays off/g)).toHaveLength(1);
+      expect(statuses(stores, CLUB_D5.activityId)).toEqual({ mem_sam: 'out' });
+    });
+
+    it('a stale in row for Sam is set to out before the count, so "5 of us, sam\'s in" is the 5 adults', () => {
+      const { stores } = minorWorld();
+      mark(stores, CLUB_D5.activityId, 'mem_sam', 'in');
+      const r = turn(stores, "@trav it's the 5 of us tonight, sam's in", MON_1702, 'mem_dean');
+      expect(r?.kind).toBe('party');
+      if (r?.kind !== 'party') return;
+      expect(r.text.split('\n')).toEqual([
+        'last night out (apolo) tonight: 5 in · Dean, Henry, Maya, Jordan, Priya',
+        'out: Sam',
+        LINE,
+      ]);
+      expect(r.notice?.changes).toContainEqual({ memberId: 'mem_sam', status: 'out' });
+      expect(statuses(stores, CLUB_D5.activityId)).toEqual({
+        ...Object.fromEntries(ADULTS.map((id) => [id, 'in'])),
+        mem_sam: 'out',
+      });
+    });
+
+    it('an all-ages plan: naming the minor in writes them as usual', () => {
+      const { stores } = minorWorld();
+      stores.group.trips.upsertActivity({
+        ...CLUB_D5,
+        ageRestriction: null,
+        contentTags: [],
+      });
+      const r = turn(stores, "@trav all 6, sam's in", MON_1702, 'mem_dean');
+      expect(r?.kind).toBe('party');
+      expect(statuses(stores, CLUB_D5.activityId)['mem_sam']).toBe('in');
+      expect(r?.text).not.toContain('stays off');
+    });
+  });
+
   it('the roster is the only source: what was written is what rosterOf reads back', () => {
     const { stores, members } = world();
     turn(stores, "@trav it's the 5 of us tonight, henry's out", FRI_2334);
@@ -544,6 +665,43 @@ describe('combined sentences through the loop (offline, no model)', () => {
     expect(statuses(h.runtime.stores, CLUB_D5.activityId)).toEqual(
       Object.fromEntries(ORDER.map((id) => [id, 'in'])),
     );
+  });
+
+  it('T-153: "5 of us tonight, henry and sam are in" with Sam under 18: Sam is not written, the line reaches the chat', async () => {
+    // Saturday: Razzmatazz (18+, alcohol) is the plan, everyone seeded in.
+    const h = harness();
+    const stores = h.runtime.stores;
+    const sam = stores.group.members.listByGroup(G).find((m) => m.memberId === 'mem_sam')!;
+    stores.group.members.upsert({ ...sam, birthDate: '2010-05-01', ageBand: 'under18' });
+    mark(stores, RAZZ, 'mem_henry', 'out');
+    mark(stores, RAZZ, 'mem_sam', 'out');
+    const r = await h.say('h_dean', "@trav it's the 5 of us tonight, henry and sam are in");
+    expect(r.note).toBe('roster:party');
+    expect(h.model.completions).toHaveLength(0);
+    const texts = messages(r).map((m) => m.text);
+    expect(texts[0]!.split('\n')).toEqual([
+      'razzmatazz tonight: 5 in · Dean, Henry, Maya, Jordan, Priya',
+      'out: Sam',
+      "Sam stays off this plan, it's not all-ages",
+    ]);
+    expect(statuses(stores, RAZZ)['mem_sam']).toBe('out');
+    expect(statuses(stores, RAZZ)['mem_henry']).toBe('in');
+    const changed = h.audit().filter((e) => e.type === 'roster.changed');
+    expect(JSON.stringify(changed)).not.toContain('mem_sam');
+  });
+
+  it('T-153: a booking ask naming everyone never writes the minor in on the 18+ roster', async () => {
+    const h = harness();
+    const stores = h.runtime.stores;
+    const sam = stores.group.members.listByGroup(G).find((m) => m.memberId === 'mem_sam')!;
+    stores.group.members.upsert({ ...sam, birthDate: '2010-05-01', ageBand: 'under18' });
+    mark(stores, RAZZ, 'mem_sam', 'out');
+    await h.say(
+      'h_dean',
+      '@trav get razzmatazz tickets for me, henry, maya, jordan, priya and sam',
+    );
+    expect(statuses(stores, RAZZ)['mem_sam']).toBe('out');
+    expect(h.audit().some((e) => e.type === 'booking.completed')).toBe(false);
   });
 
   it('unaddressed and outside any window: silence, nothing written', async () => {

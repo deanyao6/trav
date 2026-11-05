@@ -386,6 +386,8 @@ export type ScheduledJobKind =
   | 'proposal_expiry'
   | 'hold_expiry'
   | 'private_digest'
+  /** T-067: one linked owner's card sync at a VOICE §2 digest slot (10:00 / 20:00 trip time); payload `{ ownerMemberId }`. */
+  | 'card_import'
   | 'day_of_reminder'
   | 'budget_check'
   | 'retention_purge';

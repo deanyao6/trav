@@ -22,6 +22,14 @@ export interface PendingItemView {
   readonly lowConfidence: boolean;
   readonly looksShared: boolean | null;
   readonly suggestedParticipants: readonly MemberId[];
+  /**
+   * T-135: the ride receipt's rider count when the card asks the owner who
+   * rode (`suggestedParticipants` is then empty: there is no proposed split).
+   * Null otherwise.
+   */
+  readonly ridersToName: number | null;
+  /** T-135: the receipt's rider count on a ride card that proposed a split; null otherwise. */
+  readonly receiptRiders: number | null;
 }
 
 export const getMyPendingItemsTool: ToolDefinition<
@@ -53,6 +61,8 @@ export const getMyPendingItemsTool: ToolDefinition<
       lowConfidence: r.lowConfidence,
       looksShared: r.classifier?.looksShared ?? null,
       suggestedParticipants: r.suggestedParticipants ?? [],
+      ridersToName: r.ridersToName ?? null,
+      receiptRiders: r.receiptRiders ?? null,
     }));
     return { items };
   },

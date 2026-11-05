@@ -80,6 +80,7 @@ import type {
   ChannelHandle,
   InboundEvent,
   InboundMessage,
+  TransactionsAdapter,
 } from '@trav/adapters';
 import type {
   ApprovalEvent,
@@ -110,12 +111,14 @@ import {
   type CardImportInput,
   type CardImportOutcome,
 } from './ingest/card.js';
+import { atCardImportSlot, cardImportJobsFor, nextCardImportJob } from './ingest/cardSchedule.js';
 import {
   importEmailReceipts as importEmails,
   type EmailImportInput,
   type EmailImportOutcome,
 } from './ingest/email.js';
 import { answerShare, matchShareAnswer, whichCharge, type ShareMatch } from './ingest/pending.js';
+import { LEFT_LOOKBACK_MIN } from './ingest/riders.js';
 import {
   intakeDocument as screenDocument,
   type DocumentIntake,
@@ -230,6 +233,12 @@ export interface AgentDeps {
   readonly recentMessageLimit?: number;
   /** Receipt photo reader (T-011); default reads only the repo's `fixtures/` and `.trav/attachments/`. */
   readonly readReceiptImage?: ReceiptImageReader;
+  /**
+   * The linked-card provider (T-067; the runtime's is the Plaid-shaped mock on
+   * the simulated clock). Absent ⇒ no scheduled card imports, and
+   * `importCardTransactions` needs an explicit `adapter`.
+   */
+  readonly transactions?: TransactionsAdapter;
 }
 
 export interface TurnResult {
@@ -256,8 +265,14 @@ export interface DocumentIntakeResult extends TurnResult {
 }
 
 /** One card-transaction import for one owner in one group (T-013, `ingest/card.ts`). */
-export interface CardImportRequest extends CardImportInput {
+export interface CardImportRequest extends Omit<CardImportInput, 'adapter'> {
   readonly groupId: GroupId;
+  /**
+   * The provider to sync from. Omitted ⇒ the runtime's own (`AgentDeps.transactions`)
+   * from the owner's saved cursor (the one the scheduled `card_import` job uses
+   * too), unless `cursor` is given.
+   */
+  readonly adapter?: TransactionsAdapter;
 }
 
 export interface CardImportResult extends TurnResult, CardImportOutcome {}
@@ -339,6 +354,8 @@ export const REPLY_MAX_CHARS = 279;
 
 const DEFAULT_MAX_TOOL_ROUNDS = 6;
 const DEFAULT_RECENT_LIMIT = 20;
+/** Member group lines kept per group for a ride receipt's "who left" read (T-135). */
+const RIDE_LINES_CAP = 300;
 const SEEN_CAP = 5000;
 /** Member chat times kept per group for the Morning After signal (T-015): 2 days, at most 2000. */
 const CHAT_TIMES_KEEP_MS = 48 * 60 * 60 * 1000;
@@ -671,6 +688,22 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     list.push(summary);
     if (list.length > recentLimit) list.splice(0, list.length - recentLimit);
     recent.set(key, list);
+  };
+
+  /**
+   * T-135: members' own group-thread lines from the last night out, for a
+   * ride receipt's rider count (`ingest/riders.ts`, "who left the group").
+   * Separate from `recent` (20 lines, busy nights push it out): every member
+   * line of the last `LEFT_LOOKBACK_MIN`, at most `RIDE_LINES_CAP`. Same text
+   * `recent` keeps (markers for pasted/guest text); never sent to a model.
+   */
+  const rideLines = new Map<GroupId, GroupMessageSummary[]>();
+  const noteRideLine = (groupId: GroupId, summary: GroupMessageSummary): void => {
+    if (summary.senderMemberId === null || summary.fromTrav) return;
+    const cutoff = parseIso(summary.at) - LEFT_LOOKBACK_MIN * 60_000;
+    const list = (rideLines.get(groupId) ?? []).filter((m) => parseIso(m.at) >= cutoff);
+    list.push(summary);
+    rideLines.set(groupId, list.slice(-RIDE_LINES_CAP));
   };
 
   /**
@@ -1548,7 +1581,7 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     };
     const recordInbound = (): void => {
       if (r.lane !== 'group') return;
-      pushRecent(groupKey, {
+      const summary: GroupMessageSummary = {
         messageId: event.messageId,
         senderMemberId: me?.memberId ?? null,
         senderDisplayName:
@@ -1557,7 +1590,9 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
         text: recentText(),
         at: r.now,
         fromTrav: false,
-      });
+      };
+      pushRecent(groupKey, summary);
+      if (me !== null && me.role !== 'guest') noteRideLine(r.group.groupId, summary);
     };
 
     const myLaneKey = laneKey(r.group.groupId, r.lane, me?.memberId ?? null);
@@ -2121,7 +2156,8 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     me: Member,
   ): Promise<TurnResult> {
     const before = snapshotAudit(r.group.groupId);
-    const change = result.kind === 'changed' || result.kind === 'party' ? result.notice : undefined;
+    // A kept-off minor's stale in/maybe set to out (T-153) is a roster change too.
+    const change = 'notice' in result ? result.notice : undefined;
     let text = result.text;
     const toolCalls: string[] = [];
     // "all 6, henry's back. razzmatazz" with Razzmatazz not on tonight's plan
@@ -2598,7 +2634,94 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       return await dispatch(r, event);
     } catch (e) {
       return failTurn(r, e, 'messageId' in event ? event.messageId : undefined, before);
+    } finally {
+      // "card import on" in this turn ⇒ the owner's next digest-slot import is queued.
+      scheduleCardImports();
     }
+  }
+
+  /**
+   * T-067: one owner's scheduled card sync at a digest slot. Consent and
+   * eligibility are checked by the import itself (consent off or a minor ⇒
+   * the provider is never called); every run writes an owner-only
+   * `card_import.ran` row (status and counts, never amounts or merchants).
+   * The job queues the owner's next slot unless consent is off or the owner
+   * can no longer be imported (turning consent back on re-queues it). A job
+   * drained after a clock jump that did not land on a slot waits for the next
+   * one, so the DMs keep to 10:00 and 20:00 (VOICE §2).
+   */
+  async function runCardImportJob(job: ScheduledJob): Promise<TurnResult> {
+    const owner =
+      typeof job.payload['ownerMemberId'] === 'string' ? job.payload['ownerMemberId'] : undefined;
+    const group = stores.group.groups.get(job.groupId);
+    const trip = job.tripId === null ? undefined : stores.group.trips.get(job.tripId);
+    if (owner === undefined || group === undefined || trip === undefined)
+      return silent('scheduled:card_import:no_trip');
+    if (deps.transactions === undefined) return silent('scheduled:card_import:no_provider');
+    const now = clock.now();
+    const member = stores.group.members
+      .listByGroup(group.groupId)
+      .find((m) => m.memberId === owner);
+    if (member === undefined) return silent('scheduled:card_import:no_member');
+    const before = snapshotAudit(group.groupId);
+    const ran = (status: string, counts: Record<string, number> = {}): void => {
+      stores.group.audit.append({
+        groupId: group.groupId,
+        tripId: trip.tripId,
+        type: 'card_import.ran',
+        actor: { kind: 'system', id: 'scheduler' },
+        visibility: 'owner',
+        ownerId: owner,
+        payload: { jobId: job.jobId, slot: job.runAt, status, ...counts },
+      });
+    };
+    const requeue = (): void => {
+      const next = nextCardImportJob(trip, owner, now);
+      if (next !== undefined) scheduler.schedule(next);
+    };
+    if (!atCardImportSlot(trip, now)) {
+      ran('stale');
+      requeue();
+      return silent('scheduled:card_import:stale', {
+        auditEventIds: auditIdsSince(group.groupId, before),
+      });
+    }
+    let result: CardImportResult;
+    try {
+      result = await runCardImport(group, trip, {
+        groupId: group.groupId,
+        ownerMemberId: owner,
+        delivery: 'now',
+      });
+    } catch (e) {
+      // A private-lane background job: never the group's failure line. Try again next slot.
+      ran('failed', {});
+      requeue();
+      return silent(`scheduled:card_import:failed:${e instanceof TravError ? e.code : 'error'}`, {
+        auditEventIds: auditIdsSince(group.groupId, before),
+      });
+    }
+    ran(result.status, {
+      stored: result.stored,
+      prompted: result.prompted.length,
+      updated: result.updated.length,
+      ledgerUpdated: result.ledgerUpdated.length,
+      expired: result.expired,
+      dropped: result.dropped,
+      messages: result.outbound.length,
+    });
+    if (
+      result.status !== 'consent_off' &&
+      result.status !== 'minor' &&
+      result.status !== 'not_eligible'
+    ) {
+      requeue();
+    }
+    return {
+      ...result,
+      auditEventIds: auditIdsSince(group.groupId, before),
+      note: `scheduled:card_import:${result.status}`,
+    };
   }
 
   async function runScheduled(job: ScheduledJob): Promise<TurnResult> {
@@ -2735,6 +2858,7 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
   async function runScheduledJob(job: ScheduledJob): Promise<TurnResult> {
     if (job.kind === 'wrapped') return runWrappedJob(job);
     if (job.kind === 'morning_after') return runMorningAfterJob(job);
+    if (job.kind === 'card_import') return runCardImportJob(job);
     if (job.kind !== 'proposal_expiry') return silent(`scheduled:${job.kind}:not_handled`);
     const proposalId =
       typeof job.payload['proposalId'] === 'string' ? job.payload['proposalId'] : undefined;
@@ -2813,7 +2937,7 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       trip,
       // The group thread (members' own words, markers for pasted/guest text): a ride's
       // rider count leaves out who said they had left that night (T-135).
-      groupMessages: recent.get(laneKey(group.groupId, 'group', null)) ?? [],
+      groupMessages: rideLines.get(group.groupId) ?? [],
     });
     const r: Resolved = {
       group,
@@ -2870,9 +2994,46 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     };
   }
 
+  /**
+   * T-067: the saved Plaid cursor per (group, owner) for the runtime's own
+   * provider. In memory: a restart re-syncs from the start, which the import
+   * absorbs (rows upsert by provider id, items are found again, nothing is
+   * re-asked).
+   */
+  const cardCursors = new Map<string, string>();
+  const cursorKey = (groupId: GroupId, memberId: MemberId): string => `${groupId}|${memberId}`;
+
+  /**
+   * T-067: queue each consenting owner's next `card_import` slot (idempotent
+   * by jobId; the job reschedules itself after it runs). Called when the
+   * runtime starts and after every inbound turn (consent is turned on in chat).
+   */
+  function scheduleCardImports(): void {
+    if (deps.transactions === undefined) return;
+    const queued = new Set(scheduler.list().map((j) => j.jobId));
+    for (const job of cardImportJobsFor(stores, clock.now(), queued)) scheduler.schedule(job);
+  }
+
   async function importCardTransactions(input: CardImportRequest): Promise<CardImportResult> {
     const group = stores.group.groups.get(input.groupId);
     if (group === undefined) throw new TravError('not_found', `group ${input.groupId} not found`);
+    const now = clock.now();
+    const trip = stores.group.trips.current(group.groupId, now) ?? null;
+    const result = await runCardImport(group, trip, input);
+    // Held for the next digest slot: make sure that slot's import is queued.
+    if (result.held.length > 0 && trip !== null) {
+      const next = nextCardImportJob(trip, input.ownerMemberId, now);
+      if (next !== undefined) scheduler.schedule(next);
+    }
+    scheduleCardImports();
+    return result;
+  }
+
+  async function runCardImport(
+    group: Group,
+    trip: Trip | null,
+    input: CardImportRequest,
+  ): Promise<CardImportResult> {
     const now = clock.now();
     const members = stores.group.members.listByGroup(group.groupId);
     const owner = members.find((m) => m.memberId === input.ownerMemberId);
@@ -2882,9 +3043,19 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
         `member ${input.ownerMemberId} is not in group ${input.groupId}`,
       );
     }
+    const own = input.adapter === undefined;
+    const adapter = input.adapter ?? deps.transactions;
+    if (adapter === undefined) {
+      throw new TravError('not_implemented', 'card import: no transactions provider configured');
+    }
+    const key = cursorKey(group.groupId, owner.memberId);
+    const cursor = input.cursor ?? (own ? cardCursors.get(key) : undefined);
     const before = snapshotAudit(group.groupId);
-    const trip = stores.group.trips.current(group.groupId, now) ?? null;
-    const outcome = await importCards(input, { stores, clock, ids, model, group, members, trip });
+    const outcome = await importCards(
+      { ...input, adapter, ...(cursor !== undefined ? { cursor } : {}) },
+      { stores, clock, ids, model, group, members, trip },
+    );
+    if (own && outcome.nextCursor !== undefined) cardCursors.set(key, outcome.nextCursor);
     const r: Resolved = {
       group,
       members,
@@ -2928,7 +3099,7 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       group,
       members,
       trip,
-      groupMessages: recent.get(laneKey(group.groupId, 'group', null)) ?? [],
+      groupMessages: rideLines.get(group.groupId) ?? [],
     });
     const r: Resolved = {
       group,
@@ -2950,6 +3121,8 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       note: `emails:${outcome.status}`,
     };
   }
+
+  scheduleCardImports();
 
   return {
     handleInbound,

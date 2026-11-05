@@ -12,7 +12,13 @@
 import type { InboundEvent, SimulatorChannel, TranscriptEntry, Unsubscribe } from '@trav/adapters';
 import type { Clock, IsoDateTime, RichCard, ScheduledJob, SimulatedClock } from '@trav/core';
 import { TravError, parseIso } from '@trav/core';
-import type { DocumentIntake, DocumentIntakeResult, TravAgent, TurnResult } from '@trav/agent';
+import type {
+  CardImportResult,
+  DocumentIntake,
+  DocumentIntakeResult,
+  TravAgent,
+  TurnResult,
+} from '@trav/agent';
 import type {
   BackendKind,
   ClockRequest,
@@ -101,16 +107,27 @@ export interface SimServices {
   /** `runtime.drain()`: every due job through `agent.runScheduled`. */
   readonly drain?: () => Promise<readonly TurnResult[]>;
   readonly intakeDocument?: (input: DocumentIntake) => Promise<DocumentIntakeResult>;
+  /**
+   * T-067: sync one owner's card now through the runtime's own provider (on
+   * the simulated clock, from the saved cursor). A card document on the DM rail.
+   */
+  readonly syncCard?: (input: CardSyncInput) => Promise<CardImportResult>;
+}
+
+export interface CardSyncInput {
+  readonly groupId: string;
+  readonly ownerMemberId: string;
 }
 
 /** The parts of a `createTravRuntime` result the simulator services come from. */
 export interface ServiceSource {
-  readonly agent: Pick<TravAgent, 'intakeDocument'>;
+  readonly agent: Pick<TravAgent, 'intakeDocument'> &
+    Partial<Pick<TravAgent, 'importCardTransactions'>>;
   readonly scheduler?: { list(): readonly ScheduledJob[] };
   drain?(): Promise<readonly TurnResult[]>;
 }
 
-/** The simulator services a runtime lends (clock, scheduler drain, document intake). */
+/** The simulator services a runtime lends (clock, scheduler drain, document intake, card sync). */
 export function servicesOf(runtime: ServiceSource, clock: SimulatedClock): SimServices {
   const { agent } = runtime;
   return {
@@ -121,6 +138,13 @@ export function servicesOf(runtime: ServiceSource, clock: SimulatedClock): SimSe
     ...(typeof runtime.drain === 'function' ? { drain: () => runtime.drain!() } : {}),
     ...(typeof agent.intakeDocument === 'function'
       ? { intakeDocument: (input: DocumentIntake) => agent.intakeDocument(input) }
+      : {}),
+    ...(typeof agent.importCardTransactions === 'function'
+      ? {
+          // Between digest slots: one new charge is asked about now, two or more wait (VOICE §2).
+          syncCard: (input: CardSyncInput) =>
+            agent.importCardTransactions!({ ...input, delivery: 'next_digest' }),
+        }
       : {}),
   };
 }
@@ -253,16 +277,25 @@ export function createChannelBackend(options: ChannelBackendOptions): ChannelBac
     return g;
   }
 
+  /**
+   * A card document needs the runtime's card sync and the charge it stands
+   * for to have happened (T-067); an email needs the document intake.
+   */
+  const canFeed = (d: DemoDocument): boolean =>
+    d.kind === 'card'
+      ? services?.syncCard !== undefined &&
+        (d.availableAt === undefined || parseIso(d.availableAt) <= parseIso(clock.now()))
+      : services?.intakeDocument !== undefined;
+  const feeds = services?.intakeDocument !== undefined || services?.syncCard !== undefined;
+
   function intakeOffers(): Map<string, Record<string, IntakeOffer[]>> {
     const out = new Map<string, Record<string, IntakeOffer[]>>();
     for (const g of groups) {
       const byMember: Record<string, IntakeOffer[]> = {};
       for (const m of g.members) byMember[m.memberId] = [];
-      if (services?.intakeDocument) {
-        for (const d of documents) {
-          if (d.groupId !== g.groupId || fed.has(d.docId)) continue;
-          byMember[d.ownerMemberId]?.push({ docId: d.docId, kind: d.kind });
-        }
+      for (const d of documents) {
+        if (d.groupId !== g.groupId || fed.has(d.docId) || !canFeed(d)) continue;
+        byMember[d.ownerMemberId]?.push({ docId: d.docId, kind: d.kind });
       }
       out.set(g.groupId, byMember);
     }
@@ -273,7 +306,7 @@ export function createChannelBackend(options: ChannelBackendOptions): ChannelBac
     return {
       clock: services !== undefined,
       scheduler: services?.drain !== undefined,
-      intake: services?.intakeDocument !== undefined,
+      intake: feeds,
       reset: false,
       replay: false,
     };
@@ -382,15 +415,43 @@ export function createChannelBackend(options: ChannelBackendOptions): ChannelBac
         }
       : {}),
 
-    ...(services?.intakeDocument !== undefined
+    ...(feeds
       ? {
           async intake(docId: string): Promise<void> {
-            const intakeDocument = services.intakeDocument!;
             const doc = documents.find((d) => d.docId === docId);
             if (!doc) throw new TravError('not_found', `no demo document ${docId}`);
+            if (!canFeed(doc)) {
+              const notYet = doc.kind === 'card' && services?.syncCard !== undefined;
+              throw notYet
+                ? new TravError('invalid_argument', `${docId}: that charge hasn't happened yet`)
+                : new TravError(
+                    'not_implemented',
+                    `this backend cannot feed ${doc.kind} documents`,
+                  );
+            }
             if (fed.has(docId)) throw new TravError('duplicate', `${docId} was already fed`);
             const group = requireGroup(doc.groupId);
             fed.add(docId); // reserved now: a double-click queues nothing twice
+            if (doc.kind === 'card') {
+              const syncCard = services!.syncCard!;
+              await enqueue(group, async () => {
+                try {
+                  const result = await syncCard({
+                    groupId: doc.groupId,
+                    ownerMemberId: doc.ownerMemberId,
+                  });
+                  // Import was off (or not allowed), so nothing was read: feedable again after opt-in.
+                  if (result.status !== 'imported') fed.delete(docId);
+                  if (!result.silent) return undefined;
+                  return { status: cardSyncStatus(result) };
+                } catch (e) {
+                  fed.delete(docId);
+                  throw e;
+                }
+              });
+              return;
+            }
+            const intakeDocument = services!.intakeDocument!;
             await enqueue(group, async () => {
               try {
                 const result = await intakeDocument(await buildIntake(doc));
@@ -483,6 +544,15 @@ export function createSessionBackend(
     },
   };
   return forward;
+}
+
+/**
+ * The muted status line for a card sync that sent nothing. Never a count,
+ * amount or merchant: even how many charges an owner has is theirs (T-112).
+ */
+export function cardSyncStatus(result: Pick<CardImportResult, 'status' | 'held'>): string {
+  const why = result.held.length > 0 ? 'cards:held_for_digest' : `cards:${result.status}`;
+  return `trav sent nothing for that card sync (${why})`;
 }
 
 /** What `runtime.ts` hands over from `createTravRuntime`. */

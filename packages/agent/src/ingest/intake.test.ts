@@ -231,7 +231,7 @@ describe('T-135: a ride document is split by its rider count, or the card asks',
     const card = messages(r.outbound)[0]!;
     expect(card.text.split('\n')).toEqual([
       'Uber receipt from last night: €18.60, El Born → Eixample, 4 riders',
-      'split with Dean, Jordan, Sam? 👍 yes · 👎 just me',
+      'split with Dean, Jordan, Sam? 👍 yes · 👎 just me · or tell me who rode',
     ]);
     await h.tap('h_priya', card.id, 'confirm');
     const [exp] = h.runtime.stores.group.expenses.listByTrip(T);

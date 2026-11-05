@@ -23,13 +23,14 @@ import type {
   MessageId,
   Trip,
 } from '@trav/core';
-import { addDays, safety } from '@trav/core';
+import { addDays } from '@trav/core';
 import type { RosterChangeNotice } from '../approval/events.js';
 import { nightOf } from '../booking/proposals.js';
 import { sanitizeInline } from '../context/groupContext.js';
-import { parseCombinedRoster, planParty, type CombinedRoster } from './combined.js';
+import { keptOffLine, parseCombinedRoster, planParty, type CombinedRoster } from './combined.js';
 import {
   detectRollCall,
+  keptOffFor,
   parseRosterUpdate,
   renderAttendanceLine,
   renderRollCall,
@@ -104,10 +105,27 @@ export type RosterTurn =
       readonly venue?: VenueAsk;
     }
   | {
-      /** The headcount disagrees with the named roster: one question, nothing written. */
+      /**
+       * The headcount disagrees with the named roster: one question, nothing
+       * written, except a kept-off minor's stale in/maybe set to out (T-153,
+       * `notice` is then set).
+       */
       readonly kind: 'clarify';
       readonly activity: Activity;
       readonly text: string;
+      readonly notice?: RosterChangeNotice;
+    }
+  | {
+      /**
+       * A minor named in (or a maybe) on an 18+ or alcohol plan (T-153,
+       * SAFETY minors): no in or maybe is written, one "stays off" line. A
+       * stale in/maybe row is set to out (`notice` is then set).
+       */
+      readonly kind: 'kept_off';
+      readonly activity: Activity;
+      readonly memberIds: readonly MemberId[];
+      readonly text: string;
+      readonly notice?: RosterChangeNotice;
     }
   | { readonly kind: 'no_activity'; readonly text: string };
 
@@ -173,6 +191,22 @@ export function handleRosterMessage(input: RosterTurnInput): RosterTurn | undefi
   const memberId = update!.who === 'me' ? me.memberId : resolveMemberName(members, update!.who);
   if (memberId === undefined) return undefined;
   const status = update!.status;
+  // "@trav sam is in" for an adult-only plan with Sam under 18: no in or
+  // maybe is written, whatever the headcount tail says. "out" is always fine.
+  const keptOff = keptOffFor(group, activity, members, now);
+  if (status !== 'out' && keptOff.has(memberId)) {
+    const outs = keepOff(input, activity, [{ memberId, status }]);
+    const inCount = rosterOf(group.trips, activity.activityId, members, now).inMemberIds.filter(
+      (id) => !keptOff.has(id),
+    ).length;
+    return {
+      kind: 'kept_off',
+      activity,
+      memberIds: [memberId],
+      text: `${keptOffLine([memberId], members)}. that's ${String(inCount)} in`,
+      ...(outs.length > 0 ? { notice: noticeOf(input, activity, outs) } : {}),
+    };
+  }
   if (input.expectInCount !== undefined) {
     const inIds = new Set(rosterOf(group.trips, activity.activityId, members, now).inMemberIds);
     if (status === 'in') inIds.add(memberId);
@@ -223,6 +257,50 @@ export function handleRosterMessage(input: RosterTurnInput): RosterTurn | undefi
   };
 }
 
+type Row = { readonly memberId: MemberId; readonly status: AttendanceStatus };
+
+/**
+ * Refused in/maybe changes go through `setAttendance`, which writes nothing
+ * for them except an "out" over a stale in/maybe row (T-153). Returns the
+ * rows that were written (all "out").
+ */
+function keepOff(input: RosterTurnInput, activity: Activity, refused: readonly Row[]): Row[] {
+  const written: Row[] = [];
+  for (const c of refused) {
+    const write = setAttendance(
+      input.group,
+      {
+        activityId: activity.activityId,
+        memberId: c.memberId,
+        status: c.status,
+        setBy: input.me.memberId,
+        sourceMessageId: input.messageId,
+      },
+      input.members,
+      input.now,
+      activity,
+    );
+    if (write.changed && write.status !== undefined) {
+      written.push({ memberId: c.memberId, status: write.status });
+    }
+  }
+  return written;
+}
+
+function noticeOf(
+  input: RosterTurnInput,
+  activity: Activity,
+  changes: readonly Row[],
+): RosterChangeNotice {
+  return {
+    groupId: activity.groupId,
+    activityId: activity.activityId,
+    changes,
+    by: input.me.memberId,
+    messageId: input.messageId,
+  };
+}
+
 /**
  * "@trav it's the 5 of us tonight, henry's out" / "all 6, henry's back.
  * razzmatazz" (T-082). The activity is the named one when it is on the plan
@@ -270,24 +348,38 @@ function handleCombined(input: RosterTurnInput, parsed: CombinedRoster): RosterT
     return { kind: 'no_activity', text: `nothing on the plan for ${when} yet` };
   }
 
+  // A headcount never fills a minor into an 18+ or alcohol plan, and naming
+  // one in ("5 of us, sam's in") writes no in or maybe for them (SAFETY
+  // minors, T-153). A stale in/maybe row of theirs is set to out first, so
+  // the count and the reply agree.
+  const noFill = keptOffFor(group, activity, members, now);
+  const refused = changes.filter((c) => c.status !== 'out' && noFill.has(c.memberId));
+  const outs = keepOff(input, activity, refused);
   const roster = rosterOf(group.trips, activity.activityId, members, now);
-  // A headcount never fills a minor into an 18+ or alcohol plan (SAFETY minors).
-  const adultOnly =
-    (activity.ageRestriction ?? 0) >= 18 || safety.isRestrictedContent(activity.contentTags);
-  const noFill = new Set(
-    adultOnly ? members.filter((m) => safety.isMinor(m, now)).map((m) => m.memberId) : [],
-  );
   const plan = planParty({
     members,
     roster,
-    changes,
+    changes: changes.filter((c) => !refused.includes(c)),
     ...(parsed.count !== undefined ? { count: parsed.count } : {}),
     all: parsed.all,
     noFill,
+    refused: new Set(refused.map((c) => c.memberId)),
   });
-  if (plan.kind === 'mismatch') return { kind: 'clarify', activity, text: plan.text };
+  // The refused minors the plan's line does not already name get one line.
+  const stillUnsaid = refused
+    .map((c) => c.memberId)
+    .filter((id) => plan.kind !== 'mismatch' || plan.keptOff?.includes(id) !== true);
+  const keptOff = stillUnsaid.length > 0 ? `\n${keptOffLine(stillUnsaid, members)}` : '';
+  if (plan.kind === 'mismatch') {
+    return {
+      kind: 'clarify',
+      activity,
+      text: `${plan.text}${keptOff}`,
+      ...(outs.length > 0 ? { notice: noticeOf(input, activity, outs) } : {}),
+    };
+  }
 
-  const changed: { memberId: MemberId; status: AttendanceStatus }[] = [];
+  const changed: Row[] = [...outs];
   let after = roster;
   for (const row of plan.rows) {
     const write = setAttendance(
@@ -304,7 +396,9 @@ function handleCombined(input: RosterTurnInput, parsed: CombinedRoster): RosterT
       activity,
     );
     after = write.roster;
-    if (write.changed) changed.push(row);
+    if (write.changed && write.status !== undefined) {
+      changed.push({ memberId: row.memberId, status: write.status });
+    }
   }
   const venue: VenueAsk | undefined =
     parsed.hint !== undefined && named === undefined
@@ -318,18 +412,8 @@ function handleCombined(input: RosterTurnInput, parsed: CombinedRoster): RosterT
     kind: 'party',
     activity,
     changes: changed,
-    text: renderRollCall(activity, after, members, tz, now),
-    ...(changed.length > 0
-      ? {
-          notice: {
-            groupId: activity.groupId,
-            activityId: activity.activityId,
-            changes: changed,
-            by: me.memberId,
-            messageId,
-          },
-        }
-      : {}),
+    text: `${renderRollCall(activity, after, members, tz, now, new Set(stillUnsaid))}${keptOff}`,
+    ...(changed.length > 0 ? { notice: noticeOf(input, activity, changed) } : {}),
     ...(venue !== undefined ? { venue } : {}),
   };
 }

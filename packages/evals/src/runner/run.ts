@@ -330,6 +330,9 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
     env: { TRAV_OFFLINE: opts.mode === 'offline' ? '1' : undefined, TRAV_STATE_DIR: stateDir },
     providers: { tickets, flights: flightsMock, lodging, payments },
     album,
+    // The script's `card_sync` lines are this episode's card syncs (below):
+    // no scheduled digest-slot imports on top of them (T-067).
+    transactions: false,
     voice: 'log',
     onLintViolation: (o, violations) => {
       lint.push({
@@ -355,10 +358,11 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
     );
 
   // Card and email imports (T-078): one Plaid-shaped mock per episode (it reads
-  // `fixtures/transactions/<owner>.json`), a cursor per owner, and the emails
+  // `fixtures/transactions/<owner>.json`) on the episode clock (T-067: a
+  // charge exists only once it happened), a cursor per owner, and the emails
   // that have "arrived" so far (a source holding only those, so a later email
   // can never be read early).
-  const transactions = createMockTransactions();
+  const transactions = createMockTransactions({ clock });
   const cardCursors = new Map<string, string>();
   const arrived: EmailFixture[] = [];
   const emailParser = createOfflineReceiptEmailParser();

@@ -346,7 +346,9 @@ function singleLines(entry: LooksSharedItem, ctx: RenderContext): string[] {
       `${item.merchantDisplay} receipt from ${day}: ${amount}${entry.detail !== undefined ? `, ${entry.detail}` : ''}`,
     );
     if (item.ridersToName === undefined) {
-      lines.push(`split with ${splitWithText(entry, ctx)}? 👍 yes · 👎 just me`);
+      // T-135: a split worked out from the receipt's rider count can be corrected by names.
+      const correct = item.receiptRiders !== undefined ? ' · or tell me who rode' : '';
+      lines.push(`split with ${splitWithText(entry, ctx)}? 👍 yes · 👎 just me${correct}`);
     }
   } else {
     // VOICE §4.5 "at 2:14am"; an older charge keeps its day after the time ("at 2:14am on sun mar 15").
@@ -362,8 +364,9 @@ function singleLines(entry: LooksSharedItem, ctx: RenderContext): string[] {
       `saw ${amount} from ${item.merchantDisplay} at ${when}${entry.guess !== undefined ? `, ${entry.guess}` : ''}`,
     );
     if (item.ridersToName === undefined) {
+      const correct = item.receiptRiders !== undefined ? ', or tell me who rode' : '';
       lines.push(
-        `looks shared. 👍 to split with ${splitWithText(entry, ctx)}, 👎 to keep it off the tab`,
+        `looks shared. 👍 to split with ${splitWithText(entry, ctx)}, 👎 to keep it off the tab${correct}`,
       );
     }
   }

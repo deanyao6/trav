@@ -21,7 +21,7 @@ import type {
   MessageId,
   Roster,
 } from '@trav/core';
-import { addDays, formatTime, parseIso } from '@trav/core';
+import { addDays, formatTime, parseIso, safety } from '@trav/core';
 import { nightOf } from '../booking/proposals.js';
 import { payersFor, type PayerRule } from '../booking/payers.js';
 import { sanitizeInline } from '../context/groupContext.js';
@@ -39,9 +39,52 @@ export interface AttendanceChange {
 }
 
 export interface AttendanceWrite {
+  /** A row was written (for a refused change: the stale in/maybe set to out). */
   readonly changed: boolean;
   readonly previous: AttendanceStatus | undefined;
   readonly roster: Roster;
+  /**
+   * The change asked for an in or maybe the plan does not allow (a minor, or
+   * an unconfirmed age, on an 18+/alcohol plan; T-153). Nothing but an "out"
+   * is ever written for them; `changed` says whether that happened.
+   */
+  readonly refused?: true;
+  /** The status actually on the row now. */
+  readonly status: AttendanceStatus | undefined;
+}
+
+/**
+ * Who stays off this activity (SAFETY minors, §2.7, T-153): on a plan that is
+ * 18+ or tagged alcohol/nightlife, every minor, and every member of unknown
+ * age while the group has not confirmed everyone is 18+. On any other plan,
+ * nobody. The one test the headcount fill, the roster turn and the
+ * `set_attendance` tool all use.
+ */
+export function keptOffMembers(
+  activity: Activity,
+  members: readonly Member[],
+  now: IsoDateTime,
+  allAdultsConfirmed: boolean,
+): ReadonlySet<MemberId> {
+  const adultOnly =
+    (activity.ageRestriction ?? 0) >= 18 || safety.isRestrictedContent(activity.contentTags);
+  if (!adultOnly) return new Set();
+  return new Set(
+    members
+      .filter((m) => safety.isMinor(m, now) || (!allAdultsConfirmed && safety.isAgeUnknown(m)))
+      .map((m) => m.memberId),
+  );
+}
+
+/** `keptOffMembers` with the group's own attestation read from the store. */
+export function keptOffFor(
+  group: GroupStore,
+  activity: Activity,
+  members: readonly Member[],
+  now: IsoDateTime,
+): ReadonlySet<MemberId> {
+  const confirmed = group.groups.get(activity.groupId)?.settings.allAdultsConfirmed ?? false;
+  return keptOffMembers(activity, members, now, confirmed);
 }
 
 /** Active, non-guest members in group (join) order: the member order for rosters and splits. */
@@ -151,17 +194,25 @@ export function setAttendance(
   const previous = group.trips
     .listAttendance(change.activityId)
     .find((r) => r.memberId === change.memberId)?.status;
-  if (previous === change.status) {
+  // The write choke point (T-153): an in or maybe for someone kept off this
+  // plan is never written. A stale in/maybe row is set to out so the roster
+  // matches the reply.
+  const refused =
+    change.status !== 'out' && keptOffFor(group, activity, members, now).has(change.memberId);
+  const status: AttendanceStatus = refused ? 'out' : change.status;
+  if (previous === status || (refused && previous === undefined)) {
     return {
       changed: false,
       previous,
+      status: previous,
       roster: rosterOf(group.trips, change.activityId, members, now),
+      ...(refused ? { refused: true as const } : {}),
     };
   }
   const row: Attendance = {
     activityId: change.activityId,
     memberId: change.memberId,
-    status: change.status,
+    status,
     updatedAt: now,
     sourceMessageId: change.sourceMessageId,
     setBy: change.setBy,
@@ -175,14 +226,16 @@ export function setAttendance(
     visibility: 'group',
     payload: {
       activityId: change.activityId,
-      changes: [{ memberId: change.memberId, status: change.status }],
+      changes: [{ memberId: change.memberId, status }],
       sourceMessageId: change.sourceMessageId,
     },
   });
   return {
     changed: true,
     previous,
+    status,
     roster: rosterOf(group.trips, change.activityId, members, now),
+    ...(refused ? { refused: true as const } : {}),
   };
 }
 
@@ -400,6 +453,8 @@ export function renderRollCall(
   members: readonly Member[],
   tz: string,
   now: IsoDateTime,
+  /** Members a following line already says stay off this plan (T-153): not listed as "haven't said". */
+  keptOff?: ReadonlySet<MemberId>,
 ): string {
   const label = sanitizeInline(activity.name, 40).toLowerCase();
   const lines: string[] = [];
@@ -414,7 +469,7 @@ export function renderRollCall(
   if (roster.maybeMemberIds.length > 0) {
     lines.push(`maybe: ${names(roster.maybeMemberIds, members)} (counts as out when i book)`);
   }
-  const open = unanswered(roster, members);
+  const open = unanswered(roster, members).filter((id) => keptOff?.has(id) !== true);
   if (open.length > 0) lines.push(`haven't said: ${names(open, members)}`);
   return lines.slice(0, 4).join('\n');
 }

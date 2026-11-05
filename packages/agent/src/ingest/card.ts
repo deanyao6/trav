@@ -34,15 +34,25 @@
  *     private row, by `pendingTransactionId`), and a still-pending item takes
  *     the posted amount; if the amount changed, a fresh DM card goes out and
  *     the old card stops working. A pending charge the provider removed
- *     without a posted row expires quietly.
+ *     without a posted row expires quietly. An item the owner already shared
+ *     whose charge then posts (or is modified) at another amount moves the
+ *     tab with it (T-067): the expense keeps its split and takes the posted
+ *     amount (`ledger.entry_edited`, cause `card_posted`) and the owner gets
+ *     one DM line; when the expense can't simply follow (another currency, not
+ *     one payer on an equal split) the tab is left alone and the owner is
+ *     asked; an expense the group undid stays undone.
  *  7. DMs: one "looks shared?" card per new or changed item, or one digest
- *     when three or more land together (VOICE §2 batching). Never to a minor
- *     (VOICE §6.1). The group sees nothing until the owner
- *     confirms an item, not even a count (T-112, SAFETY §2.3).
+ *     when three or more land together (VOICE §2 batching). Between digest
+ *     slots (`delivery: 'next_digest'`) two or more wait, `heldForDigest`,
+ *     for the owner's next 10:00 / 20:00 scheduled import (`cardSchedule.ts`),
+ *     which sends them with whatever it finds. Never to a minor (VOICE §6.1).
+ *     The group sees nothing until the owner confirms an item, not even a
+ *     count (T-112, SAFETY §2.3).
  */
 import type {
   CardTransaction,
   Clock,
+  Expense,
   ExpenseCategory,
   Group,
   IdGenerator,
@@ -54,7 +64,16 @@ import type {
   Stores,
   Trip,
 } from '@trav/core';
-import { addDays, localDate, markPrivate, parseIso, safety, TravError } from '@trav/core';
+import {
+  addDays,
+  formatMoney,
+  ledger,
+  localDate,
+  markPrivate,
+  parseIso,
+  safety,
+  TravError,
+} from '@trav/core';
 import type { ProviderTransaction, TransactionsAdapter } from '@trav/adapters';
 import { sanitizeInline } from '../context/groupContext.js';
 import type { ModelClient } from '../model/client.js';
@@ -100,6 +119,14 @@ export interface CardImportInput {
   /** The cursor the previous import returned; omitted ⇒ initial sync. */
   readonly cursor?: string;
   readonly scenario?: string;
+  /**
+   * When the "looks shared?" DMs go out (VOICE §2 batching, T-067):
+   *  - `now` (default; the scheduled import at a 10:00 / 20:00 digest slot):
+   *    every new or changed item, plus any held for this digest, goes out now;
+   *  - `next_digest` (a sync between slots): one item still goes out now, but
+   *    two or more are held (`heldForDigest`) for the owner's next slot.
+   */
+  readonly delivery?: 'now' | 'next_digest';
 }
 
 export type CardImportStatus =
@@ -130,6 +157,10 @@ export interface CardImportOutcome {
   readonly expired: number;
   /** Pending items dropped because consent is off. */
   readonly dropped: number;
+  /** Items held for the owner's next digest slot (`delivery: 'next_digest'`); no DM yet. */
+  readonly held: readonly string[];
+  /** Expenses already shared whose charge posted at a different amount, updated on the tab. */
+  readonly ledgerUpdated: readonly string[];
   /** Provider ids whose descriptor tripped the injection detector. */
   readonly injectionTransactionIds: readonly string[];
   /** Verdict per provider transaction id (owner-private; tests and evals). */
@@ -146,10 +177,22 @@ const EMPTY = {
   duplicates: 0,
   expired: 0,
   dropped: 0,
+  held: [],
+  ledgerUpdated: [],
   injectionTransactionIds: [],
   verdicts: {},
   drafts: [],
 } as const;
+
+/** VOICE: the owner's DM when a charge they shared posted at another amount and the tab followed. */
+export function postedUpdatedText(merchant: string, posted: Money, was: Money): string {
+  return `your ${merchant} charge posted at ${formatMoney(posted)}, not ${formatMoney(was)}. updated it on the tab`;
+}
+
+/** VOICE: the same, when the tab can't simply follow (another currency, a split Trav won't guess). */
+export function postedAskText(merchant: string, posted: Money, was: Money): string {
+  return `your ${merchant} charge posted at ${formatMoney(posted)}, the tab still says ${formatMoney(was)}. 👎 the card from when you shared it to take it off, then log the right amount`;
+}
 
 /** Plaid personal-finance category → ledger category. */
 export function cardCategory(
@@ -370,6 +413,83 @@ export async function importCardTransactions(
   let expired = 0;
   const injected: string[] = [];
   const verdicts: Record<string, LooksSharedVerdict> = {};
+  const ledgerUpdated: string[] = [];
+  /** Owner DMs about shared charges whose amount moved (one line each). */
+  const postedDrafts: OutboundMessage[] = [];
+
+  /**
+   * T-067: the owner shared a charge, then it posted at another amount (a tip
+   * added to a ride, a pre-auth settling). The tab follows the card: the
+   * expense keeps its split and takes the posted amount (`ledger.entry_edited`,
+   * group-visible like the expense itself), and the owner gets one DM saying
+   * so. When the expense can't simply be rescaled (another currency, not one
+   * payer on an equal split) the tab is left alone and the owner is asked.
+   * An expense the group already undid stays undone.
+   */
+  const updateSharedCharge = (
+    item: PendingPrivateItem,
+    rowId: string,
+    posted: Money,
+  ): OutboundMessage | undefined => {
+    const expense =
+      item.promotedExpenseId !== undefined
+        ? stores.group.expenses.get(item.promotedExpenseId)
+        : undefined;
+    const keepItem = (): void =>
+      stores.private.putPendingItem(
+        owner.memberId,
+        markPrivate({ ...item, sourceItemId: rowId, amount: posted }),
+      );
+    const dmLine = (text: string): OutboundMessage => ({
+      id: ids.next('msg'),
+      groupId: group.groupId,
+      to: { kind: 'member', memberId: owner.memberId },
+      text,
+    });
+    if (expense === undefined || expense.status !== 'logged') {
+      keepItem();
+      return undefined;
+    }
+    const merchant = sanitizeInline(item.merchantDisplay, 40);
+    const rescalable =
+      expense.amount.currency === posted.currency &&
+      expense.original === undefined &&
+      expense.split.method === 'equal' &&
+      expense.paidBy.length === 1 &&
+      expense.paidBy[0]!.memberId === owner.memberId;
+    if (!rescalable) {
+      keepItem();
+      return dmLine(postedAskText(merchant, posted, expense.amount));
+    }
+    const updated: Expense = {
+      ...expense,
+      amount: posted,
+      paidBy: [{ memberId: owner.memberId, amount: posted }],
+    };
+    const order = members.map((m) => m.memberId);
+    const active = activeMembers(members).map((m) => m.memberId);
+    stores.group.expenses.replace(
+      updated,
+      ledger.buildLedgerEntries(updated, { memberOrder: order, participantsUniverse: active }),
+    );
+    stores.group.audit.append({
+      groupId: group.groupId,
+      tripId: expense.tripId,
+      type: 'ledger.entry_edited',
+      actor: { kind: 'system', id: 'trav' },
+      visibility: 'group',
+      payload: {
+        expenseId: expense.expenseId,
+        memberId: owner.memberId,
+        before: { amountMinor: expense.amount.amountMinor, currency: expense.amount.currency },
+        after: { amountMinor: posted.amountMinor, currency: posted.currency },
+        cause: 'card_posted',
+      },
+    });
+    keepItem();
+    ledgerUpdated.push(expense.expenseId);
+    return dmLine(postedUpdatedText(merchant, posted, expense.amount));
+  };
 
   for (const tx of batch.added) {
     if (tx.ownerMemberId !== owner.memberId) continue; // defense in depth (adapter re-checks too)
@@ -492,6 +612,15 @@ export async function importCardTransactions(
         if (amountChanged && !created.includes(item.id) && !changed.includes(item.id))
           changed.push(item.id);
       }
+      // Already shared, and the charge then posted (or was modified) at another amount (T-067).
+      if (
+        item.status === 'promoted' &&
+        tx.direction === 'debit' &&
+        !sameMoney(item.amount, tx.amount)
+      ) {
+        const draft = updateSharedCharge(item, row.id, tx.amount);
+        if (draft !== undefined) postedDrafts.push(draft);
+      }
       continue;
     }
     if (verdict.label !== 'shared' || tx.direction !== 'debit') continue;
@@ -587,7 +716,29 @@ export async function importCardTransactions(
       },
     });
   }
-  const drafts: OutboundMessage[] = [];
+  // VOICE §2 batching (T-067): items held for this digest go out with the new
+  // ones; between slots, two or more wait for the next slot instead.
+  const promptIds = new Set(toPrompt.map((i) => i.id));
+  const heldBefore = pendingItems().filter(
+    (i) =>
+      i.source === 'card' &&
+      i.status === 'pending' &&
+      i.heldForDigest === true &&
+      !promptIds.has(i.id),
+  );
+  const held: string[] = [];
+  const drafts: OutboundMessage[] = [...postedDrafts];
+  if (input.delivery === 'next_digest' && toPrompt.length + heldBefore.length >= 2) {
+    for (const it of toPrompt) {
+      // The old card (an amount change) stops working: the item has no card until the digest.
+      const { cardMessageId: _old, ...rest } = it;
+      stores.private.putPendingItem(owner.memberId, markPrivate({ ...rest, heldForDigest: true }));
+      held.push(it.id);
+    }
+    toPrompt.length = 0;
+  } else {
+    toPrompt.push(...heldBefore);
+  }
   if (toPrompt.length > 0 && !safety.isMinor(owner, now)) {
     const rctx = { groupId: group.groupId, members, timeZone: tz, now, ids };
     const entry = (item: PendingPrivateItem): LooksSharedItem => {
@@ -617,9 +768,10 @@ export async function importCardTransactions(
         rctx,
       );
       for (const item of batch) {
+        const { heldForDigest: _held, ...rest } = item;
         stores.private.putPendingItem(
           owner.memberId,
-          markPrivate({ ...item, cardMessageId: msg.id }),
+          markPrivate({ ...rest, cardMessageId: msg.id }),
         );
       }
       drafts.push(msg);
@@ -636,6 +788,8 @@ export async function importCardTransactions(
     duplicates,
     expired,
     dropped: 0,
+    held,
+    ledgerUpdated,
     injectionTransactionIds: injected,
     verdicts,
     drafts,
