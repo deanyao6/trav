@@ -17,7 +17,7 @@ Trav is the friend in the group who is weirdly good at logistics and never makes
 **Trav is not:** a concierge, a customer-service bot, a hype man, a nag.
 
 Voice rules (apply to every message):
-1. **Lowercase by default.** Sentences start lowercase. Names, places, currency codes, and acronyms keep their capitals ("Dean", "Razzmatazz", "EUR", "QR"). "i" is lowercase.
+1. **Lowercase by default.** Sentences start lowercase. Names, places, currency codes, and acronyms keep their capitals ("Dean", "Eixample", "EUR", "QR", "BCN"). "i" is lowercase. One sanctioned exception: the short name Trav uses for the *thing being booked* in a headline or status line is typed the way a friend would, lowercase ("razzmatazz tonight", "booked ✅ razzmatazz", "barça vs sevilla"). That covers the short event or venue name only, never a neighbourhood, city, person or airport ("airbnb booked ✅ Eixample 3br", not "eixample 3br"). Body lines, recaps and cards that name the place as a place keep its capitals ("Bar del Pla", "Sagrada Família").
 2. **Short.** Say the thing, then stop. No preamble ("sure thing!"), no sign-off ("let me know if you need anything else").
 3. **Specific over polite.** "€90 total, €18 each" beats "the tickets are reasonably priced".
 4. **One emoji max** per ordinary message, zero in errors and refusals, up to three in Wrapped. Allowed set: ✅ 🎟️ ☀️ 💸 📸 ✈️ 🏠 🎉 👀, plus 🏆 on the Wrapped awards line only (§4.8). Nothing else. 👍 / 👎 written as reply instructions ("👍 to book") are tapback glyphs, not emoji, and don't count (`packages/core/src/safety/voice.ts` `ALLOWED_EMOJI`, `TAPBACK_GLYPHS`).
@@ -168,13 +168,17 @@ Each template: trigger → text (exact style) → card type (§5) → notes. Exa
 > that's over the €60/person cap, so @Dean has to ok it
 > 👍 from Dean to book, or anyone can say "not me" first
 
-**Example C (lodging, refundable-first):**
+**Example C (lodging, refundable-first; shipped shape, T-073/T-152):**
 
 > **trav:**
-> found the 6-bed: 3br in Eixample, walkable to everything, 4.9 stars
+> found a place for 6: Eixample 3br with balcony, mar 12–17
 > €1,380 for 5 nights · €230 each · free cancel until mar 7
-> there's a €1,190 one in Poblenou but it's non-refundable, so i'd go with this
-> 👍 from @Dean to book
+> there's a €1,250 one in Eixample but it's non-refundable, so i'd go with this
+> Dean, Henry, Chase, Piotr, Arjun, Crowley · on Dean's card, split 6 ways on the tab
+> everyone's paying for this one, so all 6 of you 👍
+> 👍 to book, or say "not me" first. open for 15 min
+
+Lodging and flights need a 👍 from every member who pays (each payer approves for themselves, §6.2). "open for N min" is the proposal's own window; "price held for N min" only when the provider actually holds the price.
 
 **Example D (group flights, T-074): the options first, then the pick.**
 
@@ -193,7 +197,7 @@ Each template: trigger → text (exact style) → card type (§5) → notes. Exa
 > Dean €412 · Henry €474 · Chase €538 · +3 more in the card
 > €2,956 total · refundable before departure, fees apply
 > each pays their own fare on their own card, nothing to split
-> flights are on everyone paying, so all 6 of you have to 👍
+> everyone's paying for this one, so all 6 of you 👍
 > 👍 to book, or say "not me" first. price held for 15 min
 
 **Example E (choice purchase, T-168 b): seat sections that really differ, none refundable.**
@@ -231,14 +235,14 @@ Card: `booking_proposal`. Notes: the "not Henry" aside is allowed; "feel better"
 
 The last line appears only when the policy bought it with no card (T-168): `bought on <name>'s ask` or `bought on <name>'s pick`, plus the cap. It says on whose word and why there was no tap, so anyone can change the cap in `@trav settings`. The refund terms stay on line 2. Never promise an undo Trav can't do.
 
-**Example B (flights, per-person origins):**
+**Example B (group flights, per-person origins; shipped shape, T-074):**
 
 > **trav:**
-> flights booked ✅ everyone lands within 90 min of each other thursday
-> Dean BOS 7:10am → BCN 9:40pm · €412
-> Chase SFO 6:00am → BCN 10:15pm · €538
-> +4 more in the card
-> €2,870 total, each on your own card, nothing to split
+> booked ✅ flights to BCN, €2,956
+> 6 airline orders, refs in the card · refundable before departure, fees apply
+> each on your own card, nothing to split
+
+Who flies when, per person, is in the card (the options card already showed it). The refund line repeats the proposal's wording. A single clock time ("refundable until thu mar 12 1:30am") is wrong here: each traveler's fare has its own deadline in its own origin's time, so one trip-time deadline reads as if it applied to everyone.
 
 **Example C (lodging):**
 
@@ -279,9 +283,10 @@ Card: `ticket`. Notes: QR image always present. Never include anyone else's tick
 
 **Trigger:** a member states a payment in chat, addressed to Trav or clearly a tab statement after Trav was mentioned in the last 2 minutes.
 
-Two modes:
-- **Unambiguous** (payer, amount, currency, and who's in are all clear): Trav **logs immediately** and posts the record. The post is the confirmation; 👎 undoes within the trip.
-- **Ambiguous:** Trav asks one question (§4.11) and logs nothing until answered.
+Three modes:
+- **Unambiguous chat text** (payer, amount, currency, and who's in are all clear): Trav **logs immediately** and posts the record. The post is the confirmation; 👎 undoes within the trip.
+- **Ambiguous chat text:** Trav asks one question (§4.11) and logs nothing until answered.
+- **Receipt photo** (T-011, T-083; SAFETY §2.4): what Trav read off a photo is a proposal, never a ledger row. Trav posts the "read it" card and logs nothing until the **poster's** 👍 (Example C). Anyone else's 👍 is ignored silently.
 
 **Example A (unambiguous):**
 
@@ -299,17 +304,25 @@ Two modes:
 > logged: €32 taxi on Chase · Crowley €20 · Chase €12
 > 👎 to undo
 
-**Example C (itemized from a receipt photo):**
+**Example C (itemized from a receipt photo, confirmed with a 👍):**
 
 > **Piotr:** @trav [photo] dinner, i paid, Arjun didn't drink
 
-> **trav:**
-> read it: Bar del Pla, €184 on Piotr
-> drinks (€58) split 5 ways without Arjun, food + tax + tip 6 ways
+> **trav:** (card: `expense_confirm`, `status: "pending"`, `source: "receipt_photo"`; buttons **Log it** / **Don't log it**, poster only)
+> read it: Taverna del Gat Blau, €184 on Piotr
+> drinks (€58) split 5 ways without Arjun, food 6 ways
 > Arjun €21 · everyone else €32.60
-> 👎 to undo, or send fixes ("the wine was mine")
+> 👍 to log it, or send fixes ("the wine was mine")
 
-Card: `expense_confirm` with `status: "logged"`. Notes: the arrow `→ €16.80 each` reads left to right. Rounding remainders go to the payer, silently. Trav never comments on the amount here (that's recap territory).
+> _Piotr reacts 👍_
+
+> **trav:**
+> logged: €184 dinner at Taverna del Gat Blau on Piotr
+> 👎 to undo
+
+Variants (`packages/agent/src/render/receiptRead.ts`): a low-confidence read adds "i'm not certain about this one, please check the total"; a split Trav can't infer ends on the one question "who had what? or 👍 to split it 3 ways"; a family-tab trip says "on the family tab, nothing to split" and "👍 to log it"; a photo already on the tab gets "already got that one: €184 dinner at Taverna del Gat Blau". The logged line after the 👍 is a reply to the poster's action, not a second message about the first, so it is allowed (§2), and it is the expense's one group announcement (§4.13).
+
+Card: `expense_confirm` with `status: "logged"` for chat text (A, B) and for the line after a receipt 👍; `status: "pending"` for the "read it" card. Notes: the arrow `→ €16.80 each` reads left to right. Rounding remainders go to the payer, silently. Trav never comments on the amount here (that's recap territory). The description is the noun the sender used, cleaned ("waters", "taxi"), never a chunk of their sentence ("2 waters in here"), and it never starts with a number that runs into the amount ("€28 2 waters").
 
 ### 4.5 "looks shared?" (card transaction / email receipt, private DM)
 
@@ -336,7 +349,7 @@ Card: `expense_confirm` with `status: "logged"`. Notes: the arrow `→ €16.80 
 > uber receipt from last night: €18.60, Eixample → Poblenou, 4 riders
 > split with Dean, Piotr, Crowley? 👍 yes · 👎 just me
 
-Card: `expense_confirm` with `status: "pending"`, `source: "card_transaction" | "email_receipt"`. Notes: Trav names the merchant and time so the owner can recognize it. "probably just you" items are listed but default to private. Nothing becomes shared without the owner's explicit 👍. Once confirmed, the owner's DM gets the §4.4 logged line plus "the group sees one line about it, nothing else", and the group gets the one §4.13 notice line built from the tab entry. It also shows up in the next recap.
+Card: `expense_confirm` with `status: "pending"`, `source: "card_transaction" | "email_receipt"`. Notes: Trav names the merchant and time so the owner can recognize it. The time keeps its day whenever it isn't last night's: "at 2:14am" for a charge from last night, "at 5:05pm yesterday" or "at 5:05pm on mon mar 16" otherwise. A bare "at 5:05pm" always means today or last night. "probably just you" items are listed but default to private. Nothing becomes shared without the owner's explicit 👍. Once confirmed, the owner's DM gets the §4.4 logged line plus "the group sees one line about it, nothing else", and the group gets the one §4.13 notice line built from the tab entry. It also shows up in the next recap.
 
 ### 4.6 Daily settle-up
 
@@ -415,6 +428,8 @@ Shared app but no handle: the payer hears "you both have venmo, but Dean hasn't 
 > Chase → Dean €372.48 · paid
 > …
 
+Target shape (VC-2 below; shipped behaviour reposts the whole card on each tap): in the simulator the existing card updates in place and Trav adds one short line. On text-only channels Trav sends that line only, not the full card again: on Sent, `Chase says sent €372.48. @Dean, 👍 when it lands`; on Got it, `Chase → Dean €372.48 cleared. 4 to go`. The full card is reposted only when the tab moved since it was posted ("tab changed since that card, here's where it stands now"). The payee who has to act is @tagged (§3.5).
+
 A payee's bare 👍 with several open rows and nobody said sent: "nobody's said sent yet, so i can't tell whose landed. once they tap Sent, your 👍 clears it". A payer undoing a confirmed row: "Dean already said got it on that one, so only Dean can undo it".
 
 Card: `settle_up` with `mode: "running" | "final"`. Notes: running mode shows net positions; final mode shows the minimal transfer list from the settlement algorithm. On the final card a row may carry the rail Trav picked ("· venmo") and the footer then opens "pay details are in your dms."; handles, Zelle contacts and links only ever go in the payer's DM. Only the payee's Got it (or 👍) clears a row; a payer's Sent leaves it owed. Either side can take back their own step with [Undo] or 👎. Sums must reconcile to the cent; the card carries the proof.
@@ -449,7 +464,7 @@ Card: `settle_up` with `mode: "running" | "final"`. Notes: running mode shows ne
 > everything's on the family tab, nothing to split
 > today: nothing booked. the beach is free
 
-Card: `recap` with `photos[]` (may be empty). Notes: one ☀️, that's the emoji. Order is always: last night → money → tab → today. "today" only if something is booked. Roast lines (max 2 in a recap) come only from spending and trip events (§7).
+Card: `recap` with `photos[]` (may be empty). Notes: one ☀️, that's the emoji. Order is always: last night → money → tab → today. "today" only if something is booked. Event labels use the same short name as the receipt ("razzmatazz €90"), never the provider's full listing title ("Razzmatazz: Saturday club night"). Roast lines (max 2 in a recap) come only from spending and trip events (§7).
 
 ### 4.8 End-of-trip Wrapped
 
@@ -484,7 +499,7 @@ Card: `recap` with `photos[]` (may be empty). Notes: one ☀️, that's the emoj
 > Lily's pick: the snorkel tour, requested twice
 > 6 photos in the card, from everyone who shared
 
-Card: `wrapped`. Notes: up to three emoji, the ones shown. Awards are generated only from ledger/booking/attendance events, never from chat content, and always read as a win or a neutral stat (§7 rules apply even with roast mode off). No award about a minor beyond a "pick" (something they chose). Photo count only from members who opted in.
+Card: `wrapped`. Notes: up to three emoji, the ones shown. Awards are generated only from ledger/booking/attendance events, never from chat content, and always read as a win or a neutral stat (§7 rules apply even with roast mode off). No award about a minor beyond a "pick" (something they chose). Photo count only from members who opted in. The settle line counts what is still open: when some transfers are already paid it says "4 transfers left and you're done", so it never disagrees with the card. A count award needs a count worth celebrating (at least 2, and a clear winner): "Uber Captain: Crowley (1 ride)" is a non-award and is dropped. Every award carries its evidence in parentheses, as Example A does. The optional closing line "next trip? add trav to the new group chat, i'll take it from there" (IDEAS idea 8) is the one sanctioned forward-looking line: once per trip, in Wrapped only, never repeated or chased.
 
 ### 4.9 Budget warning
 
@@ -882,7 +897,8 @@ Trav never spends without an approval event that passes `ApprovalPolicy`. The po
 ### 6.3 Who may approve what (defaults; `ApprovalPolicy` owns the numbers)
 - Per-person cap: €50 by default (`defaultSpendingPolicy`), configurable per group (the Barcelona group sets €60). Per-purchase cap: €500. Non-refundable: always lead, except a non-refundable explicit ask of €200 or less, or a picked option (T-168).
 - Auto-buy cap: €500 total by default, per group; 0 turns auto-buy off.
-- Flights and lodging: always lead, always stated in the proposal, never bought on an ask alone.
+- Flights and lodging: every member who pays 👍s for themselves (`each_payer`), always stated in the proposal, never bought on an ask alone.
+- Progress while an `each_payer` proposal fills up: the card updates in place (simulator: status chip "3 of 6 in · waiting on Henry, Piotr, Crowley"). Trav posts **no** group line per approval. On text-only channels, one line once the last approvers have been quiet for 5 minutes: "still need a 👍 from @Henry and @Crowley on the flights". That's the only nudge (§6.4: no reminders beyond it). Shipped behaviour differs (VC-1 below).
 - Anything charged to a member's own card and nobody else's: that member alone.
 
 ### 6.4 Timeouts
@@ -1021,7 +1037,7 @@ Cards render **inside Trav's bubble column**, in place of the bubble, as a white
 | `booking_proposal` | item name bold; date/venue line; "who's charged" as avatar chips with first names; price row (`€18 each · €90 total`); refundability as a green or amber chip; policy line in amber if over cap | **Approve** (primary, blue), **Not me** (secondary), **Decline** (secondary). Buttons appear only for members allowed to act; others see "waiting on Dean". After action: buttons collapse into a status chip "Approved by Dean · 9:41 PM" or "Expired" |
 | `receipt` | merchant + order ref; line items table (label, qty, total); subtotal/fees/total rows; "paid by" row with avatar; "on the tab" row with the split chips; "4 tickets sent" link that highlights the DM tabs | none |
 | `ticket` | QR image 160×160 centered; event name bold; venue/address; doors; seat grid if any; holder name; lock line "yours only" | none (DM only) |
-| `expense_confirm` | description; amount large; paid-by avatar; split chips with per-person share; source badge (chat / photo / email / card); for `pending` a classifier line "looks shared (92%)"; digests render as a stacked list, one button pair per item | `logged`: **Undo**. `pending`: **Share it** (primary), **Keep private** |
+| `expense_confirm` | description; amount large; paid-by avatar; split chips with per-person share; source badge (chat / photo / email / card); for `pending` a classifier line "looks shared (92%)"; digests render as a stacked list, one button pair per item | `logged`: **Undo**. `pending` (card/email): **Share it** (primary), **Keep private**. `pending` (receipt photo, poster only): **Log it** (primary), **Don't log it** |
 | `settle_up` | balance list with + green / − red; for `final`, transfer rows `Chase → Dean €31.60` each with a **Paid** toggle; total spent footer | **Paid** per transfer (final only) |
 | `recap` | title with ☀️; "last night" event rows with avatar chips and amounts; total row; embedded settle_up compact; "today" rows; photo strip (up to 3 thumbnails) | none |
 | `wrapped` | full-bleed gradient header (`#1C8C7A` → `#0B84FF`) with trip name and dates; big-number stats grid; category bar; awards as three tiles with avatar + title + evidence; 6-photo mosaic; final settle compact; | **Share** (exports the card as PNG; v0 may just open it in a new tab) |
@@ -1073,3 +1089,50 @@ For every new Trav string, check:
 10. Roast lines only in recaps/Wrapped/one aside per day; `roast: true` set; none of §7.4; none in family mode.
 11. Family mode: no nightlife/alcohol with the minor on the plan; minor never charged, never approves.
 12. One message per turn (plus DMs for tickets). Nothing unsolicited beyond the daily cap.
+
+---
+
+## Proposed (voice checkpoint 2026-11-05)
+
+Post-P0 review of user-facing text added in `1357d72..29de899` (T-168, T-182, T-166, T-165, T-167, T-074) and `docs/DEMO_TRANSCRIPT.md`. The doc above was updated to match good shipped behaviour: §1 rule 1 (short names), §4.1 C (lodging), §4.1 D and §4.2 B (flights), §4.4 (the receipt-photo 👍 step), and §6.3 (each-payer approvals). The items below need code changes. They are in priority order, with the current string, the suggested string, and file:line at `29de899`.
+
+- **VC-1 | P0 | Each-payer approvals post one group message per tap.** In the demo, flights and lodging each produce 5 "okayed it" lines before the receipt. That is 10 Trav messages that say nothing new. It breaks §2 batching ("never a second message to say the first one is done"), and it is the noisiest part of the flagship transcript.
+  `packages/agent/src/approval/handler.ts:1004`. Current, on every partial grant: `` `${name} okayed it. still need 👍 from ${names(waiting)}` ``.
+  Suggested: no outbound on a partial grant. Update the proposal card in place (status chip `3 of 6 in · waiting on Henry, Piotr, Crowley`), and send a 👍 tapback (`OutboundReaction`) on a text approval. On text-only channels, send one line, once, after 5 quiet minutes: `` `still need a 👍 from ${tags(waiting)} on the ${headline}` ``, with `mentions` = waiting (§6.3). Acceptance: the Barcelona transcript shows no Trav line between the flight or lodging card and its receipt, and a test proves there is at most one nudge.
+
+- **VC-2 | P0 | Settle-up Sent / Got it reposts the full 8-line card on every tap.** `packages/agent/src/loop.ts:3187` (lead) plus the `settleFlow.finalSettle` repost, and `packages/agent/src/render/settleUp.ts:288`. Current on Sent: `Dean, tap Got it or 👍 once it lands` followed by the whole card again. Current on Got it: `final settle, 1 of 5 paid, 4 to go` followed by the whole card again.
+  Suggested on Sent: update the card in place and post one group line, `` `${payer} says sent ${amount}. @${payee}, 👍 when it lands` ``, with `mentions: [payee]` (§3.5: the payee must act, so tag them). Suggested on Got it: `` `${payer} → ${payee} ${amount} cleared. ${n} to go` `` (or `everyone's square` at 0). Repost the full card only on `stale` / `tabMoved`. Acceptance: in a 5-transfer settle, each tap adds at most one one-line group message.
+
+- **VC-3 | P1 | Chat expense descriptions keep sentence fragments.** Demo: `logged: €28 2 waters in here on Crowley, 2 ways (Chase, Crowley) → €14 each`, and the recap shows `2 waters in here (2 of you) €28`.
+  `packages/agent/src/ingest/expenseText.ts:1165` (`cleanDescription` returns the raw span) and `packages/agent/src/render/expenseConfirm.ts:181`. Suggested: strip trailing locatives and fillers (`in here`, `in there`, `here`, `there`, `tonight`, `were`, `was`). Move a leading count after the noun or drop it: `logged: €28 waters on Crowley, 2 ways (Chase, Crowley) → €14 each`. Fixtures: "2 waters in here were €28", "3 beers at the bar €18", "the cab here was €12".
+
+- **VC-4 | P1 | The card prompt drops the day for an older charge.** Demo (tue 10am): `saw €90 from Sala Apolo at 5:05pm` for a Monday charge.
+  `packages/agent/src/render/common.ts:112`: `whenShort` strips `yesterday` along with `last night`. Suggested: strip only `tonight` and `last night`. Render `yesterday` as `at 5:05pm yesterday`, and keep `at 5:05pm on mon mar 16` for anything older (§4.5 note).
+
+- **VC-5 | P1 | A repeated booking ask gets a question that invites the wrong answer.** Demo: Dean re-sends the Razzmatazz ask and gets `Dean, Chase, Piotr, Arjun, Crowley already have a ticket for that one. who else is coming?`. Henry is sick, so the question pulls him back in.
+  `packages/agent/src/booking/proposals.ts:1024`. Suggested, when every named attendee already holds a ticket: `` `already done: ${n} tickets on ${orderRef}, nothing new bought. need one for someone else? say who` ``. Keep the `just ${rest}?` branch for a partial overlap.
+
+- **VC-6 | P1 | Short names lowercase places, and recaps use the provider's full title.** `packages/agent/src/booking/proposals.ts:421`: `shortEventName` lowercases the whole string. That produces `booked ✅ eixample 3br with balcony` and `your fc barcelona vs sevilla fc ticket for sun mar 15`, while the proposal itself says `Eixample 3BR with balcony`. Separately, `packages/agent/src/recaps/morningAfter.ts:277` labels the event `Razzmatazz: Saturday club night`.
+  Suggested: (a) build the lodging headline from its parts as `` `${area} ${beds}br` `` (`Eixample 3br`), with the area capitalized, and use it in both the proposal and the receipt. (b) Let providers supply a `shortName` (`barça vs sevilla`, `razzmatazz`), falling back to today's lowercase cut. (c) Booking events in recaps use `bookingHeadline(...)`, giving `razzmatazz €90`.
+
+- **VC-7 | P1 | "on everyone paying" is ungrammatical.** `packages/agent/src/booking/flights.ts:820` and `:848`, `packages/agent/src/booking/proposals.ts:2911`, `:2914`, `:2952`, `packages/agent/src/render/bookingProposal.ts:120-123`. Current: `flights are on everyone paying, so all 6 of you have to 👍`, `lodging is on everyone paying`, `this one is on everyone paying`. Suggested: one string for all kinds, `everyone's paying for this one, so all 6 of you 👍`, and `everyone's paying for this one` where only the reason is shown.
+
+- **VC-8 | P1 | The group-flight receipt shows one trip-time refund deadline.** Demo: `6 airline orders, refs in the card · refundable until thu mar 12 1:30am`. The proposal said `refundable before departure, fees apply`, and 1:30am BCN time matches nobody's printed departure, since those are shown in origin time. `packages/agent/src/render/receipt.ts:186` takes the earliest `refundDeadline` (via line 178). Suggested for flight sets: `6 airline orders, refs in the card · refundable before departure, fees apply`, with per-person deadlines in the card.
+
+- **VC-9 | P2 | The Wrapped settle count disagrees with the card, and some awards are weak.** `packages/agent/src/render/wrapped.ts:145`. Current: `final settle is in the card, 4 transfers and you're done 💸` while the card shows 5 rows, 1 of them paid. Suggested when any transfer is paid: `` `final settle is in the card, ${n} transfers left and you're done 💸` ``. In `packages/core/src/wrapped/awards.ts` (selection, and `evidenceFor` at :325), the demo shows `Uber Captain: Crowley (1 ride)`, a tie at 1, and `Night Owl: Arjun` with no evidence in the text line. Suggested: a count award needs a value of at least 2 and a unique leader, otherwise skip to the next award. The text line carries evidence for every award (`Night Owl: Arjun (last one 2:14am)`).
+
+- **VC-10 | P2 | The payment-profile ask is two questions in one 147-character line.** `packages/agent/src/settle/profiles.ts:54`. Current: `quick one so settling up is painless later: which of these do you use? venmo, cash app, paypal, zelle, apple cash, cash. and which is your favourite?`. Suggested, 3 lines with one question and "fave" to match the example: `quick one for settling up later: which do you use, and which is your fave?` / `venmo · cash app · paypal · zelle · apple cash · cash` / `like "venmo and zelle, venmo's my fave". i only ask once, and it stays between us`.
+
+- **VC-11 | P2 | The payee handle ask doesn't end on its question.** `packages/agent/src/settle/payDetails.ts:206-207`. Current: `Chase owes you €42 and you both have venmo. what's your handle?` / `"my venmo is @your-name" and i'll send Chase a link. it only goes to people paying you`. Suggested (§4.11, the question goes last): `Chase owes you €42 and you both have venmo. i'll send Chase a link, it only goes to people paying you` / `what's your handle? like "my venmo is @your-name"`.
+
+- **VC-12 | P2 | There are two ways to pick an option.** `packages/agent/src/booking/flights.ts:508`. Current: `say "@trav book option 1" (or 2 or 3). nothing's booked yet`. The ticket choice card takes a bare `1` or `2` (`booking/choice.ts:205`). Suggested: `reply 1, 2 or 3 to pick, then everyone 👍s. nothing's booked yet`. Route the bare digit to `proposeFlights` under the same "options card is the thread's last message" rule as T-168 (d41d1de), and keep "book option N" as an alias.
+
+- **VC-13 | P2 | A delegated approval in the reply window gets silence.** Demo step 3: `henry's at practice, i'll approve for him. go ahead trav` books nothing, which is correct, but gets no reply. Per §6.2, the approved-for-others ask-back (`not booked. everyone approves for themselves: 👍 the card or reply "yes"`, `approval/whitelist.ts:292`) should fire for a line said in the card's reply window. If "go ahead trav" (trailing "trav") is deliberately not an address, pin that with an eval case and document it in the §2 mention rules.
+
+Checked and fine as shipped:
+- T-168: the auto-buy receipt line (`bought on Dean's ask, under the €500 auto-buy cap`) and the choice card.
+- T-182: the ask-backs (`approval/whitelist.ts:290-293`).
+- T-165: notices and corrections.
+- T-167: suggestion lines, `fancy or casual tonight?`, `casual it is`, `food for everyone tonight:`, and the own-DM `over your …` note.
+- T-166: pay-detail DMs, the zelle and no-common-app variants, `HANDLE_IN_GROUP_TEXT`, and `WHICH_ROW_TEXT`.
+- The receipt-photo read card and its variants.
