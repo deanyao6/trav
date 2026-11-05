@@ -140,6 +140,11 @@ function eventHead(name: string): string {
 }
 
 /** "Cais Club (fictional)" ⇒ "cais club". */
+/** The folded venue key the venue index groups by (T-168: an event's venue vs `AutoBuyVerdict.venueKey`). */
+export function venueKeyOf(venueName: string): string {
+  return nameTerm(venueName);
+}
+
 function nameTerm(name: string): string {
   return foldText(name)
     .replace(/\([^)]*\)/g, ' ')
@@ -515,7 +520,7 @@ const CANCEL_CUE = /\b(?:cancel|drop|nvm|never ?mind|don'?t book|scrap|forget)\b
  * removed (`withoutNameNegations`) before this is tested.
  */
 const NEGATION_CUE =
-  /\b(?:don'?t|dont|do not|doesn'?t|no need|not (?:yet|now|getting|buying|booking|gonna|going to)|hold off|wait on|no (?:tickets|tix)|never|can'?t|cant|cannot|can not|couldn'?t|won'?t|wont|wouldn'?t|didn'?t|isn'?t|aren'?t|wasn'?t|weren'?t|shouldn'?t|haven'?t|hasn'?t|no way|nobody|no ?one|none of (?:us|you|them|the group))\b/;
+  /\b(?:don'?t|dont|do not|doesn'?t|no need|not (?:yet|now|getting|buying|booking|gonna|going to)|hold off|wait on|no (?:tickets|tix)|never|can'?t|cant|cannot|can not|couldn'?t|won'?t|wont|wouldn'?t|didn'?t|isn'?t|aren'?t|wasn'?t|weren'?t|shouldn'?t|haven'?t|hasn'?t|no way|nobody|no ?one|none of (?:us|you|them|the group) (?:want|wants|wanna|need|needs|is|are|can|could|should|will|would|feel|feels|cares?|is going|are going))\b/;
 /** "never been (here)": about the venue, not the booking (T-148 #3). A whole clause only. */
 const NEVER_BEEN = /(?:^|[,.;!?]\s*)never been(?:\s+(?:here|there|before))?\s*(?=[,.;!?]|$)/g;
 /**
@@ -2421,8 +2426,11 @@ function unaccountedMember(
 }
 
 /** A pronoun said to be out ("he can't make it", "she's sick", "he isn't coming"). */
+// T-182 r2 minor 3: only a negation that says the person is out ("can't make
+// it", "isn't coming", "doesn't want to come"), never any "they're not …" ("they
+// can't wait", "they're not cheap").
 const PRONOUN_OUT = new RegExp(
-  String.raw`\b(?:he|she|they)(?:'s|'re|\s+is|\s+are)?\s+(?:can'?t|cannot|won'?t|isn'?t|aren'?t|not|doesn'?t|don'?t)\b|\b(?:he|she)(?:'s|\s+is)\s+(?:(?:feeling|a bit|so|really|still|very)\s+)*${OUT_REASON}\b`,
+  String.raw`\b(?:he|she|they)(?:'s|'re|\s+is|\s+are)?\s+(?:(?:can'?t|cannot|won'?t|wont)\s+(?:make it|come|go|join|be there|be coming)|(?:isn'?t|aren'?t|not|won'?t\s+be)\s+(?:coming|going|joining|in|around|up for it|feeling (?:it|well|great|good))|(?:doesn'?t|don'?t)\s+(?:want to|wanna|feel like)\s+(?:come|go|join)|(?:doesn'?t|don'?t)\s+feel (?:well|good|great))\b|\b(?:he|she|they)(?:'s|'re|\s+is|\s+are)?\s+(?:can'?t|cannot|won'?t|wont|isn'?t|aren'?t|not)\s*(?=[,.;!?]|$)|\b(?:he|she)(?:'s|\s+is)\s+(?:(?:feeling|a bit|so|really|still|very)\s+)*${OUT_REASON}\b`,
 );
 
 /** First-person soft asks (T-173, T-158 r2 #2): "i need…", "i could use…", "hook me up with…". */

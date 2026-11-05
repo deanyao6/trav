@@ -13,8 +13,8 @@ describe('pnpm demo:barcelona (T-021)', () => {
     const razz = result.checks.filter((c) => c.step.startsWith('7.')).map((c) => c.name);
     expect(razz).toEqual(
       expect.arrayContaining([
-        'receipt posted in the group',
-        'exactly one purchase after two 👍',
+        'Trav bought the 5 Razzmatazz tickets on the ask, no card (explicit ask under the €500 auto-buy cap)',
+        'exactly one purchase, even asked twice',
         'Henry got nothing from the booking',
         'ledger: the €90 is split among exactly the 5, Henry not charged',
       ]),

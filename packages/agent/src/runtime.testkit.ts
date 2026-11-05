@@ -118,6 +118,12 @@ export interface HarnessOptions {
   readonly runtime?: Partial<
     Omit<TravRuntimeOptions, 'channel' | 'clock' | 'ids' | 'model' | 'maxToolRounds' | 'executor'>
   >;
+  /**
+   * T-168: the seeded group's auto-buy cap. DEFAULT 0 here (auto-buy off), so
+   * the card-flow tests keep exercising the card on the flagship ask; T-168
+   * tests pass the product default (`DEFAULT_AUTO_BUY_CAP_MINOR`) or a cap.
+   */
+  readonly autoBuyCapMinor?: number;
 }
 
 export function harness(opts: HarnessOptions = {}): Harness {
@@ -156,6 +162,13 @@ export function harness(opts: HarnessOptions = {}): Harness {
   });
   const last: { message?: InboundMessage; reaction?: InboundReaction; tap?: InboundButtonTap } = {};
   const groupId = BARCELONA.groupId;
+  const seeded = runtime.stores.group.groups.get(groupId);
+  if (seeded !== undefined) {
+    runtime.stores.group.groups.update({
+      ...seeded,
+      spendingPolicy: { ...seeded.spendingPolicy, autoApproveCapMinor: opts.autoBuyCapMinor ?? 0 },
+    });
+  }
   return {
     runtime,
     channel,

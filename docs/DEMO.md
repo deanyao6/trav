@@ -22,7 +22,7 @@ pnpm demo:barcelona
 
 Runs the flagship Barcelona trip end to end through the real Trav runtime, offline, on a simulated clock, and prints the chat as it goes:
 
-trip setup → multi-origin group flights → lodging → Barça tickets (6, over the cap, everyone confirms) → dinner logged from chat → Arjun's Uber email receipt (DM-only "looks shared?" → share) → €84 dinner split "everyone but Henry" → **"@trav get the 5 of us Razzmatazz tickets, Henry's sick"** → approval → one mock purchase → receipt in the group → 5 per-person ticket DMs → €90 split among only those 5 → Crowley's 2am Uber from the Plaid-shaped card feed (DM-only confirm) → Morning After recap → "@trav settle now" → end-of-trip Wrapped.
+trip setup → multi-origin group flights → lodging → Barça tickets (two seat sections, so Trav posts the options and buys on Dean's pick) → dinner logged from chat → Arjun's Uber email receipt (DM-only "looks shared?" → share) → €84 dinner split "everyone but Henry" → **"@trav get the 5 of us Razzmatazz tickets, Henry's sick"** → bought on the ask (explicit ask, under the group's €500 auto-buy cap, through ApprovalPolicy) → one mock purchase → receipt in the group → 5 per-person ticket DMs → €90 split among only those 5 → Crowley's 2am Uber from the Plaid-shaped card feed (DM-only confirm) → Morning After recap → "@trav settle now" → end-of-trip Wrapped.
 
 It checks 55 things along the way (ledger sums in integer cents, the approval and audit trail, Henry never being charged or told why he's out, nothing private ever landing in the group) and exits 0 only if all of them pass. The transcript is written to [`docs/DEMO_TRANSCRIPT.md`](DEMO_TRANSCRIPT.md).
 
@@ -42,7 +42,7 @@ Then open http://127.0.0.1:5179. It binds to 127.0.0.1 only; set `TRAV_SIM_PORT`
 It's an iMessage-style group chat backed by the real Trav runtime over mock providers (the same runtime the demo uses). It opens on the Barcelona chat on the Saturday night, with the six friends already talking about Razzmatazz and Henry out sick.
 
 - Pick a trip on the left (Barcelona, Lisbon, Turks and Caicos) and choose who you're sending as. All three chats run on the real runtime. Lisbon and Turks and Caicos are seeded from `fixtures/groups/`. Turks and Caicos opens with Trav's family-mode notice because Lily is under 18, so that chat gets no nightlife or alcohol suggestions and no roasts.
-- Type `@trav ...` to talk to Trav. For example, as Dean: `@trav get the 5 of us Razzmatazz tickets, Henry's sick`, then tap Approve or 👍. You get a mock purchase, a receipt in the group, and one ticket in each of the five DM tabs on the right.
+- Type `@trav ...` to talk to Trav. For example, as Dean: `@trav get the 5 of us Razzmatazz tickets, Henry's sick`, and Trav buys on the ask (explicit ask under the €500 auto-buy cap). You get a mock purchase, a receipt in the group, and one ticket in each of the five DM tabs on the right.
 - Private items (tickets, "looks shared?" prompts for email and card imports) show up only in that member's DM tab.
 - The top bar shows the simulated clock. **+1 hour**, **next morning** and **end of trip** move it forward and run whatever's due (daily tab, Morning After, Wrapped). **replay** steps through `fixtures/chats/barcelona.jsonl` one line at a time, and **restart demo** to reset.
 - An **offline** badge shows when no model call can leave the machine.

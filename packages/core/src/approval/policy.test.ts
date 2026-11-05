@@ -5,7 +5,7 @@ import { bookingParties, decidingRule, evaluate, POLICY_RULES } from './policy.j
 import {
   FIVE,
   NOW,
-  context,
+  context as baseContext,
   equalShares,
   member,
   policy,
@@ -39,8 +39,17 @@ const ALL_REASONS: readonly ReasonCode[] = [
   'payer_not_requester',
   'card_not_requester',
   'minor_requester',
+  'not_general_purpose',
   'within_all_caps',
 ];
+
+/**
+ * T-168: these tests read as the member's own explicit ask (`ask: 'explicit'`),
+ * the tier where the caps decide. `noAsk` is a proposal with no qualifying ask.
+ */
+const context = (o: Partial<Parameters<typeof baseContext>[0]> = {}) =>
+  baseContext({ ask: 'explicit', ...o });
+const noAsk = baseContext;
 
 /** A policy under which the Razzmatazz proposal auto-approves (cap raised). */
 const relaxed = () =>
@@ -48,7 +57,7 @@ const relaxed = () =>
 
 describe('evaluate: defaults', () => {
   it('default policy (auto cap 0) ⇒ needs_confirmation with default_confirm as the deciding rule', () => {
-    const d = evaluate(razzmatazz(), policy(), context());
+    const d = evaluate(razzmatazz(), policy(), noAsk());
     expect(d.outcome).toBe('needs_confirmation');
     expect(d.reasons).toEqual(['default_confirm']);
     expect(d.ruleIds).toEqual(['C1']);
@@ -118,13 +127,6 @@ describe('evaluate: cap boundaries (at the cap is inside the cap)', () => {
       total: 9000,
       share: 1800,
       expectReason: null,
-    },
-    {
-      name: 'perPerson +1 minor unit',
-      cap: { autoApproveCapMinor: 20000, perPersonAutoCapMinor: 1799 },
-      total: 9000,
-      share: 1800,
-      expectReason: 'over_per_person_cap',
     },
     {
       name: 'daily exactly at cap',
@@ -424,7 +426,7 @@ describe('evaluate: deny rules (table)', () => {
   });
 
   it('duplicate carries the existing booking id', () => {
-    const d = evaluate(razzmatazz(), policy(), context({ existingBookingForKey: 'bk_1' }));
+    const d = evaluate(razzmatazz(), policy(), noAsk({ existingBookingForKey: 'bk_1' }));
     expect(d.reasons).toEqual(['duplicate', 'default_confirm']);
     expect(d.existingBookingId).toBe('bk_1');
     expect(decidingRule(d)).toEqual({ ruleId: 'D8', reason: 'duplicate' });
@@ -446,7 +448,7 @@ describe('evaluate: deny rules (table)', () => {
     const d = evaluate(
       razzmatazz({ requestedBy: 'mem_stranger', refundable: false, kind: 'flight' }),
       policy(),
-      context(),
+      noAsk(),
     );
     expect(d.outcome).toBe('deny');
     expect(d.reasons).toEqual([
@@ -492,27 +494,6 @@ describe('evaluate: confirmation triggers (table)', () => {
       policy: { autoApproveCapMinor: 100 },
     },
     {
-      name: 'C2 flight',
-      reason: 'kind_requires_each_payer',
-      ruleId: 'C2',
-      mode: 'each_payer',
-      proposal: { kind: 'flight' },
-    },
-    {
-      name: 'C2 lodging',
-      reason: 'kind_requires_each_payer',
-      ruleId: 'C2',
-      mode: 'each_payer',
-      proposal: { kind: 'lodging' },
-    },
-    {
-      name: 'C3 share over per-person cap',
-      reason: 'over_per_person_cap',
-      ruleId: 'C3',
-      mode: 'each_payer',
-      policy: { perPersonAutoCapMinor: 1000 },
-    },
-    {
       name: 'C4 share over member pref cap',
       reason: 'over_member_share_cap',
       ruleId: 'C4',
@@ -524,11 +505,16 @@ describe('evaluate: confirmation triggers (table)', () => {
       },
     },
     {
-      name: 'C5 non-refundable',
+      name: 'C5 non-refundable over €200',
       reason: 'non_refundable',
       ruleId: 'C5',
       mode: 'any_one',
-      proposal: { refundable: false },
+      proposal: {
+        refundable: false,
+        totalMinor: 20001,
+        payers: [{ memberId: 'mem_dean', shareMinor: 20001 }],
+      },
+      policy: { autoApproveCapMinor: 50000 },
     },
     {
       name: 'C6 daily cap',
@@ -584,13 +570,21 @@ describe('evaluate: confirmation triggers (table)', () => {
     return policy({ autoApproveCapMinor: 20000, ...overrides });
   }
 
-  it('non-refundable never auto-approves even with a generous cap (A7)', () => {
+  it('non-refundable over €200 never auto-approves on an ask, even with a generous cap (A7, T-168 c)', () => {
     const d = evaluate(
-      razzmatazz({ refundable: false }),
+      razzmatazz({
+        refundable: false,
+        totalMinor: 20001,
+        payers: [{ memberId: 'mem_dean', shareMinor: 20001 }],
+      }),
       policy({ autoApproveCapMinor: 1_000_000 }),
       context(),
     );
     expect(d.outcome).toBe('needs_confirmation');
+    expect(d.reasons).toEqual(['non_refundable']);
+    // With no ask, non-refundable at any price keeps the card and says why.
+    const card = evaluate(razzmatazz({ refundable: false }), policy(), noAsk());
+    expect(card.reasons).toEqual(['default_confirm', 'non_refundable']);
   });
 
   it('per-person cards paid only by the requester do not fire C9', () => {
@@ -610,9 +604,9 @@ describe('evaluate: confirmation triggers (table)', () => {
     const d = evaluate(
       razzmatazz({ refundable: false }),
       relaxed({ perPersonAutoCapMinor: 1000 }),
-      context(),
+      noAsk(),
     );
-    expect(d.reasons).toEqual(['over_per_person_cap', 'non_refundable']);
+    expect(d.reasons).toEqual(['default_confirm', 'over_per_person_cap', 'non_refundable']);
     expect(d.approvalMode).toBe('each_payer');
     expect(d.requiredApprovers).toEqual([...FIVE]);
   });
@@ -621,26 +615,26 @@ describe('evaluate: confirmation triggers (table)', () => {
     const d = evaluate(
       razzmatazz({ holdExpiresAt: '2026-03-14T21:50:00+01:00' }),
       policy(),
-      context(),
+      noAsk(),
     );
     expect(d.expiresAt).toBe('2026-03-14T21:50:00+01:00');
     const longer = evaluate(
       razzmatazz({ holdExpiresAt: '2026-03-14T23:00:00+01:00' }),
       policy(),
-      context(),
+      noAsk(),
     );
     expect(longer.expiresAt).toBe('2026-03-14T21:55:00+01:00');
   });
 
   it('custom TTL moves expiresAt', () => {
-    const d = evaluate(razzmatazz(), policy({ approvalTtlSeconds: 90 }), context());
+    const d = evaluate(razzmatazz(), policy({ approvalTtlSeconds: 90 }), noAsk());
     expect(d.expiresAt).toBe('2026-03-14T21:41:30+01:00');
   });
 });
 
 describe('evaluate: required approvers', () => {
   it('any_one: adult, active, non-guest members; minors, guests and left members excluded', () => {
-    const d = evaluate(razzmatazz(), policy(), context());
+    const d = evaluate(razzmatazz(), policy(), noAsk());
     expect(d.requiredApprovers).not.toContain('mem_kid');
     expect(d.requiredApprovers).not.toContain('mem_stranger');
     expect(d.requiredApprovers).not.toContain('mem_gone');
@@ -651,7 +645,7 @@ describe('evaluate: required approvers', () => {
       // Leo's own card (on Dean's card, C10 would make Dean the only approver).
       razzmatazz({ requestedBy: 'mem_leo', paidBy: { kind: 'member_card', memberId: 'mem_leo' } }),
       policy({ approvers: ['mem_dean', 'mem_kid', 'mem_stranger', 'mem_nobody'] }),
-      context(),
+      noAsk(),
     );
     expect(d.requiredApprovers).toEqual(['mem_dean', 'mem_leo']);
   });
@@ -666,14 +660,14 @@ describe('evaluate: required approvers', () => {
         attendees: ['mem_dean', 'mem_kid'],
       }),
       policy({ approvers: ['mem_dean'] }),
-      context(),
+      noAsk(),
     );
     expect(d.outcome).toBe('needs_confirmation');
     expect(d.requiredApprovers).toEqual(['mem_dean']);
   });
 
   it('any_one (T-104): a member not on the booking (Henry, out tonight) is never an approver', () => {
-    const d = evaluate(razzmatazz(), policy(), context());
+    const d = evaluate(razzmatazz(), policy(), noAsk());
     expect(d.approvalMode).toBe('any_one');
     expect(d.requiredApprovers).not.toContain('mem_henry');
     expect(d.requiredApprovers).toEqual([...FIVE]);
@@ -684,7 +678,7 @@ describe('evaluate: required approvers', () => {
         paidBy: { kind: 'member_card', memberId: 'mem_crowley' },
       }),
       policy({ approvers: ['mem_henry', 'mem_dean'] }),
-      context(),
+      noAsk(),
     );
     expect(named.requiredApprovers).toEqual(['mem_dean', 'mem_crowley']);
   });
@@ -698,7 +692,7 @@ describe('evaluate: required approvers', () => {
         paidBy: { kind: 'member_card', memberId: 'mem_crowley' },
       }),
       policy({ approvers: ['mem_dean', 'mem_henry'] }),
-      context(),
+      noAsk(),
     );
     // C10: Henry asks on Crowley's card, so Crowley (the card owner) is the one approver.
     expect(d.requiredApprovers).toEqual(['mem_crowley']);
@@ -710,7 +704,7 @@ describe('evaluate: required approvers', () => {
         paidBy: { kind: 'member_card', memberId: 'mem_henry' },
       }),
       policy({ approvers: ['mem_dean', 'mem_crowley'] }),
-      context(),
+      noAsk(),
     );
     // On Henry's own card he is a party (card owner) and the pool's attendees stay.
     expect(own.requiredApprovers).toEqual(['mem_dean', 'mem_crowley', 'mem_henry']);
@@ -727,7 +721,7 @@ describe('evaluate: required approvers', () => {
         attendees: ['mem_kid'],
       }),
       policy(),
-      context(),
+      noAsk(),
     );
     expect(d.outcome).toBe('needs_confirmation');
     expect(d.approvalMode).toBe('any_one');
@@ -758,7 +752,7 @@ describe('evaluate: required approvers', () => {
       const d = evaluate(
         snorkel({ requestedBy: 'mem_lily', paidBy: { kind: 'member_card', memberId: 'mem_lily' } }),
         policy(),
-        context({ members: tci() }),
+        noAsk({ members: tci() }),
       );
       expect(d.outcome).toBe('needs_confirmation');
       expect(d.approvalMode).toBe('any_one');
@@ -769,7 +763,7 @@ describe('evaluate: required approvers', () => {
       const d = evaluate(
         snorkel({ requestedBy: 'mem_mom', paidBy: { kind: 'member_card', memberId: 'mem_mom' } }),
         policy(),
-        context({ members: tci() }),
+        noAsk({ members: tci() }),
       );
       expect(d.requiredApprovers).toEqual(['mem_mom', 'mem_dad']);
     });
@@ -783,7 +777,7 @@ describe('evaluate: required approvers', () => {
       const d = evaluate(
         snorkel({ requestedBy: 'mem_lily', paidBy: { kind: 'member_card', memberId: 'mem_lily' } }),
         policy(),
-        context({ members }),
+        noAsk({ members }),
       );
       expect(d.requiredApprovers).toEqual(['mem_mom', 'mem_uncle']);
     });
@@ -797,7 +791,7 @@ describe('evaluate: required approvers', () => {
           attendees: ['mem_crowley', 'mem_leo'],
         }),
         policy({ approvers: ['mem_dean'] }),
-        context(),
+        noAsk(),
       );
       expect(onDean.requiredApprovers).toEqual(['mem_dean']);
       // Crowley's card, Dean not on it: no party is in the pool, so the pool (Dean) stands in, not Chase.
@@ -809,7 +803,7 @@ describe('evaluate: required approvers', () => {
           paidBy: { kind: 'member_card', memberId: 'mem_crowley' },
         }),
         policy({ approvers: ['mem_dean'] }),
-        context(),
+        noAsk(),
       );
       // C10 (T-148): Crowley's card, Chase asking ⇒ Crowley, the card owner, is the one approver.
       expect(onCrowley.requiredApprovers).toEqual(['mem_crowley']);
@@ -824,7 +818,7 @@ describe('evaluate: required approvers', () => {
           paidBy: { kind: 'member_card', memberId: 'mem_henry' },
         }),
         policy(),
-        context(),
+        noAsk(),
       );
       expect(d.requiredApprovers).toContain('mem_henry');
       expect(d.requiredApprovers).toEqual([...FIVE, 'mem_henry']);
@@ -848,7 +842,7 @@ describe('evaluate: required approvers', () => {
     });
 
     it("Henry asks for the 5 of us on Dean's card ⇒ only Dean, the card owner, approves (C10)", () => {
-      const d = evaluate(razzmatazz({ requestedBy: 'mem_henry' }), policy(), context());
+      const d = evaluate(razzmatazz({ requestedBy: 'mem_henry' }), policy(), noAsk());
       expect(d.requiredApprovers).toEqual(['mem_dean']);
       expect(d.reasons).toEqual(['default_confirm', 'card_not_requester']);
     });
@@ -882,7 +876,7 @@ describe('evaluate: required approvers', () => {
                       paidBy: { kind: 'member_card', memberId: cardOwner },
                     }),
                     policy({ approvers }),
-                    context({ members }),
+                    noAsk({ members }),
                   );
                   if (d.outcome !== 'needs_confirmation') continue;
                   checked += 1;
@@ -913,7 +907,7 @@ describe('evaluate: required approvers', () => {
         attendees: ['mem_dean', 'mem_crowley'],
       }),
       policy(),
-      context(),
+      noAsk(),
     );
     expect(d.approvalMode).toBe('each_payer');
     expect(d.requiredApprovers).toEqual(['mem_dean', 'mem_henry']);
@@ -923,7 +917,7 @@ describe('evaluate: required approvers', () => {
     const d = evaluate(
       razzmatazz({ kind: 'flight', paidBy: { kind: 'per_person_cards' } }),
       policy(),
-      context(),
+      noAsk(),
     );
     expect(d.approvalMode).toBe('each_payer');
     expect(d.requiredApprovers).toEqual([...FIVE]);
@@ -942,7 +936,7 @@ describe('evaluate: required approvers', () => {
         attendees: ['mem_dean', 'mem_kid'],
       }),
       policy(),
-      context(),
+      noAsk(),
     );
     expect(d.reasons).toEqual(['default_confirm', 'kind_requires_each_payer', 'minor_is_payer']);
     expect(d.requiredApprovers).toEqual(['mem_dean']);
@@ -964,13 +958,13 @@ describe('evaluate: required approvers', () => {
       ],
       attendees: ['mem_kid', 'mem_leo'],
     });
-    const viaRequester = evaluate(p, policy(), context({ members: views(members) }));
+    const viaRequester = evaluate(p, policy(), noAsk({ members: views(members) }));
     expect(viaRequester.requiredApprovers).toEqual(['mem_crowley', 'mem_leo']);
 
     const viaPool = evaluate(
       { ...p, requestedBy: 'mem_stranger' },
       policy({ approvers: ['mem_ava'] }),
-      context({ members: views(members) }),
+      noAsk({ members: views(members) }),
     );
     expect(viaPool.outcome).toBe('deny'); // guest requester; approvers still computed deterministically
     expect(viaPool.requiredApprovers).toEqual([]);
@@ -991,7 +985,7 @@ describe('evaluate: required approvers', () => {
         attendees: ['mem_kid'],
       }),
       policy(),
-      context({ members: views(members) }),
+      noAsk({ members: views(members) }),
     );
     expect(d.outcome).toBe('needs_confirmation');
     expect(d.requiredApprovers).toEqual([]);
@@ -1188,7 +1182,9 @@ describe('POLICY_RULES', () => {
     run({}, { autoApproveCapMinor: 0 });
     run({}, { autoApproveCapMinor: 1 });
     run({ kind: 'flight' });
-    run({}, { perPersonAutoCapMinor: 1 });
+    evaluate(razzmatazz(), policy({ perPersonAutoCapMinor: 1 }), noAsk()).reasons.forEach((r) =>
+      fired.add(r),
+    );
     run(
       {},
       {},
@@ -1198,7 +1194,11 @@ describe('POLICY_RULES', () => {
         },
       },
     );
-    run({ refundable: false });
+    run({
+      refundable: false,
+      totalMinor: 20001,
+      payers: [{ memberId: 'mem_dean', shareMinor: 20001 }],
+    });
     run({}, {}, { spentTodayMinor: 50000 });
     run({}, { tripGroupCapMinor: 1 });
     run({
@@ -1223,14 +1223,193 @@ describe('POLICY_RULES', () => {
 
 describe('evaluate: input validation', () => {
   it('throws on a malformed quotedAt (invalid input, not a decision)', () => {
-    expect(() => evaluate(razzmatazz({ quotedAt: 'yesterday' }), policy(), context())).toThrow(
+    expect(() => evaluate(razzmatazz({ quotedAt: 'yesterday' }), policy(), noAsk())).toThrow(
       /ISO-8601/,
     );
   });
 
   it('now is taken from the context, never the wall clock', () => {
-    const later = evaluate(razzmatazz(), policy(), context({ now: '2026-03-14T22:30:00+01:00' }));
+    const later = evaluate(razzmatazz(), policy(), noAsk({ now: '2026-03-14T22:30:00+01:00' }));
     expect(later.reasons).toContain('quote_expired');
     expect(NOW).toBe('2026-03-14T21:40:00+01:00');
+  });
+});
+
+describe('T-168 approval tiers (D-044)', () => {
+  const nonRef = (totalMinor: number) =>
+    razzmatazz({
+      refundable: false,
+      totalMinor,
+      payers: [{ memberId: 'mem_dean', shareMinor: totalMinor }],
+      attendees: ['mem_dean'],
+    });
+  const ticket = (totalMinor: number) =>
+    razzmatazz({
+      totalMinor,
+      payers: [{ memberId: 'mem_dean', shareMinor: totalMinor }],
+      attendees: ['mem_dean'],
+    });
+
+  it('the default policy is €500 auto-buy on (DEFAULT_AUTO_BUY_CAP_MINOR)', () => {
+    expect(policy().autoApproveCapMinor).toBe(50000);
+  });
+
+  describe('(a) an explicit ask, general-purpose, under the cap: auto-approve', () => {
+    it('the flagship €90 Razzmatazz ask auto-approves under the default policy', () => {
+      const d = evaluate(razzmatazz(), policy(), context({ ask: 'explicit' }));
+      expect(d.outcome).toBe('auto_approve');
+      expect(d.reasons).toEqual(['within_all_caps']);
+    });
+
+    it('the same proposal with no ask is a card, whatever the cap', () => {
+      for (const cap of [0, 9000, 50000, 1_000_000]) {
+        const d = evaluate(razzmatazz(), policy({ autoApproveCapMinor: cap }), noAsk());
+        expect(d.outcome).toBe('needs_confirmation');
+        expect(d.reasons[0]).toBe('default_confirm');
+      }
+    });
+
+    it('cap boundary: exactly at the cap auto-approves, one cent over is over_auto_cap', () => {
+      expect(evaluate(ticket(50000), policy(), context()).outcome).toBe('auto_approve');
+      const over = evaluate(ticket(50001), policy(), context());
+      expect(over.outcome).toBe('needs_confirmation');
+      expect(over.reasons[0]).toBe('over_auto_cap');
+      expect(over.ruleIds[0]).toBe('C1');
+    });
+
+    it('auto-buy off (cap 0) ⇒ an explicit ask is the ordinary card, with the per-person rule', () => {
+      const d = evaluate(
+        razzmatazz(),
+        policy({ autoApproveCapMinor: 0, perPersonAutoCapMinor: 1000 }),
+        context(),
+      );
+      expect(d.reasons).toEqual(['default_confirm', 'over_per_person_cap']);
+      expect(d.approvalMode).toBe('each_payer');
+    });
+
+    it('over the cap ⇒ the pre-T-168 card rules apply (per-person cap, any non-refundable)', () => {
+      const d = evaluate(
+        razzmatazz({ refundable: false }),
+        policy({ autoApproveCapMinor: 8000, perPersonAutoCapMinor: 1000 }),
+        context(),
+      );
+      expect(d.reasons).toEqual(['over_auto_cap', 'over_per_person_cap', 'non_refundable']);
+      expect(d.approvalMode).toBe('each_payer');
+    });
+
+    it('in the tier the per-person cap does not fire; a member’s own share cap (C4) still does', () => {
+      const tight = policy({ perPersonAutoCapMinor: 1000 });
+      expect(evaluate(razzmatazz(), tight, context()).outcome).toBe('auto_approve');
+      const own = evaluate(
+        razzmatazz(),
+        tight,
+        context({
+          prefs: {
+            mem_chase: {
+              memberId: 'mem_chase',
+              perBookingShareCapMinor: 1500,
+              dailyShareCapMinor: null,
+            },
+          },
+        }),
+      );
+      expect(own.reasons).toEqual(['over_member_share_cap']);
+    });
+
+    it('daily and trip caps, a minor, and someone else’s card still keep the card', () => {
+      expect(evaluate(razzmatazz(), policy(), context({ spentTodayMinor: 41001 })).reasons).toEqual(
+        ['over_daily_cap'],
+      );
+      expect(
+        evaluate(razzmatazz(), policy({ tripGroupCapMinor: 9000 }), context({ spentTripMinor: 1 }))
+          .reasons,
+      ).toEqual(['over_trip_cap']);
+      expect(
+        evaluate(
+          razzmatazz({ paidBy: { kind: 'member_card', memberId: 'mem_chase' } }),
+          policy(),
+          context(),
+        ).reasons,
+      ).toEqual(['card_not_requester']);
+    });
+
+    it('deny rules still deny on an ask (duplicate, guest, hard max)', () => {
+      const dup = evaluate(razzmatazz(), policy(), context({ existingBookingForKey: 'bk_1' }));
+      expect(dup.outcome).toBe('deny');
+      const guest = evaluate(razzmatazz({ requestedBy: 'mem_stranger' }), policy(), context());
+      expect(guest.outcome).toBe('deny');
+    });
+  });
+
+  describe('(c) non-refundable over €200 keeps the card on an explicit ask', () => {
+    it('non-refundable €200 exactly auto-approves; €200.01 needs the card (C5)', () => {
+      expect(evaluate(nonRef(20000), policy(), context()).outcome).toBe('auto_approve');
+      const over = evaluate(nonRef(20001), policy(), context());
+      expect(over.outcome).toBe('needs_confirmation');
+      expect(over.reasons).toEqual(['non_refundable']);
+      expect(over.ruleIds).toEqual(['C5']);
+    });
+
+    it('refundable €200.01 auto-approves: the €200 line is only for non-refundable', () => {
+      expect(evaluate(ticket(20001), policy(), context()).outcome).toBe('auto_approve');
+    });
+  });
+
+  describe('(b) a pick on the options card', () => {
+    it('a pick of a non-refundable option over €200, under the cap, auto-approves (the card stated it)', () => {
+      const d = evaluate(nonRef(43200), policy(), context({ ask: 'pick' }));
+      expect(d.outcome).toBe('auto_approve');
+    });
+
+    it('a pick over the cap is the card', () => {
+      const d = evaluate(nonRef(50001), policy(), context({ ask: 'pick' }));
+      expect(d.outcome).toBe('needs_confirmation');
+      expect(d.reasons).toEqual([
+        'over_auto_cap',
+        'over_per_person_cap',
+        'non_refundable',
+        'over_daily_cap',
+      ]);
+    });
+  });
+
+  describe('(c) flights, lodging and transport always keep the card', () => {
+    it.each(['flight', 'lodging', 'transport'] as const)('%s on an explicit ask', (kind) => {
+      for (const ask of ['explicit', 'pick'] as const) {
+        const d = evaluate(razzmatazz({ kind }), policy(), context({ ask }));
+        expect(d.outcome).toBe('needs_confirmation');
+        expect(d.reasons).toContain('not_general_purpose');
+        if (kind !== 'transport') expect(d.reasons).toContain('kind_requires_each_payer');
+      }
+    });
+
+    it('a ticket or "other" (a table, a tour) on an ask is general-purpose', () => {
+      expect(evaluate(razzmatazz({ kind: 'other' }), policy(), context()).outcome).toBe(
+        'auto_approve',
+      );
+    });
+  });
+
+  describe('pre-T-168 card rules with no ask (moved from the tables above)', () => {
+    it('perPerson +1 minor unit ⇒ over_per_person_cap (C3, each_payer)', () => {
+      const d = evaluate(
+        razzmatazz(),
+        policy({ autoApproveCapMinor: 20000, perPersonAutoCapMinor: 1799 }),
+        noAsk(),
+      );
+      expect(d.reasons).toEqual(['default_confirm', 'over_per_person_cap']);
+      expect(d.approvalMode).toBe('each_payer');
+    });
+
+    it.each(['flight', 'lodging'] as const)('C2 %s ⇒ each_payer', (kind) => {
+      const d = evaluate(razzmatazz({ kind }), policy(), noAsk());
+      expect(d.reasons).toEqual(['default_confirm', 'kind_requires_each_payer']);
+      expect(d.approvalMode).toBe('each_payer');
+    });
+
+    it('any non-refundable with no ask ⇒ C5', () => {
+      const d = evaluate(nonRef(1000), policy(), noAsk());
+      expect(d.reasons).toEqual(['default_confirm', 'non_refundable']);
+    });
   });
 });

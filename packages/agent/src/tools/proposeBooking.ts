@@ -5,6 +5,7 @@
 import type { ProposalService, ProposeInput, ProposeResult } from '../booking/proposals.js';
 import { askedMinutes } from '../booking/request.js';
 import type { ToolDefinition } from './registry.js';
+import type { TurnToolContext } from './shared.js';
 import {
   asRecord,
   bad,
@@ -154,11 +155,14 @@ export function createProposeBookingTool(
     parse: parseProposeInput,
     async handler(input, ctx) {
       const requester = requireMember(ctx);
+      // T-168: only the loop sets this, from the member's own words.
+      const autoBuy = (ctx as Partial<TurnToolContext>).autoBuy;
       return service.propose(input, {
         groupId: ctx.groupId,
         tripId: ctx.tripId,
         requestedBy: requester.memberId,
         sourceMessageId: messageIdOf(ctx),
+        ...(autoBuy !== undefined ? { autoBuy } : {}),
       });
     },
   };

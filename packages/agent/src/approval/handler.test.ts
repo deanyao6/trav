@@ -28,7 +28,9 @@ import {
   TravError,
 } from '@trav/core';
 import { createMockTickets, loadTicketInventory } from '@trav/adapters';
+import { autoBuyVerdict } from '../booking/autoBuy.js';
 import type { BookingExecutor, ExecuteResult } from '../booking/executor.js';
+import { bundledVenueIndex } from '../model/offline/asks.js';
 import { expiryJobId, proposalExpiresAt, type ProposalService } from '../booking/proposals.js';
 import { BARCELONA, BARCELONA_NOW } from '../compose.js';
 import {
@@ -959,11 +961,10 @@ describe('a re-quote never spends (D-019 §3, VOICE §6.2): supersede and roster
     const evaluated = h
       .audit()
       .find((e) => e.type === 'policy.evaluated' && e.proposalId === next.proposalId)!;
-    expect(evaluated.payload).toMatchObject({
-      outcome: 'needs_confirmation',
-      confirmationForced: true,
-      policyOutcome: 'auto_approve',
-    });
+    // T-168: a re-quote carries no ask, so the policy itself says confirm
+    // (C1 default_confirm); nothing had to be forced.
+    expect(evaluated.payload).toMatchObject({ outcome: 'needs_confirmation', ask: null });
+    expect(evaluated.payload['reasons']).toEqual(['default_confirm']);
     // Dean's 👍 on the fresh card books for 4, once.
     const booked = await h.tap('h_dean', card.id, 'approve');
     expect(fake.calls.map((c) => c.proposalId)).toEqual([next.proposalId]);
@@ -1024,7 +1025,16 @@ describe('a re-quote never spends (D-019 §3, VOICE §6.2): supersede and roster
     setPolicy(h, { autoApproveCapMinor: 8000 });
     const { proposal } = await propose(h);
     const real = h.runtime.proposals;
-    // A service that forgets `requireConfirmation`: the policy auto-approves €72.
+    // A service that forgets `requireConfirmation` and even hands the re-quote
+    // an eligible ask for exactly those 4 (T-168): the policy auto-approves €72.
+    const verdict = autoBuyVerdict({
+      text: '@trav get razzmatazz tickets for everyone except henry and chase',
+      index: bundledVenueIndex(),
+      sender: 'Dean',
+      roster: BARCELONA.members.map((m) => m.name),
+      lane: 'group',
+    });
+    if (!verdict.eligible) throw new Error('test setup: the ask should be eligible');
     const forgetful: ProposalService = {
       ...real,
       repropose: (previous, attendees, sourceMessageId) =>
@@ -1041,6 +1051,7 @@ describe('a re-quote never spends (D-019 §3, VOICE §6.2): supersede and roster
             tripId: previous.tripId,
             requestedBy: previous.requestedBy,
             sourceMessageId,
+            autoBuy: verdict,
           },
         ),
     };

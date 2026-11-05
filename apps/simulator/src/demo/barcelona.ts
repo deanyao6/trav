@@ -418,27 +418,35 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
     // ---------------- 4. Barça tickets ----------------
     await section('4. Barça tickets', '2026-02-10T19:30:00+01:00');
     await say('Arjun', 'WE HAVE TO SEE BARÇA. sevilla is at home sunday the 15th');
+    const boughtBefore4 = countAudit(auditLog(), 'booking.completed');
     const barcaReply = await say(
       'Dean',
       '@trav get the 6 of us barça vs sevilla tickets for sunday mar 15',
     );
-    const barcaCard = barcaReply.find((m) => m.card?.type === 'booking_proposal');
+    // T-168 (b): two seat sections at two prices, both non-refundable: Trav
+    // posts the options and books nothing; Dean's pick is the approval.
+    const barcaCard = barcaReply.find((m) => m.card?.type === 'options');
     check(
-      'Trav proposed 6 Barça tickets (over the €60 cap, so everyone confirms)',
-      barcaCard !== undefined && /6 tickets/.test(barcaCard.text),
+      'Trav posted 2 Barça seat options for the 6 (prices, totals, non-refundable), nothing booked yet',
+      barcaCard !== undefined &&
+        /6 tickets/.test(barcaCard.text) &&
+        /1\. Gol Nord · €68 each · €408 total · non-refundable/.test(barcaCard.text) &&
+        /2\. Tribuna lateral · €72 each · €432 total · non-refundable/.test(barcaCard.text) &&
+        /nothing's booked yet/.test(barcaCard.text) &&
+        countAudit(auditLog(), 'booking.completed') === boughtBefore4,
       barcaReply.map((m) => m.text).join(' | '),
     );
     if (barcaCard) {
-      // Over the per-person cap every payer has to tap (at most one tap per member).
-      for (const name of ['Dean', 'Henry', 'Chase', 'Piotr', 'Arjun', 'Crowley']) {
-        const live = messageById(view(), barcaCard.messageId);
-        if (live?.cardState?.liveActionIds.includes('approve') !== true) break;
-        await tap(name, live, 'approve');
-      }
-      const receipt = messages(view().thread).find(
-        (m) => m.seq > barcaCard.seq && m.card?.type === 'receipt',
+      const picked = await say('Dean', '2');
+      const receipt = picked.find((m) => m.card?.type === 'receipt');
+      check(
+        "Dean's pick (option 2, sideline) books it: receipt in the group, bought on his pick",
+        receipt !== undefined &&
+          /^booked ✅ fc barcelona vs sevilla fc, 6 tickets, €432/.test(receipt.text) &&
+          /non-refundable/.test(receipt.text) &&
+          /bought on Dean's pick/.test(receipt.text),
+        picked.map((m) => m.text).join(' | '),
       );
-      check('Barça receipt posted in the group', receipt !== undefined);
       const barca = ticketDmsFor(view(), /barcelona vs sevilla/i);
       check(
         'one Barça ticket DM each, all 6',
@@ -537,31 +545,28 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
       "@trav get the 5 of us Razzmatazz tickets, Henry's sick",
       '2026-03-14T21:40:00+01:00',
     );
-    const razz = ask.find((m) => m.card?.type === 'booking_proposal');
-    const proposal = razz?.card?.type === 'booking_proposal' ? razz.card : undefined;
+    // T-168 (a): an explicit ask, general-purpose, €90 under the group's €500
+    // auto-buy cap: bought on the ask, through ApprovalPolicy and the audit log.
+    const receipt = ask.find((m) => m.card?.type === 'receipt');
+    const proposal = receipt?.card?.type === 'receipt' ? receipt.card : undefined;
     check(
-      'Trav proposed 5 Razzmatazz tickets for the 5 who are in (the reason Henry is out is never repeated)',
-      razz !== undefined &&
-        /razzmatazz tonight, 5 tickets/.test(razz.text) &&
-        /\(not Henry\)/.test(razz.text) &&
-        !/sick/i.test(razz.text),
+      'Trav bought the 5 Razzmatazz tickets on the ask, no card (explicit ask under the €500 auto-buy cap)',
+      ask.every((m) => m.card?.type !== 'booking_proposal') && receipt !== undefined,
       ask.map((m) => m.text).join(' | '),
     );
-    if (razz) {
-      await react('Dean', razz);
-      // A second 👍 after the booking never buys twice.
-      await react('Chase', razz);
-    }
-    const receipt = messages(view().thread).find(
-      (m) => razz !== undefined && m.seq > razz.seq && m.card?.type === 'receipt',
-    );
     check(
-      'receipt posted in the group',
-      receipt !== undefined && /^booked ✅ razzmatazz, 5 tickets, €90/.test(receipt.text),
+      'receipt posted in the group, with the refund terms and on whose ask (the reason Henry is out is never repeated)',
+      receipt !== undefined &&
+        /^booked ✅ razzmatazz, 5 tickets, €90/.test(receipt.text) &&
+        /refundable until 10pm/.test(receipt.text) &&
+        /bought on Dean's ask, under the €500 auto-buy cap/.test(receipt.text) &&
+        !/sick/i.test(receipt.text),
       receipt?.text,
     );
+    // The same ask again never buys twice (idempotency).
+    await say('Dean', "@trav get the 5 of us Razzmatazz tickets, Henry's sick");
     check(
-      'exactly one purchase after two 👍',
+      'exactly one purchase, even asked twice',
       countAudit(auditLog(), 'booking.completed') === purchasesBefore + 1,
     );
     const razzTickets = ticketDmsFor(view(), /razzmatazz/i);
@@ -586,15 +591,23 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
       razzExpense !== undefined && sameSet(sharesOf(rt(), razzExpense), FIVE),
     );
     check(
-      'audit: policy.evaluated → approval.granted → booking.attempted → booking.completed → ledger.written',
+      'audit: proposal.created → policy.evaluated (auto_approve on the ask) → booking.attempted → booking.completed → ledger.written',
       proposal !== undefined &&
+        rt()
+          .stores.group.audit.listByProposal(proposal.proposalId)
+          .some(
+            (e) =>
+              e.type === 'policy.evaluated' &&
+              e.payload['outcome'] === 'auto_approve' &&
+              e.payload['ask'] === 'explicit',
+          ) &&
         inOrder(
           rt()
             .stores.group.audit.listByProposal(proposal.proposalId)
             .map((e) => e.type),
           [
+            'proposal.created',
             'policy.evaluated',
-            'approval.granted',
             'booking.attempted',
             'booking.completed',
             'ledger.written',

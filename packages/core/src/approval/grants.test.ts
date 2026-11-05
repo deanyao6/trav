@@ -45,7 +45,11 @@ function eachPayer(): PolicyDecision {
   );
 }
 function auto(): PolicyDecision {
-  return evaluate(razzmatazz(), policy({ autoApproveCapMinor: 20000 }), context());
+  return evaluate(
+    razzmatazz(),
+    policy({ autoApproveCapMinor: 20000 }),
+    context({ ask: 'explicit' }),
+  );
 }
 
 describe('createGrant', () => {

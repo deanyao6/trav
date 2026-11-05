@@ -19,6 +19,13 @@ function members(
 }
 
 export const RAZZMATAZZ_ASK = "@trav get the 5 of us Razzmatazz tickets, Henry's sick";
+/**
+ * T-168: the same ask as a question. Not an unambiguous ask (`autoBuyVerdict`),
+ * so it gets the one-tap proposal card instead of buying on the ask. The
+ * simulator tests use it for the card's states (buttons, "waiting on",
+ * "Approved by Dean").
+ */
+export const RAZZMATAZZ_CARD_ASK = "@trav can you get the 5 of us Razzmatazz tickets? Henry's sick";
 
 export const BARCELONA: SimGroup = {
   groupId: 'grp_barcelona',

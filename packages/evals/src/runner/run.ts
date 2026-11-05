@@ -289,6 +289,9 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
     now: start,
     extras: scenario.setup?.fixtureExtras === true,
     ...(scenario.setup?.settings !== undefined ? { settings: scenario.setup.settings } : {}),
+    ...(scenario.setup?.spendingPolicy !== undefined
+      ? { spendingPolicy: scenario.setup.spendingPolicy }
+      : {}),
   });
   const groupId = fixture.group.groupId;
   const tripId = fixture.trip.tripId;

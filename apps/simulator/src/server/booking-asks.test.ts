@@ -201,8 +201,10 @@ describe('a later "not yet" takes the ask back, even under raised caps (T-148 r1
       .join('\n');
     // Never a 5-ticket booking that charges Dean and leaves him without one.
     expect(text).not.toMatch(/5 tickets/);
-    expect(purchases()).toBe(1);
+    // T-168 item 0: outside the auto-buy grammar, so the 6-ticket card, not a purchase.
+    expect(purchases()).toBe(0);
     expect(text).toMatch(/6 tickets/);
+    expect(text).toMatch(/👍 to book/);
   });
 });
 

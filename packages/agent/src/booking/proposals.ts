@@ -28,8 +28,11 @@ import type {
   MemberSpendingPrefs,
   MemberView,
   MessageId,
+  AskSignal,
   Money,
+  OptionsCard,
   OutboundMessage,
+  PolicyContext,
   PolicyDecision,
   ProposalId,
   ReasonCode,
@@ -75,9 +78,29 @@ import {
 } from '../approval/whitelist.js';
 import { sanitizeInline } from '../context/groupContext.js';
 import { keptOffFor } from '../roster/index.js';
+import type { AutoBuyVerdict } from './autoBuy.js';
+import {
+  choiceOffers,
+  createTicketChoiceStore,
+  planLive,
+  renderTicketOptions,
+  type TicketChoiceOption,
+  type TicketChoicePlan,
+  type TicketChoiceStore,
+} from './choice.js';
 import { proposeFlights, type FlightPlanStore } from './flights.js';
 import { cardHolderFor, carrierOf, payersFor, type PayerRule } from './payers.js';
-import { askedMinutes, CATEGORY_WORDS, foldText, resolveNight, weekdayName } from './request.js';
+import {
+  askedMinutes,
+  CATEGORY_WORDS,
+  foldText,
+  resolveNight,
+  venueKeyOf,
+  weekdayName,
+} from './request.js';
+
+/** An eligible `autoBuyVerdict` (T-168). */
+export type EligibleAutoBuy = Extract<AutoBuyVerdict, { readonly eligible: true }>;
 
 export interface ProposalDeps {
   readonly stores: Stores;
@@ -87,6 +110,8 @@ export interface ProposalDeps {
   /** Group flights (T-074): "book option N" from the latest `search_flights` plan; absent ⇒ "can't book flights from the chat yet". */
   readonly flights?: FlightsAdapter;
   readonly flightPlans?: FlightPlanStore;
+  /** T-168 (b): ticket options cards; absent ⇒ an in-memory store owned by the service. */
+  readonly ticketChoices?: TicketChoiceStore;
   readonly clock: Clock;
   readonly ids: IdGenerator;
 }
@@ -158,6 +183,28 @@ export interface ProposeContext {
    * opt-out never spends", VOICE §6.2 re-proposal). `repropose` always sets it.
    */
   readonly requireConfirmation?: boolean;
+  /**
+   * T-168 (a), D-044: the triggering message's `autoBuyVerdict`, when it was
+   * eligible. Set by the loop from the member's own words, never by the
+   * model. The policy may then buy without a card, but only if the proposal
+   * is exactly that ask: a ticket at the venue it named, on the night it
+   * named (tonight when it named none), for exactly the people it named, at
+   * the regular offer (no tier or offer the ask didn't say). Anything else ⇒
+   * the card.
+   */
+  readonly autoBuy?: EligibleAutoBuy;
+  /**
+   * T-168 (b): the asker's own pick on Trav's ticket options card. Set only
+   * by `pickTicketOption`. Kept as the policy's `pick` ask only when the
+   * re-quoted total is the one the card showed.
+   */
+  readonly pick?: {
+    readonly planId: string;
+    readonly offerId: string;
+    readonly expectedTotalMinor: number;
+  };
+  /** T-168 (b): the proposal is an option picked off a ticket options card (by anyone); the card names the tier. */
+  readonly fromOptions?: boolean;
 }
 
 export interface EventSummary {
@@ -202,6 +249,13 @@ export type ProposeResult =
       readonly text: string;
       readonly auditEventIds: readonly AuditEventId[];
     }
+  | {
+      /** T-168 (b): the offers really differ; the asker picks. Nothing held or bought. */
+      readonly kind: 'ticket_options';
+      readonly planId: string;
+      readonly text: string;
+      readonly card: OptionsCard;
+    }
   | { readonly kind: 'duplicate'; readonly bookingId: string; readonly text: string }
   | { readonly kind: 'pending_exists'; readonly proposalId: ProposalId; readonly text: string }
   | {
@@ -212,7 +266,8 @@ export type ProposeResult =
         | 'redirect_only'
         | 'provider_unavailable'
         | 'unsupported_kind'
-        | 'no_trip';
+        | 'no_trip'
+        | 'already_picked';
       readonly text: string;
     };
 
@@ -231,6 +286,25 @@ export interface ProposalService {
   ): Promise<ProposeResult>;
   /** Release the provider hold of a proposal that will not be bought (decline, cancel, expiry). */
   releaseHold(proposal: BookingProposal): Promise<void>;
+  /** T-168 (b): a ticket options card this service posted, by its card id. */
+  ticketChoice(planId: string): TicketChoicePlan | undefined;
+  /** T-168 (b): the newest ticket options card in the group. */
+  latestTicketChoice(groupId: GroupId): TicketChoicePlan | undefined;
+  /**
+   * T-168 (b): option `index` of ticket options card `planId`, picked by
+   * `pickedBy`. The asker's own pick on a live card is the `pick` ask (the
+   * policy may buy on it); anyone else's, or a stale card, is the ordinary
+   * card. A second pick on a picked card proposes nothing.
+   */
+  pickTicketOption(
+    planId: string,
+    index: number,
+    pick: {
+      readonly groupId: GroupId;
+      readonly pickedBy: MemberId;
+      readonly sourceMessageId: MessageId;
+    },
+  ): Promise<ProposeResult>;
 }
 
 /** The three VOICE §6.2 actions on a proposal card. A bare "ok" is never an alias. */
@@ -723,6 +797,7 @@ export function payerShares(
 export function createProposalService(deps: ProposalDeps): ProposalService {
   const { stores, tickets, clock, ids } = deps;
   const group = stores.group;
+  const choices = deps.ticketChoices ?? createTicketChoiceStore();
 
   async function releaseHold(proposal: BookingProposal): Promise<void> {
     if (proposal.kind !== 'ticket' || proposal.quoteRef.length === 0) return;
@@ -1002,6 +1077,20 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
         text: `no ${sanitizeInline(tierWords.join(' '), 40)} tickets for ${shortEventName(event.name)} ${whenText(event.startsAt, tz, now)} that i can book. no charge\n@ me without that and i'll price the regular ones`,
       };
     }
+    // T-168 (b): offers that really differ, none the refundable default (a
+    // Barça match's seat sections): the asker picks. Never on a re-quote, an
+    // add-on, a pick, or when a tier or offer was already named.
+    const choice =
+      input.offerId === undefined &&
+      !tierAsked &&
+      !addOn &&
+      ctx.requireConfirmation !== true &&
+      ctx.pick === undefined
+        ? choiceOffers(ranked, (o) => refundableNow(o, now))
+        : undefined;
+    if (choice !== undefined) {
+      return ticketOptions({ choice, event, trip, grp, ctx, members, attendees, outIds, now });
+    }
     const offer =
       input.offerId === undefined ? tiered[0] : ranked.find((o) => o.offerId === input.offerId);
     if (offer === undefined) {
@@ -1124,6 +1213,22 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
       status: 'pending',
     };
 
+    // T-168: what the policy may buy on without a card (D-044).
+    const ask = ticketAsk({
+      ctx,
+      input,
+      event,
+      tz,
+      tonight,
+      trip,
+      attendees,
+      byId,
+      offerId: offer.offerId,
+      totalMinor,
+      addOn,
+      tierAsked,
+      now,
+    });
     const recorded = await recordProposal({
       proposal,
       trip,
@@ -1133,6 +1238,7 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
       activity: act,
       roster,
       now,
+      ...(ask !== undefined ? { ask } : {}),
       release: async () => {
         await tickets.releaseHold(hold.holdId);
       },
@@ -1153,7 +1259,8 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
       ruleId,
       capPerPersonMinor: grp.spendingPolicy.perPersonAutoCapMinor,
       ...(addOn ? { alreadyBooked: booked.size } : {}),
-      ...(tierAsked ? { tierName: offer.tierName } : {}),
+      // A named tier, or an option picked off the options card (T-168 b): say which seats.
+      ...(tierAsked || ctx.fromOptions === true ? { tierName: offer.tierName } : {}),
       ...(trip.familyTab === true ? { familyTab: true } : {}),
     });
     const card = buildCard({
@@ -1497,6 +1604,8 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
     readonly activity: Activity | null;
     readonly roster: Roster | null;
     readonly now: IsoDateTime;
+    /** T-168: the ask behind it (`ticketAsk`); absent ⇒ never auto-approved. */
+    readonly ask?: AskSignal;
     readonly release: () => Promise<void>;
   }): Promise<
     | { readonly kind: 'done'; readonly result: ProposeResult }
@@ -1540,26 +1649,10 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
     }
 
     // ---- 6. the policy ----
-    const prefs: Record<MemberId, MemberSpendingPrefs> = {};
-    for (const id of attendees) {
-      const p = stores.private.getPrefs(id);
-      if (p !== undefined) prefs[id] = p;
-    }
-    const spentTodayMinor = group.bookings.spentBetween(
-      ctx.groupId,
-      addMinutes(now, -24 * 60),
-      now,
-    );
-    const spentTripMinor = group.bookings.spentBetween(ctx.groupId, tripStartIso(trip), now);
-    const views = approval.toMemberViews(members, now);
-    const evaluatedDecision = approval.evaluate(proposal, grp.spendingPolicy, {
-      now,
-      members: views,
-      prefs,
-      spentTodayMinor,
-      spentTripMinor,
-      existingBookingForKey: group.bookings.getBookingByKey(key)?.bookingId ?? null,
-    });
+    const policyCtx = policyContextFor(proposal, trip, members, now, a.ask);
+    const { spentTodayMinor, spentTripMinor } = policyCtx;
+    const views = policyCtx.members;
+    const evaluatedDecision = approval.evaluate(proposal, grp.spendingPolicy, policyCtx);
     // A re-quote or an add-on never auto-approves: stricter than the policy,
     // never looser, so the card still needs a 👍 (D-019 §3, VOICE §6.2).
     const confirmationForced =
@@ -1611,6 +1704,8 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
         policySnapshot: decision.policySnapshot,
         spentTodayMinor,
         spentTripMinor,
+        // T-168: why it could skip the card (`explicit` ask, `pick`), or null.
+        ask: a.ask ?? null,
         ...(confirmationForced
           ? { confirmationForced: true, policyOutcome: evaluatedDecision.outcome }
           : {}),
@@ -1727,7 +1822,294 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
     );
   }
 
-  return { propose, repropose, releaseHold };
+  /**
+   * The policy context for a proposal (SAFETY §2.1): the attendees' private
+   * caps (read here, never shown), the group's spend in the last 24h and on
+   * this trip, the idempotency hit, and the ask behind it (T-168).
+   */
+  function policyContextFor(
+    proposal: BookingProposal,
+    trip: Trip,
+    members: readonly Member[],
+    now: IsoDateTime,
+    ask: AskSignal | undefined,
+  ): PolicyContext {
+    const prefs: Record<MemberId, MemberSpendingPrefs> = {};
+    for (const id of proposal.attendees) {
+      const p = stores.private.getPrefs(id);
+      if (p !== undefined) prefs[id] = p;
+    }
+    return {
+      now,
+      members: approval.toMemberViews(members, now),
+      prefs,
+      spentTodayMinor: group.bookings.spentBetween(
+        proposal.groupId,
+        addMinutes(now, -24 * 60),
+        now,
+      ),
+      spentTripMinor: group.bookings.spentBetween(proposal.groupId, tripStartIso(trip), now),
+      existingBookingForKey:
+        group.bookings.getBookingByKey(proposal.idempotencyKey)?.bookingId ?? null,
+      ...(ask !== undefined ? { ask } : {}),
+    };
+  }
+
+  /**
+   * T-168 (D-044): the ask a ticket proposal may be bought on without a card,
+   * decided in code from what the member said, never from model output.
+   * - `explicit`: the triggering message's eligible `autoBuyVerdict`, and the
+   *   proposal is exactly that ask: the venue it named, the night it named
+   *   (tonight when none), exactly the people it named, the regular offer (no
+   *   tier, no offer id, no add-on), requested by the member who said it.
+   * - `pick`: the asker's own pick on a live options card, at the total the
+   *   card showed, for the card's event and party.
+   * Anything else (a re-quote, a mismatch anywhere) ⇒ undefined: the card.
+   */
+  function ticketAsk(a: {
+    readonly ctx: ProposeContext;
+    readonly input: ProposeInput;
+    readonly event: TicketEvent;
+    readonly tz: string;
+    readonly tonight: IsoDate;
+    readonly trip: Trip;
+    readonly attendees: readonly MemberId[];
+    readonly byId: ReadonlyMap<MemberId, Member>;
+    readonly offerId: string;
+    readonly totalMinor: number;
+    readonly addOn: boolean;
+    readonly tierAsked: boolean;
+    readonly now: IsoDateTime;
+  }): AskSignal | undefined {
+    const { ctx, input, event, attendees } = a;
+    if (ctx.requireConfirmation === true || a.addOn) return undefined;
+    const sameSet = (x: readonly string[], y: readonly string[]): boolean =>
+      x.length === y.length && new Set(x).size === x.length && x.every((v) => y.includes(v));
+    if (ctx.pick !== undefined) {
+      const plan = choices.get(ctx.pick.planId);
+      if (plan === undefined || plan.groupId !== ctx.groupId) return undefined;
+      const option = plan.options.find((o) => o.offerId === ctx.pick?.offerId);
+      const ok =
+        option !== undefined &&
+        a.offerId === option.offerId &&
+        a.totalMinor === ctx.pick.expectedTotalMinor &&
+        a.totalMinor === option.totalMinor &&
+        ctx.requestedBy === plan.requestedBy &&
+        event.eventId === plan.eventId &&
+        sameSet(attendees, plan.attendees) &&
+        parseIso(a.now) <= parseIso(plan.expiresAt);
+      return ok ? 'pick' : undefined;
+    }
+    const v = ctx.autoBuy;
+    if (v === undefined) return undefined;
+    if (input.offerId !== undefined || a.tierAsked || input.time !== undefined) return undefined;
+    if (venueKeyOf(event.venue.name) !== v.venueKey) return undefined;
+    const wanted =
+      v.request.day === undefined ? a.tonight : resolveNight(v.request.day, a.tonight, a.trip);
+    if (wanted === undefined || nightOf(event.startsAt, a.tz) !== wanted) return undefined;
+    const fold = (s: string): string => foldText(s).trim();
+    const proposed = attendees.map((id) => fold(a.byId.get(id)?.displayName ?? ''));
+    if (proposed.some((n) => n.length === 0)) return undefined;
+    if (attendees.length !== v.quantity || !sameSet(proposed, v.attendees.map(fold))) {
+      return undefined;
+    }
+    return 'explicit';
+  }
+
+  /**
+   * T-168 (b): the 2–4 options card for offers that really differ. Nothing is
+   * held, bought or written to the roster; the pick re-runs `propose` on the
+   * picked offer, which holds, re-prices and goes through the policy.
+   */
+  function ticketOptions(a: {
+    readonly choice: readonly TicketOffer[];
+    readonly event: TicketEvent;
+    readonly trip: Trip;
+    readonly grp: { readonly spendingPolicy: GroupSpendingPolicy };
+    readonly ctx: ProposeContext;
+    readonly members: readonly Member[];
+    readonly attendees: readonly MemberId[];
+    readonly outIds: readonly MemberId[];
+    readonly now: IsoDateTime;
+  }): ProposeResult {
+    const { event, trip, ctx, members, attendees, now } = a;
+    const tz = trip.timeZone;
+    const quantity = attendees.length;
+    const payerRule: PayerRule = {
+      members,
+      now,
+      familyTab: trip.familyTab === true,
+      requestedBy: ctx.requestedBy,
+    };
+    const planId = ids.next('card');
+    const currency = a.choice[0]!.unitPrice.currency;
+    const options: TicketChoiceOption[] = a.choice.map((o, i) => {
+      const totalMinor = offerTotal(o, quantity).amountMinor;
+      const refundable = refundableNow(o, now);
+      const payers = payerShares(attendees, totalMinor, o.unitPrice.currency, payerRule);
+      // What the policy would say on the asker's pick (no hold yet; the pick re-checks).
+      const dry: BookingProposal = {
+        proposalId: `${planId}#${String(i + 1)}`,
+        groupId: ctx.groupId,
+        tripId: trip.tripId,
+        kind: 'ticket',
+        provider: tickets.info.provider,
+        itemRef: o.offerId,
+        description: sanitizeInline(event.name, 80),
+        city: event.venue.city,
+        totalMinor,
+        currency: o.unitPrice.currency,
+        quotedAt: now,
+        quoteRef: '',
+        payers,
+        attendees,
+        paidBy: {
+          kind: 'member_card',
+          memberId: cardHolderFor(
+            ctx.requestedBy,
+            payers.map((s) => s.memberId),
+            payerRule,
+          ),
+        },
+        refundable,
+        eventDate: nightOf(event.startsAt, tz),
+        ageRestriction: event.minimumAge ?? null,
+        contentTags: event.contentFlags,
+        requestedBy: ctx.requestedBy,
+        requestedAt: now,
+        sourceMessageId: ctx.sourceMessageId,
+        idempotencyKey: approval.deriveIdempotencyKey({
+          groupId: ctx.groupId,
+          tripId: trip.tripId,
+          kind: 'ticket',
+          provider: tickets.info.provider,
+          itemRef: o.offerId,
+          eventDate: nightOf(event.startsAt, tz),
+          payerIds: attendees,
+          currency: o.unitPrice.currency,
+          totalMinor,
+        }),
+        status: 'pending',
+      };
+      const d = approval.evaluate(
+        dry,
+        a.grp.spendingPolicy,
+        policyContextFor(dry, trip, members, now, 'pick'),
+      );
+      return {
+        index: i + 1,
+        offerId: o.offerId,
+        tierName: sanitizeInline(o.tierName, 40),
+        unitMinor: o.unitPrice.amountMinor + o.unitFees.amountMinor,
+        totalMinor,
+        refundable,
+        autoOnPick: d.outcome === 'auto_approve',
+      };
+    });
+    const cardHolder = cardHolderFor(
+      ctx.requestedBy,
+      payerShares(attendees, options[0]!.totalMinor, currency, payerRule).map((s) => s.memberId),
+      payerRule,
+    );
+    const plan: TicketChoicePlan = {
+      planId,
+      groupId: ctx.groupId,
+      tripId: trip.tripId,
+      eventId: event.eventId,
+      eventDate: nightOf(event.startsAt, tz),
+      currency,
+      attendees,
+      excluded: a.outIds,
+      requestedBy: ctx.requestedBy,
+      cardHolder,
+      sourceMessageId: ctx.sourceMessageId,
+      options,
+      createdAt: now,
+      expiresAt: addMinutes(now, Math.round(a.grp.spendingPolicy.approvalTtlSeconds / 60)),
+      status: 'pending',
+    };
+    choices.save(plan);
+    const { text, card } = renderTicketOptions({
+      plan,
+      members,
+      headline: `${shortEventName(event.name)} ${whenText(event.startsAt, tz, now)}`,
+    });
+    return { kind: 'ticket_options', planId, text, card };
+  }
+
+  async function pickTicketOption(
+    planId: string,
+    index: number,
+    pick: {
+      readonly groupId: GroupId;
+      readonly pickedBy: MemberId;
+      readonly sourceMessageId: MessageId;
+    },
+  ): Promise<ProposeResult> {
+    const plan = choices.get(planId);
+    if (plan === undefined || plan.groupId !== pick.groupId) {
+      return {
+        kind: 'unavailable',
+        reason: 'not_found',
+        text: "that options card is gone. @ me again and i'll price it fresh. nothing's booked",
+      };
+    }
+    if (plan.status === 'picked') {
+      return {
+        kind: 'unavailable',
+        reason: 'already_picked',
+        text: `option ${String(plan.pickedIndex ?? 1)} was already picked on that one. nothing else booked`,
+      };
+    }
+    const option = plan.options.find((o) => o.index === index);
+    if (option === undefined) {
+      const n = plan.options.length;
+      return {
+        kind: 'unavailable',
+        reason: 'not_found',
+        text: `there's no option ${String(index)} there. pick 1 to ${String(n)}. nothing's booked`,
+      };
+    }
+    const now = clock.now();
+    // Only the asker's own pick on a live card is their ok (T-168 b). Anyone
+    // else's pick, or a stale card, is an ordinary proposal that needs a 👍.
+    const asker = pick.pickedBy === plan.requestedBy && planLive(plan, now);
+    // Marked before the await: a second tap while this one is in flight proposes nothing.
+    choices.save({ ...plan, status: 'picked', pickedIndex: index });
+    const res = await propose(
+      {
+        kind: 'ticket',
+        eventId: plan.eventId,
+        offerId: option.offerId,
+        attendeeMemberIds: plan.attendees,
+        date: plan.eventDate,
+        requestText: `picked option ${String(index)}`,
+      },
+      {
+        groupId: plan.groupId,
+        tripId: plan.tripId,
+        // The card said whose card it goes on: that stays, whoever tapped.
+        requestedBy: plan.requestedBy,
+        sourceMessageId: pick.sourceMessageId,
+        fromOptions: true,
+        ...(asker
+          ? { pick: { planId, offerId: option.offerId, expectedTotalMinor: option.totalMinor } }
+          : {}),
+      },
+    );
+    // Nothing came of it (sold out, the site down, a question): the card stays pickable.
+    if (res.kind === 'unavailable' || res.kind === 'clarify') choices.save(plan);
+    return res;
+  }
+
+  return {
+    propose,
+    repropose,
+    releaseHold,
+    ticketChoice: (planId) => choices.get(planId),
+    latestTicketChoice: (groupId) => choices.latest(groupId),
+    pickTicketOption,
+  };
 }
 
 // ---------- helpers ----------

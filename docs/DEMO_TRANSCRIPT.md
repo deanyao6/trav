@@ -102,51 +102,39 @@ _tue feb 10 · 7:30pm_
 
 - **Arjun**: WE HAVE TO SEE BARÇA. sevilla is at home sunday the 15th
 - **Dean**: @trav get the 6 of us barça vs sevilla tickets for sunday mar 15
-- **trav**: fc barcelona vs sevilla fc sun mar 15 9pm, 6 tickets
-      Dean, Henry, Chase, Piotr, Arjun, Crowley
-      €68 each · €408 total · non-refundable
-      charged to Dean's card, split 6 ways on the tab
-      that's over the €60/person cap, so everyone charged has to 👍
-      👍 to book, or say "not me" first. price held for 15 min
-      [Approve] [Not me] [Decline]
-- _Dean taps [Approve]_
-- **trav**: Dean okayed it. still need 👍 from Henry, Chase, Piotr, Arjun, Crowley
-- _Henry taps [Approve]_
-- **trav**: Henry okayed it. still need 👍 from Chase, Piotr, Arjun, Crowley
-- _Chase taps [Approve]_
-- **trav**: Chase okayed it. still need 👍 from Piotr, Arjun, Crowley
-- _Piotr taps [Approve]_
-- **trav**: Piotr okayed it. still need 👍 from Arjun, Crowley
-- _Arjun taps [Approve]_
-- **trav**: Arjun okayed it. still need 👍 from Crowley
-- _Crowley taps [Approve]_
-- **trav**: booked ✅ fc barcelona vs sevilla fc, 6 tickets, €408
+- **trav**: fc barcelona vs sevilla fc sun mar 15 9pm, 6 tickets: Dean, Henry, Chase, Piotr, Arjun, Crowley
+      1. Gol Nord · €68 each · €408 total · non-refundable
+      2. Tribuna lateral · €72 each · €432 total · non-refundable · €24 more
+      Dean, tap one (or reply 1 or 2) and i book it on your card, split 6 ways. nothing's booked yet
+- **Dean**: 2
+- **trav**: booked ✅ fc barcelona vs sevilla fc, 6 tickets, €432
       order FCB-48213 · non-refundable
       QR codes are in your dms, one each
-      tab: Henry, Chase, Piotr, Arjun, Crowley → Dean €68
+      tab: Henry, Chase, Piotr, Arjun, Crowley → Dean €72
+      bought on Dean's pick, under the €500 auto-buy cap
 - 🔒 dm → Dean · **trav**: your fc barcelona vs sevilla fc ticket for sun mar 15 🎟️
       doors 7:30pm · Carrer d'Arístides Maillol 12
-      gate 3 · sector 112 · row 21 · seat 1
+      gate 14 · sector 234 · row 8 · seat 10
       this one's yours only, don't forward it. everyone got their own
 - 🔒 dm → Henry · **trav**: your fc barcelona vs sevilla fc ticket for sun mar 15 🎟️
       doors 7:30pm · Carrer d'Arístides Maillol 12
-      gate 3 · sector 112 · row 21 · seat 2
+      gate 14 · sector 234 · row 8 · seat 11
       this one's yours only, don't forward it. everyone got their own
 - 🔒 dm → Chase · **trav**: your fc barcelona vs sevilla fc ticket for sun mar 15 🎟️
       doors 7:30pm · Carrer d'Arístides Maillol 12
-      gate 3 · sector 112 · row 21 · seat 3
+      gate 14 · sector 234 · row 8 · seat 12
       this one's yours only, don't forward it. everyone got their own
 - 🔒 dm → Piotr · **trav**: your fc barcelona vs sevilla fc ticket for sun mar 15 🎟️
       doors 7:30pm · Carrer d'Arístides Maillol 12
-      gate 3 · sector 112 · row 21 · seat 4
+      gate 14 · sector 234 · row 8 · seat 13
       this one's yours only, don't forward it. everyone got their own
 - 🔒 dm → Arjun · **trav**: your fc barcelona vs sevilla fc ticket for sun mar 15 🎟️
       doors 7:30pm · Carrer d'Arístides Maillol 12
-      gate 3 · sector 112 · row 21 · seat 5
+      gate 14 · sector 234 · row 8 · seat 14
       this one's yours only, don't forward it. everyone got their own
 - 🔒 dm → Crowley · **trav**: your fc barcelona vs sevilla fc ticket for sun mar 15 🎟️
       doors 7:30pm · Carrer d'Arístides Maillol 12
-      gate 3 · sector 112 · row 21 · seat 6
+      gate 14 · sector 234 · row 8 · seat 15
       this one's yours only, don't forward it. everyone got their own
 
 ### 5. dinner expense
@@ -164,9 +152,9 @@ _thu mar 12 · 9:40am · day 1_
       [Undo]
 - _⏩ clock → fri mar 13 · 10am · day 2 (next morning)_
 - **trav**: running tab, day 2
-      Dean is owed €1,469
-      Henry owes €319 · Chase owes €319 · Piotr owes €193
-      Arjun owes €319 · Crowley owes €319
+      Dean is owed €1,489
+      Henry owes €323 · Chase owes €323 · Piotr owes €197
+      Arjun owes €323 · Crowley owes €323
       no rush, i'll do one clean settle at the end. "@trav settle now" if you'd rather square up today
 
 ### 6. Uber email receipt
@@ -195,7 +183,7 @@ _fri mar 13 · 11:30pm · day 2_
 - **trav**: morning after, day 3 ☀️
       last night: Uber (4 of you, not Henry or Chase) €18.60
       €18.60 total, €4.65 each
-      tab: Crowley → Dean €323.65 is the big one, full list in the card
+      tab: Crowley → Dean €327.65 is the big one, full list in the card
 
 ### 7. Razzmatazz, 5 of 6
 
@@ -207,17 +195,11 @@ _sat mar 14 · 8:30pm · day 3_
       👎 to undo or tell me what to change
       [Undo]
 - **Dean**: @trav get the 5 of us Razzmatazz tickets, Henry's sick
-- **trav**: razzmatazz tonight, 5 tickets
-      Dean, Chase, Piotr, Arjun, Crowley (not Henry)
-      €18 each · €90 total · refundable until 10pm
-      charged to Dean's card, split 5 ways on the tab
-      👍 to book. price held for 15 min
-      [Approve] [Not me] [Decline]
-- _Dean reacts 👍 on trav's booking_proposal_
 - **trav**: booked ✅ razzmatazz, 5 tickets, €90
       order RZ-48214 · refundable until 10pm
       QR codes are in your dms, one each
       tab: Chase, Piotr, Arjun, Crowley → Dean €18
+      bought on Dean's ask, under the €500 auto-buy cap
 - 🔒 dm → Dean · **trav**: your razzmatazz ticket for tonight 🎟️
       doors 12am · Carrer dels Almogàvers 122
       this one's yours only, don't forward it. everyone got their own
@@ -233,7 +215,8 @@ _sat mar 14 · 8:30pm · day 3_
 - 🔒 dm → Crowley · **trav**: your razzmatazz ticket for tonight 🎟️
       doors 12am · Carrer dels Almogàvers 122
       this one's yours only, don't forward it. everyone got their own
-- _Chase reacts 👍 on trav's booking_proposal_
+- **Dean**: @trav get the 5 of us Razzmatazz tickets, Henry's sick
+- **trav**: Dean, Chase, Piotr, Arjun, Crowley already have a ticket for that one. who else is coming?
 - **Crowley**: @trav 2 waters in here were €28, €14 EACH, me and chase
 - **trav**: logged: €28 2 waters in here on Crowley, 2 ways (Chase, Crowley) → €14 each
       👎 to undo or tell me what to change
@@ -262,7 +245,7 @@ _sun mar 15 · 9am · day 4_
 - **trav**: morning after, day 4 ☀️
       last night: dinner (5 of you, not Henry) €84 · Razzmatazz: Saturday club night €90 · 2 waters in here (2 of you) €28 · +1 more
       €225.40 total
-      tab: Chase → Dean €372.48 is the big one, full list in the card
+      tab: Chase → Dean €376.48 is the big one, full list in the card
       today: FC Barcelona vs Sevilla FC at 9pm, tickets in your dms
 - _⏩ clock → mon mar 16 · 10am · day 5 (next morning)_
 - _(simulator status: clock → mon mar 16 · 10am · day 5 · 1 job ran, trav stayed quiet (scheduled:morning_after:silent))_
@@ -278,36 +261,36 @@ _tue mar 17 · 10:30am · day 6_
 
 - **Dean**: @trav settle now
 - **trav**: final settle, 5 transfers and everyone's square
-      Henry → Dean €319
-      Chase → Dean €372.48
-      Piotr → Dean €237.13
-      Arjun → Dean €344.53
-      Crowley → Dean €325.73
+      Henry → Dean €323
+      Chase → Dean €376.48
+      Piotr → Dean €241.13
+      Arjun → Dean €348.53
+      Crowley → Dean €329.73
       👍 on this message when you've paid, i'll tick you off
       [Paid]
 - _Chase reacts 👍 on trav's settle_up_
 - **trav**: final settle, 1 of 5 paid, 4 to go
-      Henry → Dean €319
-      Chase → Dean €372.48 · paid
-      Piotr → Dean €237.13
-      Arjun → Dean €344.53
-      Crowley → Dean €325.73
+      Henry → Dean €323
+      Chase → Dean €376.48 · paid
+      Piotr → Dean €241.13
+      Arjun → Dean €348.53
+      Crowley → Dean €329.73
       👍 on this message when you've paid, i'll tick you off
       [Paid]
-> **settle-up** (`ledger.settle` over the trip ledger): 8 expenses, €2,158 total
+> **settle-up** (`ledger.settle` over the trip ledger): 8 expenses, €2,182 total
 >
-> - Dean: is owed €1,598.87
-> - Henry: owes €319
-> - Chase: owes €372.48
-> - Piotr: owes €237.13
-> - Arjun: owes €344.53
-> - Crowley: owes €325.73
+> - Dean: is owed €1,618.87
+> - Henry: owes €323
+> - Chase: owes €376.48
+> - Piotr: owes €241.13
+> - Arjun: owes €348.53
+> - Crowley: owes €329.73
 >
-> - Henry → Dean €319
-> - Chase → Dean €372.48
-> - Piotr → Dean €237.13
-> - Arjun → Dean €344.53
-> - Crowley → Dean €325.73
+> - Henry → Dean €323
+> - Chase → Dean €376.48
+> - Piotr → Dean €241.13
+> - Arjun → Dean €348.53
+> - Crowley → Dean €329.73
 > - after these 5 transfers everyone is at €0
 
 ### 11. trip Wrapped
@@ -316,22 +299,22 @@ _tue mar 17 · 10:30am · day 6_
 
 - _⏩ clock → wed mar 18 · 10am · trip over (end of trip)_
 - **trav**: barcelona spring break wrapped 🎉
-      6 days · 6 people · €2,158 · €359.67 each
+      6 days · 6 people · €2,182 · €363.67 each
       €1,380 on lodging, the top category
       €225.40 on the big night, sat mar 14
       2 rides
       3 nights on the tab · latest receipt 2:14am
       €126 on the biggest meal (dinner)
-      awards 🏆 MVP Spender: Dean (€1,962) · Uber Captain: Crowley (1 ride) · Night Owl: Arjun
+      awards 🏆 MVP Spender: Dean (€1,986) · Uber Captain: Crowley (1 ride) · Night Owl: Arjun
       final settle is in the card, 4 transfers and you're done 💸
       next trip? add trav to the new group chat, i'll take it from there
 > **Wrapped card, final settle-up** (5 transfers):
 >
-> - Henry → Dean €319
-> - Chase → Dean €372.48 · paid
-> - Piotr → Dean €237.13
-> - Arjun → Dean €344.53
-> - Crowley → Dean €325.73
+> - Henry → Dean €323
+> - Chase → Dean €376.48 · paid
+> - Piotr → Dean €241.13
+> - Arjun → Dean €348.53
+> - Crowley → Dean €329.73
 
 ## Checks
 
@@ -345,8 +328,8 @@ _tue mar 17 · 10:30am · day 6_
 - [x] 3. lodging: Trav proposed the refundable Eixample stay for all 6 (€1,380, €230 each), passing on the cheaper non-refundable one
 - [x] 3. lodging: Piotr's "i'll approve for him" books nothing
 - [x] 3. lodging: Henry's own 👍 books it: one stay, €1,380 on Dean's card, €230 each on the tab
-- [x] 4. Barça tickets: Trav proposed 6 Barça tickets (over the €60 cap, so everyone confirms)
-- [x] 4. Barça tickets: Barça receipt posted in the group
+- [x] 4. Barça tickets: Trav posted 2 Barça seat options for the 6 (prices, totals, non-refundable), nothing booked yet
+- [x] 4. Barça tickets: Dean's pick (option 2, sideline) books it: receipt in the group, bought on his pick
 - [x] 4. Barça tickets: one Barça ticket DM each, all 6
 - [x] 5. dinner expense: €126 dinner logged on Piotr, 6 ways
 - [x] 6. Uber email receipt: "looks shared?" prompt goes to Arjun's DM only
@@ -356,14 +339,14 @@ _tue mar 17 · 10:30am · day 6_
 - [x] 6. Uber email receipt: after Arjun's share the group gets exactly one notice: "Arjun added Uber €18.60 · 4 ways (not Henry, Chase)"
 - [x] 6. Uber email receipt: the Uber is split among the 4 riders at €4.65 each (Chase and Henry owe nothing)
 - [x] 7. Razzmatazz, 5 of 6: €84 dinner logged among the 5, not Henry
-- [x] 7. Razzmatazz, 5 of 6: Trav proposed 5 Razzmatazz tickets for the 5 who are in (the reason Henry is out is never repeated)
-- [x] 7. Razzmatazz, 5 of 6: receipt posted in the group
-- [x] 7. Razzmatazz, 5 of 6: exactly one purchase after two 👍
+- [x] 7. Razzmatazz, 5 of 6: Trav bought the 5 Razzmatazz tickets on the ask, no card (explicit ask under the €500 auto-buy cap)
+- [x] 7. Razzmatazz, 5 of 6: receipt posted in the group, with the refund terms and on whose ask (the reason Henry is out is never repeated)
+- [x] 7. Razzmatazz, 5 of 6: exactly one purchase, even asked twice
 - [x] 7. Razzmatazz, 5 of 6: 5 Razzmatazz ticket DMs, one each for Dean, Chase, Piotr, Arjun, Crowley
 - [x] 7. Razzmatazz, 5 of 6: Henry got nothing from the booking
 - [x] 7. Razzmatazz, 5 of 6: no ticket card in the group thread
 - [x] 7. Razzmatazz, 5 of 6: ledger: the €90 is split among exactly the 5, Henry not charged
-- [x] 7. Razzmatazz, 5 of 6: audit: policy.evaluated → approval.granted → booking.attempted → booking.completed → ledger.written
+- [x] 7. Razzmatazz, 5 of 6: audit: proposal.created → policy.evaluated (auto_approve on the ask) → booking.attempted → booking.completed → ledger.written
 - [x] 7. Razzmatazz, 5 of 6: Crowley's €28 of waters logged from chat, split with Chase
 - [x] 8. card import: Crowley's 2am Uber: Crowley's card synced on the clock at the 10am/8pm slots since he turned it on (a slot the clock jumped past waits for the next), owner-only in the audit log, nothing to ask yet
 - [x] 8. card import: Crowley's 2am Uber: "looks shared?" prompt goes to Crowley's DM only
@@ -389,4 +372,4 @@ _tue mar 17 · 10:30am · day 6_
 - [x] whole trip: no private card ever rendered in the group thread
 - [x] whole trip: every expense on the tab reached the group exactly once (8 expenses, 2 as notices)
 - [x] whole trip: no live model call was possible (offline)
-- [x] whole trip: audit hash chain verifies (121 events)
+- [x] whole trip: audit hash chain verifies (107 events)

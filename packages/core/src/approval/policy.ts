@@ -13,6 +13,7 @@ import type {
   PolicyDecision,
   ReasonCode,
 } from '../domain/approval.js';
+import { AUTO_BUY_KINDS, NON_REFUNDABLE_AUTO_MAX_MINOR } from '../domain/approval.js';
 import { addMinutes, parseIso } from '../clock.js';
 import { RESTRICTED_TAGS } from '../safety/index.js';
 
@@ -45,6 +46,7 @@ export const POLICY_RULES: readonly {
   { id: 'C8', stage: 'confirm', reasons: ['minor_is_payer'] },
   { id: 'C9', stage: 'confirm', reasons: ['payer_not_requester'] },
   { id: 'C10', stage: 'confirm', reasons: ['card_not_requester', 'minor_requester'] },
+  { id: 'C11', stage: 'confirm', reasons: ['not_general_purpose'] },
   { id: 'A1', stage: 'auto', reasons: ['within_all_caps'] },
 ];
 
@@ -68,9 +70,27 @@ function earliest(a: IsoDateTime, b: IsoDateTime | undefined): IsoDateTime {
  * SAFETY §2.1 rules D1..D10 then C1..C9, in order; all rules run so `reasons`
  * is complete. "At the cap" is inside the cap (`>` not `>=`).
  *
+ * Approval tiers (T-168, D-044): only a proposal with `ctx.ask` can
+ * auto-approve.
+ * - (a) `explicit` (an unambiguous ask, `autoBuyVerdict`), a general-purpose
+ *   kind (`AUTO_BUY_KINDS`), total at or under `autoApproveCapMinor` (default
+ *   €500), and non-refundable only up to €200 (`NON_REFUNDABLE_AUTO_MAX_MINOR`).
+ * - (b) `pick` (a member's pick on Trav's options card): the same, except the
+ *   non-refundable line, which the options card states for each option.
+ * - (c) everything else keeps the card: no ask, flights/lodging/transport
+ *   (C2, C11), over the cap (C1), non-refundable over €200 (C5), and every
+ *   other confirmation trigger below (member share caps, daily/trip caps,
+ *   someone else's card, a minor).
+ *
  * Beyond the SAFETY table:
- * - C1 reports `default_confirm` when `autoApproveCapMinor` is 0 (the default:
- *   everything confirmed) and `over_auto_cap` when a raised cap is exceeded.
+ * - C1 reports `default_confirm` when there is no ask or `autoApproveCapMinor`
+ *   is 0 (auto-buy off), and `over_auto_cap` when an ask's total is over the cap.
+ * - Outside the auto tier (no ask, auto-buy off, or over the cap) the card
+ *   rules are exactly the pre-T-168 ones: C3 per-person cap, C5 any
+ *   non-refundable.
+ * - Inside it, C3 (per-person cap) does not fire: an asked-for purchase is
+ *   gated by its total (the auto-buy cap) and each member's own share cap (C4).
+ * - C11 (`not_general_purpose`): an in-tier ask for anything but tickets/other.
  * - C9 (`payer_not_requester`): with `paidBy: per_person_cards`, charging a
  *   card other than the requester's needs that card holder's confirmation
  *   (`each_payer`). Under `member_card` the requester's card pays and the others
@@ -150,13 +170,25 @@ export function evaluate(
   const denied = reasons.length > 0;
 
   // ---- confirmation triggers (all run so reasons is complete) ----
-  if (policy.autoApproveCapMinor <= 0) fire('C1', 'default_confirm', 'any_one');
-  else if (p.totalMinor > policy.autoApproveCapMinor) fire('C1', 'over_auto_cap', 'any_one');
+  // T-168 (D-044): only an explicit ask or an option pick can skip the card.
+  const ask = ctx.ask;
+  const autoOn = ask !== undefined && policy.autoApproveCapMinor > 0;
+  // The auto tier the proposal is in: an ask, auto-buy on, total inside the
+  // cap. Outside it (no ask, auto-buy off, over the cap) every card rule of
+  // the confirm flow applies as before T-168.
+  const tier = autoOn && p.totalMinor <= policy.autoApproveCapMinor ? ask : undefined;
+  if (!autoOn) {
+    fire('C1', 'default_confirm', 'any_one');
+  } else if (tier === undefined) {
+    fire('C1', 'over_auto_cap', 'any_one');
+  }
 
   if (policy.alwaysEachPayerKinds.includes(p.kind)) {
     fire('C2', 'kind_requires_each_payer', 'each_payer');
   }
-  if (p.payers.some((s) => s.shareMinor > policy.perPersonAutoCapMinor)) {
+  // The per-person cap gates the card flow. An asked-for purchase is gated by
+  // its total (the auto-buy cap) and each member's own share cap (C4).
+  if (tier === undefined && p.payers.some((s) => s.shareMinor > policy.perPersonAutoCapMinor)) {
     fire('C3', 'over_per_person_cap', 'each_payer');
   }
   const overMemberShareCap = p.payers.some((s) => {
@@ -165,7 +197,15 @@ export function evaluate(
   });
   if (overMemberShareCap) fire('C4', 'over_member_share_cap', 'each_payer');
 
-  if (!p.refundable) fire('C5', 'non_refundable', 'any_one');
+  // T-168 (c): non-refundable over €200 keeps the card on an explicit ask. A
+  // pick is made on an options card that states each total and "non-refundable",
+  // so the pick itself is that approval (D-044).
+  if (
+    !p.refundable &&
+    (tier === undefined || (tier === 'explicit' && p.totalMinor > NON_REFUNDABLE_AUTO_MAX_MINOR))
+  ) {
+    fire('C5', 'non_refundable', 'any_one');
+  }
   if (ctx.spentTodayMinor + p.totalMinor > policy.dailyGroupCapMinor) {
     fire('C6', 'over_daily_cap', 'any_one');
   }
@@ -186,6 +226,10 @@ export function evaluate(
   if (cardNotRequester) fire('C10', 'card_not_requester', 'any_one');
   if (minorRequester) {
     fire('C10', 'minor_requester', p.paidBy.kind === 'per_person_cards' ? 'each_payer' : 'any_one');
+  }
+  // C11 (T-168 c): flights, lodging and transport are never bought on an ask alone.
+  if (tier !== undefined && !AUTO_BUY_KINDS.includes(p.kind)) {
+    fire('C11', 'not_general_purpose', 'any_one');
   }
 
   const base = {

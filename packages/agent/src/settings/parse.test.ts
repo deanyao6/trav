@@ -66,6 +66,11 @@ describe('parseSettingsCommand', () => {
       kind: 'set',
       change: { setting: 'perPersonAutoCapMinor', amount: '80', currency: 'EUR' },
     });
+    // T-168: "auto-buy cap" is the same setting as the auto-approve cap.
+    expect(parseSettingsCommand('@trav set the auto-buy cap to €300')).toEqual({
+      kind: 'set',
+      change: { setting: 'autoApproveCapMinor', amount: '300', currency: 'EUR' },
+    });
     expect(parseSettingsCommand('@trav daily cap to 300')).toEqual({
       kind: 'set',
       change: { setting: 'dailyGroupCapMinor', amount: '300' },

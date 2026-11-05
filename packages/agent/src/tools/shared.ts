@@ -6,6 +6,7 @@
 import type { IsoDateTime, Member, MemberId, MessageId, Trip } from '@trav/core';
 import { TravError } from '@trav/core';
 import { sanitizeInline } from '../context/groupContext.js';
+import type { EligibleAutoBuy } from '../booking/proposals.js';
 import type { SettingsCommand } from '../settings/parse.js';
 import type { ToolContext } from './registry.js';
 
@@ -19,6 +20,13 @@ export interface TurnToolContext extends ToolContext {
    * requester's "yes to confirm?" for caps and reply mode, same audit.
    */
   readonly settings?: SettingsGateway;
+  /**
+   * T-168 (D-044): the message's own `autoBuyVerdict`, computed by the loop
+   * from the member's words when it was eligible. Never from model output.
+   * `propose_booking` passes it on; the proposal service buys without a card
+   * only when the proposal is exactly that ask.
+   */
+  readonly autoBuy?: EligibleAutoBuy;
 }
 
 export interface SettingsGateway {

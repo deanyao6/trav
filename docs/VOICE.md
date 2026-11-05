@@ -146,9 +146,11 @@ Each template: trigger → text (exact style) → card type (§5) → notes. Exa
 
 **Must contain:** what, when, how many, who's charged (by name), price each and total, refundability, the approval instruction, the hold/expiry window. If above cap or non-refundable: who must approve and why.
 
-**Example A (the flagship moment):**
+**Approval tiers (T-168, D-044).** An explicit, unambiguous ask (D-042's grammar) for a general-purpose purchase under the group's auto-buy cap (default €500, `@trav settings`) is bought on the ask: no card, the receipt is the answer (§4.2 A). Offers that really differ get the options card (Example E), and the asker's pick is the approval. Everything else gets the card below: a softer or less clear ask, over the cap, non-refundable over €200 on an ask, flights and stays.
 
-> **Dean:** @trav get the 5 of us Razzmatazz tickets, Henry's sick
+**Example A (the flagship moment, as a card):** the same ask said as a question ("@trav can you get the 5 of us Razzmatazz tickets? Henry's sick"), or with auto-buy off, gets the one-tap card. Said plainly under the cap, it is bought on the ask (§4.2 A).
+
+> **Dean:** @trav can you get the 5 of us Razzmatazz tickets? Henry's sick
 
 > **trav:**
 > razzmatazz tonight, 5 tickets
@@ -194,7 +196,23 @@ Each template: trigger → text (exact style) → card type (§5) → notes. Exa
 > flights are on everyone paying, so all 6 of you have to 👍
 > 👍 to book, or say "not me" first. price held for 15 min
 
-Notes: refundable sets lead; a non-refundable set appears only when it scores better, and says how many fares are locked and what it saves. Fares in the text name at most three people ("+N more in the card"). The receipt says "6 airline orders, refs in the card" and "each on your own card, nothing to split"; flights never go on the tab.
+**Example E (choice purchase, T-168 b): seat sections that really differ, none refundable.**
+
+> **Dean:** @trav get the 6 of us barça tickets for sunday
+
+> **trav:** (card: `options`)
+> fc barcelona vs sevilla fc sun mar 15 9pm, 6 tickets: Dean, Henry, Chase, Piotr, Arjun, Crowley
+> 1. Gol Nord · €68 each · €408 total · non-refundable
+> 2. Tribuna lateral · €72 each · €432 total · non-refundable · €24 more
+> Dean, tap one (or reply 1 or 2) and i book it on your card, split 6 ways. nothing's booked yet
+
+> **Dean:** 2
+
+> **trav:** the receipt (§4.2 A), ending `bought on Dean's pick, under the €500 auto-buy cap`.
+
+Notes: 2–4 options, never when a refundable offer fits (refundable-first) or a tier was named. Every option line says its total and refundability, so the pick is an informed ok. When a pick would not buy on its own (over the cap), the last line says so instead: `tap one (or reply 1 or 2) and i'll post it for a 👍, on Dean's card, split 6 ways. nothing's booked yet`. Only the asker's pick buys; anyone else's pick, or one after 15 minutes, posts the Example B-style card for a 👍.
+
+Notes (flights): refundable sets lead; a non-refundable set appears only when it scores better, and says how many fares are locked and what it saves. Fares in the text name at most three people ("+N more in the card"). The receipt says "6 airline orders, refs in the card" and "each on your own card, nothing to split"; flights never go on the tab.
 
 Card: `booking_proposal`. Notes: the "not Henry" aside is allowed; "feel better" style asides are fine but never mention the reason if it's health-related beyond what the user said. Never list a price without refundability. Never say "great deal".
 
@@ -209,6 +227,9 @@ Card: `booking_proposal`. Notes: the "not Henry" aside is allowed; "feel better"
 > order RZ-48213 · refundable until 10pm
 > QR codes are in your dms, one each
 > tab: Chase, Piotr, Arjun, Crowley → Dean €18
+> bought on Dean's ask, under the €500 auto-buy cap
+
+The last line appears only when the policy bought it with no card (T-168): `bought on <name>'s ask` or `bought on <name>'s pick`, plus the cap. It says on whose word and why there was no tap, so anyone can change the cap in `@trav settings`. The refund terms stay on line 2. Never promise an undo Trav can't do.
 
 **Example B (flights, per-person origins):**
 
@@ -769,15 +790,16 @@ Trav never spends without an approval event that passes `ApprovalPolicy`. The po
   - `not booked. everyone approves for themselves: 👍 the card or reply "yes"` (an approval said for others)
 
 - The approval must come from a member in `policy.requiresApprovalFrom`. A 👍 from anyone else is **ignored silently** (no "you can't approve this" message; the proposal just stays pending). Exception: if the only 👍s are from non-approvers after 5 minutes, Trav posts once: "need a 👍 from @Dean on this one".
-- Default policy (v0): **always one tap**, even under the cap. Requester approves if they're charged and the purchase is refundable and under cap; otherwise a lead.
+- Default policy (T-168, D-044): an explicit, unambiguous ask (D-042) for tickets or an "other" purchase, at or under the group's auto-buy cap (default €500), is bought with no tap; a pick on the options card is its own approval. Everything else is **one tap** at least: the requester approves if they're charged and the purchase is refundable and under the caps; otherwise a lead.
 - Over cap or non-refundable: a lead must approve, and the proposal says so by name (§4.1 B).
 - `not me` from a charged member removes them and **supersedes** the proposal: Trav posts a new one with the new count and price ("4 tickets · €72 total · 👍 to book"). The old proposal's actions are dead.
 - A second 👍 on an approved proposal does nothing (idempotent on `proposalId`). A test must prove a double-tap never double-buys.
 - Price changed between proposal and purchase by more than 5% or past the cap → Trav does not buy; it re-proposes with the new price.
 
 ### 6.3 Who may approve what (defaults; `ApprovalPolicy` owns the numbers)
-- Per-person cap: €60 (configurable per group). Per-purchase cap: €500. Non-refundable: always lead.
-- Flights and lodging: always lead, always stated in the proposal.
+- Per-person cap: €60 (configurable per group). Per-purchase cap: €500. Non-refundable: always lead, except a non-refundable explicit ask of €200 or less, or a picked option (T-168).
+- Auto-buy cap: €500 total by default, per group; 0 turns auto-buy off.
+- Flights and lodging: always lead, always stated in the proposal, never bought on an ask alone.
 - Anything charged to a member's own card and nobody else's: that member alone.
 
 ### 6.4 Timeouts
@@ -945,8 +967,8 @@ Cards print as `[card: type id · actions]` plus the QR data URL's first 40 char
 
 ### 9.5 States the demo must show
 1. Six members chatting, Trav silent.
-2. "@trav get the 5 of us Razzmatazz tickets, Henry's sick" → typing indicator → proposal card.
-3. Switch "send as" to Dean → Approve → receipt card in the group, 5 ticket cards in 5 DM tabs, Henry's DM tab empty.
+2. "@trav get the 5 of us Razzmatazz tickets, Henry's sick" → typing indicator → bought on the ask (T-168): receipt card in the group ("bought on Dean's ask, under the €500 auto-buy cap"), 5 ticket cards in 5 DM tabs, Henry's DM tab empty.
+3. The one-tap card for a less clear ask ("@trav can you get the 5 of us Razzmatazz tickets? Henry's sick"): proposal card → send as Dean → Approve → receipt.
 4. Switch to Crowley → Crowley's DM shows the "looks shared?" uber prompt → Share it → the group gets one grey notice line, "Crowley added Uber €23.40 · 5 ways (not Henry)".
 5. **next morning** → Morning After card with the kebab line and the settle section.
 6. **end of trip** → Wrapped card.

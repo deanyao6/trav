@@ -499,6 +499,11 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
       }
       case 'clarify':
         return [text(groupId, res.question)];
+      case 'ticket_options': {
+        // Never for a re-quote (`requireConfirmation` skips options); posted as is.
+        const msg = text(groupId, res.text);
+        return [{ ...msg, card: res.card }];
+      }
       case 'denied':
       case 'duplicate':
       case 'pending_exists':

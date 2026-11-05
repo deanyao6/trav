@@ -15,7 +15,7 @@ import type {
   WrappedCard,
 } from '@trav/core';
 import type { SimState, ThreadMessage } from '../shared/types.js';
-import { BARCELONA, RAZZMATAZZ_ASK } from '../server/groups.js';
+import { BARCELONA, RAZZMATAZZ_ASK, RAZZMATAZZ_CARD_ASK } from '../server/groups.js';
 import { demoBackend } from '../server/testkit.js';
 import { AppView } from './App.js';
 import type { AppViewProps } from './App.js';
@@ -49,13 +49,26 @@ function count(html: string, needle: string): number {
   return html.split(needle).length - 1;
 }
 
+/** T-168: the flagship buys on the ask, so its state after the ask is the receipt. */
+async function boughtOnAsk() {
+  const b = await demoBackend();
+  await b.inject({
+    type: 'message',
+    from: 'h_dean',
+    text: RAZZMATAZZ_ASK,
+    groupId: BARCELONA.groupId,
+  });
+  return b.state();
+}
+
+/** The one-tap card states, from the same ask said as a question. */
 async function states() {
   const b = await demoBackend();
   const s1 = b.state();
   await b.inject({
     type: 'message',
     from: 'h_dean',
-    text: RAZZMATAZZ_ASK,
+    text: RAZZMATAZZ_CARD_ASK,
     groupId: BARCELONA.groupId,
   });
   const s2 = b.state();
@@ -104,6 +117,20 @@ describe('AppView renders demo states 1–3', () => {
     expect(henry).not.toContain('data-testid="action-approve"');
     // Any one of the 5 charged can ok it under the cap; Henry is not charged, so not named.
     expect(henry).toContain('waiting on Dean, Chase +3');
+  });
+
+  it('state 2 (T-168): the flagship ask buys on the ask: receipt in the group, no proposal buttons, 5 DM tabs with a ticket, Henry empty', async () => {
+    const s = await boughtOnAsk();
+    const html = render(s, 'h_dean');
+    expect(html).toContain('data-testid="card-receipt"');
+    expect(html).not.toContain('data-testid="card-booking_proposal"');
+    expect(html).not.toContain('data-testid="action-approve"');
+    expect(html).toContain('RZ-48213');
+    expect(html).toContain('5 tickets sent');
+    expect(html).toContain('data-testid="dm-tab-mem_henry" data-count="0"');
+    for (const id of ['mem_dean', 'mem_chase', 'mem_piotr', 'mem_arjun', 'mem_crowley']) {
+      expect(html).toContain(`data-testid="dm-tab-${id}" data-count="1"`);
+    }
   });
 
   it('state 2: the typing indicator renders while Trav works', async () => {

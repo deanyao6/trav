@@ -258,12 +258,16 @@ export function nearMissKind(
   }
   if (/\bdo it\b/.test(t)) approvalish = true;
   if (!approvalish) return undefined;
+  // T-182 r2 minor 1: "yes but without me" is a yes that drops the sender:
+  // the not-me hint, not a party edit for the roster flow.
+  if (/^(?:yes|yeah|yep|yup|sure|ok|okay)\b/.test(t) && SELF_OUT.test(t)) return 'not_me';
   if (PARTY_EDIT.test(t)) return undefined;
   if (/\b(?:not|no)\b(?: for)? (?:me|myself)\b|\b(?:i'?m|im) out\b/.test(t)) {
     return 'not_me';
   }
   // T-182 r1 #5: "i don't approve", "no don't book it": a no, so the decline hint.
-  if (NEGATED.test(t)) return 'decline';
+  // T-182 r2 minor 2: "can't wait" is keen, not a no.
+  if (NEGATED.test(t.replace(CANT_WAIT, ' '))) return 'decline';
   return 'generic';
 }
 
@@ -274,6 +278,10 @@ export function nearMissKind(
  */
 const PARTY_EDIT =
   /\b(?:me|myself|him|her|them|us)\s+(?:too|also)\b|\b(?:also|too)\s+(?:me|myself)\b|\b(?:without|except|only)\b/;
+/** The sender leaving themselves out: "without me", "except me", "but not me". */
+const SELF_OUT = /\b(?:without|except(?: for)?|but not|minus) (?:me|myself)\b/;
+/** "can't wait": eager, never a no (T-182 r2 minor 2). */
+const CANT_WAIT = /\b(?:can'?t|cant|cannot) wait\b/g;
 /** A no in a near miss. */
 const NEGATED = /\b(?:don'?t|dont|do not|doesn'?t|never|no|not|won'?t|can'?t|cant)\b/;
 

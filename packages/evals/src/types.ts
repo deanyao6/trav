@@ -443,6 +443,11 @@ export interface ScenarioSetup {
   readonly fixtureExtras?: boolean;
   /** Override group settings (e.g. `{ roastMode: true }`). */
   readonly settings?: Readonly<Record<string, unknown>>;
+  /**
+   * Override spending-policy numbers (T-168), e.g. `{ autoApproveCapMinor:
+   * 50000 }` for the product default auto-buy cap. The trip fixtures keep it 0.
+   */
+  readonly spendingPolicy?: Readonly<Record<string, number>>;
   /** Consent flags per member (merged over the defaults, all false). */
   readonly consent?: Readonly<
     Record<

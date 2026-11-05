@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { PassThrough, Readable } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 import type { SimState, ThreadMessage } from '../shared/types.js';
-import { RAZZMATAZZ_ASK } from './groups.js';
+import { RAZZMATAZZ_CARD_ASK } from './groups.js';
 import {
   SIM_HOST,
   createSimRequestHandler,
@@ -149,7 +149,7 @@ describe('simulator HTTP handler', () => {
       method: 'POST',
       url: '/api/messages',
       contentType: 'application/json',
-      body: JSON.stringify({ from: 'h_dean', text: RAZZMATAZZ_ASK, groupId: 'grp_barcelona' }),
+      body: JSON.stringify({ from: 'h_dean', text: RAZZMATAZZ_CARD_ASK, groupId: 'grp_barcelona' }),
     });
     expect(ask.status).toBe(200);
     const state = (ask.json() as { state: SimState }).state;

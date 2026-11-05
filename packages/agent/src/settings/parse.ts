@@ -88,7 +88,7 @@ const CAP_NAMES: readonly { readonly re: string; readonly setting: CapSetting }[
     re: String.raw`per[- ]?booking(?: cap| limit| max)?|booking (?:cap|limit|max)|max per booking`,
     setting: 'hardMaxPerBookingMinor',
   },
-  { re: String.raw`auto[- ]?approve(?: cap| limit)?`, setting: 'autoApproveCapMinor' },
+  { re: String.raw`auto[- ]?(?:approve|buy)(?: cap| limit)?`, setting: 'autoApproveCapMinor' },
 ];
 
 const SET_VERB = String.raw`(?:(?:set|change|make|put|move|raise|lower|bump|drop)\s+)?(?:the\s+|our\s+|my\s+)?`;

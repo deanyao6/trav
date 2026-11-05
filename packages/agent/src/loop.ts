@@ -105,6 +105,8 @@ import {
   TURN_FAILED_AFTER_PURCHASE_TEXT,
   TURN_FAILED_TEXT,
 } from './approval/text.js';
+import { autoBuyVerdict } from './booking/autoBuy.js';
+import { pickTextIndex, planLive } from './booking/choice.js';
 import type { ProposalService, ProposeResult } from './booking/proposals.js';
 import { bookingHeadline, nightOf } from './booking/proposals.js';
 import { optionIndexOf } from './booking/flights.js';
@@ -408,6 +410,8 @@ const TERMINAL_KINDS = new Set([
   'needs_confirmation',
   // T-074: the group flight options card, posted as computed (never paraphrased).
   'flight_options',
+  // T-168 (b): the ticket options card; the asker's pick is the approval.
+  'ticket_options',
 ]);
 
 const PROPOSAL_ACTIONS: readonly Action[] = [
@@ -1370,6 +1374,41 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     };
   }
 
+  /**
+   * A pick on a ticket options card (T-168 b): a tap, or an exact "2" /
+   * "option 2" bound to the card. The proposal service re-quotes that option
+   * through the policy; the asker's own pick on a live card is the approval
+   * (`pick` tier), anyone else's is a card that needs a 👍. A guest, a minor
+   * (the policy), a DM and a stale card all end in the service's answer or
+   * silence; nothing is bought here.
+   */
+  async function pickTicketTurn(
+    r: Resolved,
+    planId: string,
+    option: number | undefined,
+    messageId: MessageId,
+  ): Promise<TurnResult> {
+    const me = r.me;
+    if (me === null || me.role === 'guest' || r.lane !== 'group') return silent('pick:not_member');
+    if (option === undefined) return silent('pick:no_option');
+    const before = snapshotAudit(r.group.groupId);
+    const res = await deps.proposals.pickTicketOption(planId, option, {
+      groupId: r.group.groupId,
+      pickedBy: me.memberId,
+      sourceMessageId: messageId,
+    });
+    const drafts = await renderTerminal(r, res, me, messageId, before);
+    const sent = await send(r, drafts);
+    return {
+      outbound: sent,
+      toolCalls: [],
+      auditEventIds: auditIdsSince(r.group.groupId, before),
+      silent: sent.length === 0,
+      modelSources: [],
+      note: `pick:ticket:${res.kind}`,
+    };
+  }
+
   // ---------- the model loop ----------
 
   async function modelTurn(
@@ -1422,7 +1461,25 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     // flow's own messages (its "yes to confirm?", its refusals) are what this
     // turn sends. One settings change per turn.
     let settingsOutcome: SettingsOutcome | undefined;
+    // T-168 item 0 (D-044): the only road to a purchase without a card is the
+    // member's own words passing the auto-buy grammar. Computed here from the
+    // raw message, never from anything the model says.
+    const verdict =
+      me.role === 'guest'
+        ? undefined
+        : autoBuyVerdict({
+            text: event.text,
+            index: bundledVenueIndex(),
+            sender: me.displayName,
+            roster: r.members
+              .filter((m) => m.active && m.leftAt === undefined && m.role !== 'guest')
+              .map((m) => m.displayName),
+            lane: r.lane,
+            ...(event.forwarded === true ? { forwarded: true } : {}),
+            ...(event.replyToMessageId !== undefined ? { quotesMessage: true } : {}),
+          });
     const toolCtx: TurnToolContext = {
+      ...(verdict?.eligible === true ? { autoBuy: verdict } : {}),
       groupId: r.group.groupId,
       tripId: r.trip?.tripId ?? null,
       senderMemberId: me.memberId,
@@ -1720,6 +1777,11 @@ export function createTravAgent(input: AgentDeps): TravAgent {
       const card = resultCard(value);
       return message(r, text, { ...(card !== undefined ? { card } : {}), actions: UNDO_ACTION });
     }
+    if (kind === 'ticket_options') {
+      // T-168 (b): 2-4 ticket options; a pick re-proposes through the policy.
+      const res = value as Extract<ProposeResult, { kind: 'ticket_options' }>;
+      return message(r, res.text, { card: res.card });
+    }
     if (kind === 'flight_options') {
       // The ranked group flights (T-074): picked by "book option N", which
       // goes through propose_booking and the approval policy like any booking.
@@ -1808,6 +1870,27 @@ export function createTravAgent(input: AgentDeps): TravAgent {
           recordInbound();
           return settingsTurn(r, out, before);
         }
+      }
+    }
+
+    // 0b. a pick on a ticket options card (T-168 b): exactly "2" / "option 2"
+    // / "@trav 2", quote-replying the card, or bare while that card is the
+    // group's newest ticket options card and still live. Never forwarded.
+    const pickIndex =
+      r.lane === 'group' && me !== null && canRequest(r.identity) && event.forwarded !== true
+        ? pickTextIndex(rawText)
+        : undefined;
+    if (pickIndex !== undefined) {
+      const quoted =
+        boundRef !== undefined ? deps.proposals.ticketChoice(boundRef.cardId) : undefined;
+      const latest =
+        event.replyToMessageId === undefined
+          ? deps.proposals.latestTicketChoice(r.group.groupId)
+          : undefined;
+      const plan = quoted ?? (latest !== undefined && planLive(latest, r.now) ? latest : undefined);
+      if (plan !== undefined) {
+        recordInbound();
+        return pickTicketTurn(r, plan.planId, pickIndex, event.messageId);
       }
     }
 
@@ -3019,8 +3102,17 @@ export function createTravAgent(input: AgentDeps): TravAgent {
           return markPaidTurn(r, ref, 'button', event.messageId, event.value);
         // A tap on a group flight option (T-074) is "book option N" from the
         // tapper: a proposal through the approval policy, never a purchase.
-        if (event.actionId === 'pick' && ref?.card.type === 'options')
+        if (event.actionId === 'pick' && ref?.card.type === 'options') {
+          // T-168 (b): a ticket options card's pick is the asker's approval.
+          if (deps.proposals.ticketChoice(ref.cardId) !== undefined)
+            return pickTicketTurn(
+              r,
+              ref.cardId,
+              optionIndexOf(event.value, ref.cardId),
+              event.messageId,
+            );
           return pickFlightOption(r, ref, event.value, event.messageId);
+        }
         const intent: ApprovalIntent | undefined =
           event.actionId === 'approve' ||
           event.actionId === 'decline' ||

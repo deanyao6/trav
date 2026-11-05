@@ -252,6 +252,23 @@ export function renderReceipt(
     }
   }
 
+  // T-168: bought with no card ⇒ say on whose word, and the cap that let it
+  // through, so anyone can see why and change it (refund terms are line 2).
+  if (policy.outcome === 'auto_approve' && policy.ask !== undefined) {
+    const created = input.auditEvents.find(
+      (e) => e.type === 'proposal.created' && e.proposalId === booking.proposalId,
+    );
+    const asker = created?.payload['requestedBy'];
+    const who = typeof asker === 'string' ? possessive(nameOf(ctx, asker)) : 'your';
+    const cap =
+      policy.autoCapMinor !== undefined && policy.autoCapMinor > 0
+        ? `, under the ${formatMoney(money(policy.autoCapMinor, cur))} auto-buy cap`
+        : '';
+    lines.push(
+      policy.ask === 'pick' ? `bought on ${who} pick${cap}` : `bought on ${who} ask${cap}`,
+    );
+  }
+
   // ---------- card ----------
   // One line item: N tickets at the unit price when tickets split evenly; any
   // other kind (a flight bundle, a stay) or an uneven total is 1 × total.

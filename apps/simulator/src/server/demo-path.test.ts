@@ -120,8 +120,11 @@ describe.each<Kind>(['seeded', 'bare'])('demo clicked in order (real runtime, %s
     const thread = messages(bcn(s3).thread);
     const ask = thread.find((m) => m.text === SCRIPT[FLAGSHIP_ASK]!.text)!;
     expect(ask, 'the flagship ask is in the group').toBeDefined();
-    const proposal = thread.find((m) => m.seq > ask.seq && m.card?.type === 'booking_proposal');
-    expect(proposal, 'Trav proposed the 5 tickets').toBeDefined();
+    // T-168: an explicit ask under the €500 auto-buy cap is bought on the ask: no card.
+    const proposal = thread.find(
+      (m) => m.seq > ask.seq && m.card?.type === 'booking_proposal' && /razzmatazz/i.test(m.text),
+    );
+    expect(proposal, 'no proposal card for the flagship').toBeUndefined();
     // The Razzmatazz booking adds nothing to Henry's tab (no ticket, no prompt).
     expect(bcn(s3).dms['mem_henry']!.length).toBe(henryBefore);
     // (He does hold a Barça ticket from earlier in the script: T-081 books that match.)
@@ -130,11 +133,11 @@ describe.each<Kind>(['seeded', 'bare'])('demo clicked in order (real runtime, %s
         (m) => m.card?.type === 'ticket' && /razzmatazz/i.test(m.card.event.name),
       ),
     ).toBe(false);
-    // Dean's 👍 books (T-009/T-030), the receipt lands in the group, one ticket card per
-    // attendee in their DM tab, the late taps change nothing.
-    expect(proposal!.cardState?.label).toBe('Approved by Dean');
-    const receipt = thread.find((m) => m.seq > proposal!.seq && m.card?.type === 'receipt');
+    // The receipt lands in the group right after the ask, one ticket card per attendee in
+    // their DM tab; the script's later 👍s change nothing.
+    const receipt = thread.find((m) => m.seq > ask.seq && m.card?.type === 'receipt');
     expect(receipt?.text).toMatch(/^booked ✅ razzmatazz, 5 tickets, €90/);
+    expect(receipt?.text).toContain("bought on Dean's ask");
     // One Razzmatazz receipt (the Barça one from earlier in the script is the other, T-081).
     expect(
       thread.filter((m) => m.card?.type === 'receipt' && /razzmatazz/i.test(m.text)),

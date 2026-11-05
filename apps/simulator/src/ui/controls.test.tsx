@@ -14,7 +14,7 @@ import { isValidElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { ClockStep, SimState, ThreadMessage } from '../shared/types.js';
-import { BARCELONA, RAZZMATAZZ_ASK } from '../server/groups.js';
+import { BARCELONA, RAZZMATAZZ_CARD_ASK } from '../server/groups.js';
 import { handleApi } from '../server/routes.js';
 import { loadBarcelonaScript, withReplay } from '../server/replay.js';
 import { bookingCount, demoBackend, toMorningAfterRide } from '../server/testkit.js';
@@ -95,7 +95,7 @@ async function state3() {
   await b.inject({
     type: 'message',
     from: 'h_dean',
-    text: RAZZMATAZZ_ASK,
+    text: RAZZMATAZZ_CARD_ASK,
     groupId: BARCELONA.groupId,
   });
   const proposal = b
@@ -341,7 +341,7 @@ describe('tapback picker', () => {
     await b.inject({
       type: 'message',
       from: 'h_dean',
-      text: RAZZMATAZZ_ASK,
+      text: RAZZMATAZZ_CARD_ASK,
       groupId: BARCELONA.groupId,
     });
     const proposal = b

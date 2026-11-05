@@ -4,7 +4,7 @@ import { TravError } from '@trav/core';
 import type { TravAgent, TurnResult } from '@trav/agent';
 import type { ThreadMessage } from '../shared/types.js';
 import { silentTurnStatus } from './backend.js';
-import { RAZZMATAZZ_ASK } from './groups.js';
+import { RAZZMATAZZ_CARD_ASK } from './groups.js';
 import { AGENT_BACKEND_HINT, backendChoice, loadAgentBackend, selectBackend } from './runtime.js';
 import type { SimRuntimeInput, SimRuntimeOutput } from './runtime.js';
 import type { MockTickets } from '@trav/adapters';
@@ -374,7 +374,7 @@ describe('agent backend', () => {
     await backend.inject({
       type: 'message',
       from: 'h_dean',
-      text: RAZZMATAZZ_ASK,
+      text: RAZZMATAZZ_CARD_ASK,
       groupId: 'grp_barcelona',
     });
     const proposal = backend
@@ -464,7 +464,7 @@ describe('agent backend', () => {
         };
       },
     });
-    await backend.inject({ type: 'message', from: 'h_dean', text: RAZZMATAZZ_ASK });
+    await backend.inject({ type: 'message', from: 'h_dean', text: RAZZMATAZZ_CARD_ASK });
     const proposal = backend
       .state()
       .groups[0]!.thread.find(

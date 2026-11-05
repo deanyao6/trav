@@ -156,6 +156,15 @@ describe('nearMissKind: a question back, never a swallowed request', () => {
     ["@trav no don't book it", 'decline'],
     ["@trav don't do it", 'decline'],
     ['never book it', 'decline'],
+    // T-182 r2 minor 1: a yes that drops the sender gets the not-me hint.
+    ['yes but without me', 'not_me'],
+    ['yeah except me', 'not_me'],
+    // T-182 r2 minor 2: "can't wait" is keen, never the decline hint.
+    ["yes can't wait", 'generic'],
+    ['book it cant wait', 'generic'],
+    ["can't wait, book it", 'generic'],
+    // …but a real no next to it still is.
+    ["can't wait but don't book it", 'decline'],
   ] as const)('%j ⇒ %s', (text, kind) => {
     expect(nearMissKind(text, NAMES)).toBe(kind);
   });
@@ -169,7 +178,6 @@ describe('nearMissKind: a question back, never a swallowed request', () => {
     '@trav book it for henry too',
     'yes for henry too',
     'do it for me and henry',
-    'yes but without me',
     'book it for him too',
     'book it except me',
     'only me',

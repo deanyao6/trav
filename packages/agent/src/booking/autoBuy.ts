@@ -95,6 +95,12 @@ export type AutoBuyVerdict =
       /** Display names said to be out in the message. */
       readonly excluded: readonly string[];
       readonly quantity: number;
+      /**
+       * The one venue the ask named (T-168): the folded venue name, the same
+       * key `venueKeyOf` gives an event's venue. The proposal service buys on
+       * the ask only when the event it found is at this venue.
+       */
+      readonly venueKey: string;
     }
   | { readonly eligible: false; readonly reason: AutoBuyRejection };
 
@@ -326,6 +332,8 @@ function rosterOf(names: readonly string[]): Roster {
 
 class Parser {
   i = 0;
+  /** The venue key of the last `venue()` that matched (the ask's venue on a full parse). */
+  venueKey: string | undefined;
   constructor(
     readonly toks: readonly Token[],
     readonly roster: Roster,
@@ -492,6 +500,7 @@ class Parser {
     }
     if (best === 0 || keys.size !== 1) return false;
     this.i += best;
+    this.venueKey = [...keys][0];
     return true;
   }
 
@@ -671,7 +680,8 @@ export function autoBuyVerdict(input: AutoBuyInput): AutoBuyVerdict {
   const p = new Parser(toks, roster, senderKey, input.index);
   while (p.word() !== undefined && LEADS.has(p.word()!)) p.i++;
   const ask = p.ask();
-  if (ask === undefined) {
+  const venueKey = p.venueKey;
+  if (ask === undefined || venueKey === undefined) {
     // Tell a venue problem apart from the rest, for the audit trail.
     return no(p.toks.some((t) => t.kind === 'emoji' && !TAIL_EMOJI.has(t.e)) ? 'emoji' : 'grammar');
   }
@@ -772,6 +782,7 @@ export function autoBuyVerdict(input: AutoBuyInput): AutoBuyVerdict {
     attendees: ordered.map(display),
     excluded: excludedKeys.map(display),
     quantity: attendees.length,
+    venueKey,
   };
 }
 

@@ -17,7 +17,7 @@ import { describe, expect, it } from 'vitest';
 import type { GroupView, SimState, ThreadEntry, ThreadMessage } from '../shared/types.js';
 import type { SimulatorBackend } from './backend.js';
 import { KEPT_PRIVATE_STATUS } from './backend.js';
-import { BARCELONA, LISBON, RAZZMATAZZ_ASK } from './groups.js';
+import { BARCELONA, LISBON, RAZZMATAZZ_CARD_ASK } from './groups.js';
 import { handleApi } from './routes.js';
 import { loadAgentBackend } from './runtime.js';
 import { bookingCount, demoBackend, toMorningAfterRide } from './testkit.js';
@@ -65,7 +65,7 @@ async function toState3() {
   const b = await demoBackend();
   await post(b, '/api/messages', {
     from: 'h_dean',
-    text: RAZZMATAZZ_ASK,
+    text: RAZZMATAZZ_CARD_ASK,
     groupId: BARCELONA.groupId,
   });
   const proposal = messages(bcn(b.state()).thread).find(
@@ -380,7 +380,7 @@ describe('real runtime without the seeded chat', () => {
     const b = await loadAgentBackend({ offline: true });
     await post(b, '/api/messages', {
       from: 'h_dean',
-      text: RAZZMATAZZ_ASK,
+      text: RAZZMATAZZ_CARD_ASK,
       groupId: BARCELONA.groupId,
     });
     const proposal = messages(bcn(b.state()).thread).find(
@@ -415,7 +415,7 @@ describe('real runtime without the seeded chat', () => {
     const b = await loadAgentBackend({ offline: true });
     await post(b, '/api/messages', {
       from: 'h_dean',
-      text: RAZZMATAZZ_ASK,
+      text: RAZZMATAZZ_CARD_ASK,
       groupId: BARCELONA.groupId,
     });
     const s = await post(b, '/api/clock', { step: 'hour', groupId: BARCELONA.groupId });

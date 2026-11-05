@@ -72,6 +72,10 @@ export function policy(overrides: Partial<GroupSpendingPolicy> = {}): GroupSpend
   return { ...defaultSpendingPolicy(GROUP, 'EUR'), ...overrides };
 }
 
+/**
+ * A policy context with no ask behind the proposal (T-168: the card, whatever
+ * the caps). Pass `{ ask: 'explicit' }` or `{ ask: 'pick' }` for the auto tiers.
+ */
 export function context(overrides: Partial<PolicyContext> = {}): PolicyContext {
   return {
     now: NOW,

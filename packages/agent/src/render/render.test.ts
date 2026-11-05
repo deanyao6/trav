@@ -904,7 +904,7 @@ describe('"@trav what did you just do?" from the audit log', () => {
     expect(m.text).toBe(
       [
         "booked razzmatazz at 9:41pm: 5 tickets, €90 on Dean's card",
-        'Dean approved it · rule C1, every booking needs one tap',
+        'Dean approved it · rule C1, it needed one tap',
         'split 5 ways, €18 each · refundable until 10pm',
         "order RZ-48213, the receipt's up in the chat",
       ].join('\n'),

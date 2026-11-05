@@ -147,6 +147,15 @@ const SETUP = {
   settings: opt(record),
   consent: opt(recordOf(object(Object.fromEntries(CONSENT_FLAGS.map((f) => [f, opt(bool)]))))),
   privateStrings: opt(strs),
+  // T-168: the spending-policy numbers a scenario may override (minor units).
+  spendingPolicy: opt(
+    object({
+      autoApproveCapMinor: opt(nonNegInt),
+      perPersonAutoCapMinor: opt(nonNegInt),
+      dailyGroupCapMinor: opt(nonNegInt),
+      hardMaxPerBookingMinor: opt(nonNegInt),
+    }),
+  ),
 } satisfies Record<keyof ScenarioSetup, Field>;
 
 const SCENARIO_EXPECT = {

@@ -267,7 +267,7 @@ const MODE_RANK = { none: 0, any_one: 1, each_payer: 2 };
  * in group order; `prefs`: { memberId: perBookingShareCapMinor }; `spentTodayMinor`: Trav-executed
  * bookings in the 24h before the proposal. Quote staleness (D10) and duplicates (D8) are not modelled.
  */
-export function evaluatePolicy(p, policy, members, { prefs = {}, spentTodayMinor = 0, spentTripMinor = 0 } = {}) {
+export function evaluatePolicy(p, policy, members, { prefs = {}, spentTodayMinor = 0, spentTripMinor = 0, ask } = {}) {
   const reasons = [];
   const ruleIds = [];
   let mode = 'none';
@@ -293,12 +293,16 @@ export function evaluatePolicy(p, policy, members, { prefs = {}, spentTodayMinor
   const ageRestricted = (p.ageRestriction ?? null) !== null || tags.some((t) => t === '18+' || t === '21+');
   if (ageRestricted && participantIds.some(isMinor)) fire('D9', 'minor_age_restricted');
   const denied = reasons.length > 0;
-  if (policy.autoApproveCapMinor <= 0) fire('C1', 'default_confirm', 'any_one');
-  else if (p.totalMinor > policy.autoApproveCapMinor) fire('C1', 'over_auto_cap', 'any_one');
+  // T-168 (D-044): only an ask ('explicit' or 'pick') with auto-buy on and the total inside the cap
+  // is in the auto tier; anything else is the pre-T-168 card flow.
+  const autoOn = ask !== undefined && policy.autoApproveCapMinor > 0;
+  const tier = autoOn && p.totalMinor <= policy.autoApproveCapMinor ? ask : undefined;
+  if (!autoOn) fire('C1', 'default_confirm', 'any_one');
+  else if (tier === undefined) fire('C1', 'over_auto_cap', 'any_one');
   if (policy.alwaysEachPayerKinds.includes(p.kind)) fire('C2', 'kind_requires_each_payer', 'each_payer');
-  if (p.payers.some((s) => s.shareMinor > policy.perPersonAutoCapMinor)) fire('C3', 'over_per_person_cap', 'each_payer');
+  if (tier === undefined && p.payers.some((s) => s.shareMinor > policy.perPersonAutoCapMinor)) fire('C3', 'over_per_person_cap', 'each_payer');
   if (p.payers.some((s) => prefs[s.memberId] != null && s.shareMinor > prefs[s.memberId])) fire('C4', 'over_member_share_cap', 'each_payer');
-  if (!p.refundable) fire('C5', 'non_refundable', 'any_one');
+  if (!p.refundable && (tier === undefined || (tier === 'explicit' && p.totalMinor > 20000))) fire('C5', 'non_refundable', 'any_one');
   if (spentTodayMinor + p.totalMinor > policy.dailyGroupCapMinor) fire('C6', 'over_daily_cap', 'any_one');
   if (policy.tripGroupCapMinor !== null && spentTripMinor + p.totalMinor > policy.tripGroupCapMinor) fire('C7', 'over_trip_cap', 'any_one');
   if (payerIds.some(isMinor)) fire('C8', 'minor_is_payer', 'any_one');
@@ -308,6 +312,7 @@ export function evaluatePolicy(p, policy, members, { prefs = {}, spentTodayMinor
   const minorRequester = requester?.isMinor === true;
   if (cardNotRequester) fire('C10', 'card_not_requester', 'any_one');
   if (minorRequester) fire('C10', 'minor_requester', p.paidBy.kind === 'per_person_cards' ? 'each_payer' : 'any_one');
+  if (tier !== undefined && !['ticket', 'other'].includes(p.kind)) fire('C11', 'not_general_purpose', 'any_one');
   const canApprove = (m) => m && !m.guest && !m.isMinor;
   if (denied) return { outcome: 'deny', reasons, ruleIds, approvalMode: 'none', requiredApprovers: [] };
   if (mode === 'none') {

@@ -11,7 +11,7 @@ import type { TravAgent, TurnResult } from '@trav/agent';
 import type { SimState, ThreadMessage } from '../shared/types.js';
 import { clockLabel } from './clock.js';
 import { createGroupClocks } from './groupClocks.js';
-import { BARCELONA, LISBON, RAZZMATAZZ_ASK, TURKS_AND_CAICOS } from './groups.js';
+import { BARCELONA, LISBON, RAZZMATAZZ_CARD_ASK, TURKS_AND_CAICOS } from './groups.js';
 import { handleApi } from './routes.js';
 import { loadAgentBackend } from './runtime.js';
 import type { SimRuntimeInput } from './runtime.js';
@@ -191,7 +191,7 @@ describe('T-095: each chat opens on its own trip, with its own clock', () => {
     await api(b, 'POST', '/api/clock', { step: 'end_of_trip', groupId: LISBON.groupId });
     const asked = await api(b, 'POST', '/api/messages', {
       from: 'h_dean',
-      text: RAZZMATAZZ_ASK,
+      text: RAZZMATAZZ_CARD_ASK,
       groupId: BARCELONA.groupId,
     });
     const travPosts = messages(asked, BARCELONA.groupId).filter((m) => m.isTrav);

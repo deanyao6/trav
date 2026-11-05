@@ -19,7 +19,11 @@ import type { BookingKind } from './booking.js';
 export interface GroupSpendingPolicy {
   readonly groupId: GroupId;
   readonly currency: CurrencyCode;
-  /** DEFAULT 0 (everything confirmed). */
+  /**
+   * The auto-buy cap (T-168, D-044): an asked-for, general-purpose purchase
+   * (`PolicyContext.ask`) whose total is at or under this is bought without a
+   * card. DEFAULT 50000 (€500 total). 0 turns auto-buy off: everything confirmed.
+   */
   readonly autoApproveCapMinor: number;
   /** DEFAULT 5000. */
   readonly perPersonAutoCapMinor: number;
@@ -36,6 +40,32 @@ export interface GroupSpendingPolicy {
   readonly alwaysEachPayerKinds: readonly BookingKind[];
 }
 
+/** T-168: the default auto-buy cap, €500 total (minor units of the group currency). */
+export const DEFAULT_AUTO_BUY_CAP_MINOR = 50000;
+
+/**
+ * T-168 (c): a non-refundable purchase over this total needs the card even on
+ * an explicit ask (€200, minor units of the group currency).
+ */
+export const NON_REFUNDABLE_AUTO_MAX_MINOR = 20000;
+
+/** T-168 (a): the general-purpose kinds an ask can auto-buy. Flights, lodging and transport never are. */
+export const AUTO_BUY_KINDS: readonly BookingKind[] = ['ticket', 'other'];
+
+/**
+ * Why a proposal may be bought without a confirm card (T-168, D-044). Set only
+ * by the proposal service, from code, never from model output:
+ * - `explicit`: the triggering message passed `autoBuyVerdict` (an unambiguous
+ *   ask addressed to Trav) and the proposal is exactly what it asked for
+ *   (venue, night, party).
+ * - `pick`: a member on the booking picked this option on Trav's options card
+ *   (a tap, or an exact "1" / "option 1" bound to the card), at the price the
+ *   card showed.
+ * Absent: anything else (a model-originated proposal whose message is no
+ * clear ask, a soft or repaired ask, a re-quote) ⇒ the card, whatever the caps.
+ */
+export type AskSignal = 'explicit' | 'pick';
+
 export function defaultSpendingPolicy(
   groupId: GroupId,
   currency: CurrencyCode,
@@ -43,7 +73,7 @@ export function defaultSpendingPolicy(
   return {
     groupId,
     currency,
-    autoApproveCapMinor: 0,
+    autoApproveCapMinor: DEFAULT_AUTO_BUY_CAP_MINOR,
     perPersonAutoCapMinor: 5000,
     dailyGroupCapMinor: 50000,
     tripGroupCapMinor: null,
@@ -81,6 +111,8 @@ export interface PolicyContext {
   readonly spentTripMinor: number;
   /** bookingId if idempotencyKey already executed. */
   readonly existingBookingForKey: string | null;
+  /** T-168: the ask behind the proposal; absent ⇒ never auto-approved. */
+  readonly ask?: AskSignal;
 }
 
 export type Outcome = 'auto_approve' | 'needs_confirmation' | 'deny';
@@ -108,6 +140,7 @@ export type ReasonCode =
   // needs_confirmation
   | 'default_confirm'
   | 'over_auto_cap'
+  | 'not_general_purpose'
   | 'over_per_person_cap'
   | 'over_member_share_cap'
   | 'non_refundable'

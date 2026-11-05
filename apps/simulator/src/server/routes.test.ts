@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SimState, ThreadMessage } from '../shared/types.js';
-import { RAZZMATAZZ_ASK } from './groups.js';
+import { RAZZMATAZZ_CARD_ASK } from './groups.js';
 import { MAX_TEXT_LENGTH, handleApi, parseInbound } from './routes.js';
 import { bookingCount, demoBackend } from './testkit.js';
 
@@ -25,7 +25,7 @@ describe('simulator API routes', () => {
     const sent = await handleApi(b, {
       method: 'POST',
       path: '/api/messages',
-      body: { from: 'h_dean', text: RAZZMATAZZ_ASK, groupId: 'grp_barcelona' },
+      body: { from: 'h_dean', text: RAZZMATAZZ_CARD_ASK, groupId: 'grp_barcelona' },
     });
     expect(sent.status).toBe(200);
     const s1 = (sent.body as { state: SimState }).state;
@@ -56,7 +56,7 @@ describe('simulator API routes', () => {
     await handleApi(b, {
       method: 'POST',
       path: '/api/messages',
-      body: { from: 'h_dean', text: RAZZMATAZZ_ASK },
+      body: { from: 'h_dean', text: RAZZMATAZZ_CARD_ASK },
     });
     const proposal = bcnThread(b.state()).find((m) => m.card?.type === 'booking_proposal')!;
     const res = await handleApi(b, {
@@ -103,7 +103,7 @@ describe('simulator API routes', () => {
     await handleApi(b, {
       method: 'POST',
       path: '/api/messages',
-      body: { from: 'h_dean', text: RAZZMATAZZ_ASK },
+      body: { from: 'h_dean', text: RAZZMATAZZ_CARD_ASK },
     });
     const res = await handleApi(b, { method: 'POST', path: '/api/reset' });
     expect(res.status).toBe(200);

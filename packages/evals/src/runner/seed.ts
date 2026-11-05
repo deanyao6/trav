@@ -61,6 +61,11 @@ export interface SeedOptions {
   readonly extras?: boolean;
   readonly settings?: Readonly<Record<string, unknown>>;
   /**
+   * Override spending-policy numbers (T-168: `autoApproveCapMinor` turns the
+   * group's auto-buy on; the trip fixtures record it off, cap 0).
+   */
+  readonly spendingPolicy?: Readonly<Record<string, number>>;
+  /**
    * The episode start. A member's spending prefs exist only from when they
    * told Trav their budget (their private `budget` fact's `learnedAt`, the
    * fixture generator's `prefsFrom`): prefs told later are held back and
@@ -93,10 +98,17 @@ export function seedGroup(
 ): GroupFixture & { readonly deferredPrefs: readonly DeferredPrefs[] } {
   const deferredPrefs: DeferredPrefs[] = [];
   const f = loadGroupFixture(trip);
-  const group: Group =
+  const withSettings: Group =
     opts.settings === undefined
       ? f.group
       : { ...f.group, settings: { ...f.group.settings, ...opts.settings } };
+  const group: Group =
+    opts.spendingPolicy === undefined
+      ? withSettings
+      : {
+          ...withSettings,
+          spendingPolicy: { ...withSettings.spendingPolicy, ...opts.spendingPolicy },
+        };
   stores.group.groups.create(group);
   for (const m of f.members) stores.group.members.upsert(member(m));
   stores.group.trips.create(f.trip);

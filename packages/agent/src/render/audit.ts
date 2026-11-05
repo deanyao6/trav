@@ -33,6 +33,10 @@ export interface PolicyFacts {
   readonly ruleId: string;
   /** `approval.granted` events for the proposal, in log order. */
   readonly grants: readonly AuditEvent[];
+  /** T-168: the ask the policy auto-approved on (`explicit` ask, `pick`), if any. */
+  readonly ask?: 'explicit' | 'pick';
+  /** T-168: the group's auto-buy cap when the policy ran (minor units). */
+  readonly autoCapMinor?: number;
 }
 
 function fail(message: string, details?: Record<string, unknown>): never {
@@ -125,12 +129,20 @@ export function policyFactsBefore(
   if (outcome !== 'auto_approve' && !grants.some((g) => g.payload['complete'] === true)) {
     fail('no complete approval.granted before booking.completed', { proposalId });
   }
+  const ask = policy.payload['ask'];
+  const snapshot = policy.payload['policySnapshot'];
+  const cap =
+    typeof snapshot === 'object' && snapshot !== null
+      ? (snapshot as Record<string, unknown>)['autoApproveCapMinor']
+      : undefined;
   return {
     event: policy,
     outcome,
     reasons: strings(policy.payload['reasons']) ?? [],
     ruleId: ruleIdFromPolicyPayload(policy.payload),
     grants,
+    ...(ask === 'explicit' || ask === 'pick' ? { ask } : {}),
+    ...(typeof cap === 'number' ? { autoCapMinor: cap } : {}),
   };
 }
 
@@ -148,7 +160,7 @@ export function approverIds(grants: readonly AuditEvent[]): MemberId[] {
 export function ruleExplanation(ruleId: string): string {
   switch (ruleId) {
     case 'C1':
-      return 'every booking needs one tap'; // default_confirm / over_auto_cap
+      return 'it needed one tap'; // default_confirm (no clear ask) / over_auto_cap
     case 'C2':
       return 'flights and lodging need everyone paying';
     case 'C3':
@@ -165,8 +177,10 @@ export function ruleExplanation(ruleId: string): string {
       return 'a guardian okays for under-18s';
     case 'C9':
       return "it was on someone else's card";
+    case 'C11':
+      return 'flights and stays always need a tap';
     case 'A1':
-      return 'it was under every cap';
+      return 'it was asked for and under every cap';
     default:
       return 'policy check';
   }

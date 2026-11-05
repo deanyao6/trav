@@ -383,3 +383,26 @@ describe('T-182 r1 #6: a whole-party no and an unplaced pronoun are no ask', () 
     }
   });
 });
+
+describe('T-182 r2 minor 3: the pronoun-out and "none of us" rules only fire on an out', () => {
+  it.each([
+    "get razz tickets for everyone, they can't wait",
+    "get razz tickets for everyone, they're not cheap",
+    'get razz tickets for everyone, none of us have been',
+    "get razz tickets for everyone, she's not been before",
+  ])('%s still reads as the ask (the card shows who)', (text) => {
+    for (const r of both(text)) expect(r, text).toBeDefined();
+  });
+
+  it.each([
+    "get razz tickets for everyone, he won't be there",
+    "get razz tickets for everyone, she doesn't want to come",
+    "get razz tickets for everyone, they aren't coming",
+    "get razz tickets for everyone, he can't",
+    "get razz tickets for everyone, she isn't feeling well",
+    'get razz tickets for everyone, none of us want to go',
+    'get razz tickets for everyone, none of us are going',
+  ])('%s is still no ask', (text) => {
+    for (const r of both(text)) expect(r, text).toBeUndefined();
+  });
+});
