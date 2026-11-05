@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { BookingProposal, Member, MemberId } from '@trav/core';
-import { approval, defaultSpendingPolicy, money } from '@trav/core';
+import type { BookingProposal, Member, MemberId, OutboundMessage } from '@trav/core';
+import { approval, defaultSpendingPolicy, isReaction, money } from '@trav/core';
 import type { TicketEvent } from '@trav/adapters';
+import type { TurnResult } from '../loop.js';
+import { FIVE as RUNTIME_FIVE, harness } from '../runtime.testkit.js';
 import {
   askedThing,
   bestMatchesBy,
@@ -13,6 +15,7 @@ import {
   onNight,
   rankSlots,
   renderProposalText,
+  resolveParty,
   type SlotOption,
 } from './proposals.js';
 
@@ -234,5 +237,145 @@ describe('T-143 helpers: unnamed asks and the closest slot', () => {
     const items = ['Park Güell: monumental zone', 'Parc de la Ciutadella park tour'];
     expect(bestMatchesBy(items, 'park guell tickets', (s) => s)).toEqual([items[0]]);
     expect(bestMatchesBy(items, 'park tickets', (s) => s)).toEqual(items);
+  });
+});
+
+describe('T-158: a clarify roster never lists someone the member excluded', () => {
+  const byId = new Map(members.map((m) => [m.memberId, m] as const));
+  const order = [...FIVE, 'mem_henry'];
+  const party = (input: Parameters<typeof resolveParty>[0]['input']) =>
+    resolveParty({ input, active: members, byId, order, base: order, markedOut: new Set() });
+  const question = (r: ReturnType<typeof party>): string => {
+    if (r.kind !== 'clarify') throw new Error(`expected a clarify, got ${r.kind}`);
+    return r.question;
+  };
+
+  it('a count that is not the roster after the exclusion lists only who is still in', () => {
+    const q = question(party({ quantity: 4, excludedNames: ['Henry'] }));
+    expect(q).toBe(
+      "who's in? i've got Dean, Sam, Ava, Maya, Leo. 👍 if that's right, or tell me who to swap",
+    );
+  });
+
+  it('an unknown name next to a known exclusion: the known one is already off the list', () => {
+    const r = party({ excludedNames: ['Henry', 'Zed'] });
+    expect(question(r)).not.toContain('Henry');
+    expect(r).toMatchObject({ problems: ['unknown_name:Zed'] });
+    // An unknown name before a known one: same result, order doesn't matter.
+    expect(question(party({ excludedNames: ['Zed', 'Henry'] }))).not.toContain('Henry');
+  });
+
+  it('r1 #4: an unknown attendee lists the named people Trav could match, never the whole group', () => {
+    const r = party({ attendeeNames: ['Maya', 'Sam', 'Zed'] });
+    expect(question(r)).toBe(
+      "who's in? i've got Sam, Maya. 👍 if that's right, or tell me who to swap",
+    );
+    expect(r).toMatchObject({ problems: ['unknown_name:Zed'] });
+    // Excluded and named: the excluded one is still never listed.
+    const q = question(
+      party({ excludedNames: ['Henry'], attendeeNames: ['Maya', 'Henry', 'Zed'] }),
+    );
+    expect(q).toBe("who's in? i've got Maya. 👍 if that's right, or tell me who to swap");
+    // Every unknown is reported at once, not just the first.
+    expect(party({ attendeeNames: ['Zed', 'Maya', 'Quinn'] })).toMatchObject({
+      problems: ['unknown_name:Zed', 'unknown_name:Quinn'],
+    });
+  });
+
+  it('r1 #4: nobody named could be matched: a plain question, never the whole group', () => {
+    const q = question(party({ excludedNames: ['Henry'], attendeeNames: ['Zed'] }));
+    expect(q).toBe("who's in? tell me who's going");
+    // A reason word that slipped into the names is never echoed back.
+    const r = party({
+      attendeeNames: ['Maya', 'Sam', 'Henry', 'Is', 'Sick'],
+      excludedNames: ['Henry'],
+    });
+    expect(question(r)).toBe(
+      "who's in? i've got Sam, Maya. 👍 if that's right, or tell me who to swap",
+    );
+    expect(question(r)).not.toMatch(/sick|\bis\b/i);
+  });
+
+  it('r1 #4: an unknown excluded name next to named attendees lists those attendees', () => {
+    const q = question(party({ excludedNames: ['Zed'], attendeeNames: ['Maya', 'Leo'] }));
+    expect(q).toBe("who's in? i've got Maya, Leo. 👍 if that's right, or tell me who to swap");
+  });
+
+  it('an excluded member id is left out the same way', () => {
+    expect(question(party({ quantity: 2, excludedMemberIds: ['mem_henry'] }))).not.toContain(
+      'Henry',
+    );
+  });
+
+  it('nobody left: a plain question, never an empty list', () => {
+    const q = question(
+      party({ quantity: 1, excludedNames: ['Dean', 'Sam', 'Ava', 'Maya', 'Leo', 'Henry'] }),
+    );
+    expect(q).toBe("who's in? tell me who's going");
+  });
+});
+
+describe('T-158: the ticket path through the runtime (offline)', () => {
+  const groupText = (turn: TurnResult): string =>
+    turn.outbound
+      .filter((o): o is OutboundMessage => !isReaction(o) && o.to.kind === 'group')
+      .map((m) => m.text)
+      .join('\n');
+  const REASON = /sick|rough|feeling/i;
+
+  it.each([
+    ['h_priya', '@trav we need razzmatazz entry tonight for dean maya jordan sam and me'],
+    ['h_jordan', '@trav pick up razzmatazz passes for us tonight minus henry'],
+    ['h_sam', '@trav can you sort razzmatazz for 5 of us tonight? not henry, he is feeling rough'],
+  ])('%s: "%s" proposes the five at €90, Henry out, no reason repeated', async (from, text) => {
+    const h = harness();
+    const turn = await h.say(from, text);
+    const p = h.pending()[0];
+    expect(p, turn.note).toBeDefined();
+    expect(new Set(p!.attendees)).toEqual(new Set(RUNTIME_FIVE));
+    expect(p!.totalMinor).toBe(9000);
+    expect(h.tickets.purchaseCount()).toBe(0);
+    const said = groupText(turn);
+    expect(said).toContain('(not Henry)');
+    expect(said).not.toMatch(REASON);
+  });
+
+  it('"the 4 of us …, not henry, he\'s feeling rough": the question names the five still in, never Henry', async () => {
+    const h = harness();
+    const turn = await h.say(
+      'h_maya',
+      "@trav get the 4 of us razzmatazz tickets tonight. not henry, he's feeling rough",
+    );
+    expect(h.pending()).toHaveLength(0);
+    const said = groupText(turn);
+    expect(said).toContain("who's in?");
+    expect(said).toContain('Dean, Maya, Jordan, Priya, Sam');
+    expect(said).not.toContain('Henry');
+    expect(said).not.toMatch(REASON);
+  });
+
+  it('r1 #1: "for maya and sam, henry is sick" proposes exactly Maya and Sam, no reason repeated', async () => {
+    const h = harness();
+    const turn = await h.say('h_dean', '@trav get razz tickets for maya and sam, henry is sick');
+    const p = h.pending()[0];
+    expect(p, turn.note).toBeDefined();
+    expect(new Set(p!.attendees)).toEqual(new Set(['mem_maya', 'mem_sam']));
+    expect(h.tickets.purchaseCount()).toBe(0);
+    const said = groupText(turn);
+    expect(said).not.toMatch(/sick|\bIs\b/);
+    expect(said).not.toContain("who's in?");
+  });
+
+  it.each([
+    '@trav we need razz passes printed',
+    '@trav need razz passes from sam, he has them',
+    '@trav we need razz tickets lol jk',
+    '@trav we want razz tickets but henry wants apolo',
+    '@trav we need 5 razz passes printed',
+  ])('r1 #2/#3: "%s" holds nothing and proposes nothing', async (text) => {
+    const h = harness();
+    await h.say('h_dean', text);
+    expect(h.pending()).toHaveLength(0);
+    expect(h.tickets.purchaseCount()).toBe(0);
   });
 });

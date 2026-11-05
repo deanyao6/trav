@@ -319,6 +319,16 @@ function names(ids: readonly MemberId[], byId: ReadonlyMap<MemberId, Member>): s
   return ids.map((id) => sanitizeInline(byId.get(id)?.displayName ?? id, 40)).join(', ');
 }
 
+/**
+ * The "who's in?" roster question (VOICE §4.11). `ids` is who Trav has as
+ * going, never anyone the member excluded (T-158); nobody left ⇒ just ask.
+ */
+function whoIsInQuestion(ids: readonly MemberId[], byId: ReadonlyMap<MemberId, Member>): string {
+  return ids.length === 0
+    ? "who's in? tell me who's going"
+    : `who's in? i've got ${names(ids, byId)}. 👍 if that's right, or tell me who to swap`;
+}
+
 function inOrder(ids: Iterable<MemberId>, order: readonly MemberId[]): MemberId[] {
   const set = new Set(ids);
   return order.filter((id) => set.has(id));
@@ -914,74 +924,12 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
         : order
     ).filter((id) => !addOn || !booked.has(id));
 
-    const excluded = new Set<MemberId>(input.excludedMemberIds ?? []);
-    for (const raw of input.excludedNames ?? []) {
-      const hits = active.filter((m) => m.displayName.toLowerCase() === raw.trim().toLowerCase());
-      if (hits.length !== 1) {
-        return {
-          kind: 'clarify',
-          question: `who's in? i've got ${names(base, byId)}. 👍 if that's right, or tell me who to swap`,
-          problems: [`unknown_name:${sanitizeInline(raw, 40)}`],
-        };
-      }
-      excluded.add(hits[0]!.memberId);
-    }
-    for (const id of excluded) {
-      if (!byId.has(id)) {
-        return {
-          kind: 'clarify',
-          question: `who's in? i've got ${names(base, byId)}. 👍 if that's right, or tell me who to swap`,
-          problems: [`unknown_member:${sanitizeInline(id, 40)}`],
-        };
-      }
-    }
-
-    const named: MemberId[] = [...(input.attendeeMemberIds ?? [])];
-    for (const raw of input.attendeeNames ?? []) {
-      const hits = active.filter((m) => m.displayName.toLowerCase() === raw.trim().toLowerCase());
-      if (hits.length !== 1) {
-        return {
-          kind: 'clarify',
-          question: `who's in? i've got ${names(base, byId)}. 👍 if that's right, or tell me who to swap`,
-          problems: [`unknown_name:${sanitizeInline(raw, 40)}`],
-        };
-      }
-      named.push(hits[0]!.memberId);
-    }
-    let attendees: MemberId[];
-    if (named.length > 0) {
-      const unknown = named.filter((id) => !order.includes(id));
-      if (unknown.length > 0) {
-        return {
-          kind: 'clarify',
-          question: `who's in? i've got ${names(base, byId)}. 👍 if that's right, or tell me who to swap`,
-          problems: [...new Set(unknown)].map(
-            (id) => `attendee_not_member:${sanitizeInline(id, 40)}`,
-          ),
-        };
-      }
-      // The named subset wins, but a member marked out for the activity stays out (SAFETY §2.5).
-      attendees = inOrder(
-        named.filter((id) => !excluded.has(id) && !markedOut.has(id)),
-        order,
-      );
-    } else {
-      attendees = base.filter((id) => !excluded.has(id));
-    }
-    if (input.quantity !== undefined && input.quantity !== attendees.length) {
-      return {
-        kind: 'clarify',
-        question: `who's in? i've got ${names(attendees, byId)}. 👍 if that's right, or tell me who to swap`,
-        problems: ['quantity_not_roster'],
-      };
-    }
-    if (attendees.length === 0) {
-      return {
-        kind: 'clarify',
-        question: "who's in? nobody is marked in for that one yet",
-        problems: ['empty_roster'],
-      };
-    }
+    // One reading of who's in, shared with the lodging and flight paths: every
+    // name is resolved before any question, and a "who's in?" lists only who
+    // Trav has as going, never anyone the member just excluded (T-158).
+    const party = resolveParty({ input, active, byId, order, base, markedOut });
+    if (party.kind === 'clarify') return party;
+    const attendees = party.attendees;
     if (addOn) {
       const twice = attendees.filter((id) => booked.has(id));
       if (twice.length > 0) {
@@ -1933,10 +1881,16 @@ function createActivity(
 }
 
 /**
- * Who a proposal is for, from the ask (T-132; the same rules the ticket path
- * applies): a named subset wins, but a member marked out stays out; else
- * `base` minus anyone named out. An unknown name, a count that isn't the
- * roster, or nobody ⇒ one question.
+ * Who a proposal is for, from the ask (T-132; the ticket, lodging and flight
+ * paths all read it here): a named subset wins, but a member marked out stays
+ * out; else `base` minus anyone named out. An unknown name, a count that
+ * isn't the roster, or nobody ⇒ one question.
+ *
+ * Every name, in or out, is resolved before any question (T-158), so the
+ * "who's in?" lists who Trav has as going: the named people it could match
+ * when the ask named people (r1 #4: "for maya, sam and zed" ⇒ "i've got
+ * Maya, Sam", never the whole group), else everyone still in; never anyone
+ * the member just excluded or who is marked out.
  */
 export function resolveParty(a: {
   readonly input: Pick<
@@ -1955,44 +1909,47 @@ export function resolveParty(a: {
   const whoIsIn = (ids: readonly MemberId[], problems: string[]) =>
     ({
       kind: 'clarify',
-      question: `who's in? i've got ${names(ids, byId)}. 👍 if that's right, or tell me who to swap`,
+      question: whoIsInQuestion(ids, byId),
       problems,
     }) as const;
   const byName = (raw: string): Member | undefined => {
     const hits = active.filter((m) => m.displayName.toLowerCase() === raw.trim().toLowerCase());
     return hits.length === 1 ? hits[0] : undefined;
   };
+  const problems: string[] = [];
+
   const excluded = new Set<MemberId>(input.excludedMemberIds ?? []);
   for (const raw of input.excludedNames ?? []) {
     const m = byName(raw);
-    if (m === undefined) return whoIsIn(base, [`unknown_name:${sanitizeInline(raw, 40)}`]);
-    excluded.add(m.memberId);
+    if (m === undefined) problems.push(`unknown_name:${sanitizeInline(raw, 40)}`);
+    else excluded.add(m.memberId);
   }
   for (const id of excluded) {
-    if (!byId.has(id)) return whoIsIn(base, [`unknown_member:${sanitizeInline(id, 40)}`]);
+    if (!byId.has(id)) problems.push(`unknown_member:${sanitizeInline(id, 40)}`);
   }
-  const named: MemberId[] = [...(input.attendeeMemberIds ?? [])];
+
+  const asked = (input.attendeeMemberIds ?? []).length + (input.attendeeNames ?? []).length > 0;
+  const named: MemberId[] = [];
+  for (const id of input.attendeeMemberIds ?? []) {
+    if (order.includes(id)) named.push(id);
+    else problems.push(`attendee_not_member:${sanitizeInline(id, 40)}`);
+  }
   for (const raw of input.attendeeNames ?? []) {
     const m = byName(raw);
-    if (m === undefined) return whoIsIn(base, [`unknown_name:${sanitizeInline(raw, 40)}`]);
-    named.push(m.memberId);
+    if (m === undefined) problems.push(`unknown_name:${sanitizeInline(raw, 40)}`);
+    else if (!order.includes(m.memberId)) {
+      problems.push(`attendee_not_member:${sanitizeInline(m.memberId, 40)}`);
+    } else named.push(m.memberId);
   }
-  let attendees: MemberId[];
-  if (named.length > 0) {
-    const unknown = [...new Set(named.filter((id) => !order.includes(id)))];
-    if (unknown.length > 0) {
-      return whoIsIn(
-        base,
-        unknown.map((id) => `attendee_not_member:${sanitizeInline(id, 40)}`),
-      );
-    }
-    attendees = inOrder(
-      named.filter((id) => !excluded.has(id) && !markedOut.has(id)),
-      order,
-    );
-  } else {
-    attendees = base.filter((id) => !excluded.has(id));
-  }
+
+  const attendees = asked
+    ? // The named subset wins, but a member marked out for the activity stays out (SAFETY §2.5).
+      inOrder(
+        named.filter((id) => !excluded.has(id) && !markedOut.has(id)),
+        order,
+      )
+    : base.filter((id) => !excluded.has(id));
+  if (problems.length > 0) return whoIsIn(attendees, [...new Set(problems)]);
   if (input.quantity !== undefined && input.quantity !== attendees.length) {
     return whoIsIn(attendees, ['quantity_not_roster']);
   }
@@ -2227,7 +2184,7 @@ function clarifyFor(
   if (problems.includes('city_not_in_trip')) {
     return `that's not in ${sanitizeInline(trip.city, 40)}. did you mean somewhere here`;
   }
-  return `who's in? i've got ${names(attendees, byId)}. 👍 if that's right, or tell me who to swap`;
+  return whoIsInQuestion(attendees, byId);
 }
 
 function denyText(

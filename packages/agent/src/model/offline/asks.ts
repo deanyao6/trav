@@ -266,7 +266,7 @@ export function createBookingRequestResponder(
       if (!offered(req, 'propose_booking')) return undefined;
       const ask = freshAsk(req);
       if (ask !== undefined) {
-        const r = parseBookingRequest(ask.text, index(), ask.sender);
+        const r = parseBookingRequest(ask.text, index(), ask.sender, { roster: rosterNames(req) });
         if (r === undefined) return undefined;
         // A weekday or a date (T-143): look before proposing, so a night with
         // nothing on gets the closest slot from a read-only search, never a hold.
@@ -287,12 +287,33 @@ export function createBookingRequestResponder(
       if (round?.name !== 'search_events') return undefined;
       const asked = theAsk(req);
       const r =
-        asked === undefined ? undefined : parseBookingRequest(asked.text, index(), asked.sender);
+        asked === undefined
+          ? undefined
+          : parseBookingRequest(asked.text, index(), asked.sender, { roster: rosterNames(req) });
       if (r === undefined) return undefined;
       const text = closestSlotFromSearch(r, round.result);
       return text === undefined ? propose(req, r, 2) : response(req, text, []);
     },
   };
+}
+
+/**
+ * Every member's display name from the prompt's member list (T-158 r1 #1),
+ * so a "for …" list only ever names members. Undefined when there's no list
+ * (the parser then falls back to its own word rules; the proposal service
+ * still asks about any name it can't match).
+ */
+function rosterNames(req: CompletionRequest): readonly string[] | undefined {
+  const lines = req.system.split('\n');
+  const start = lines.findIndex((l) => /^members \(\d+\):$/.test(l.trim()));
+  if (start < 0) return undefined;
+  const out: string[] = [];
+  for (const l of lines.slice(start + 1)) {
+    if (!l.startsWith('- ')) break;
+    const m = /^- (.+?) \([^()]*\)(?: · |$)/.exec(l);
+    if (m?.[1] !== undefined) out.push(m[1]);
+  }
+  return out.length === 0 ? undefined : out;
 }
 
 /** Nights the proposal service reads against now itself (no look-first round). */

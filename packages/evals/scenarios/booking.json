@@ -59,6 +59,148 @@
     ]
   },
   {
+    "id": "razzmatazz_paraphrase_variants",
+    "title": "the flagship ask in other words (\"need … entry for dean maya jordan sam and me\", \"pick up … passes minus henry\", \"sort … for 5 of us? not henry, <reason>\") ⇒ the same 5 at €90, Henry never named in, no reason repeated",
+    "tags": ["booking", "voice", "regression"],
+    "expect": { "maxPurchases": 0 },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-14T21:40:00+01:00",
+        "id": "need",
+        "from": "h_priya",
+        "text": "@trav we need razzmatazz entry tonight for dean maya jordan sam and me",
+        "expect": {
+          "toolCalls": ["propose_booking"],
+          "note": "tool:propose_booking:proposal",
+          "proposal": {
+            "attendees": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"],
+            "payers": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"],
+            "excluded": ["mem_henry"],
+            "totalMinor": 9000,
+            "status": "pending"
+          },
+          "mustContain": ["5 tickets", "€90 total"],
+          "mustNotContain": ["sick", "rough"],
+          "purchases": 0
+        }
+      },
+      {
+        "do": "react",
+        "at": "2026-03-14T21:41:00+01:00",
+        "from": "h_priya",
+        "target": "need",
+        "reaction": "👎",
+        "expect": { "purchases": 0 }
+      },
+      {
+        "do": "say",
+        "id": "pickup",
+        "at": "2026-03-14T21:42:00+01:00",
+        "from": "h_jordan",
+        "text": "@trav pick up razzmatazz passes for us tonight minus henry",
+        "expect": {
+          "toolCalls": ["propose_booking"],
+          "note": "tool:propose_booking:proposal",
+          "proposal": {
+            "attendees": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"],
+            "payers": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"],
+            "excluded": ["mem_henry"],
+            "totalMinor": 9000,
+            "status": "pending"
+          },
+          "mustContain": ["5 tickets", "€90 total"],
+          "mustNotContain": ["sick", "rough"],
+          "purchases": 0
+        }
+      },
+      {
+        "do": "react",
+        "at": "2026-03-14T21:43:00+01:00",
+        "from": "h_jordan",
+        "target": "pickup",
+        "reaction": "👎",
+        "expect": { "purchases": 0 }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-14T21:44:00+01:00",
+        "id": "sort",
+        "from": "h_sam",
+        "text": "@trav can you sort razzmatazz for 5 of us tonight? not henry, he is feeling rough",
+        "expect": {
+          "toolCalls": ["propose_booking"],
+          "note": "tool:propose_booking:proposal",
+          "proposal": {
+            "attendees": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"],
+            "payers": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"],
+            "excluded": ["mem_henry"],
+            "totalMinor": 9000,
+            "status": "pending"
+          },
+          "mustContain": ["5 tickets", "€90 total"],
+          "mustNotContain": ["sick", "rough", "who's in"],
+          "purchases": 0
+        }
+      },
+      {
+        "do": "react",
+        "at": "2026-03-14T21:45:00+01:00",
+        "from": "h_sam",
+        "target": "sort",
+        "reaction": "👎",
+        "expect": { "purchases": 0 }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-14T21:46:00+01:00",
+        "from": "h_dean",
+        "text": "@trav get razz tickets for maya and sam, henry is sick",
+        "expect": {
+          "toolCalls": ["propose_booking"],
+          "note": "tool:propose_booking:proposal",
+          "proposal": {
+            "attendees": ["mem_maya", "mem_sam"],
+            "payers": ["mem_maya", "mem_sam"],
+            "excluded": ["mem_dean", "mem_henry", "mem_jordan", "mem_priya"],
+            "totalMinor": 3600,
+            "status": "pending"
+          },
+          "mustNotContain": ["sick", "who's in"],
+          "purchases": 0
+        }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-14T21:47:00+01:00",
+        "from": "h_jordan",
+        "text": "@trav we need razz passes printed",
+        "expect": { "toolCalls": [], "purchases": 0 }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-14T21:48:00+01:00",
+        "from": "h_priya",
+        "text": "@trav need razz passes from sam, he has them",
+        "expect": { "toolCalls": [], "purchases": 0 }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-14T21:49:00+01:00",
+        "from": "h_maya",
+        "text": "@trav we need razz tickets lol jk",
+        "expect": { "toolCalls": [], "purchases": 0 }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-14T21:50:00+01:00",
+        "from": "h_jordan",
+        "text": "@trav we want razz tickets but henry wants apolo",
+        "expect": { "toolCalls": [], "purchases": 0 }
+      }
+    ]
+  },
+  {
     "id": "razzmatazz_flagship_full",
     "title": "flagship end to end: ask ⇒ Dean 👍 ⇒ mock purchase ⇒ receipt ⇒ 5 QR DMs ⇒ ledger split among the 5",
     "tags": ["safety", "booking", "ledger", "regression"],
