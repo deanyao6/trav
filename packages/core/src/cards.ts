@@ -37,6 +37,8 @@ export interface OutboundMessage {
   readonly kind?: 'system_notice';
   /** `system_notice` only: the expenses the line announces (audited on `message.sent`). */
   readonly noticeExpenseIds?: readonly ExpenseId[];
+  /** `system_notice` only (T-165 r2): the line takes announced expenses back off the tab ("… off the tab"). */
+  readonly noticeCorrection?: true;
   readonly id: MessageId;
   readonly groupId: GroupId;
   readonly to: OutboundTarget;

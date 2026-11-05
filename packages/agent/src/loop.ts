@@ -664,6 +664,7 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     clock: input.clock,
     ids: input.ids,
     sendTurn: input.sendTurn,
+    scheduler: input.scheduler,
   });
   const deps: AgentDeps = { ...input, sendTurn: notices.sendTurn };
   const { stores, model, tools, clock, ids, scheduler } = deps;
@@ -3200,6 +3201,11 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     if (job.kind === 'wrapped') return runWrappedJob(job);
     if (job.kind === 'morning_after') return runMorningAfterJob(job);
     if (job.kind === 'card_import') return runCardImportJob(job);
+    if (job.kind === 'expense_notice') {
+      // T-165 r2: a held ledger notice's window ended; it goes out when this operation ends.
+      notices.release(job);
+      return silent('scheduled:expense_notice');
+    }
     if (job.kind !== 'proposal_expiry') return silent(`scheduled:${job.kind}:not_handled`);
     const proposalId =
       typeof job.payload['proposalId'] === 'string' ? job.payload['proposalId'] : undefined;

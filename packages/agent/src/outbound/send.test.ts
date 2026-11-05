@@ -666,10 +666,34 @@ describe('system_notice through the send path (T-165)', () => {
     expect(entry.systemNotice).toBe(false);
     expect(entry.degraded).toBe(false);
     expect(entry.text).toBe('Chase added Uber €18.60 · 4 ways (not Henry, Crowley)');
-    // The wire message carries no kind: the channel never sees a notice it can't draw.
+    // The wire message carries no notice fields: the channel never sees a notice it can't draw.
     expect(entry.outbound?.kind).toBeUndefined();
+    expect(entry.outbound).not.toHaveProperty('noticeExpenseIds');
+    expect(entry.outbound).not.toHaveProperty('noticeCorrection');
+    expect(Object.keys(entry.outbound ?? {}).sort()).toEqual(['groupId', 'id', 'text', 'to']);
     const sent = h.stores.group.audit.listByGroup(GROUP_ID).find((e) => e.type === 'message.sent')!;
     expect(sent.payload).toMatchObject({ systemNotice: true, noticeDowngraded: true });
+
+    // A correction line goes the same way, and the audit (not the wire) remembers what it was.
+    await sendOutbound(
+      notice({
+        id: 'msg_notice_2',
+        noticeCorrection: true,
+        text: 'Chase took Uber €18.60 off the tab',
+      }),
+      h.deps,
+    );
+    const second = h.channel.groupTranscript('conv_barcelona')[1];
+    if (second?.type !== 'message') throw new Error('expected a message');
+    expect(Object.keys(second.outbound ?? {}).sort()).toEqual(['groupId', 'id', 'text', 'to']);
+    const audited = h.stores.group.audit
+      .listByGroup(GROUP_ID)
+      .filter((e) => e.type === 'message.sent')[1]!;
+    expect(audited.payload).toMatchObject({
+      systemNotice: true,
+      noticeCorrection: true,
+      expenseIds: ['exp_uber'],
+    });
   });
 
   it('a malformed notice (DM, card, buttons, @tag, two lines) is refused before anything is sent', async () => {

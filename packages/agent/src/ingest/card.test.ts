@@ -641,6 +641,29 @@ describe('card import: descriptors are untrusted data', () => {
 // ---------- the answer ----------
 
 describe('looks shared answer: only the owner, only in the DM', () => {
+  it('no merchant name from the provider: Crowley sees the descriptor, the tab and the group get the category name, never the descriptor (T-165 r2)', async () => {
+    const h = setup({ at: MORNING_AFTER });
+    const { merchantName: _drop, ...bare } = UBER_POSTED;
+    const r = await importCrowley(h, scriptedAdapter({ '': page([bare], 'c1') }));
+    const card = msg(r.outbound[0]);
+    // The owner still recognizes the charge by its statement text.
+    expect(card.text).toContain('UBER *TRIP');
+    expect(crowleyItems(h, 'pending')[0]).toMatchObject({ merchantFromDescriptor: true });
+    const groupBefore = h.channel.groupTranscript(BARCELONA.conversationId).length;
+    const res = await h.tap('h_crowley', card.id, 'confirm');
+    expect(res.note).toBe('looks_shared:shared');
+    const exp = cardExpenses(h)[0]!;
+    expect(exp.description).toBe('ride');
+    expect(exp.merchantDisplay).toBe('ride');
+    const groupAfter = h.channel.groupTranscript(BARCELONA.conversationId).slice(groupBefore);
+    expect(groupAfter.map((e) => (e.type === 'message' ? e.text : e.type))).toEqual([
+      'Crowley added ride €23.40 · 5 ways (not Henry)',
+    ]);
+    expect(JSON.stringify(h.channel.groupTranscript(BARCELONA.conversationId))).not.toMatch(
+      /UBER|HELP\.RIDES/,
+    );
+  });
+
   it("Crowley's Share it puts it on the tab, split with the 5 who went; the group gets one notice line, no card detail (T-165)", async () => {
     const h = setup();
     const r = await crowleyImported(h);

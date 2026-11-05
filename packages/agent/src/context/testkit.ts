@@ -96,6 +96,7 @@ export function createFakeGroupStore(d: FakeGroupData): GroupStore {
       listEntries: (t) => d.entries.filter((e) => e.tripId === t),
       // Read-only fake: nothing is ever created, so nothing is ever announced.
       onCreate: () => () => {},
+      onUndo: () => () => {},
     },
     settlements: {
       record: () => unused('settlements.record'),

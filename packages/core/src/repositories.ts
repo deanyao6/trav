@@ -105,6 +105,14 @@ export interface ExpenseRepository {
    * announce itself. Returns the unsubscribe function.
    */
   onCreate(listener: (expense: Expense) => void): () => void;
+  /**
+   * T-165 r2: subscribe to committed undos: a `replace` that turns a `logged`
+   * expense `undone` (after the write; never for an edit that stays logged,
+   * an already-undone row, or a failed write). Same listener rules as
+   * `onCreate`. The agent posts a correction for an expense its notice
+   * already announced. Returns the unsubscribe function.
+   */
+  onUndo(listener: (expense: Expense) => void): () => void;
 }
 
 /**

@@ -207,6 +207,72 @@ export function expenseNoticeText(
   return batchedLine(items, 1, ctx);
 }
 
+/**
+ * T-165 r2, VOICE §4.13: the correction for expenses a notice already
+ * announced and that were then undone. "Crowley took Uber €23.40 off the tab";
+ * several: "Crowley took Uber €23.40 and ride €9 off the tab · Arjun took …".
+ * The amount is the one the notice said; no split (nobody owes anything now).
+ */
+export function expenseCorrectionText(
+  expenses: readonly Expense[],
+  ctx: Pick<RenderContext, 'members'>,
+): string {
+  if (expenses.length === 0) {
+    throw new TravError('invalid_argument', 'expense correction: nothing to take back');
+  }
+  const items = expenses.map((e) => {
+    const { said, approx } = paidPhrase(e);
+    return { actor: actorOf(e, ctx), item: `${e.description} ${said}${approx}` };
+  });
+  const segment = (actor: MemberId, list: readonly string[]): string => {
+    const named =
+      list.length === 1
+        ? list[0]!
+        : `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]!}`;
+    return `${nameOf(ctx, actor)} took ${named} off the tab`;
+  };
+  const lineFor = (shown: number): string => {
+    const visible = items.slice(0, shown);
+    const actors: MemberId[] = [];
+    for (const i of visible) if (!actors.includes(i.actor)) actors.push(i.actor);
+    const segments = actors.map((a) =>
+      segment(
+        a,
+        visible.filter((i) => i.actor === a).map((i) => i.item),
+      ),
+    );
+    const rest = items.length - shown;
+    if (rest > 0) segments.push(`+${String(rest)} more off the tab`);
+    return segments.join(' · ');
+  };
+  for (let shown = Math.min(NOTICE_MAX_ITEMS, items.length); shown > 1; shown--) {
+    const line = lineFor(shown);
+    if (line.length <= NOTICE_MAX_CHARS) return line;
+  }
+  return lineFor(1);
+}
+
+/** The group-lane correction `system_notice` (T-165 r2) for announced expenses that were undone. */
+export function renderExpenseCorrection(
+  expenses: readonly Expense[],
+  ctx: RenderContext,
+): SystemNoticeMessage {
+  for (const e of expenses) {
+    if (e.groupId !== ctx.groupId) {
+      throw new TravError('invalid_argument', 'expense correction: expense from another group', {
+        expenseId: e.expenseId,
+      });
+    }
+  }
+  const message = textMessage(ctx, GROUP, [expenseCorrectionText(expenses, ctx)]);
+  return {
+    ...message,
+    kind: 'system_notice',
+    noticeExpenseIds: expenses.map((e) => e.expenseId),
+    noticeCorrection: true,
+  };
+}
+
 /** The group-lane `system_notice` for one batch. Never proactive: it follows someone's action. */
 export function renderExpenseNotice(
   input: NoticeRenderInput,

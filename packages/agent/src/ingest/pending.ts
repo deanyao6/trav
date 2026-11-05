@@ -563,14 +563,41 @@ const CATEGORY_TO_RECEIPT_KIND: Readonly<Record<ExpenseCategory, ReceiptSourceKi
  * pending item's own (already display-safe) facts, so what reaches the tab is
  * exactly what the owner confirmed.
  */
+const GROUP_SAFE_NAME: Readonly<Record<ExpenseCategory, string>> = {
+  tickets: 'tickets',
+  flights: 'flight',
+  lodging: 'stay',
+  food: 'food',
+  drinks: 'drinks',
+  transport: 'ride',
+  groceries: 'groceries',
+  activities: 'activity',
+  other: 'card charge',
+};
+
+/**
+ * T-165 r2: the name a shared card charge goes on the tab under when its only
+ * merchant text is the raw statement descriptor (`merchantFromDescriptor`):
+ * its category, never the descriptor (SAFETY §2.3; the group sees tab entries
+ * in notices, recaps and Wrapped).
+ */
+export function groupSafeChargeName(category: ExpenseCategory): string {
+  return GROUP_SAFE_NAME[category];
+}
+
 function promotable(stores: Stores, item: PendingPrivateItem): PrivateItem {
   const owner = item.ownerMemberId;
   const same = (a: { amountMinor: number; currency: string }): boolean =>
     a.amountMinor === item.amount.amountMinor && a.currency === item.amount.currency;
   if (item.source === 'card') {
+    // T-165 r2: a raw statement descriptor never reaches the tab (the group sees tab entries).
+    const merchantDisplay =
+      item.merchantFromDescriptor === true
+        ? groupSafeChargeName(item.category)
+        : item.merchantDisplay;
     const tx = stores.private.getCardTransaction(owner, item.sourceItemId);
     if (tx !== undefined && same(tx.amount) && tx.direction === 'debit') {
-      return markPrivate({ ...tx, merchantDisplay: item.merchantDisplay, category: item.category });
+      return markPrivate({ ...tx, merchantDisplay, category: item.category });
     }
     return markPrivate({
       id: item.id,
@@ -586,7 +613,7 @@ function promotable(stores: Stores, item: PendingPrivateItem): PrivateItem {
       direction: 'debit' as const,
       pending: false,
       merchantRaw: '',
-      merchantDisplay: item.merchantDisplay,
+      merchantDisplay,
       category: item.category,
     });
   }
