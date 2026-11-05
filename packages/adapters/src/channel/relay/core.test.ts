@@ -678,6 +678,40 @@ describe('review round 2', () => {
     });
   }
 
+  it('T-188: resolveContact binds a stored member to their address, with the same refusals', async () => {
+    const SAM_MEMBER = 'mem_sam';
+    const t = setup('photon', {
+      contacts: [],
+      // The server's directory: Sam's senderId is his address, bound to mem_sam only.
+      resolveContact: (handle, memberId) =>
+        handle === SAM && memberId === SAM_MEMBER
+          ? { handle, address: SAM, memberId }
+          : handle === MOCK_RELAY_LINE
+            ? { handle, address: MOCK_RELAY_LINE, memberId }
+            : handle === 'h_liar'
+              ? { handle: 'h_other', address: DEAN, memberId }
+              : undefined,
+    });
+    // Bound: the DM goes to Sam's address.
+    expect((await t.relay.sendDirect(SAM, dmMsg(SAM_MEMBER, 'hi'))).ok).toBe(true);
+    expect(t.mock.sends()[0]?.chat).toEqual({ kind: 'dm', address: SAM });
+    // The same handle as another member: the resolver says no, so unknown.
+    expect(await t.relay.sendDirect(SAM, dmMsg('mem_dean', 'hi'))).toMatchObject({
+      ok: false,
+      error: { code: 'not_found' },
+    });
+    // Never the line itself, never a contact for another handle.
+    expect(await t.relay.sendDirect(MOCK_RELAY_LINE, dmMsg('mem_x', 'hi'))).toMatchObject({
+      ok: false,
+      error: { code: 'not_found' },
+    });
+    expect(await t.relay.sendDirect('h_liar', dmMsg('mem_y', 'hi'))).toMatchObject({
+      ok: false,
+      error: { code: 'not_found' },
+    });
+    expect(t.mock.sends()).toHaveLength(1);
+  });
+
   it('flaw 4: a short truncated quote is never a tapback on a booking card (sendblue)', async () => {
     const t = setup('sendblue');
     const card = groupMsg(PROPOSAL_TEXT, { card: proposalCard(), actions: PROPOSAL_ACTIONS });

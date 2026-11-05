@@ -19,6 +19,8 @@
     "check": "pnpm typecheck && pnpm lint && pnpm test",
     "demo:barcelona": "pnpm --filter @trav/simulator demo:barcelona",
     "relay:dev": "pnpm --filter @trav/simulator relay:dev",
+    "server": "pnpm --filter @trav/server start",
+    "server:demo": "pnpm --filter @trav/server demo",
     "sim": "pnpm --filter @trav/simulator sim",
     "eval": "node --import tsx packages/evals/src/cli.ts",
     "eval:live": "NODE_USE_ENV_PROXY=1 node --import tsx packages/evals/src/live.ts",

@@ -1,0 +1,20 @@
+{
+  "name": "@trav/server",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "start": "node --import tsx src/main.ts",
+    "demo": "node --import tsx src/main.ts --demo=barcelona"
+  },
+  "dependencies": {
+    "@trav/adapters": "workspace:*",
+    "@trav/agent": "workspace:*",
+    "@trav/core": "workspace:*"
+  }
+}

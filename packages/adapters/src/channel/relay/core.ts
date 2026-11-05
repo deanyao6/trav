@@ -170,6 +170,14 @@ export interface RelayChannelOptions {
   readonly travNames?: readonly string[];
   /** Known people: address ↔ Trav handle. Unknown addresses are passed through as handles. */
   readonly contacts?: readonly RelayContact[];
+  /**
+   * T-188: a contact not in `contacts`, looked up when Trav DMs `handle` as
+   * `memberId` (a long-running server whose members live in its stores, not
+   * fixed at construction). Return it only if that handle is bound to that
+   * member. The same refusals apply as for `contacts`: the binding must
+   * match, and the line's own address is never a contact.
+   */
+  readonly resolveContact?: (handle: ChannelHandle, memberId: MemberId) => RelayContact | undefined;
   /** Group chats the line is known to be in. Others are learned from webhooks. */
   readonly chats?: readonly RelayChatSeed[];
   /** Default `imessage_relay_group`. */
@@ -326,6 +334,15 @@ export function createRelayChannel(options: RelayChannelOptions): RelayChannel {
     handleByAddress.set(address, contact);
     contactByHandle.set(c.handle, contact);
   }
+  /** `resolveContact` (T-188), normalized; never the line, never Trav's handle. */
+  const dynamicContact = (handle: ChannelHandle, memberId: MemberId): RelayContact | undefined => {
+    if (handle === travHandle) return undefined;
+    const found = options.resolveContact?.(handle, memberId);
+    if (found === undefined || found.handle !== handle) return undefined;
+    const address = normalizeAddress(found.address);
+    if (address === line) return undefined;
+    return { ...found, address };
+  };
   const rosters = new Map<string, Set<string>>();
   for (const chat of options.chats ?? []) {
     rosters.set(
@@ -902,7 +919,7 @@ export function createRelayChannel(options: RelayChannelOptions): RelayChannel {
       // would skip the ownership check that keeps tickets and private cards with
       // their owner.
       const memberId: MemberId = message.to.memberId;
-      const contact = contactByHandle.get(to);
+      const contact = contactByHandle.get(to) ?? dynamicContact(to, memberId);
       if (contact === undefined) return fail('not_found', `unknown handle ${to}`);
       if (contact.memberId !== memberId) {
         return fail('invalid_request', `handle ${to} does not belong to member ${memberId}`);
