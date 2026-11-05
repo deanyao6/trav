@@ -9,18 +9,25 @@ function handleToMember(trip) {
 export function ledgerFromChat(chat, trip, prefix, currency) {
   const byHandle = handleToMember(trip);
   const expenses = [];
-  for (const row of chat.rows) {
+  for (const [i, row] of chat.rows.entries()) {
     const e = row.expect?.expense;
     if (!e || !e.shares) continue;
     assert(e.amount.currency === currency, `${prefix}: ledger fixture is single-currency (${row.id})`);
     const n = expenses.length + 1;
     const src = e.source ?? 'chat';
+    // A receipt photo is logged by its payer's 👍 on the read-it card (SAFETY D5, D-039), but the
+    // expense points at the photo message, as the agent writes it (`sourceRef: message:<photo id>`).
+    const photoRow =
+      src === 'receipt_photo' && row.kind !== 'message'
+        ? chat.rows.slice(0, i).findLast((r) => r.expect?.flow === 'receipt_photo' && r.senderId === row.senderId)
+        : undefined;
+    assert(src !== 'receipt_photo' || row.kind === 'message' || photoRow, `${row.id}: receipt 👍 without a photo line`);
     const sourceRef =
       src === 'booking'
         ? { kind: 'booking', id: `bk_${prefix}_${String(n).padStart(3, '0')}` }
         : src === 'card_transaction' || src === 'email_receipt'
           ? { kind: 'private_item', id: `priv_${prefix}_${String(n).padStart(3, '0')}` }
-          : { kind: 'message', id: row.id };
+          : { kind: 'message', id: (photoRow ?? row).id };
     expenses.push({
       expenseId: `exp_${prefix}_${String(n).padStart(3, '0')}`,
       groupId: trip.groupId,

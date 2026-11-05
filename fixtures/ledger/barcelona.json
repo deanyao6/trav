@@ -878,7 +878,7 @@
       },
       "activityId": "act_bcn_dinner_d2",
       "occurredAt": "2026-03-13T23:05:00+01:00",
-      "createdAt": "2026-03-13T23:05:00+01:00",
+      "createdAt": "2026-03-13T23:06:00+01:00",
       "createdBy": "mem_jordan",
       "status": "logged",
       "expectedShares": [
@@ -925,7 +925,7 @@
           }
         }
       ],
-      "fromChatLine": "msg_bcn_0093"
+      "fromChatLine": "msg_bcn_0093a"
     },
     {
       "expenseId": "exp_bcn_011",
@@ -1532,11 +1532,11 @@
       "source": "receipt_photo",
       "sourceRef": {
         "kind": "message",
-        "id": "msg_bcn_0161"
+        "id": "msg_bcn_0160"
       },
       "activityId": "act_bcn_lunch_d5",
       "occurredAt": "2026-03-16T13:52:00+01:00",
-      "createdAt": "2026-03-16T13:52:00+01:00",
+      "createdAt": "2026-03-16T13:53:00+01:00",
       "createdBy": "mem_maya",
       "status": "logged",
       "expectedShares": [
@@ -1562,7 +1562,7 @@
           }
         }
       ],
-      "fromChatLine": "msg_bcn_0161"
+      "fromChatLine": "msg_bcn_0161a"
     },
     {
       "expenseId": "exp_bcn_019",

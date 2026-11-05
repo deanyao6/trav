@@ -166,7 +166,7 @@ describe('top bar: clock and replay', () => {
     const modes: string[] = [];
     const p = props(s, 'h_dean', { onReplay: (m) => modes.push(m) });
     const markup = html(p);
-    expect(markup).toContain('replay ▸ 0/199');
+    expect(markup).toContain('replay ▸ 0/201');
     expect(markup).toContain('next: Dean: ok its official. BARCELONA mar 12-17 🇪🇸…');
     const root = <AppView {...p} />;
     click(root, 'replay-step');

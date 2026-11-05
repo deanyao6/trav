@@ -48,7 +48,13 @@ function builder(prefix, handles, members) {
   let n = 0;
   let dn = 0;
   let lastTs = '';
+  // Rows inserted later under an explicit id (`opts.id`, e.g. `msg_bcn_0093a`): they take no
+  // sequence number, so every existing group/DM/system id stays put (T-083).
+  let inserted = 0;
+  const ids = new Set();
   const push = (row) => {
+    assert(!ids.has(row.id), `duplicate id ${row.id}`);
+    ids.add(row.id);
     assert(!lastTs || Date.parse(row.ts) >= Date.parse(lastTs), `${prefix}: ts out of order at ${row.ts}`);
     lastTs = row.ts;
     if (row.ref) {
@@ -73,7 +79,8 @@ function builder(prefix, handles, members) {
     },
     react(ts, who, reaction, cardRef, expect, opts = {}) {
       const lane = opts.lane ?? 'group';
-      return push({ id: nextId(lane), ts, kind: 'reaction', lane, senderId: sender(who), text: '', reaction, target: { cardRef }, ...(opts.ref ? { ref: opts.ref } : {}), ...(expect ? { expect } : {}) });
+      if (opts.id) inserted += 1;
+      return push({ id: opts.id ?? nextId(lane), ts, kind: 'reaction', lane, senderId: sender(who), text: '', reaction, target: { cardRef }, ...(opts.ref ? { ref: opts.ref } : {}), ...(expect ? { expect } : {}) });
     },
     tap(ts, who, actionId, cardRef, expect, opts = {}) {
       const lane = opts.lane ?? 'group';
@@ -86,7 +93,7 @@ function builder(prefix, handles, members) {
       return push({ id: `clk_${prefix}_${ts.slice(0, 13).replace(/[-T:]/g, '')}`, ts, kind: 'clock', lane: 'group', senderId: null, text: '', advanceTo: ts, ...(expect ? { expect } : {}) });
     },
     system(ts, event, data, expect) {
-      return push({ id: `sys_${prefix}_${String(rows.length + 1).padStart(4, '0')}`, ts, kind: 'system', lane: 'direct', senderId: null, text: '', event, ...data, ...(expect ? { expect } : {}) });
+      return push({ id: `sys_${prefix}_${String(rows.length + 1 - inserted).padStart(4, '0')}`, ts, kind: 'system', lane: 'direct', senderId: null, text: '', event, ...data, ...(expect ? { expect } : {}) });
     },
     members,
   };
@@ -165,7 +172,7 @@ export function barcelonaChat(opts = {}) {
   });
   c.react(P('20:17'), s('dean'), '👍', 'flights_proposal', { action: 'approval_recorded', approval: { effect: 'granted', complete: false }, purchaseCount: 0 });
   c.react(P('20:17'), s('maya'), '👍', 'flights_proposal', { action: 'approval_recorded', approval: { effect: 'granted', complete: false }, purchaseCount: 0 });
-  c.say(P('20:18'), s('priya'), 'yes', { addressed: false, action: 'silent', approval: { effect: 'ignored', invalidAttemptCause: 'ambiguous' }, audit: ['approval.invalid_attempt'], notes: 'only the requester\'s bare "yes" binds (SAFETY §2.1); Priya must tap/react on the card' });
+  c.say(P('20:18'), s('priya'), 'yes', { addressed: false, action: 'silent', approval: { effect: 'ignored', invalidAttemptCause: 'not_requester' }, audit: ['approval.invalid_attempt'], notes: 'only the requester\'s bare "yes" binds (SAFETY §2.1); Priya must tap/react on the card. Cause not_requester: a bare alias from someone who did not ask and named no card (identity.ts gateApproval), T-074' });
   c.tap(P('20:18'), s('priya'), 'approve', 'flights_proposal', { action: 'approval_recorded', approval: { effect: 'granted', complete: false } });
   c.tap(P('20:19'), s('jordan'), 'approve', 'flights_proposal', { action: 'approval_recorded', approval: { effect: 'granted', complete: false } });
   c.react(P('20:21'), s('sam'), '👍', 'flights_proposal', { action: 'approval_recorded', approval: { effect: 'granted', complete: false } });
@@ -388,9 +395,16 @@ export function barcelonaChat(opts = {}) {
   c.say(B(13, '21:20'), s('sam'), 'running 10 late sorry', silent());
   c.say(B(13, '23:05'), s('jordan'), "@trav dinner, i paid, Priya didn't drink", {
     addressed: true,
-    action: 'log_expense',
+    action: 'reply',
     flow: 'receipt_photo',
     receipt: 'fixtures/receipts/rcpt_bcn_gatblau.json',
+    cardRef: 'gatblau_receipt',
+    ledgerWrites: 0,
+    mustContain: ['€184', 'Priya €21', '€32.60'],
+    notes: 'VOICE §4.4 C: drinks split 5 ways without Priya, food 6 ways. The "read it" card only: nothing is logged until the payer 👍s it (SAFETY D5, D-024, D-039)',
+  }, { attachments: [{ kind: 'image', mimeType: 'image/png', uri: 'fixtures/receipts/rcpt_bcn_gatblau.png', fileName: 'rcpt_bcn_gatblau.png' }] });
+  c.react(B(13, '23:06'), s('jordan'), '👍', 'gatblau_receipt', {
+    action: 'log_expense',
     expense: exp({
       payer: g.jordan,
       total: eur(18400),
@@ -399,10 +413,11 @@ export function barcelonaChat(opts = {}) {
       activityId: 'act_bcn_dinner_d2',
       source: 'receipt_photo',
       split: { method: 'itemized', participants: g.all, lineItems: GATBLAU_LINES() },
+      occurredAt: B(13, '23:05'),
     }),
-    mustContain: ['€184', 'Priya €21', '€32.60'],
-    notes: 'VOICE §4.4 C: drinks split 5 ways without Priya, food 6 ways',
-  }, { attachments: [{ kind: 'image', mimeType: 'image/png', uri: 'fixtures/receipts/rcpt_bcn_gatblau.png', fileName: 'rcpt_bcn_gatblau.png' }] });
+    mustContain: ['€184'],
+    notes: "the payer's 👍 on the read-it card writes the receipt expense (SAFETY D5)",
+  }, { id: 'msg_bcn_0093a' });
   c.say(B(13, '23:30'), s('sam'), "bar crawl in el born?? who's in", silent());
   c.say(B(13, '23:31'), s('maya'), 'me', silent());
   c.say(B(13, '23:31'), s('jordan'), 'ya', silent());
@@ -697,6 +712,13 @@ export function barcelonaChat(opts = {}) {
   c.say(B(16, '13:52'), s('maya'), 'dean and i split the paella, priya had the burrata, the cava was the 3 of us', {
     addressed: true,
     addressedBy: 'reply_within_2_min',
+    action: 'reply',
+    cardRef: 'lunch_receipt',
+    ledgerWrites: 0,
+    mustContain: ['Dean €38.72', 'Maya €38.72', 'Priya €31.46'],
+    notes: 'the updated read-it card; nothing is logged until Maya 👍s it (SAFETY D5, D-039)',
+  });
+  c.react(B(16, '13:53'), s('maya'), '👍', 'lunch_receipt', {
     action: 'log_expense',
     expense: exp({
       payer: g.maya,
@@ -706,9 +728,11 @@ export function barcelonaChat(opts = {}) {
       activityId: 'act_bcn_lunch_d5',
       source: 'receipt_photo',
       split: { method: 'itemized', participants: [g.dean, g.maya, g.priya], lineItems: LUNCH_LINES() },
+      occurredAt: B(16, '13:52'),
     }),
-    mustContain: ['Dean €38.72', 'Maya €38.72', 'Priya €31.46'],
-  });
+    mustContain: ['€108.90'],
+    notes: "the payer's 👍 on the updated read-it card writes the receipt expense (SAFETY D5)",
+  }, { id: 'msg_bcn_0161a' });
   c.say(B(16, '13:55'), s('sam'), 'the water was free lol', silent());
   c.say(B(16, '17:00'), s('sam'), '@trav get us club tickets tonight', { addressed: true, action: 'clarify', clarifyAbout: ['roster', 'venue'], questionCount: 1, proposals: 0 });
   c.say(B(16, '17:02'), s('sam'), "all 6, henry's back. razzmatazz", {

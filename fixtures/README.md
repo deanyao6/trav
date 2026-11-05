@@ -78,7 +78,7 @@ One JSON object per line, ordered by `ts` (local trip time with offset; pre-trip
 
 | Field | Meaning |
 |---|---|
-| `id` | `msg_<trip>_NNNN` (group), `msg_<trip>_d_NNNN` (DM), `clk_…` (clock), `sys_…` (system) |
+| `id` | `msg_<trip>_NNNN` (group), `msg_<trip>_d_NNNN` (DM), `clk_…` (clock), `sys_…` (system). A line inserted later keeps every other id: it takes the previous id plus a letter (`msg_bcn_0093a`, the payer's 👍 on a receipt card, D-039) |
 | `kind` | `message`, `reaction`, `button_tap`, `member_joined`, `clock` (advance the simulated clock; runs scheduled jobs), `system` (`email_arrived`, `card_sync` with the fixture path to ingest) |
 | `lane` | `group` or `direct` (a private DM between that member and Trav) |
 | `senderId` | channel handle (`h_dean` …); guests use handles not in `members` (`h_ava`, `h_dean2` with display name "Dean") |

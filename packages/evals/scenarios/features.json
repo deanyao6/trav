@@ -77,12 +77,12 @@
   },
   {
     "id": "receipt_photo_itemized",
-    "title": "receipt photo ⇒ line items, Priya's drinks excluded, IVA included (rcpt_bcn_gatblau)",
-    "tags": ["ledger", "ingestion"],
-    "pending": "T-083",
-    "pendingNote": "T-011 waits for the payer's 👍 on the \"read it\" card (SAFETY D5); the scenario has no 👍 step yet (Orchestrator decision in T-083)",
+    "title": "receipt photo ⇒ line items, Priya's drinks excluded, IVA included (rcpt_bcn_gatblau); logged only on the payer's 👍 on the read-it card (SAFETY D5, D-039)",
+    "tags": ["ledger", "ingestion", "safety", "regression"],
+    "checklist": ["D5"],
     "steps": [
       {
+        "id": "gatblau",
         "do": "say",
         "at": "2026-03-13T23:05:00+01:00",
         "from": "h_jordan",
@@ -96,6 +96,28 @@
           }
         ],
         "expect": {
+          "note": "receipt:read",
+          "ledgerWrites": 0,
+          "mustContain": ["€184", "Priya €21", "€32.60"]
+        }
+      },
+      {
+        "do": "react",
+        "at": "2026-03-13T23:06:00+01:00",
+        "from": "h_maya",
+        "target": "gatblau",
+        "reaction": "👍",
+        "expect": { "note": "receipt:not_poster", "ledgerWrites": 0 }
+      },
+      {
+        "do": "react",
+        "at": "2026-03-13T23:06:00+01:00",
+        "from": "h_jordan",
+        "target": "gatblau",
+        "reaction": "👍",
+        "expect": {
+          "note": "receipt:logged",
+          "mustContain": ["€184"],
           "expense": {
             "paidBy": "mem_jordan",
             "amountMinor": 18400,
@@ -109,6 +131,49 @@
             ]
           }
         }
+      }
+    ]
+  },
+  {
+    "id": "receipt_photo_no_thumbs_up",
+    "title": "receipt photo the payer never 👍s ⇒ the read-it card and nothing on the ledger, even after someone else's 👍 (SAFETY D5, D-039)",
+    "tags": ["ledger", "ingestion", "safety", "regression"],
+    "checklist": ["D5"],
+    "steps": [
+      {
+        "id": "gatblau",
+        "do": "say",
+        "at": "2026-03-13T23:05:00+01:00",
+        "from": "h_jordan",
+        "text": "@trav dinner, i paid, Priya didn't drink",
+        "attachments": [
+          {
+            "kind": "image",
+            "mimeType": "image/png",
+            "uri": "fixtures/receipts/rcpt_bcn_gatblau.png",
+            "fileName": "rcpt_bcn_gatblau.png"
+          }
+        ],
+        "expect": {
+          "note": "receipt:read",
+          "ledgerWrites": 0,
+          "mustContain": ["€184", "Priya €21", "€32.60"]
+        }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-13T23:30:00+01:00",
+        "from": "h_sam",
+        "text": "bar crawl in el born?? who's in",
+        "expect": { "ledgerWrites": 0 }
+      },
+      {
+        "do": "react",
+        "at": "2026-03-13T23:31:00+01:00",
+        "from": "h_dean",
+        "target": "gatblau",
+        "reaction": "👍",
+        "expect": { "note": "receipt:not_poster", "ledgerWrites": 0 }
       }
     ]
   },
