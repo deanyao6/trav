@@ -2,7 +2,7 @@
 
 Last updated: 2026-11-05 ~17:15 PST, session 15. **Status: every P0 task is done, the v0 demo runs end to end offline, and the post-QA P1 work is well along.** `pnpm check` is green (typecheck, lint, 4124 tests). `pnpm demo:barcelona` passes 49 of 49 checks. Offline eval: 99.2% overall, 0 safety failures. For the timeline see `docs/PROGRESS.md`; for exact state see `tasks/BACKLOG.md`.
 
-**This session (15), all reviewed, committed and pushed:** T-082 combined roster sentences · T-135/T-075 ride receipts split by the riders · T-067 card import on the simulated clock with 10:00/20:00 digests · T-153 and T-154 minors kept off adult-only rosters, and family-safe roster replies · T-133 "anything cheaper" · T-137 late-joiner ticket and its cancel · T-134 private budget DMs kept as a figure only · T-141 👍 or [Paid] on the settle-up card marks a transfer paid (stable plan, D-034) · T-143 nearest open slot and "which club?" · T-094 and T-095 Lisbon and Turks and Caicos get their own clocks, recaps and Wrapped · T-084 and T-156 other currencies converted at the mock rate · T-132 (in its final round) the Barcelona stay booked in chat. Most tasks hit the 2-round review cap; the Orchestrator fixed the last-round findings itself, with tests that fail without the fix, and logged anything left in each `tasks/done/T-xxx.md`.
+**This session (15), all reviewed, committed and pushed:** T-082 combined roster sentences · T-135/T-075 ride receipts split by the riders · T-067 card import on the simulated clock with 10:00/20:00 digests · T-153 and T-154 minors kept off adult-only rosters, and family-safe roster replies · T-133 "anything cheaper" · T-137 late-joiner ticket and its cancel · T-134 private budget DMs kept as a figure only · T-141 👍 or [Paid] on the settle-up card marks a transfer paid (stable plan, D-034) · T-143 nearest open slot and "which club?" · T-094 and T-095 Lisbon and Turks and Caicos get their own clocks, recaps and Wrapped · T-084 and T-156 other currencies converted at the mock rate · T-132 the Barcelona stay booked in chat. **Worth knowing:** T-132's final review caught a blocker its round-2 fix had introduced: "i don't approve for the group" counted as an approval and booked the €1,380 stay once the other five had tapped. It was fixed and pinned by end-to-end tests before it was marked done; nothing was ever bought for real (mock only). Most tasks hit the 2-round review cap; the Orchestrator fixed the last-round findings itself, with tests that fail without the fix, and logged anything left in each `tasks/done/T-xxx.md`.
 
 ## Demo
 
@@ -68,7 +68,7 @@ Since then every QA P0 is fixed (T-090 consent gate, T-104 excluded members can'
 
 ## Now
 
-1. **T-132 round 2** (in flight): budgets written with a thousands comma, and the new on-behalf-of approval check discarding a required approver's own "i approve for the group".
+1. **T-074 flights in chat** (in flight): the last labelled gap in the flagship demo.
 2. Then P1 in order: T-074 (flights in chat), T-083 (receipt 👍 step in the scenario), T-144, T-158, T-159, T-145..T-147, T-152, T-037 (blocked on question 4 below).
 
 ## Safety checkpoint (post-P0)
