@@ -623,3 +623,45 @@ describe('review round 1 (T-011)', () => {
     expect(expenses(h)).toEqual([]);
   });
 });
+
+describe('review round 2 (T-011)', () => {
+  it('#1 a "yes" replying to an older card never logs the newer split it did not show', async () => {
+    const h = harness();
+    const r = await h.say('h_jordan', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
+    const first = only(r);
+    const claim = await h.say('h_maya', '@trav the priorat red was mine', { replyToMessageId: first.id });
+    expect(claim.note).toBe('receipt:updated');
+    const yes = await h.say('h_jordan', 'yes', { replyToMessageId: first.id });
+    expect(yes.note).toBe('receipt:stale_card');
+    expect(only(yes).text).toBe(RECEIPT_STALE_TEXT);
+    expect(expenses(h)).toEqual([]);
+    const ok = await h.say('h_jordan', 'yes', { replyToMessageId: only(claim).id });
+    expect(ok.note).toBe('receipt:logged');
+  });
+
+  it('#2 "@trav sam\'s out" with a booking waiting is a roll call, never a receipt exclusion', async () => {
+    for (const words of ["@trav sam's out", '@trav sam is not in', '@trav not sam']) {
+      const h = harness();
+      await h.say('h_dean', RAZZMATAZZ_ASK);
+      await h.say('h_jordan', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
+      const out = await h.say('h_maya', words);
+      expect(out.note.startsWith('receipt:')).toBe(false);
+    }
+  });
+
+  it('#3 a new expense replying to the card is not a split question', async () => {
+    const h = harness();
+    const r = await h.say('h_jordan', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
+    const taxi = await h.say('h_jordan', 'i paid €20 for the taxi too', { replyToMessageId: only(r).id });
+    expect(taxi.note.startsWith('receipt:')).toBe(false);
+    for (const m of messages(taxi)) expect(m.text).not.toMatch(/who's "/);
+  });
+
+  it('#4 the poster\'s unaddressed chatter after someone else spoke is not a claim', async () => {
+    const h = harness();
+    await h.say('h_jordan', '@trav dinner, i paid', { attachments: photo('rcpt_bcn_gatblau') });
+    await h.say('h_maya', 'anyone want gelato?');
+    const lol = await h.say('h_jordan', 'lol i had way too much wine');
+    expect(lol.note).not.toBe('receipt:updated');
+  });
+});

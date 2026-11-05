@@ -171,7 +171,14 @@ function sniff(bytes: Uint8Array): ReceiptMediaType | undefined {
   const b = (i: number): number => bytes[i] ?? -1;
   if (b(0) === 0x89 && b(1) === 0x50 && b(2) === 0x4e && b(3) === 0x47) return 'image/png';
   if (b(0) === 0xff && b(1) === 0xd8 && b(2) === 0xff) return 'image/jpeg';
-  if (b(0) === 0x52 && b(1) === 0x49 && b(2) === 0x46 && b(3) === 0x46 && b(8) === 0x57 && b(9) === 0x45)
+  if (
+    b(0) === 0x52 &&
+    b(1) === 0x49 &&
+    b(2) === 0x46 &&
+    b(3) === 0x46 &&
+    b(8) === 0x57 &&
+    b(9) === 0x45
+  )
     return 'image/webp';
   return undefined;
 }
@@ -199,11 +206,13 @@ export function createLocalImageReader(
   return (attachment) => {
     try {
       const uri = attachment.uri;
-      if (/^[a-z][a-z0-9+.-]*:/i.test(uri) && !uri.startsWith('file:')) return Promise.resolve(undefined);
+      if (/^[a-z][a-z0-9+.-]*:/i.test(uri) && !uri.startsWith('file:'))
+        return Promise.resolve(undefined);
       const raw = uri.startsWith('file:') ? fileURLToPath(uri) : uri;
       const abs = isAbsolute(raw) ? raw : resolve(base, raw);
       const real = realpathSync(abs);
-      if (!roots.some((r) => real === r || real.startsWith(r + sep))) return Promise.resolve(undefined);
+      if (!roots.some((r) => real === r || real.startsWith(r + sep)))
+        return Promise.resolve(undefined);
       const st = statSync(real);
       if (!st.isFile() || st.size === 0 || st.size > maxBytes) return Promise.resolve(undefined);
       const bytes = readFileSync(real);
@@ -314,7 +323,11 @@ interface OpenReceipt {
   readonly activityId?: string;
   /** The plan roster the table came from (the expense links to the plan only inside it). */
   readonly planRoster: readonly MemberId[];
-  readonly duplicate?: { readonly amount: Expense['amount']; readonly description: string; readonly payer: string };
+  readonly duplicate?: {
+    readonly amount: Expense['amount'];
+    readonly description: string;
+    readonly payer: string;
+  };
   state: ClaimState;
   cardMessageId: MessageId;
   lastActivityAt: IsoDateTime;
@@ -348,9 +361,16 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
   });
   const ageMs = (iso: IsoDateTime): number => parseIso(clock.now()) - parseIso(iso);
 
-  function claimContext(o: OpenReceipt, members: readonly Member[], sender: MemberId): ClaimContext {
+  function claimContext(
+    o: OpenReceipt,
+    members: readonly Member[],
+    sender: MemberId,
+  ): ClaimContext {
     return {
-      members: activeMembers(members).map((m) => ({ memberId: m.memberId, displayName: m.displayName })),
+      members: activeMembers(members).map((m) => ({
+        memberId: m.memberId,
+        displayName: m.displayName,
+      })),
       senderId: sender,
       lines: o.checked.lines,
       table: o.state.table,
@@ -390,7 +410,11 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
   ): Outbound {
     const expense = provisional(o, b.members);
     if (expense === undefined) {
-      return text(b, { kind: 'group' }, `who's in on the ${formatMoney(o.checked.total)} at ${o.checked.merchant}?`);
+      return text(
+        b,
+        { kind: 'group' },
+        `who's in on the ${formatMoney(o.checked.total)} at ${o.checked.merchant}?`,
+      );
     }
     const msg = renderReceiptRead(
       {
@@ -460,7 +484,10 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
     return {
       amount: hit.amount,
       description: hit.description.toLowerCase(),
-      payer: payer !== undefined && members.some((m) => m.memberId === payer) ? nameOf({ members }, payer) : 'someone',
+      payer:
+        payer !== undefined && members.some((m) => m.memberId === payer)
+          ? nameOf({ members }, payer)
+          : 'someone',
     };
   }
 
@@ -485,9 +512,7 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
     members: readonly Member[],
   ): ClaimOp[] {
     const mayName = o.confirmers.includes(sender) || sender === o.poster;
-    return ops.filter(
-      (op) => op.op !== 'payer' || (mayName && !isMinorId(op.memberId, members)),
-    );
+    return ops.filter((op) => op.op !== 'payer' || (mayName && !isMinorId(op.memberId, members)));
   }
 
   async function photo(input: ReceiptPhotoInput): Promise<ReceiptOutcome | undefined> {
@@ -497,7 +522,8 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
     // words in the caption, only a transcription that reads like a receipt
     // starts this flow; anything else goes back to the normal loop (r1 #4).
     const receipty = captionLooksLikeReceipt(input.text);
-    const back: OutboundMessage['to'] = input.lane === 'dm' ? { kind: 'member', memberId: me.memberId } : { kind: 'group' };
+    const back: OutboundMessage['to'] =
+      input.lane === 'dm' ? { kind: 'member', memberId: me.memberId } : { kind: 'group' };
     const unreadable = (note: string): ReceiptOutcome => ({
       // VOICE §4.10 D: a DM to the poster, two lines max, no money moved.
       drafts: [text(input, { kind: 'member', memberId: me.memberId }, RECEIPT_UNREADABLE_TEXT)],
@@ -506,7 +532,11 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
     });
     if (trip === null) {
       if (!receipty) return undefined;
-      return { drafts: [text(input, back, RECEIPT_NO_TRIP_TEXT)], note: 'receipt:no_trip', modelSources: [] };
+      return {
+        drafts: [text(input, back, RECEIPT_NO_TRIP_TEXT)],
+        note: 'receipt:no_trip',
+        modelSources: [],
+      };
     }
     const image = await readImage(input.attachment);
     if (image === undefined) return receipty ? unreadable('receipt:unreadable:image') : undefined;
@@ -586,7 +616,9 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
             amountMinor: checkedOrNull.total.amountMinor,
             currency: checkedOrNull.total.currency,
             merchantDisplay: checkedOrNull.merchant,
-            ...(checkedOrNull.occurredAt !== undefined ? { occurredAt: checkedOrNull.occurredAt } : {}),
+            ...(checkedOrNull.occurredAt !== undefined
+              ? { occurredAt: checkedOrNull.occurredAt }
+              : {}),
             category: checkedOrNull.category,
             ...(checkedOrNull.itemized ? { lineItems: checkedOrNull.lines } : {}),
           }
@@ -676,7 +708,11 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
       occasion !== undefined && checked.merchant !== 'that receipt'
         ? `${occasion} at ${checked.merchant}`
         : checked.merchant;
-    const open: OpenReceipt = { ...o, description, ...(dup !== undefined ? { duplicate: dup } : {}) };
+    const open: OpenReceipt = {
+      ...o,
+      description,
+      ...(dup !== undefined ? { duplicate: dup } : {}),
+    };
     receipts.set(scanId, open);
     byImage.set(imageKey, scanId);
     const draft = card(open, input, question);
@@ -713,7 +749,8 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
       // someone else's addressed words go to a receipt only while it's fresh.
       if (!input.addressed && (!mine || !fresh)) continue;
       if (!mine && !fresh) continue;
-      if (best === undefined || parseIso(o.lastActivityAt) > parseIso(best.lastActivityAt)) best = o;
+      if (best === undefined || parseIso(o.lastActivityAt) > parseIso(best.lastActivityAt))
+        best = o;
     }
     return best;
   }
@@ -733,7 +770,13 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
     o.status = 'logged';
     if (prior !== undefined) {
       return {
-        drafts: [text(b, { kind: 'group' }, `already got that one: ${formatMoney(prior.amount)} ${prior.description.toLowerCase()}`)],
+        drafts: [
+          text(
+            b,
+            { kind: 'group' },
+            `already got that one: ${formatMoney(prior.amount)} ${prior.description}`,
+          ),
+        ],
         note: 'receipt:already_logged',
         modelSources: [],
       };
@@ -758,7 +801,10 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
         lowConfidence: o.checked.lowConfidence,
       },
     });
-    const logged = renderExpenseLogged({ expense, splitContext: ctx }, rctx(b.group, b.members, b.trip));
+    const logged = renderExpenseLogged(
+      { expense, splitContext: ctx },
+      rctx(b.group, b.members, b.trip),
+    );
     const payer = nameOf({ members: b.members }, o.state.payer);
     const t = `logged: ${formatMoney(expense.amount)} ${expense.description} on ${payer}\n👎 to undo`;
     return {
@@ -770,7 +816,11 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
 
   function drop(o: OpenReceipt, b: { group: Group }): ReceiptOutcome {
     o.status = 'dropped';
-    return { drafts: [text(b, { kind: 'group' }, RECEIPT_DROPPED_TEXT)], note: 'receipt:dropped', modelSources: [] };
+    return {
+      drafts: [text(b, { kind: 'group' }, RECEIPT_DROPPED_TEXT)],
+      note: 'receipt:dropped',
+      modelSources: [],
+    };
   }
 
   function answer(input: ReceiptAnswerInput): ReceiptOutcome | undefined {
@@ -789,7 +839,8 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
       modelSources: [],
     });
     if (!isOpen(o)) return say('receipt:expired', RECEIPT_EXPIRED_TEXT);
-    if (o.cardMessageId !== input.cardMessageId) return say('receipt:stale_card', RECEIPT_STALE_TEXT);
+    if (o.cardMessageId !== input.cardMessageId)
+      return say('receipt:stale_card', RECEIPT_STALE_TEXT);
     return input.intent === 'confirm' ? confirm(o, input, input.me.memberId) : drop(o, input);
   }
 
@@ -802,35 +853,55 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
     const words = input.text.trim();
     const isConfirm = CONFIRM_TEXT.test(words);
     const isDrop = DROP_TEXT.test(words);
+    const underCard = input.lastMessageId !== undefined && input.lastMessageId === o.cardMessageId;
     if (isConfirm || isDrop) {
       if (!canConfirm) return undefined;
       if (input.otherPending === true && !onCard) return undefined;
+      // A "yes" under an older card never logs the newer split it didn't show (r2 #1).
+      if (onCard && input.replyToMessageId !== o.cardMessageId)
+        return {
+          drafts: [text(input, { kind: 'group' }, RECEIPT_STALE_TEXT)],
+          note: 'receipt:stale_card',
+          modelSources: [],
+        };
       // A bare "ok" means the card only when it says so: a reply to the card,
       // "@trav ok", or nothing else said in between (r1 #2).
-      const underCard = input.lastMessageId !== undefined && input.lastMessageId === o.cardMessageId;
       if (!onCard && input.mentioned !== true && !underCard) return undefined;
       return isConfirm ? confirm(o, input, input.me.memberId) : drop(o, input);
     }
     // Not a reply to the card: the words are about the receipt only when they
     // parse cleanly into claims. Anything else (a booking, a roll call, a
     // balance question, a new expense) belongs to the rest of the loop (r1 #1).
-    if (!onCard && MONEY_IN_TEXT.test(words)) return undefined;
+    const hasMoney = MONEY_IN_TEXT.test(words);
+    if (!onCard && hasMoney) return undefined;
+    // The poster's unaddressed chatter counts only right under the card (r2 #4).
+    if (!onCard && input.mentioned !== true && !underCard) return undefined;
     const ctx = claimContext(o, input.members, input.me.memberId);
     const parse = parseClaims(words, ctx);
     const asks = (q: string): ReceiptOutcome => {
       o.lastActivityAt = clock.now();
-      return { drafts: [text(input, { kind: 'group' }, q)], note: 'receipt:clarify', modelSources: [] };
+      return {
+        drafts: [text(input, { kind: 'group' }, q)],
+        note: 'receipt:clarify',
+        modelSources: [],
+      };
     };
     if (parse.kind === 'question') {
+      // "i paid €20 for the taxi too" under the card is a new expense, not a claim (r2 #3).
+      if (hasMoney) return undefined;
       // Off the card, ask only about words that name a line with a claim verb.
       const aboutALine =
-        input.addressed && CLAIM_VERB.test(words) && matchLines(words, o.checked.lines).kind !== 'none';
+        input.addressed &&
+        CLAIM_VERB.test(words) &&
+        matchLines(words, o.checked.lines).kind !== 'none';
       return onCard || aboutALine ? asks(parse.question) : undefined;
     }
     if (parse.ops.length === 0) return undefined;
     if (!onCard && parse.noise > 0) return undefined;
-    // "Sam is out" off the card is a roll call unless the receipt was just discussed.
-    if (!onCard && !hasItemInfo(parse.ops) && !parse.ops.some((op) => op.op === 'payer') && !fresh)
+    // "Sam is out" off the card is a roll call unless the receipt was just
+    // discussed by its confirmer and no booking is waiting on the roster (r2 #2).
+    const exclusionOnly = !hasItemInfo(parse.ops) && !parse.ops.some((op) => op.op === 'payer');
+    if (!onCard && exclusionOnly && (!fresh || !canConfirm || input.otherPending === true))
       return undefined;
     const ops = payerOpsFrom(parse.ops, input.me.memberId, o, input.members);
     if (ops.length === 0) return undefined;
