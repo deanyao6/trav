@@ -59,7 +59,7 @@ import type {
   Stores,
   Trip,
 } from '@trav/core';
-import { formatMoney, ledger, markPrivate, parseIso } from '@trav/core';
+import { formatMoney, ledger, markPrivate, parseIso, safety } from '@trav/core';
 import type { Attachment } from '@trav/adapters';
 import type { ModelClient, ResponseSource } from '../model/client.js';
 import { OFFLINE_NOT_SURE_TEXT } from '../model/client.js';
@@ -87,9 +87,16 @@ import {
   initialClaimState,
   parseClaims,
   type ClaimContext,
+  type ClaimOp,
   type ClaimState,
 } from './receiptClaims.js';
-import { checkReceipt, parseReceiptJson, type CheckedReceipt } from './receiptLines.js';
+import {
+  checkReceipt,
+  matchLines,
+  parseReceiptJson,
+  printedAmounts,
+  type CheckedReceipt,
+} from './receiptLines.js';
 
 // ---------- texts (VOICE §4.10 D, §4.11) ----------
 
@@ -110,10 +117,34 @@ export const RECEIPT_ANSWER_TTL_MS = 15 * 60 * 1000;
 export const RECEIPT_DUPLICATE_WINDOW_MS = 12 * 60 * 60 * 1000;
 export const RECEIPT_MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
+/** A 👍 on a card the poster's later words replaced (VOICE §4.11: one line, no money moved). */
+export const RECEIPT_STALE_TEXT = 'that one changed, 👍 the latest card';
+export const RECEIPT_EXPIRED_TEXT = 'that receipt expired, send it again';
+
+// "good" / "perfect" alone are chatter, never a confirmation (T-011 r1 #2).
 const CONFIRM_TEXT =
-  /^\s*(?:@trav\s*)?(?:yes|yep|yeah|yup|ok|okay|log it|looks good|looks right|correct|perfect|that's right|thats right|good|👍)\s*[.!]*\s*$/iu;
+  /^\s*(?:@trav\s*,?\s*)?(?:yes|yep|yeah|yup|ok|okay|log it|looks good|looks right|that's right|thats right|👍)\s*[.!]*\s*$/iu;
 const DROP_TEXT =
-  /^\s*(?:@trav\s*)?(?:no|nah|nope|drop it|don'?t log (?:it|that)|nvm|never ?mind|forget it|cancel|👎)\s*[.!]*\s*$/iu;
+  /^\s*(?:@trav\s*,?\s*)?(?:no|nah|nope|drop it|don'?t log (?:it|that)|nvm|never ?mind|forget it|cancel|👎)\s*[.!]*\s*$/iu;
+
+/** Words with a photo that say it's a receipt (else the transcription has to). */
+const RECEIPT_CAPTION =
+  /\b(?:receipt|bill|check|cheque|tab|total|paid|pay|paying|split|tip|dinner|lunch|breakfast|brunch|drinks|groceries|who had what)\b|[€$£]\s?\d|\d\s?(?:€|eur|euros?|usd|dollars?)\b/iu;
+const RECEIPT_OCR_WORDS =
+  /\b(?:total|subtotal|sub-total|importe|suma|amount due|balance due|tip|iva|tax|vat|propina|gratuity|service)\b/iu;
+/** A money amount in a member's words: a chat expense, not a claim on the receipt. */
+const MONEY_IN_TEXT = /[€$£]\s?\d|\d\s?(?:€|eur|euros?|usd|dollars?|bucks)\b/iu;
+/** A claim verb, for an addressed question that names a receipt line ("@trav who had the vermut?"). */
+const CLAIM_VERB = /\b(?:had|got|ordered|ate|drank|split|shared|share|mine|was for|were for)\b/iu;
+
+export function captionLooksLikeReceipt(text: string): boolean {
+  return RECEIPT_CAPTION.test(text);
+}
+
+/** A transcription that reads like a receipt: a total-ish word and a printed amount. */
+export function ocrLooksLikeReceipt(ocrText: string): boolean {
+  return RECEIPT_OCR_WORDS.test(ocrText) && printedAmounts(ocrText).size > 0;
+}
 
 // ---------- the image ----------
 
@@ -220,6 +251,16 @@ export interface ReceiptTextInput extends Base {
   readonly replyToMessageId?: MessageId;
   /** Addressed to Trav (mention, reply to Trav, inside the reply window). */
   readonly addressed: boolean;
+  /**
+   * A booking proposal is waiting on approval in this group. A bare "yes" /
+   * "no" that doesn't reply to the receipt card is then ambiguous, so it is
+   * left to the approval flow; the receipt still takes a 👍 or a reply.
+   */
+  readonly otherPending?: boolean;
+  /** Explicitly to Trav ("@trav", "trav, …", a reply to Trav), not just inside the reply window. */
+  readonly mentioned?: boolean;
+  /** The group thread's latest message before this one (a bare "ok" counts only right under the card). */
+  readonly lastMessageId?: MessageId;
 }
 
 export interface ReceiptAnswerInput {
@@ -238,8 +279,11 @@ export interface ReceiptOutcome {
 }
 
 export interface ReceiptFlow {
-  /** A photo from a member (group: addressed to Trav; DM: always). */
-  photo(input: ReceiptPhotoInput): Promise<ReceiptOutcome>;
+  /**
+   * A photo from a member (group: addressed to Trav; DM: always).
+   * `undefined` ⇒ neither the words nor the photo look like a receipt: not for this flow.
+   */
+  photo(input: ReceiptPhotoInput): Promise<ReceiptOutcome | undefined>;
   /** Words about an open receipt (claims, fixes, "yes", "no"); `undefined` ⇒ not for this flow. */
   text(input: ReceiptTextInput): ReceiptOutcome | undefined;
   /** 👍/👎/button on a card this flow posted; `undefined` ⇒ not one of ours. */
@@ -256,6 +300,11 @@ interface OpenReceipt {
   readonly groupId: string;
   readonly tripId: string;
   readonly poster: MemberId;
+  /**
+   * Whose 👍 logs it: the poster, or, when the poster is a minor, their
+   * guardian (else the group's adults). A minor never confirms money (VOICE §8).
+   */
+  readonly confirmers: readonly MemberId[];
   readonly photoMessageId: MessageId;
   readonly postedAt: IsoDateTime;
   readonly occurredAt: IsoDateTime;
@@ -353,6 +402,8 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
         ...(question !== undefined ? { question } : {}),
         ...(o.duplicate !== undefined ? { duplicate: o.duplicate } : {}),
         poster: o.poster,
+        confirmers: o.confirmers,
+        ...(b.trip?.familyTab === true ? { familyTab: true } : {}),
       },
       rctx(b.group, b.members, b.trip),
     );
@@ -413,9 +464,39 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
     };
   }
 
-  async function photo(input: ReceiptPhotoInput): Promise<ReceiptOutcome> {
+  function isMinorId(id: MemberId, members: readonly Member[]): boolean {
+    const m = members.find((x) => x.memberId === id);
+    return m !== undefined && safety.isMinor(m, clock.now());
+  }
+
+  /** Adults only: the poster, else the minor's guardian, else every adult in the group. */
+  function confirmersFor(poster: Member, members: readonly Member[]): MemberId[] {
+    const adults = activeMembers(members).filter((m) => !safety.isMinor(m, clock.now()));
+    if (adults.some((m) => m.memberId === poster.memberId)) return [poster.memberId];
+    const guardian = adults.find((m) => m.memberId === poster.guardianMemberId);
+    return guardian !== undefined ? [guardian.memberId] : adults.map((m) => m.memberId);
+  }
+
+  /** Who paid is the confirmers' call, and never a minor (VOICE §8). */
+  function payerOpsFrom(
+    ops: readonly ClaimOp[],
+    sender: MemberId,
+    o: Pick<OpenReceipt, 'confirmers' | 'poster'>,
+    members: readonly Member[],
+  ): ClaimOp[] {
+    const mayName = o.confirmers.includes(sender) || sender === o.poster;
+    return ops.filter(
+      (op) => op.op !== 'payer' || (mayName && !isMinorId(op.memberId, members)),
+    );
+  }
+
+  async function photo(input: ReceiptPhotoInput): Promise<ReceiptOutcome | undefined> {
     const sources: ResponseSource[] = [];
     const { group, members, trip, me } = input;
+    // "@trav look at this view" is a photo, not a receipt: without receipt
+    // words in the caption, only a transcription that reads like a receipt
+    // starts this flow; anything else goes back to the normal loop (r1 #4).
+    const receipty = captionLooksLikeReceipt(input.text);
     const back: OutboundMessage['to'] = input.lane === 'dm' ? { kind: 'member', memberId: me.memberId } : { kind: 'group' };
     const unreadable = (note: string): ReceiptOutcome => ({
       // VOICE §4.10 D: a DM to the poster, two lines max, no money moved.
@@ -424,19 +505,31 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
       modelSources: sources,
     });
     if (trip === null) {
+      if (!receipty) return undefined;
       return { drafts: [text(input, back, RECEIPT_NO_TRIP_TEXT)], note: 'receipt:no_trip', modelSources: [] };
     }
     const image = await readImage(input.attachment);
-    if (image === undefined) return unreadable('receipt:unreadable:image');
+    if (image === undefined) return receipty ? unreadable('receipt:unreadable:image') : undefined;
 
     // The same photo again: one receipt, one card.
     const imageKey = `${group.groupId}:${input.lane}:${me.memberId}:${image.sha256}`;
     const prior = receipts.get(byImage.get(imageKey) ?? '');
-    if (prior !== undefined && prior.status !== 'dropped') {
+    // Still the same receipt only while its card is open or its expense is
+    // still on the tab: after a 👎 undo, a drop or the card expiring, a
+    // re-post is read again.
+    const priorLive =
+      prior !== undefined &&
+      (prior.status === 'logged'
+        ? stores.group.expenses.get(prior.expenseId)?.status === 'logged'
+        : isOpen(prior));
+    if (prior !== undefined && priorLive) {
       const t =
         prior.status === 'logged'
           ? `already got that one: ${formatMoney(prior.checked.total)} ${prior.description}`
-          : `already got that one, it's waiting on a 👍 from ${nameOf({ members }, prior.poster)}`;
+          : `already got that one, it's waiting on a 👍 from ${nameOf(
+              { members },
+              prior.confirmers.length === 1 ? prior.confirmers[0]! : prior.poster,
+            )}`;
       return { drafts: [text(input, back, t)], note: 'receipt:duplicate_image', modelSources: [] };
     }
 
@@ -466,8 +559,9 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
     const scanId = ids.next('priv');
     const intakeDeps = { stores, clock, ids, group, members, trip };
     if (ocrText.length === 0 || ocrText === 'UNREADABLE' || ocrText === OFFLINE_NOT_SURE_TEXT) {
-      return unreadable('receipt:unreadable:ocr');
+      return receipty ? unreadable('receipt:unreadable:ocr') : undefined;
     }
+    if (!receipty && !ocrLooksLikeReceipt(ocrText)) return undefined;
 
     // 2. extraction over the transcription, wrapped as untrusted (M-08, zero tools)
     const wrapped = wrapUntrusted(ocrText, 'receipt_ocr', scanId);
@@ -543,11 +637,16 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
     // 4. the table, the poster's own words, the card
     const occurredAt = checked.occurredAt ?? input.at;
     const plan = receiptTable(trip, members, me.memberId, occurredAt);
+    const confirmers = confirmersFor(me, members);
+    // A minor's receipt is on their guardian (VOICE §8: never a payer or debtor).
+    const defaultPayer = isMinorId(me.memberId, members) ? confirmers[0] : me.memberId;
+    if (defaultPayer === undefined) return undefined; // no adult in the group at all
     const o: OpenReceipt = {
       scanId,
       groupId: group.groupId,
       tripId: trip.tripId,
       poster: me.memberId,
+      confirmers,
       photoMessageId: input.messageId,
       postedAt: clock.now(),
       occurredAt,
@@ -556,7 +655,7 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
       description: checked.merchant,
       ...(plan.activityId !== undefined ? { activityId: plan.activityId } : {}),
       planRoster: plan.participants,
-      state: initialClaimState(me.memberId, plan.participants),
+      state: initialClaimState(defaultPayer, plan.participants),
       cardMessageId: '',
       lastActivityAt: clock.now(),
       status: 'open',
@@ -568,9 +667,10 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
     if (parse.kind === 'question') question = parse.question;
     else {
       occasion = parse.occasion;
-      const applied = applyClaims(o.state, parse.ops, order(members));
+      const ops = payerOpsFrom(parse.ops, me.memberId, o, members);
+      const applied = applyClaims(o.state, ops, order(members));
       if (applied.kind === 'question') question = applied.question;
-      else o.state = { ...applied.state, itemInfo: hasItemInfo(parse.ops) || applied.state.itemInfo };
+      else o.state = { ...applied.state, itemInfo: hasItemInfo(ops) || applied.state.itemInfo };
     }
     const description =
       occasion !== undefined && checked.merchant !== 'that receipt'
@@ -582,7 +682,12 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
     const draft = card(open, input, question);
     return {
       drafts: [draft],
-      note: question !== undefined ? 'receipt:clarify' : open.state.itemInfo ? 'receipt:read' : 'receipt:who_had_what',
+      note:
+        question !== undefined
+          ? 'receipt:clarify'
+          : open.state.itemInfo || trip.familyTab
+            ? 'receipt:read'
+            : 'receipt:who_had_what',
       modelSources: sources,
     };
   }
@@ -602,7 +707,7 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
     for (const o of receipts.values()) {
       if (o.groupId !== input.group.groupId || !isOpen(o)) continue;
       if (input.trip === null || o.tripId !== input.trip.tripId) continue;
-      const mine = o.poster === input.me.memberId;
+      const mine = o.poster === input.me.memberId || o.confirmers.includes(input.me.memberId);
       const fresh = ageMs(o.lastActivityAt) <= RECEIPT_ANSWER_TTL_MS;
       // Unaddressed words count only from the poster, shortly after Trav asked;
       // someone else's addressed words go to a receipt only while it's fresh.
@@ -616,11 +721,13 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
   function confirm(
     o: OpenReceipt,
     b: { group: Group; members: readonly Member[]; trip: Trip | null },
+    by: MemberId,
   ): ReceiptOutcome {
-    const expense = provisional(o, b.members);
-    if (expense === undefined) {
+    const draft = provisional(o, b.members);
+    if (draft === undefined) {
       return { drafts: [card(o, b)], note: 'receipt:clarify:who', modelSources: [] };
     }
+    const expense: Expense = { ...draft, createdBy: by };
     const repo = stores.group.expenses;
     const prior = repo.getBySourceRef(expense.sourceRef);
     o.status = 'logged';
@@ -638,7 +745,7 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
       groupId: o.groupId,
       tripId: o.tripId,
       type: 'ledger.entry_created',
-      actor: { kind: 'member', id: o.poster },
+      actor: { kind: 'member', id: by },
       visibility: 'group',
       payload: {
         expenseId: expense.expenseId,
@@ -670,42 +777,67 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
     const o = receipts.get(byCard.get(input.cardMessageId) ?? '');
     if (o === undefined || o.groupId !== input.group.groupId) return undefined;
     const quiet = (note: string): ReceiptOutcome => ({ drafts: [], note, modelSources: [] });
-    // Only the poster confirms what Trav read off their photo (SAFETY §2.4); anyone else: silence.
-    if (input.me === null || input.me.memberId !== o.poster) return quiet('receipt:not_poster');
-    if (!isOpen(o)) return quiet(`receipt:${o.status === 'open' ? 'expired' : o.status}`);
-    if (o.cardMessageId !== input.cardMessageId) return quiet('receipt:stale_card');
-    return input.intent === 'confirm' ? confirm(o, input) : drop(o, input);
+    // Only the poster (or, for a minor's receipt, their guardian) confirms what
+    // Trav read off the photo (SAFETY §2.4, VOICE §8); anyone else: silence.
+    if (input.me === null || !o.confirmers.includes(input.me.memberId))
+      return quiet('receipt:not_poster');
+    if (o.status !== 'open') return quiet(`receipt:${o.status}`);
+    // The confirmer's 👍 on a card that no longer counts gets one line back (r1 #5).
+    const say = (note: string, t: string): ReceiptOutcome => ({
+      drafts: [text(input, { kind: 'group' }, t)],
+      note,
+      modelSources: [],
+    });
+    if (!isOpen(o)) return say('receipt:expired', RECEIPT_EXPIRED_TEXT);
+    if (o.cardMessageId !== input.cardMessageId) return say('receipt:stale_card', RECEIPT_STALE_TEXT);
+    return input.intent === 'confirm' ? confirm(o, input, input.me.memberId) : drop(o, input);
   }
 
   function textTurn(input: ReceiptTextInput): ReceiptOutcome | undefined {
     const o = target(input);
     if (o === undefined) return undefined;
-    const mine = input.me.memberId === o.poster;
+    const canConfirm = o.confirmers.includes(input.me.memberId);
+    const onCard = input.replyToMessageId !== undefined; // `target` checked it's this receipt's card
+    const fresh = ageMs(o.lastActivityAt) <= RECEIPT_ANSWER_TTL_MS;
     const words = input.text.trim();
-    if (CONFIRM_TEXT.test(words)) {
-      if (!mine) return undefined;
-      return confirm(o, input);
+    const isConfirm = CONFIRM_TEXT.test(words);
+    const isDrop = DROP_TEXT.test(words);
+    if (isConfirm || isDrop) {
+      if (!canConfirm) return undefined;
+      if (input.otherPending === true && !onCard) return undefined;
+      // A bare "ok" means the card only when it says so: a reply to the card,
+      // "@trav ok", or nothing else said in between (r1 #2).
+      const underCard = input.lastMessageId !== undefined && input.lastMessageId === o.cardMessageId;
+      if (!onCard && input.mentioned !== true && !underCard) return undefined;
+      return isConfirm ? confirm(o, input, input.me.memberId) : drop(o, input);
     }
-    if (DROP_TEXT.test(words)) {
-      if (!mine) return undefined;
-      return drop(o, input);
-    }
-    const parse = parseClaims(words, claimContext(o, input.members, input.me.memberId));
-    if (parse.kind === 'question') {
-      if (!input.addressed) return undefined;
+    // Not a reply to the card: the words are about the receipt only when they
+    // parse cleanly into claims. Anything else (a booking, a roll call, a
+    // balance question, a new expense) belongs to the rest of the loop (r1 #1).
+    if (!onCard && MONEY_IN_TEXT.test(words)) return undefined;
+    const ctx = claimContext(o, input.members, input.me.memberId);
+    const parse = parseClaims(words, ctx);
+    const asks = (q: string): ReceiptOutcome => {
       o.lastActivityAt = clock.now();
-      return { drafts: [text(input, { kind: 'group' }, parse.question)], note: 'receipt:clarify', modelSources: [] };
+      return { drafts: [text(input, { kind: 'group' }, q)], note: 'receipt:clarify', modelSources: [] };
+    };
+    if (parse.kind === 'question') {
+      // Off the card, ask only about words that name a line with a claim verb.
+      const aboutALine =
+        input.addressed && CLAIM_VERB.test(words) && matchLines(words, o.checked.lines).kind !== 'none';
+      return onCard || aboutALine ? asks(parse.question) : undefined;
     }
     if (parse.ops.length === 0) return undefined;
-    if (!input.addressed && parse.noise > 0) return undefined;
-    // Only the poster says who paid.
-    const ops = mine ? parse.ops : parse.ops.filter((op) => op.op !== 'payer');
+    if (!onCard && parse.noise > 0) return undefined;
+    // "Sam is out" off the card is a roll call unless the receipt was just discussed.
+    if (!onCard && !hasItemInfo(parse.ops) && !parse.ops.some((op) => op.op === 'payer') && !fresh)
+      return undefined;
+    const ops = payerOpsFrom(parse.ops, input.me.memberId, o, input.members);
     if (ops.length === 0) return undefined;
     const applied = applyClaims(o.state, ops, order(input.members));
     if (applied.kind === 'question') {
-      if (!input.addressed) return undefined;
-      o.lastActivityAt = clock.now();
-      return { drafts: [text(input, { kind: 'group' }, applied.question)], note: 'receipt:clarify', modelSources: [] };
+      if (!input.addressed && !onCard) return undefined;
+      return asks(applied.question);
     }
     o.state = applied.state;
     o.lastActivityAt = clock.now();
@@ -720,7 +852,13 @@ export function createReceiptFlow(deps: ReceiptFlowDeps): ReceiptFlow {
     wants: (groupId, memberId, replyTo) => {
       if (replyTo !== undefined) return byCard.has(replyTo);
       for (const o of receipts.values()) {
-        if (o.groupId === groupId && isOpen(o) && (o.poster === memberId || ageMs(o.lastActivityAt) <= RECEIPT_ANSWER_TTL_MS))
+        if (
+          o.groupId === groupId &&
+          isOpen(o) &&
+          (o.poster === memberId ||
+            o.confirmers.includes(memberId) ||
+            ageMs(o.lastActivityAt) <= RECEIPT_ANSWER_TTL_MS)
+        )
           return true;
       }
       return false;

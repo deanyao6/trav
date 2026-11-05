@@ -57,6 +57,7 @@ import type {
   Outbound,
   OutboundMessage,
   PolicyDecision,
+  RecapCard,
   RichCard,
   ScheduledJob,
   Scheduler,
@@ -133,6 +134,8 @@ import {
 } from './model/client.js';
 import type { OutboundSendOptions, SendOutcome } from './outbound/send.js';
 import { composeWrapped } from './recaps/wrapped.js';
+import { composeMorningAfter, nextMorningAfterJob, RECAP_STALE_MS } from './recaps/morningAfter.js';
+import { dropRecapPhoto, parseDropPhoto, type DropPhotoRequest } from './recaps/dropPhoto.js';
 import { DM_CHAT_PROMPT, GROUP_CHAT_PROMPT, type PromptTemplate } from './prompts/index.js';
 import {
   detectMention,
@@ -301,6 +304,9 @@ export const REPLY_MAX_CHARS = 279;
 const DEFAULT_MAX_TOOL_ROUNDS = 6;
 const DEFAULT_RECENT_LIMIT = 20;
 const SEEN_CAP = 5000;
+/** Member chat times kept per group for the Morning After signal (T-015): 2 days, at most 2000. */
+const CHAT_TIMES_KEEP_MS = 48 * 60 * 60 * 1000;
+const CHAT_TIMES_CAP = 2000;
 
 /** Tool result kinds the loop renders itself and never lets the model paraphrase. */
 const TERMINAL_KINDS = new Set([
@@ -582,6 +588,17 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
   /** Which group each card was sent in: the index never answers across groups. */
   const cardGroup = new Map<MessageId, GroupId>();
   const guestsTold = new Set<string>();
+  /**
+   * When members spoke in each group thread (T-015's "chat after midnight"
+   * night-out signal). Times only, never text; guests and DMs never count.
+   */
+  const chatTimes = new Map<GroupId, IsoDateTime[]>();
+  const noteChatTime = (groupId: GroupId, at: IsoDateTime): void => {
+    const cutoff = parseIso(at) - CHAT_TIMES_KEEP_MS;
+    const list = (chatTimes.get(groupId) ?? []).filter((t) => parseIso(t) >= cutoff);
+    list.push(at);
+    chatTimes.set(groupId, list.slice(-CHAT_TIMES_CAP));
+  };
   /** Expense from chat text (T-010): parser first, one question when a money fact is missing. */
   const chatExpenses = createChatExpenseFlow({ stores, model, ids, clock });
   /** Receipt photo → "who had what?" → itemized split on the poster's 👍 (T-011). */
@@ -1344,6 +1361,8 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     const me = r.me;
     const groupKey = laneKey(r.group.groupId, 'group', null);
     const rawText = stripInvisible(event.text);
+    if (r.lane === 'group' && me !== null && me.role !== 'guest')
+      noteChatTime(r.group.groupId, r.now);
     // Pasted or forwarded content is data, never instructions (SAFETY §2.4);
     // flagged content is also never remembered.
     const split = splitQuoted(rawText);
@@ -1449,6 +1468,17 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
           modelSources: [],
           note: 'undo:which',
         };
+      }
+    }
+
+    // 1c. "@trav drop that one" (T-015): a member removes a recap photo, for
+    // good (this recap's re-renders and Wrapped). Rules only, no model turn.
+    const drop = me !== null && r.lane === 'group' ? parseDropPhoto(rawText) : undefined;
+    if (drop !== undefined && me !== null) {
+      const turn = await dropPhotoTurn(r, me, event, boundRef, drop);
+      if (turn !== undefined) {
+        recordInbound();
+        return turn;
       }
     }
 
@@ -1592,6 +1622,16 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
           at: event.receivedAt,
           text,
           addressed,
+          otherPending: pendingFor(r).length > 0,
+          mentioned:
+            mention.addressed &&
+            (mention.reason === 'at_mention' ||
+              mention.reason === 'leading_name' ||
+              mention.reason === 'reply_to_trav'),
+          ...((): { lastMessageId?: MessageId } => {
+            const last = (recent.get(groupKey) ?? []).at(-1)?.messageId;
+            return last !== undefined ? { lastMessageId: last } : {};
+          })(),
           ...(event.replyToMessageId !== undefined
             ? { replyToMessageId: event.replyToMessageId }
             : {}),
@@ -1839,6 +1879,68 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
    */
   function isLoggedExpenseCard(ref: PendingCardRef): boolean {
     return ref.card.type === 'expense_confirm' && ref.card.status === 'logged';
+  }
+
+  // ---------- "@trav drop that one" (T-015) ----------
+
+  /** The latest recap card with photos Trav posted in this group. */
+  function latestRecapWithPhotos(groupId: GroupId): RecapCard | undefined {
+    let best: PendingCardRef | undefined;
+    for (const [id, ref] of cards) {
+      if (ref.card.type !== 'recap' || ref.card.photos.length === 0) continue;
+      if (cardGroup.get(id) !== groupId) continue;
+      if (best === undefined || parseIso(ref.sentAt) >= parseIso(best.sentAt)) best = ref;
+    }
+    return best?.card.type === 'recap' ? best.card : undefined;
+  }
+
+  /**
+   * Undefined ⇒ not a photo command after all (not addressed, or "that one"
+   * with no recap photo in reach): the message goes on through the loop.
+   */
+  async function dropPhotoTurn(
+    r: Resolved,
+    me: Member,
+    event: InboundMessage,
+    boundRef: PendingCardRef | undefined,
+    request: DropPhotoRequest,
+  ): Promise<TurnResult | undefined> {
+    const repliedRecap = boundRef?.card.type === 'recap' ? boundRef.card : undefined;
+    const addressed =
+      repliedRecap !== undefined ||
+      hasAtTrav(event.text) ||
+      /^\s*(?:hey\s+|ok\s+)?trav\b/i.test(event.text);
+    if (!addressed) return undefined;
+    // A reply to some other Trav card is about that card.
+    if (
+      event.replyToMessageId !== undefined &&
+      boundRef !== undefined &&
+      repliedRecap === undefined
+    )
+      return undefined;
+    const card = repliedRecap ?? latestRecapWithPhotos(r.group.groupId);
+    const mentionsPhoto = /\b(?:photo|pic|picture|shot)\b/i.test(event.text);
+    if (card === undefined && !mentionsPhoto) return undefined;
+    const before = snapshotAudit(r.group.groupId);
+    const out = await dropRecapPhoto({
+      stores,
+      ...(deps.album !== undefined ? { album: deps.album } : {}),
+      group: r.group,
+      tripId: r.trip?.tripId ?? null,
+      me,
+      card,
+      request,
+      now: r.now,
+    });
+    const sent = await send(r, [message(r, out.text)]);
+    return {
+      outbound: sent,
+      toolCalls: [],
+      auditEventIds: auditIdsSince(r.group.groupId, before),
+      silent: sent.length === 0,
+      modelSources: [],
+      note: `drop_photo:${out.kind}`,
+    };
   }
 
   function latestExpenseCard(groupId: GroupId): PendingCardRef | undefined {
@@ -2131,8 +2233,67 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     };
   }
 
+  /**
+   * Morning After / daily settle-up (T-015): full recap, quiet settle-up or
+   * silence, from the stores. A job drained long after its time (a clock jump
+   * past it) is skipped, never posted stale.
+   */
+  async function runMorningAfterJob(job: ScheduledJob): Promise<TurnResult> {
+    const group = stores.group.groups.get(job.groupId);
+    const trip = job.tripId === null ? undefined : stores.group.trips.get(job.tripId);
+    const date = typeof job.payload['date'] === 'string' ? job.payload['date'] : undefined;
+    if (group === undefined || trip === undefined || date === undefined)
+      return silent('scheduled:morning_after:no_trip');
+    const now = clock.now();
+    // ARCHITECTURE Flow 3: the job reschedules the next morning itself (same
+    // jobId ⇒ idempotent; never one that is already due, so a drain never loops).
+    const next = nextMorningAfterJob(trip, date);
+    if (next !== undefined && parseIso(next.runAt) > parseIso(now)) scheduler.schedule(next);
+    if (parseIso(now) - parseIso(job.runAt) > RECAP_STALE_MS)
+      return silent('scheduled:morning_after:stale');
+    const before = snapshotAudit(group.groupId);
+    const composed = await composeMorningAfter(
+      {
+        stores,
+        clock,
+        ids,
+        ...(deps.album !== undefined ? { album: deps.album } : {}),
+        chatTimes: (groupId) => chatTimes.get(groupId) ?? [],
+      },
+      group.groupId,
+      trip.tripId,
+      date,
+    );
+    if (composed.kind === 'no_trip') return silent('scheduled:morning_after:no_trip');
+    if (composed.kind === 'silent') return silent('scheduled:morning_after:silent');
+    const r: Resolved = {
+      group,
+      members: stores.group.members.listByGroup(group.groupId),
+      trip,
+      identity: { kind: 'guest', senderId: 'scheduler' },
+      me: null,
+      lane: 'group',
+      now,
+    };
+    const draft = composed.message;
+    const roastLines = composed.kind === 'ok' ? composed.roastLines : [];
+    const sent = await send(r, [draft], (o) => (o.id === draft.id ? { roastLines } : undefined));
+    return {
+      outbound: sent,
+      toolCalls: [],
+      auditEventIds: auditIdsSince(group.groupId, before),
+      silent: sent.length === 0,
+      modelSources: [],
+      note:
+        composed.kind === 'ok'
+          ? `scheduled:morning_after:${composed.mode}`
+          : 'scheduled:morning_after:needs_guardian',
+    };
+  }
+
   async function runScheduledJob(job: ScheduledJob): Promise<TurnResult> {
     if (job.kind === 'wrapped') return runWrappedJob(job);
+    if (job.kind === 'morning_after') return runMorningAfterJob(job);
     if (job.kind !== 'proposal_expiry') return silent(`scheduled:${job.kind}:not_handled`);
     const proposalId =
       typeof job.payload['proposalId'] === 'string' ? job.payload['proposalId'] : undefined;

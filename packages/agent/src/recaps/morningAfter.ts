@@ -103,6 +103,15 @@ export function morningAfterJobsFor(
   return core.recapMornings(trip).map((d) => morningAfterJobFor(trip, d));
 }
 
+/** The job for the morning after `date`, or undefined when `date` is the last recap morning. */
+export function nextMorningAfterJob(
+  trip: Pick<Trip, 'tripId' | 'groupId' | 'timeZone' | 'startDate' | 'endDate'>,
+  date: IsoDate,
+): ScheduledJob | undefined {
+  const next = core.recapMornings(trip).find((d) => d > date);
+  return next === undefined ? undefined : morningAfterJobFor(trip, next);
+}
+
 export interface MorningAfterDeps {
   readonly stores: Stores;
   readonly clock: Clock;
@@ -152,7 +161,9 @@ function isNightlife(a: Activity): boolean {
 }
 
 function adultsOnly(a: Activity): boolean {
-  return isNightlife(a) || safety.isRestrictedContent(a.contentTags) || (a.ageRestriction ?? 0) >= 18;
+  return (
+    isNightlife(a) || safety.isRestrictedContent(a.contentTags) || (a.ageRestriction ?? 0) >= 18
+  );
 }
 
 const CATEGORY_LABEL: Readonly<Record<Expense['category'], string>> = {
@@ -321,7 +332,8 @@ export async function composeMorningAfter(
   const now: IsoDateTime = deps.clock.now();
   const group = stores.group.groups.get(groupId);
   const trip = stores.group.trips.get(tripId);
-  if (group === undefined || trip === undefined || trip.groupId !== groupId) return { kind: 'no_trip' };
+  if (group === undefined || trip === undefined || trip.groupId !== groupId)
+    return { kind: 'no_trip' };
   const tz = trip.timeZone;
   const morning = core.recapTime(date, tz);
   const members = stores.group.members.listByGroup(groupId);
@@ -345,7 +357,13 @@ export async function composeMorningAfter(
     .filter((a) => isNightlife(a) && booked.has(a.activityId) && a.startsAt !== undefined)
     .map((a) => a.startsAt!);
   // One album read over the wider window (yesterday ⊇ last night).
-  const albumDay = await albumPhotos(deps, group, tripId, core.yesterdayWindow(morning, tz), consent);
+  const albumDay = await albumPhotos(
+    deps,
+    group,
+    tripId,
+    core.yesterdayWindow(morning, tz),
+    consent,
+  );
   const signals = core.nightSignals({
     morning,
     timeZone: tz,
@@ -357,16 +375,30 @@ export async function composeMorningAfter(
   const mode = core.decideRecapMode(signals, familyMode);
 
   // --- what the recap lists
-  const restrictedActivity = new Set(activities.filter(adultsOnly).map((a) => a.activityId));
+  const adultActivities = activities.filter(adultsOnly);
+  const restrictedActivity = new Set(adultActivities.map((a) => a.activityId));
+  // Family mode (VOICE §8): nothing tied to an adults-only plan reaches the
+  // list: drinks, its own expenses, anything naming it, anything during it.
+  const adultNames = adultActivities
+    .flatMap((a) => [a.name, a.venue ?? ''])
+    .map((n) => n.trim().toLowerCase())
+    .filter((n) => n.length >= 3);
+  const duringAdultPlan = (iso: IsoDateTime): boolean =>
+    adultActivities.some(
+      (a) =>
+        a.startsAt !== undefined &&
+        a.endsAt !== undefined &&
+        core.inWindow(iso, { from: a.startsAt, to: a.endsAt }),
+    );
+  const familySafe = (e: Expense): boolean =>
+    e.category !== 'drinks' &&
+    !(e.activityId !== undefined && restrictedActivity.has(e.activityId)) &&
+    !safety.isRestrictedText(e.description) &&
+    !adultNames.some((n) => e.description.toLowerCase().includes(n)) &&
+    !duringAdultPlan(e.occurredAt);
   const listed = expenses
     .filter((e) => core.inWindow(e.occurredAt, listWindow))
-    .filter(
-      (e) =>
-        !familyMode ||
-        (e.category !== 'drinks' &&
-          !(e.activityId !== undefined && restrictedActivity.has(e.activityId)) &&
-          !safety.isRestrictedText(e.description)),
-    )
+    .filter((e) => !familyMode || familySafe(e))
     .sort((a, b) => parseIso(a.occurredAt) - parseIso(b.occurredAt));
   const photos = albumDay.filter((p) => core.inWindow(p.takenAt ?? p.addedAt, listWindow));
   const restrictedWindows = activities
@@ -437,10 +469,19 @@ export async function composeMorningAfter(
     m.set(x.memberId, (m.get(x.memberId) ?? 0) + Math.abs(x.amount.amountMinor));
     owes.set(x.expenseId, m);
   }
-  const sharesOf = (e: Expense): ReadonlyMap<MemberId, number> => owes.get(e.expenseId) ?? new Map();
-  const events = buildEvents(listed, (e) => [...sharesOf(e).keys()], members, familyMode, trip.currency);
+  const sharesOf = (e: Expense): ReadonlyMap<MemberId, number> =>
+    owes.get(e.expenseId) ?? new Map();
+  const events = buildEvents(
+    listed,
+    (e) => [...sharesOf(e).keys()],
+    members,
+    familyMode,
+    trip.currency,
+  );
   const total = money(sumMinor(listed), trip.currency);
-  const perPerson = perPersonOf(events, sharesOf, total);
+  // A family tab is one pot: "€X each" would read as a split (VOICE §4.7 C).
+  const familyTab = settle.input.familyTab === true || trip.familyTab;
+  const perPerson = familyTab ? undefined : perPersonOf(events, sharesOf, total);
   const budget = dayBudget(trip);
   const pending = Object.values(stores.private.countPendingByOwner(groupId)).reduce(
     (s, n) => s + n,
@@ -503,6 +544,9 @@ export async function composeMorningAfter(
     mode,
     message,
     roastLines: message.card.roastLines ?? [],
-    facts: { ...facts, photoIds: message.card.photos.flatMap((p) => (p.photoId ? [p.photoId] : [])) },
+    facts: {
+      ...facts,
+      photoIds: message.card.photos.flatMap((p) => (p.photoId ? [p.photoId] : [])),
+    },
   };
 }

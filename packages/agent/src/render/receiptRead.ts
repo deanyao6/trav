@@ -47,7 +47,14 @@ export interface ReceiptReadInput {
   /** A logged expense this looks like (same amount, close in time). */
   readonly duplicate?: { readonly amount: Money; readonly description: string; readonly payer: string };
   readonly poster: MemberId;
+  /** Who may tap Log it (default: the poster; a minor's receipt: their guardian). */
+  readonly confirmers?: readonly MemberId[];
+  /** `Trip.familyTab`: one pot, so the card shows no split and never asks who had what. */
+  readonly familyTab?: boolean;
 }
+
+export const RECEIPT_FAMILY_TAB_LINE = 'on the family tab, nothing to split';
+export const RECEIPT_FAMILY_CONFIRM_LINE = '👍 to log it';
 
 function shortLabel(label: string): string {
   return label
@@ -150,7 +157,10 @@ export function renderReceiptRead(
   );
   const amounts = participants.map((p) => p.share!.amountMinor);
   const nearlyEqual = Math.max(...amounts) - Math.min(...amounts) <= participants.length;
-  if (participants.length === 1) {
+  const familyTab = input.familyTab === true;
+  if (familyTab) {
+    lines.push(RECEIPT_FAMILY_TAB_LINE);
+  } else if (participants.length === 1) {
     lines[0] = `${lines[0]!}, all on ${participants[0]!.name}`;
   } else if (everyLineEqual && nearlyEqual) {
     const notPart =
@@ -175,11 +185,12 @@ export function renderReceiptRead(
   const itemLines = lineItems.filter((l) => l.kind === 'item').length;
   if (input.question !== undefined) lines.push(input.question);
   else if (input.duplicate !== undefined) lines.push("👍 only if it's a different one");
+  else if (familyTab) lines.push(RECEIPT_FAMILY_CONFIRM_LINE);
   else if (!input.itemInfo && itemLines >= 2 && participants.length >= 2)
     lines.push(`who had what? or 👍 to split it ${String(participants.length)} ways`);
   else lines.push(RECEIPT_CONFIRM_LINE);
 
-  const poster = [input.poster];
+  const poster = input.confirmers ?? [input.poster];
   return cardMessage<ExpenseConfirmCard>(
     ctx,
     GROUP,

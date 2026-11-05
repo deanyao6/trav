@@ -33,6 +33,7 @@ import {
   createUlidIdGenerator,
   DEFAULT_GROUP_SETTINGS,
   defaultSpendingPolicy,
+  parseIso,
   TravError,
 } from '@trav/core';
 import { createMemoryStores } from '@trav/core/storage';
@@ -68,6 +69,7 @@ import {
 } from './memory/index.js';
 import { createModelClient, readModelEnv, type ModelClient } from './model/client.js';
 import { sendTurn as sendTurnViaSendPath, type SendDeps } from './outbound/send.js';
+import { morningAfterJobsFor } from './recaps/morningAfter.js';
 import { wrappedJobFor } from './recaps/wrapped.js';
 import { createV0ToolRegistry } from './tools/index.js';
 import type { ToolRegistry } from './tools/registry.js';
@@ -158,9 +160,15 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
   };
   const scheduler = options.scheduler ?? createInMemoryScheduler();
   if (seeded) {
-    // The seeded trip's end-of-trip Wrapped (T-016): 10am the day after it ends.
+    // The seeded trip's Morning Afters (T-015, 10am each morning after a trip
+    // night, from now on) and its end-of-trip Wrapped (T-016, 10am the day after).
     const trip = stores.group.trips.get(BARCELONA.tripId);
-    if (trip !== undefined) scheduler.schedule(wrappedJobFor(trip));
+    if (trip !== undefined) {
+      const now = parseIso(clock.now());
+      for (const job of morningAfterJobsFor(trip))
+        if (parseIso(job.runAt) > now) scheduler.schedule(job);
+      scheduler.schedule(wrappedJobFor(trip));
+    }
   }
   const groupMemory = createGroupMemory({ repo: stores.group.groupMemory, ids });
   const memberMemory = createMemberMemory({ store: stores.private, ids });

@@ -103,20 +103,22 @@ describe('clockStatus', () => {
     ).toBeUndefined();
   });
 
-  it('next morning with no Morning After job: names T-015, never invents a recap', () => {
+  it('next morning with no Morning After job: says nothing was scheduled, never invents a recap', () => {
     const s = clockStatus({ ...base, request: { step: 'morning' }, jobs: [], results: [] });
-    expect(s).toBe('clock → sun mar 15 · 10am · day 4 · nothing was scheduled · no Morning After yet: the recap job lands with T-015');
+    expect(s).toBe('clock → sun mar 15 · 10am · day 4 · nothing was scheduled');
   });
 
-  it('a job that ran but is not handled yet is reported with its note', () => {
+  it('a quiet Morning After (nothing happened, T-015) is reported with its note, no placeholder', () => {
     const s = clockStatus({
       ...base,
       request: { step: 'morning' },
       jobs: [job('morning_after', base.now)],
-      results: [{ silent: true, note: 'scheduled:morning_after:not_handled' }],
+      results: [{ silent: true, note: 'scheduled:morning_after:silent' }],
     });
-    expect(s).toContain('1 job ran, trav stayed quiet (scheduled:morning_after:not_handled)');
-    expect(s).toContain('T-015');
+    expect(s).toBe(
+      'clock → sun mar 15 · 10am · day 4 · 1 job ran, trav stayed quiet (scheduled:morning_after:silent)',
+    );
+    expect(s).not.toContain('T-015');
   });
 
   it('end of trip without Wrapped names T-016; already over says so and moves nothing', () => {
@@ -172,16 +174,15 @@ describe('clockStatus', () => {
     ).toContain('1 job ran');
   });
 
-  it('a replay clock line that expects Morning After / Wrapped names the missing task', () => {
+  it('a replay clock line that expects Wrapped names the missing task; Morning After is built', () => {
     const morning = clockStatus({
       ...base,
       request: { to: base.now, expectJob: 'morning_after' },
       jobs: [],
       results: [],
     });
-    expect(morning).toBe(
-      'clock → sun mar 15 · 10am · day 4 · nothing was scheduled · no Morning After yet: the recap job lands with T-015',
-    );
+    // T-015 is built: a 10am line with nothing scheduled has nothing to name.
+    expect(morning).toBeUndefined();
     expect(
       clockStatus({
         ...base,

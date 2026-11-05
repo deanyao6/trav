@@ -169,11 +169,14 @@ export function renderRecap(
         : '';
     lines.push(`${morningAfter ? 'last night' : 'yesterday'}: ${parts.join(' · ')}${more}`);
   }
-  lines.push(
-    (input.lastNight.perPerson !== undefined
-      ? `${formatMoney(input.lastNight.total)} total, ${formatMoney(input.lastNight.perPerson)} each`
-      : `${formatMoney(input.lastNight.total)} total`) + budgetText(input.lastNight),
-  );
+  // Nothing to list (the tab moved for something outside the window): no "€0 total" line.
+  if (events.length > 0 || input.lastNight.total.amountMinor !== 0) {
+    lines.push(
+      (input.lastNight.perPerson !== undefined
+        ? `${formatMoney(input.lastNight.total)} total, ${formatMoney(input.lastNight.perPerson)} each`
+        : `${formatMoney(input.lastNight.total)} total`) + budgetText(input.lastNight),
+    );
+  }
 
   const roastLines = gatedRoastLines(input.roastLines ?? [], ctx, sc);
   lines.push(...roastLines);

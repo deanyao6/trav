@@ -3,8 +3,8 @@
  * calls the UI makes (`routes.ts` → `SimulatorBackend`), offline:
  *
  *   4. switch to Sam → Sam's DM shows the "looks shared?" Uber prompt → Share it
- *   5. next morning → the clock moves, `scheduler.drain` runs, whatever Trav
- *      sends lands in the group (the Morning After once T-015 sends it)
+ *   5. next morning → the clock moves, `scheduler.drain` runs, the Morning
+ *      After job (T-015) decides: recap, running settle-up, or silence
  *   6. end of trip → same; the scheduled Wrapped (T-016) posts in the group
  *
  * The Morning After / Wrapped rendering hooks are in `ui/scheduled.test.tsx`.
@@ -173,10 +173,13 @@ describe('demo states 4–6, scripted backend, in order', () => {
     await post(b, '/api/intake', { docId: 'doc_bcn_sam_card_1' });
     const s5 = await post(b, '/api/clock', { step: 'morning', groupId: BARCELONA.groupId });
     expect(s5.now).toBe('2026-03-15T10:00:00+01:00');
-    // Nothing schedules a Morning After yet (T-015): no fake recap, an honest line instead.
+    // T-015: Sam left his Uber unanswered and the scripted booking never reaches the
+    // embedded runtime's tab, so nothing moved overnight: the Morning After stays silent
+    // (silence is a feature) and the muted line says so. Never a fake recap.
     expect(messages(bcn(s5).thread).some((m) => m.card?.type === 'recap')).toBe(false);
     expect(bcn(s5).status).toContain('sun mar 15 · 10am · day 4');
-    expect(bcn(s5).status).toContain('T-015');
+    expect(bcn(s5).status).toContain('scheduled:morning_after:silent');
+    expect(bcn(s5).status).not.toContain('T-015');
 
     const s6 = await post(b, '/api/clock', { step: 'end_of_trip', groupId: BARCELONA.groupId });
     expect(s6.now).toBe('2026-03-18T10:00:00+01:00');

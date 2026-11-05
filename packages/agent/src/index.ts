@@ -31,5 +31,7 @@ export * from './render/receiptRead.js';
 export * from './outbound/send.js';
 export * from './render/index.js';
 export * from './recaps/wrapped.js';
+export * from './recaps/morningAfter.js';
+export * from './recaps/dropPhoto.js';
 export * from './loop.js';
 export * from './compose.js';

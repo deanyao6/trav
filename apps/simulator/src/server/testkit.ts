@@ -4,9 +4,10 @@
  * (`renderRecap`, `renderWrappedForSend`) from the Barcelona fixture numbers
  * (`fixtures/recaps/barcelona.json` 2026-03-15, `fixtures/wrapped/barcelona.json`).
  *
- * They stand in for what T-015 / T-016 will send from `agent.runScheduled`,
- * so the simulator's hook (clock step → scheduler drain → channel → group
- * thread → `recap` / `wrapped` card in the UI) is tested before those land.
+ * They stand in for what T-015 / T-016 send from `agent.runScheduled`, so the
+ * simulator's hook (clock step → scheduler drain → channel → group thread →
+ * `recap` / `wrapped` card in the UI) is tested with fixed numbers; the real
+ * jobs run end to end in `demo-path.test.ts` (agent backend).
  */
 import type {
   IsoDateTime,
@@ -41,7 +42,7 @@ export const SILENT_TURN: TurnResult = {
 /**
  * A stand-in runtime with a real in-memory scheduler holding Barcelona's
  * `morning_after` (sun 10am) and `wrapped` (wed 10am, the day after the trip)
- * jobs. Its `runScheduled` sends what T-015 / T-016 will send (the agent's own
+ * jobs. Its `runScheduled` sends what T-015 / T-016 send (the agent's own
  * renderers, fixture numbers) on the group lane; `drain` is
  * `createTravRuntime`'s drain. `ran` lists the job kinds in drain order.
  */
@@ -198,7 +199,13 @@ export function morningAfterMessage(
         totalSpent: eur(23600),
         dayNumber: 4,
       },
-      today: [{ label: 'Barça vs Sevilla', startsAt: '2026-03-15T21:00:00+01:00', ticketsDelivered: true }],
+      today: [
+        {
+          label: 'Barça vs Sevilla',
+          startsAt: '2026-03-15T21:00:00+01:00',
+          ticketsDelivered: true,
+        },
+      ],
     },
     ctx(now, 'simfix_recap'),
     safetyCtx(),
@@ -226,7 +233,12 @@ export function wrappedMessage(
         { label: 'bookings', value: '3' },
       ],
       awards: [
-        { title: 'MVP Spender', memberId: 'mem_dean', evidence: 'fronted the most', basis: 'ledger' },
+        {
+          title: 'MVP Spender',
+          memberId: 'mem_dean',
+          evidence: 'fronted the most',
+          basis: 'ledger',
+        },
         { title: 'Uber Captain', memberId: 'mem_sam', evidence: 'the 2am ride', basis: 'ledger' },
         { title: 'Night Owl', memberId: 'mem_jordan', evidence: 'kebabs at 2am', basis: 'ledger' },
       ],

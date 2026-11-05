@@ -3,7 +3,7 @@
  * drains the scheduler, `agent.runScheduled` sends a `recap` / `wrapped` card
  * on the group lane, and the UI renders it in the group thread. The runtime
  * here is a stand-in (`recapRuntime`) that sends the agent's real renderer
- * output from fixture numbers, which is what T-015 / T-016 will emit.
+ * output from fixture numbers, the same shape T-015 / T-016 emit.
  */
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';

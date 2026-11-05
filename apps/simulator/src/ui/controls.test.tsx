@@ -152,7 +152,7 @@ describe('top bar: clock and replay', () => {
     expect(byTestId(done, 'replay-all').props['disabled']).toBe(true);
   });
 
-  it('after next morning the muted status line names T-015 under the thread, not as a Trav bubble', async () => {
+  it('after a quiet next morning the muted status line says so under the thread, not as a Trav bubble', async () => {
     const b = await state3();
     const before = html(props(b.state(), 'h_dean'));
     const res = await handleApi(b, {
@@ -163,7 +163,9 @@ describe('top bar: clock and replay', () => {
     const s = (res.body as { state: SimState }).state;
     const markup = html(props(s, 'h_dean'));
     expect(markup).toContain('data-testid="sim-status"');
-    expect(markup).toContain('no Morning After yet: the recap job lands with T-015');
+    // Nothing reached the embedded runtime's tab overnight: the Morning After (T-015) stays silent.
+    expect(markup).toContain('trav stayed quiet (scheduled:morning_after:silent)');
+    expect(markup).not.toContain('T-015');
     expect(markup).toContain('sun mar 15 · 10am · day 4');
     const bubbles = (h: string) => h.split('data-testid="bubble-trav"').length;
     expect(bubbles(markup)).toBe(bubbles(before));

@@ -82,9 +82,12 @@ const EXPECTED_KIND: Readonly<Partial<Record<ClockStep, ScheduledJobKind>>> = {
   end_of_trip: 'wrapped',
 };
 
-/** What the demo is waiting on when an expected job never ran (backlog task ids). */
+/**
+ * What the demo is waiting on when an expected job never ran (backlog task
+ * ids). The Morning After (T-015) is built: a morning with no job is simply a
+ * morning with nothing scheduled, and a quiet recap reports its own note.
+ */
 const NOT_BUILT: Readonly<Partial<Record<ScheduledJobKind, string>>> = {
-  morning_after: 'no Morning After yet: the recap job lands with T-015',
   wrapped: 'no Wrapped yet: the Wrapped job lands with T-016',
 };
 

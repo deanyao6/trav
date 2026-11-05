@@ -5,7 +5,7 @@
  *
  *   replay ▸ (step by step up to the Razzmatazz booking)
  *   → switch to Sam: "simulate a card charge" → the "looks shared?" Uber prompt → Share it
- *   → next morning → the Morning After card, or (until T-015) the status line naming it
+ *   → next morning → the Morning After card (T-015; the running settle-up on the scripted backend)
  *   → end of trip  → the Wrapped card (T-016): trip name, dates, final settle
  *
  * Every step is a POST a button in the UI makes. Privacy is checked on the
@@ -178,7 +178,14 @@ describe.each<Kind>(['scripted', 'agent'])('demo clicked in order (%s backend)',
       amountMinor: 1860,
       currency: 'EUR',
     });
-    expect(JSON.stringify(bcn(s4d).thread)).not.toContain('18.60');
+    // Shared items reach the group only through a scheduled recap (T-015), never as a ping.
+    expect(
+      JSON.stringify(
+        bcn(s4d).thread.filter(
+          (e) => !('card' in e && (e.card?.type === 'recap' || e.card?.type === 'settle_up')),
+        ),
+      ),
+    ).not.toContain('18.60');
     for (const id of ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_sam', 'mem_henry']) {
       expect(JSON.stringify(bcn(s4d).dms[id]), id).not.toContain('18.60');
     }
@@ -186,13 +193,26 @@ describe.each<Kind>(['scripted', 'agent'])('demo clicked in order (%s backend)',
     // --- state 5: next morning.
     const s5 = await post(b, '/api/clock', { step: 'morning', groupId: BARCELONA.groupId });
     expect(s5.now).toBe('2026-03-15T10:00:00+01:00');
-    const recap = messages(bcn(s5).thread).find((m) => m.card?.type === 'recap');
-    if (recap === undefined) {
-      expect(bcn(s5).status).toContain('sun mar 15 · 10am · day 4');
-      expect(bcn(s5).status).toContain('no Morning After yet');
-      expect(bcn(s5).status).toContain('T-015');
+    const lastSeq = Math.max(0, ...messages(bcn(s4d).thread).map((m) => m.seq));
+    const posted5 = messages(bcn(s5).thread).filter((m) => m.seq > lastSeq && m.isTrav);
+    // T-015: one scheduled post, which speaks for itself (no status line).
+    expect(posted5).toHaveLength(1);
+    expect(bcn(s5).status).toBeUndefined();
+    if (kind === 'agent') {
+      // The Razzmatazz booking + Sam's 2:14am Uber (now shared) = a night out: the full recap,
+      // the 5 who went, "not Henry" as a fact and never the reason.
+      const recap = posted5[0]!;
+      expect(recap.card?.type).toBe('recap');
+      expect(recap.text.split('\n')[0]).toBe('morning after, day 4 ☀️');
+      expect(recap.text).toContain('(5 of you, not Henry)');
+      expect(recap.text).toMatch(/Razzmatazz/);
+      expect(recap.text).toMatch(/^tab: /m);
+      expect(recap.text).not.toMatch(/sick/i);
     } else {
-      expect(recap.text).toContain('kebab');
+      // The scripted Razzmatazz never reaches the embedded runtime's ledger, so
+      // only Sam's shared Uber moved the tab: the quiet running settle-up.
+      expect(posted5[0]!.card?.type).toBe('settle_up');
+      expect(posted5[0]!.text.split('\n')[0]).toBe('running tab, day 4');
     }
 
     // --- state 6: end of trip.
@@ -244,8 +264,15 @@ describe.each<Kind>(['scripted', 'agent'])('demo clicked in order (%s backend)',
     const s5 = await replayTo(b, morning + 1);
     expect(s5.now).toBe('2026-03-15T10:00:00+01:00');
     expect(s5.replay?.last).toBe('clock → sun mar 15 · 10am · day 4');
-    if (!messages(bcn(s5).thread).some((m) => m.card?.type === 'recap')) {
-      expect(bcn(s5).status).toContain('T-015');
+    // T-015: the 10am line drains the Morning After; it speaks for itself.
+    expect(bcn(s5).status ?? '').not.toContain('T-015');
+    if (kind === 'agent') {
+      const day4 = messages(bcn(s5).thread).filter(
+        (m) => m.isTrav && m.card?.type === 'recap' && m.text.startsWith('morning after, day 4'),
+      );
+      expect(day4).toHaveLength(1);
+      expect(day4[0]!.text).toContain('not Henry');
+      expect(day4[0]!.text).not.toMatch(/sick/i);
     }
     const s6 = await replayTo(b, SCRIPT.length);
     expect(s6.now).toBe('2026-03-18T10:00:00+01:00');

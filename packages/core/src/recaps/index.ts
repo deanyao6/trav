@@ -45,9 +45,8 @@ export const NIGHT_OUT_MIN_SIGNALS = 2;
 export const RECAP_HOUR = 10;
 
 export function nightSignalCount(s: NightSignals): number {
-  return [s.nightlifeBooking, s.expenseAfter22, s.photoAfter23, s.chatAfterMidnight].filter(
-    Boolean,
-  ).length;
+  return [s.nightlifeBooking, s.expenseAfter22, s.photoAfter23, s.chatAfterMidnight].filter(Boolean)
+    .length;
 }
 
 /**
@@ -103,7 +102,10 @@ export interface NightSignalInput {
   readonly morning: IsoDateTime;
   readonly timeZone: TimeZone;
   /** Logged group expenses (never a private item): when it happened and when it hit the ledger. */
-  readonly expenses: readonly { readonly occurredAt: IsoDateTime; readonly createdAt: IsoDateTime }[];
+  readonly expenses: readonly {
+    readonly occurredAt: IsoDateTime;
+    readonly createdAt: IsoDateTime;
+  }[];
   /** Start times of nightlife activities that have a booking (or a booking-sourced expense). */
   readonly bookedNightlifeStarts: readonly IsoDateTime[];
   /** When each opted-in, visible album photo was taken (`takenAt ?? addedAt`). */
@@ -136,7 +138,10 @@ export function nightSignals(input: NightSignalInput): NightSignals {
  * `startDate + 1 … endDate`. The morning after the last night is Wrapped's
  * (it carries the final settle), so it is not here.
  */
-export function recapMornings(trip: { readonly startDate: IsoDate; readonly endDate: IsoDate }): IsoDate[] {
+export function recapMornings(trip: {
+  readonly startDate: IsoDate;
+  readonly endDate: IsoDate;
+}): IsoDate[] {
   const n = daysBetween(trip.startDate, trip.endDate);
   const out: IsoDate[] = [];
   for (let i = 1; i <= n; i++) out.push(addDays(trip.startDate, i));

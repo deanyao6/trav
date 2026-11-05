@@ -66,7 +66,12 @@ export type ClaimParse =
 export function hasItemInfo(ops: readonly ClaimOp[]): boolean {
   return ops.some(
     (o) =>
-      o.op === 'claim' || o.op === 'only' || o.op === 'no_drinks' || o.op === 'rest' || o.op === 'even',
+      o.op === 'claim' ||
+      // "Sam only had water" with no water line is an exclusion, not a claim
+      (o.op === 'only' && o.lineIds.length > 0) ||
+      o.op === 'no_drinks' ||
+      o.op === 'rest' ||
+      o.op === 'even',
   );
 }
 
@@ -488,13 +493,19 @@ export function applyClaims(
         };
         break;
       }
-      case 'include':
+      case 'include': {
+        // "sam was there" undoes "sam only had water" (a line-less `only`) too
+        const allowed = Object.fromEntries(
+          Object.entries(s.allowed).filter(([m]) => !o.memberIds.includes(m)),
+        );
         s = {
           ...s,
+          allowed,
           table: inOrder([...s.table, ...o.memberIds], order),
           excluded: without(s.excluded, o.memberIds),
         };
         break;
+      }
       case 'claim': {
         const who = resolve(o.people);
         if (who === undefined || who.length === 0)
@@ -507,7 +518,7 @@ export function applyClaims(
       case 'only': {
         const allowed = { ...s.allowed };
         for (const m of o.memberIds) allowed[m] = o.lineIds;
-        s = { ...s, allowed, itemInfo: true };
+        s = { ...s, allowed, itemInfo: s.itemInfo || o.lineIds.length > 0 };
         if (o.lineIds.length === 0) {
           s = {
             ...s,

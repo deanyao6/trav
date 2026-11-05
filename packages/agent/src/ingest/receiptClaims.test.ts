@@ -98,7 +98,8 @@ describe('T-011 acceptance: 3-item, 4-person lunch, one person excluded, service
     ]);
     const s = say(initialClaimState('mem_maya', table), 'mem_maya', f.chatText!, lines);
     expect(s.table).toEqual(['mem_dean', 'mem_maya', 'mem_priya']);
-    expect(hasItemInfo(p.ops.filter((o) => o.op !== 'only'))).toBe(false);
+    expect(hasItemInfo(p.ops)).toBe(false);
+    expect(s.itemInfo).toBe(false);
     // before anyone says who had what: 3 ways, Sam out
     expect(shares(say(initialClaimState('mem_maya', table), 'mem_maya', 'sam is paying his own', lines), lines, 10890)).toEqual({
       mem_dean: 3630,
@@ -176,6 +177,16 @@ describe('a 3-item, 4-person dinner with one person excluded (generic)', () => {
     expect(buildSplit(s, lines, ORDER)!.split.lineItems.find((l) => l.lineId === 'l3')!.claimedBy).toEqual([
       'mem_henry',
     ]);
+  });
+
+  it('r1 #6: "sam only had water" (no water line) then "sam was there" puts Sam back in', () => {
+    let s = say(initialClaimState('mem_dean', table), 'mem_dean', 'sam only had water', lines);
+    expect(Object.keys(shares(s, lines, total))).not.toContain('mem_sam');
+    s = say(s, 'mem_dean', 'sam was there', lines);
+    expect(s.allowed['mem_sam']).toBeUndefined();
+    const got = shares(s, lines, total);
+    expect(Object.keys(got)).toEqual(['mem_dean', 'mem_henry', 'mem_maya', 'mem_sam']);
+    expect(Object.values(got).reduce((a, b) => a + b, 0)).toBe(total);
   });
 
   it('"split it evenly" clears the claims; "the rest was dean and me" assigns the unclaimed lines', () => {

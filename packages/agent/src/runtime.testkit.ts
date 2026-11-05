@@ -95,7 +95,9 @@ export interface Harness {
   say(
     from: string,
     text: string,
-    opts?: Partial<Pick<InboundMessage, 'messageId' | 'replyToMessageId' | 'platformMention'>>,
+    opts?: Partial<
+      Pick<InboundMessage, 'messageId' | 'replyToMessageId' | 'platformMention' | 'attachments'>
+    >,
   ): Promise<TurnResult>;
   /** DM-lane message from a handle. */
   dm(from: string, text: string): Promise<TurnResult>;
