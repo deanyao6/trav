@@ -310,7 +310,7 @@ export function lineExpect(line: ChatLine): StepExpect | undefined {
         // `topicCategory` stays ungraded: the fixtures follow VOICE §7.5 (a
         // hangover is "Health") while core's roast blocklist files hangover
         // terms under `body`, so the audit label is not settled ground truth
-        // yet (no open task owns it; reported to the Orchestrator by T-160).
+        // yet. T-172 picks one label (`health`), aligns core, then grades it.
         // `detailChecks` still matches a topic when one is set.
         x.refusal = { reason };
         take('refusal', r, ['reason']);

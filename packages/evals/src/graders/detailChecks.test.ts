@@ -17,6 +17,7 @@ import {
   detailChecks,
   lineChecks,
   lineView,
+  namesMember,
   sameThing,
 } from './lineChecks.js';
 
@@ -81,6 +82,31 @@ describe('auditOrder is scoped to the line’s proposal (T-160 b)', () => {
     const c = auditOrderCheck(ep, s, s, order);
     expect(c.ok).toBe(false);
     expect(c.what).toMatch(/broken at policy\.evaluated for prp_1/);
+  });
+
+  // T-160 r1 flaw 4: when one line finishes two chains, both must be complete.
+  it('fails when one of two chains finished on this line is broken', () => {
+    const audit = chain([
+      { type: 'policy.evaluated', proposalId: 'prp_1', payload: POLICY },
+      { type: 'approval.granted', proposalId: 'prp_1', payload: GRANTED },
+      { type: 'approval.granted', proposalId: 'prp_2', payload: GRANTED },
+      { type: 'booking.completed', proposalId: 'prp_1', payload: {} },
+      { type: 'booking.completed', proposalId: 'prp_2', payload: {} },
+    ]);
+    const { ep, s } = lineOver(audit, 1);
+    const c = auditOrderCheck(ep, s, s, order);
+    expect(c.ok).toBe(false);
+    expect(c.what).toMatch(/broken at policy\.evaluated for prp_2/);
+    const both = chain([
+      { type: 'policy.evaluated', proposalId: 'prp_1', payload: POLICY },
+      { type: 'policy.evaluated', proposalId: 'prp_2', payload: POLICY },
+      { type: 'approval.granted', proposalId: 'prp_1', payload: GRANTED },
+      { type: 'approval.granted', proposalId: 'prp_2', payload: GRANTED },
+      { type: 'booking.completed', proposalId: 'prp_1', payload: {} },
+      { type: 'booking.completed', proposalId: 'prp_2', payload: {} },
+    ]);
+    const ok = lineOver(both, 2);
+    expect(auditOrderCheck(ok.ep, ok.s, ok.s, order).ok).toBe(true);
   });
 
   it('keys an event that names only a booking by that booking’s proposal', () => {
@@ -169,6 +195,46 @@ describe('expense details', () => {
     // Filler descriptions share nothing with the thing bought.
     expect(sameThing('expense', 'Sagrada Família tickets')).toBe(false);
     expect(sameThing('€108 total', 'Park Güell tickets')).toBe(false);
+    expect(sameThing('€156 expense', 'dinner')).toBe(false);
+  });
+
+  // T-160 r1 flaw 1: a shared generic word ("tickets", "apartment") or a shared
+  // place with a different kind of thing is not the same expense.
+  it.each([
+    ['Apolo tickets', 'Razzmatazz tickets'],
+    ['Razzmatazz tickets', 'Apolo tickets'],
+    ['Sporting vs Braga tickets', 'Benfica vs Porto tickets'],
+    ['Benfica vs Porto tickets', 'Sporting vs Braga tickets'],
+    ['Park Güell tickets', 'Sagrada Família tickets'],
+    ['Sagrada Família tickets', 'Park Güell tickets'],
+    ['uber back from Razzmatazz', 'Razzmatazz tickets'],
+    ['Razzmatazz tickets', 'uber back from Razzmatazz'],
+    ['waters at Razzmatazz', 'Razzmatazz tickets'],
+    ['Razzmatazz tickets', 'waters at Razzmatazz'],
+    ['groceries for the apartment', 'Eixample 3br apartment'],
+    ['Eixample 3br apartment', 'groceries for the apartment'],
+    ['uber El Born → Eixample', 'Eixample 3br apartment'],
+    ['lunch', 'dinner'],
+    ['tickets', 'Razzmatazz tickets'],
+    ['dinner at Conch Corner Grill', 'dinner at Taverna del Gat Blau'],
+  ])('"%s" is not "%s"', (got, want) => {
+    expect(sameThing(got, want)).toBe(false);
+  });
+
+  it.each([
+    ['Razzmatazz x5', 'Razzmatazz tickets'],
+    ['Razzmatazz entry', 'Razzmatazz tickets'],
+    ['Uber from Razzmatazz', 'uber back from Razzmatazz'],
+    ['water at Razzmatazz', 'waters at Razzmatazz'],
+    ['groceries', 'groceries for the apartment'],
+    ['supermarket run, apartment groceries', 'groceries for the apartment'],
+    ['Eixample apartment', 'Eixample 3br apartment'],
+    ['coffee', 'coffees'],
+    ['dinner at Taverna del Gat Blau', 'dinner'],
+    ['Sintra driver', 'Sintra driver'],
+    ['Benfica v Porto', 'Benfica vs Porto tickets'],
+  ])('"%s" names "%s"', (got, want) => {
+    expect(sameThing(got, want)).toBe(true);
   });
 
   const base = episode();
@@ -221,7 +287,7 @@ describe('expense details', () => {
     );
     const bad = failing(ep, s);
     expect(bad).toHaveLength(3);
-    expect(bad.join('\n')).toMatch(/shares no word/);
+    expect(bad.join('\n')).toMatch(/does not name the expected/);
     expect(bad.join('\n')).toMatch(/category other, expected tickets/);
     expect(bad.join('\n')).toMatch(/split equal/);
   });
@@ -311,6 +377,29 @@ describe('proposal details', () => {
     expect(bad).toMatch(/refundable true, expected false/);
     expect(bad).toMatch(/bundles 5 offer\(s\), expected 6/);
     expect(bad).toMatch(/card quantity 5, expected 6/);
+  });
+
+  // T-160 r1 flaw 5: every new proposal is considered, not only the first.
+  it('with two new proposals, the matching one is graded whichever comes first', () => {
+    const right = proposal({ proposalId: 'prp_1', paidBy: { kind: 'per_person_cards' } });
+    const wrong = proposal({ proposalId: 'prp_2', kind: 'ticket', refundable: true });
+    for (const newProposals of [
+      [wrong, right],
+      [right, wrong],
+    ]) {
+      const s = step({ newProposals, turn: turn([card(6)]), expect: { proposalDetails: want } });
+      expect(failing(episode({ steps: [s] }), s)).toEqual([]);
+    }
+    // Two wrong proposals still fail, on the closer one.
+    const wrong2 = proposal({ proposalId: 'prp_1', kind: 'ticket' });
+    const s = step({
+      newProposals: [wrong, wrong2],
+      turn: turn([card(6)]),
+      expect: { proposalDetails: want },
+    });
+    expect(failing(episode({ steps: [s] }), s)).toEqual([
+      expect.stringMatching(/proposal prp_1 kind "ticket", expected "flight"/),
+    ]);
   });
 
   it('a missing proposal card fails the quantity check', () => {
@@ -584,6 +673,33 @@ describe('suggestion audience and adult-only requests', () => {
       ),
     ).toEqual([expect.stringMatching(/prp_1 includes mem_tci_lily/)]);
     expect(failing(...line({ suggestionAudience: adults }, { turn: turn([]) }))).toHaveLength(1);
+  });
+
+  // T-160 r1 flaw 6: a group reply naming someone outside the audience fails.
+  it('a group reply naming a member outside the audience fails; a DM or the audience does not', () => {
+    const aud = ['mem_dean', 'mem_chase'];
+    const ok = turn([message({ text: 'Dean, Chase: rooftop bar at 10?' })]);
+    expect(failing(...line({ suggestionAudience: aud }, { turn: ok }))).toEqual([]);
+    const outside = turn([message({ text: 'rooftop bar at 10, Henry’s welcome too' })]);
+    expect(failing(...line({ suggestionAudience: aud }, { turn: outside }))).toEqual([
+      expect.stringMatching(/group reply names mem_henry, outside \[mem_dean, ?mem_chase\]/),
+    ]);
+    const dm = turn([
+      message({
+        text: 'rooftop bar at 10, henry is out',
+        to: { kind: 'member', memberId: 'mem_dean' },
+      }),
+      message({ text: 'rooftop bar at 10?' }),
+    ]);
+    expect(failing(...line({ suggestionAudience: aud }, { turn: dm }))).toEqual([]);
+  });
+
+  it('namesMember matches whole names in any case, possessives included', () => {
+    expect(namesMember("after lily's asleep", 'Lily')).toBe(true);
+    expect(namesMember('LILY can come', 'Lily')).toBe(true);
+    expect(namesMember('the lilypad bar', 'Lily')).toBe(false);
+    expect(namesMember('Chasers bar', 'Chase')).toBe(false);
+    expect(namesMember('anything', '')).toBe(false);
   });
 
   it('an adult-only request fails when a minor screen suppressed the reply', () => {

@@ -1,15 +1,17 @@
 [
   {
-    "id": "heldout_razz_everybody_except",
-    "title": "held-out (rotated T-160): the flagship ask as \"everybody except\" one member",
+    "id": "heldout_razz_rotation_3a",
+    "title": "held-out (rotated T-160 r2): flagship ask paraphrase A",
     "tags": ["booking", "heldout"],
+    "pending": "T-173",
+    "pendingNote": "fresh held-out paraphrase (T-160 r2) that the offline ask reader misreads; T-173 owns booking-ask precision and recall",
     "expect": { "maxPurchases": 0 },
     "steps": [
       {
         "do": "say",
         "at": "2026-03-14T21:40:00+01:00",
         "from": "h_arjun",
-        "text": "@trav razzmatazz tonight for everybody except henry pls",
+        "text": "@trav razzmatazz tonight for the whole crew save for henry",
         "expect": {
           "proposal": {
             "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
@@ -23,16 +25,18 @@
     ]
   },
   {
-    "id": "heldout_razz_count_sitting_out",
-    "title": "held-out (rotated T-160): the flagship ask as a spelled-out count with one member sitting out",
+    "id": "heldout_razz_rotation_3b",
+    "title": "held-out (rotated T-160 r2): flagship ask paraphrase B",
     "tags": ["booking", "heldout"],
+    "pending": "T-173",
+    "pendingNote": "fresh held-out paraphrase (T-160 r2) that the offline ask reader misreads; T-173 owns booking-ask precision and recall",
     "expect": { "maxPurchases": 0 },
     "steps": [
       {
         "do": "say",
         "at": "2026-03-14T21:40:00+01:00",
         "from": "h_arjun",
-        "text": "@trav five tickets to razzmatazz tonight, henry's sitting this one out",
+        "text": "@trav razzmatazz tickets tonight x5, henry's laid up",
         "expect": {
           "proposal": {
             "attendees": ["mem_dean", "mem_chase", "mem_piotr", "mem_arjun", "mem_crowley"],
@@ -40,7 +44,7 @@
             "excluded": ["mem_henry"],
             "totalMinor": 9000
           },
-          "mustNotContain": ["sitting this one out"],
+          "mustNotContain": ["laid up"],
           "purchases": 0
         }
       }

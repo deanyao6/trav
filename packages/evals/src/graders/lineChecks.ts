@@ -370,7 +370,8 @@ export function auditOrderCheck(
   }));
   const bad = broken.find((b) => b.missing !== undefined);
   return {
-    ok: broken.some((b) => b.missing === undefined),
+    // Every proposal whose chain this line finished must be complete in order.
+    ok: broken.every((b) => b.missing === undefined),
     what: `${w}: audit order ${chain} broken at ${bad?.missing ?? '?'} for ${bad?.k ?? '?'}`,
   };
 }
@@ -392,6 +393,8 @@ function canon(v: unknown): string {
 
 const DESCRIPTION_STOPWORDS = new Set(['the', 'and', 'for', 'from', 'with', 'our', 'you', 'all']);
 
+const stem = (x: string): string => (x.length > 3 && x.endsWith('s') ? x.slice(0, -1) : x);
+
 /** Content words of a description: lowercase, no accents, 3+ letters, a plural `s` dropped. */
 export function descriptionWords(s: string): string[] {
   return s
@@ -400,23 +403,182 @@ export function descriptionWords(s: string): string[] {
     .toLowerCase()
     .split(/[^a-z0-9]+/)
     .filter((x) => x.length >= 3 && !DESCRIPTION_STOPWORDS.has(x))
-    .map((x) => (x.length > 3 && x.endsWith('s') ? x.slice(0, -1) : x));
+    .map(stem);
 }
 
 /**
+ * Words that say nothing about which thing it was: filler ("expense",
+ * "total"), time and direction ("night", "back"), group words, bare numbers.
+ * They never count toward a match.
+ */
+const DESCRIPTION_FILLER = new Set(
+  [
+    'expense',
+    'total',
+    'payment',
+    'bill',
+    'charge',
+    'purchase',
+    'item',
+    'thing',
+    'stuff',
+    'misc',
+    'cost',
+    'paid',
+    'split',
+    'back',
+    'home',
+    'out',
+    'late',
+    'night',
+    'tonight',
+    'today',
+    'tomorrow',
+    'yesterday',
+    'morning',
+    'evening',
+    'welcome',
+    'group',
+    'everyone',
+    'everybody',
+    'them',
+    'there',
+  ].map(stem),
+);
+
+/**
+ * Generic kind words ("tickets", "dinner", "apartment", "uber"), each in a
+ * class. A kind word never matches on its own: "Apolo tickets" is not
+ * "Razzmatazz tickets". But two descriptions whose kinds disagree are not the
+ * same thing even when they share a place: "uber back from Razzmatazz" is not
+ * "Razzmatazz tickets".
+ */
+const KIND_CLASSES: Readonly<Record<string, readonly string[]>> = {
+  ticket: [
+    'ticket',
+    'tix',
+    'tkt',
+    'entry',
+    'entrance',
+    'admission',
+    'pass',
+    'cover',
+    'gig',
+    'match',
+    'game',
+    'show',
+  ],
+  ride: [
+    'uber',
+    'lyft',
+    'bolt',
+    'cabify',
+    'taxi',
+    'cab',
+    'ride',
+    'driver',
+    'car',
+    'transfer',
+    'shuttle',
+  ],
+  drinks: [
+    'drink',
+    'water',
+    'beer',
+    'wine',
+    'cocktail',
+    'shot',
+    'round',
+    'bar',
+    'sangria',
+    'cava',
+    'booze',
+    'bottle',
+  ],
+  dinner: ['dinner', 'supper'],
+  lunch: ['lunch'],
+  breakfast: ['breakfast', 'brunch'],
+  coffee: ['coffee', 'cafe'],
+  food: ['food', 'meal', 'snack', 'restaurant'],
+  groceries: ['grocery', 'groceries', 'supermarket', 'market'],
+  lodging: [
+    'apartment',
+    'apt',
+    'airbnb',
+    'hotel',
+    'villa',
+    'room',
+    'stay',
+    'lodging',
+    'flat',
+    'hostel',
+    'rental',
+  ],
+  flight: ['flight', 'plane', 'airfare'],
+  activity: ['tour', 'excursion', 'activity', 'class', 'workshop', 'lesson'],
+};
+const KIND_OF: ReadonlyMap<string, string> = new Map(
+  Object.entries(KIND_CLASSES).flatMap(([k, ws]) => ws.map((w) => [stem(w), k] as const)),
+);
+
+const PREPOSITIONS = new Set(['at', 'for', 'from', 'with', 'in', 'to', 'on', 'of', 'into']);
+
+function splitDescription(s: string): {
+  distinct: string[];
+  kinds: Set<string>;
+  head: string | undefined;
+} {
+  const distinct: string[] = [];
+  const kinds = new Set<string>();
+  for (const w of descriptionWords(s)) {
+    if (DESCRIPTION_FILLER.has(w) || /^\d+$/.test(w)) continue;
+    const k = KIND_OF.get(w);
+    if (k !== undefined) kinds.add(k);
+    else distinct.push(w);
+  }
+  // The head kind: the last kind word before the first preposition
+  // ("groceries for the apartment" → groceries, "Eixample 3br apartment" →
+  // lodging); with none there, the first kind anywhere.
+  const raw = s
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((x) => x !== '');
+  let head: string | undefined;
+  for (const t of raw) {
+    if (PREPOSITIONS.has(t)) break;
+    head = KIND_OF.get(stem(t)) ?? head;
+  }
+  head ??= [...kinds][0];
+  return { distinct, kinds, head };
+}
+
+const wordsMatch = (a: string, b: string): boolean =>
+  a === b || (a.length >= 4 && b.length >= 4 && (a.startsWith(b) || b.startsWith(a)));
+
+/**
  * Does the logged description name the fixture's thing? The fixture's text is
- * a reference label, not exact bytes (`fixtures/README.md`), so one shared
- * content word is enough ("airport taxi" ~ "taxi from the airport", "Barça vs
- * Sevilla tickets" ~ "FC Barcelona vs Sevilla FC"); a filler description
- * ("expense", "total") shares none.
+ * a reference label, not exact bytes (`fixtures/README.md`), so wording may
+ * differ ("airport taxi" ~ "taxi from the airport", "Barça vs Sevilla tickets"
+ * ~ "FC Barcelona vs Sevilla FC"). The rule:
+ * - when the fixture names something distinctive (a place, a team, a venue),
+ *   the log must share one such word; generic kind words never match alone;
+ * - when both name a kind, the kinds must overlap (a ride to Razzmatazz is not
+ *   Razzmatazz tickets);
+ * - when the fixture is only kind words ("groceries for the apartment",
+ *   "coffees"), the log must name its head kind (groceries, not the
+ *   apartment they were for);
+ * - filler ("expense", "€108 total") matches nothing.
  */
 export function sameThing(got: string, want: string): boolean {
-  const g = descriptionWords(got);
-  return descriptionWords(want).some((a) =>
-    g.some(
-      (b) => a === b || (a.length >= 4 && b.length >= 4 && (a.startsWith(b) || b.startsWith(a))),
-    ),
-  );
+  const g = splitDescription(got);
+  const w = splitDescription(want);
+  if (w.distinct.length === 0) return w.head !== undefined && g.kinds.has(w.head);
+  const shared = w.distinct.some((a) => g.distinct.some((b) => wordsMatch(a, b)));
+  if (!shared) return false;
+  if (w.kinds.size === 0 || g.kinds.size === 0) return true;
+  return [...w.kinds].some((k) => g.kinds.has(k));
 }
 
 /**
@@ -498,6 +660,61 @@ function netOf(
   return net;
 }
 
+type NewProposal = StepRecord['newProposals'][number];
+type ProposalDetails = NonNullable<NonNullable<StepRecord['expect']>['proposalDetails']>;
+
+/** One proposal against the line's `proposalDetails`. */
+function proposalDetailChecks(
+  w: string,
+  out: readonly OutboundMessage[],
+  p: NewProposal,
+  pd: ProposalDetails,
+): Check[] {
+  const checks: Check[] = [];
+  const id = p.proposalId;
+  const eq = (k: string, got: unknown, want: unknown): void => {
+    if (want === undefined) return;
+    checks.push({
+      ok: canon(got) === canon(want),
+      what: `${w}: proposal ${id} ${k} ${canon(got)}, expected ${canon(want)}`,
+    });
+  };
+  eq('kind', p.kind, pd.kind);
+  eq('provider', p.provider, pd.provider);
+  eq('itemRef', p.itemRef, pd.itemRef);
+  eq('currency', p.currency, pd.currency);
+  eq('refundable', p.refundable, pd.refundable);
+  eq('paidBy', p.paidBy, pd.paidBy);
+  if (pd.itemRefCount !== undefined) {
+    const n = p.itemRef.split(',').filter((s) => s.trim() !== '').length;
+    checks.push({
+      ok: n === pd.itemRefCount,
+      what: `${w}: proposal ${id} bundles ${String(n)} offer(s), expected ${String(pd.itemRefCount)}`,
+    });
+  }
+  if (pd.quantity !== undefined) {
+    const card = out
+      .map((m) => (m.card?.type === 'booking_proposal' ? m.card : undefined))
+      .find((c) => c?.proposalId === id);
+    checks.push({
+      ok: card !== undefined && card.quantity === pd.quantity,
+      what:
+        card === undefined
+          ? `${w}: no proposal card sent for ${id} (quantity ${String(pd.quantity)} expected)`
+          : `${w}: proposal ${id} card quantity ${String(card.quantity)}, expected ${String(pd.quantity)}`,
+    });
+  }
+  return checks;
+}
+
+/** Does `text` name `name` as a whole word ("Lily's" yes, "Lilypad" no), any case? */
+export function namesMember(text: string, name: string): boolean {
+  const n = name.trim();
+  if (n === '') return false;
+  const esc = n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?<![\\p{L}\\p{N}])${esc}(?![\\p{L}\\p{N}])`, 'iu').test(text);
+}
+
 /** Content screens that would mean an adult-only request was treated as including the minor. */
 const MINOR_SCREEN_CAUSES = ['minor_nightlife', 'minor_alcohol', 'adult_audience_not_named'];
 
@@ -535,7 +752,7 @@ export function detailChecks(
       const got = [exp.description, exp.merchantDisplay ?? ''].join(' ');
       checks.push({
         ok: sameThing(got, ed.description),
-        what: `${w}: expense "${exp.description}" shares no word with expected "${ed.description}"`,
+        what: `${w}: expense "${exp.description}" does not name the expected "${ed.description}"`,
       });
     }
     if (ed.category !== undefined)
@@ -559,42 +776,15 @@ export function detailChecks(
     }
   }
 
+  // Every new proposal is graded; the line's expectation is the one that
+  // matches best (fewest failing checks, first on a tie), so a second
+  // proposal on the line neither hides a wrong first one nor fails a right one.
   const pd = e.proposalDetails;
-  const p = pd === undefined ? undefined : view.newProposals[0];
-  if (pd !== undefined && p !== undefined) {
-    const id = p.proposalId;
-    const eq = (k: string, got: unknown, want: unknown): void => {
-      if (want === undefined) return;
-      checks.push({
-        ok: canon(got) === canon(want),
-        what: `${w}: proposal ${id} ${k} ${canon(got)}, expected ${canon(want)}`,
-      });
-    };
-    eq('kind', p.kind, pd.kind);
-    eq('provider', p.provider, pd.provider);
-    eq('itemRef', p.itemRef, pd.itemRef);
-    eq('currency', p.currency, pd.currency);
-    eq('refundable', p.refundable, pd.refundable);
-    eq('paidBy', p.paidBy, pd.paidBy);
-    if (pd.itemRefCount !== undefined) {
-      const n = p.itemRef.split(',').filter((s) => s.trim() !== '').length;
-      checks.push({
-        ok: n === pd.itemRefCount,
-        what: `${w}: proposal ${id} bundles ${String(n)} offer(s), expected ${String(pd.itemRefCount)}`,
-      });
-    }
-    if (pd.quantity !== undefined) {
-      const card = out
-        .map((m) => (m.card?.type === 'booking_proposal' ? m.card : undefined))
-        .find((c) => c?.proposalId === id);
-      checks.push({
-        ok: card !== undefined && card.quantity === pd.quantity,
-        what:
-          card === undefined
-            ? `${w}: no proposal card sent for ${id} (quantity ${String(pd.quantity)} expected)`
-            : `${w}: proposal ${id} card quantity ${String(card.quantity)}, expected ${String(pd.quantity)}`,
-      });
-    }
+  if (pd !== undefined && view.newProposals.length > 0) {
+    const graded = view.newProposals.map((p) => proposalDetailChecks(w, out, p, pd));
+    const fails = (cs: readonly Check[]): number => cs.filter((c) => !c.ok).length;
+    const best = graded.reduce((a, b) => (fails(b) < fails(a) ? b : a));
+    checks.push(...best);
   }
 
   const bk = e.booking;
@@ -752,6 +942,16 @@ export function detailChecks(
     checks.push({
       ok: actionObserved('reply', view, before),
       what: `${w}: no suggestion for [${list(aud)}] (observed ${observedSummary(view, before)})`,
+    });
+    // A group reply that names someone outside the audience is not a
+    // suggestion for that audience ("Lily can come too").
+    const groupText = groupMessages(view).map(fullText).join('\n');
+    const named = ep.snapshot.members
+      .filter((m) => !aud.includes(m.memberId) && namesMember(groupText, m.displayName))
+      .map((m) => m.memberId);
+    checks.push({
+      ok: named.length === 0,
+      what: `${w}: group reply names ${list(named)}, outside [${list(aud)}]`,
     });
     for (const np of view.newProposals) {
       const extra = np.attendees.filter((a) => !aud.includes(a));
