@@ -1143,6 +1143,23 @@ function count(s: string | undefined): number | undefined {
   return n !== undefined && n >= 1 && n <= 30 ? n : undefined;
 }
 
+/** The kind of place an ask names: a hotel, a hostel, a whole home, or nothing said. */
+export type StayKindAsked = 'hotel' | 'hostel' | 'whole_home' | undefined;
+
+export function stayKindAsked(text: string): StayKindAsked {
+  const t = foldText(text);
+  if (/\bhotels?\b/.test(t)) return 'hotel';
+  if (/\bhostels?\b/.test(t)) return 'hostel';
+  if (/\b(?:airbnb|apartment|apt|flat|villa|house|whole place)\b/.test(t)) return 'whole_home';
+  return undefined;
+}
+
+/** "refundable pls" asks for refundable; "non-refundable is fine" doesn't. */
+export function refundableAsked(text: string): boolean {
+  const t = foldText(text);
+  return /\brefundable\b/.test(t.replace(/\bnon[- ]?refundable\b/g, ' '));
+}
+
 /** "find a 6 person airbnb … under €1500 total" ⇒ search_lodging input, or undefined. */
 export function parseStayAsk(text: string): Record<string, unknown> | undefined {
   const t = foldText(text);
@@ -1154,15 +1171,33 @@ export function parseStayAsk(text: string): Record<string, unknown> | undefined 
     count(new RegExp(String.raw`\bsleeps\s+${N}\b`).exec(t)?.[1]) ??
     count(new RegExp(String.raw`\bfor\s+(?:the\s+)?${N}\b(?!\s*nights?)`).exec(t)?.[1]) ??
     count(new RegExp(String.raw`\b${N}\s+of\s+us\b`).exec(t)?.[1]);
-  const budget =
-    /\b(?:under|below|max|less than|up to)\s*[€$£]?\s?(\d{2,6})(?:[.,]\d{2})?\b(?!\s*(?:a|per|\/)\s*night)/.exec(
-      t,
-    );
+  const maxTotalMinor = stayBudgetMinor(t);
+  const kind = stayKindAsked(t);
   return {
     ...(adults !== undefined ? { adults } : {}),
-    wholeUnit: true,
-    ...(budget !== null ? { maxTotalMinor: Number(budget[1]) * 100 } : {}),
+    // A hotel or hostel ask is not a whole-unit search (T-132 r1 #4).
+    wholeUnit: kind !== 'hotel' && kind !== 'hostel',
+    ...(maxTotalMinor !== undefined ? { maxTotalMinor } : {}),
   };
+}
+
+/**
+ * "under €1500", "under €1,500", "max 1.500€", "below 1.5k", "up to €1,500.50"
+ * ⇒ minor units (T-132 r1 #1); a nightly or per-person figure ("under 300 a
+ * night") is not a total, so undefined.
+ */
+export function stayBudgetMinor(text: string): number | undefined {
+  const m =
+    /\b(?:under|below|max|maximum|less than|up to|at most|no more than)\s*[€$£]?\s?(?:(?<k>\d+(?:[.,]\d+)?)\s?k\b|(?<grouped>\d{1,3}(?:[,.]\d{3})+)(?:[.,](?<cg>\d{2}))?(?!\d)|(?<plain>\d{2,6})(?:[.,](?<cp>\d{2}))?(?!\d))\s*[€$£]?(?!\s*(?:a|per|\/|each)\s*(?:night|nite|person|pp|head)\b)/.exec(
+      foldText(text),
+    );
+  const g = m?.groups;
+  if (g === undefined) return undefined;
+  if (g['k'] !== undefined) return Math.round(Number(g['k'].replace(',', '.')) * 100_000);
+  const whole = g['grouped'] !== undefined ? g['grouped'].replace(/[,.]/g, '') : g['plain'];
+  if (whole === undefined) return undefined;
+  const cents = g['cg'] ?? g['cp'];
+  return Number(whole) * 100 + (cents === undefined ? 0 : Number(cents));
 }
 
 /** Folded words joined by single spaces ("Gràcia!" ⇒ "gracia"). */
@@ -1176,11 +1211,32 @@ function wordsOf(s: string): string {
 interface Stay {
   readonly name: string;
   readonly rateId?: string;
+  readonly kind?: string;
   readonly area: string;
   readonly totalMinor: number;
   readonly currency: string;
   readonly refundable: boolean;
   readonly refundableUntil: string | null;
+}
+
+const KIND_WORD: Readonly<Record<string, string>> = {
+  hotel: 'hotel',
+  hostel: 'hostel',
+  apartment: 'whole apartment',
+  vacation_rental: 'whole place',
+};
+
+function kindMatches(asked: StayKindAsked, kind: string | undefined): boolean {
+  if (asked === undefined || kind === undefined) return true;
+  if (asked === 'whole_home') return kind === 'vacation_rental' || kind === 'apartment';
+  return kind === asked;
+}
+
+function stayRefund(s: Stay): string {
+  if (!s.refundable) return 'non-refundable';
+  return s.refundableUntil === null
+    ? 'refundable'
+    : `free cancel until ${shortDate(s.refundableUntil.slice(0, 10))}`;
 }
 
 export const lodgingResponder: FallbackResponder = {
@@ -1198,13 +1254,17 @@ export const lodgingResponder: FallbackResponder = {
     if (round?.name !== 'search_lodging') return undefined;
     const raw =
       isRecord(round.result) && Array.isArray(round.result['stays']) ? round.result['stays'] : [];
+    const askText = theAsk(req)?.text ?? '';
+    const budget = stayBudgetMinor(askText);
+    // The budget said holds whatever the search returned (T-132 r1 #1).
     const stays = (raw as unknown[]).filter(
       (s): s is Stay =>
         isRecord(s) &&
         typeof s['name'] === 'string' &&
         typeof s['totalMinor'] === 'number' &&
         typeof s['currency'] === 'string' &&
-        typeof s['refundable'] === 'boolean',
+        typeof s['refundable'] === 'boolean' &&
+        (budget === undefined || s['totalMinor'] <= budget),
     );
     if (stays.length === 0) {
       return response(
@@ -1215,41 +1275,58 @@ export const lodgingResponder: FallbackResponder = {
     }
     // The areas the member named ("in eixample or gracia") win; none named, or
     // none of them in the results, and every result stays in (T-132).
-    const words = ` ${wordsOf(theAsk(req)?.text ?? '')} `;
+    const words = ` ${wordsOf(askText)} `;
+    const areaWords = (s: Stay): string => wordsOf(areaOf(s.area) ?? '');
     const inArea = stays.filter((s) => {
-      const area = wordsOf(areaOf(s.area) ?? '');
+      const area = areaWords(s);
       return area.length > 0 && words.includes(` ${area} `);
     });
-    const pool = inArea.length > 0 ? inArea : stays;
-    // Refundable first (SAFETY C5, VOICE §4.1 C): the search lists refundable
-    // stays first, so a refundable best fit is proposed on its rate. The card,
-    // its price and the trade-off line come from the proposal service; the
-    // purchase is still the policy plus every payer's 👍 away (T-132).
-    const best = pool[0]!;
-    if (best.refundable && typeof best.rateId === 'string' && offered(req, 'propose_booking')) {
-      return response(req, '', [
-        call(req, prefix, 2, 'propose_booking', { kind: 'lodging', itemRef: best.rateId }),
-      ]);
-    }
-    const tail = best.refundable
-      ? "nothing's booked. ask me in the group and i'll post it for everyone's 👍"
-      : "nothing refundable fits that, so nothing's booked. raise the budget or try other dates";
-    const refund = best.refundable
-      ? best.refundableUntil === null
-        ? 'refundable'
-        : `free cancel until ${shortDate(best.refundableUntil.slice(0, 10))}`
-      : 'non-refundable';
-    const lines = [
-      `best fit: ${best.name}`,
-      `${fmt(best.totalMinor, best.currency)} for the trip · ${refund}`,
-    ];
-    const cheaperLocked = stays.find((s) => !s.refundable && s.totalMinor < best.totalMinor);
-    if (best.refundable && cheaperLocked !== undefined) {
-      lines.push(
-        `there's a ${fmt(cheaperLocked.totalMinor, cheaperLocked.currency)} one but it's non-refundable`,
+    const areas = [...new Set(inArea.map(areaWords))];
+    const byArea = inArea.length > 0 ? inArea : stays;
+    // The kind of place asked for (T-132 r1 #4): none of that kind ⇒ say so
+    // and ask, never a card for a different kind of place.
+    const kindAsked = stayKindAsked(askText);
+    const pool = byArea.filter((s) => kindMatches(kindAsked, s.kind));
+    const wantsRefundable = refundableAsked(askText);
+    if (pool.length === 0) {
+      const alt = byArea.find((s) => s.refundable) ?? byArea[0]!;
+      const what = kindAsked === 'whole_home' ? 'whole place' : (kindAsked ?? 'place');
+      return response(
+        req,
+        [
+          `no ${what} fits that for everyone, so nothing's booked`,
+          `closest is a ${KIND_WORD[alt.kind ?? ''] ?? 'place'}: ${alt.name}, ${fmt(alt.totalMinor, alt.currency)} for the trip · ${stayRefund(alt)}. want that one?`,
+        ].join('\n'),
+        [],
       );
     }
-    lines.push(tail);
+    // Refundable first (SAFETY C5, VOICE §4.1 C). A non-refundable stay is
+    // proposed only when refundable wasn't asked for, and its card says so.
+    // The card, its price and the trade-off line come from the proposal
+    // service; the purchase is still the policy plus every payer's 👍 away.
+    const best = pool.find((s) => s.refundable) ?? (wantsRefundable ? undefined : pool[0]);
+    if (best !== undefined && typeof best.rateId === 'string' && offered(req, 'propose_booking')) {
+      return response(req, '', [
+        call(req, prefix, 2, 'propose_booking', {
+          kind: 'lodging',
+          itemRef: best.rateId,
+          ...(budget !== undefined ? { maxTotalMinor: budget } : {}),
+          ...(areas.length > 0 ? { areas } : {}),
+        }),
+      ]);
+    }
+    const shown = best ?? pool[0]!;
+    const lines = [
+      `best fit: ${shown.name}`,
+      `${fmt(shown.totalMinor, shown.currency)} for the trip · ${stayRefund(shown)}`,
+    ];
+    if (best === undefined) {
+      lines.push(
+        "nothing refundable fits that, so nothing's booked. raise the budget or try other dates",
+      );
+    } else {
+      lines.push("nothing's booked. ask me in the group and i'll post it for everyone's 👍");
+    }
     return response(req, lines.join('\n'), []);
   },
 };

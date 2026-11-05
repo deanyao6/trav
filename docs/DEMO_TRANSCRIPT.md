@@ -57,7 +57,7 @@ _tue feb 3 · 8:31pm_
 - **Dean**: ok now a place. @trav find a 6 person airbnb in eixample or gracia, under €1500 total, refundable
 - **trav**: found a place for 6: Eixample 3BR with balcony, mar 12–17
       €1,380 for 5 nights · €230 each · free cancel until mar 7
-      there's a €1,190 one in Poblenou but it's non-refundable, so i'd go with this
+      there's a €1,250 one in Eixample but it's non-refundable, so i'd go with this
       Dean, Henry, Maya, Jordan, Priya, Sam · on Dean's card, split 6 ways on the tab
       lodging is on everyone paying, so all 6 of you have to 👍
       👍 to book, or say "not me" first. open for 15 min

@@ -33,6 +33,16 @@ export function parseProposeInput(raw: unknown): ProposeInput {
   if (offerId !== undefined) out.offerId = offerId;
   const itemRef = optString(r, 'itemRef', 80);
   if (itemRef !== undefined) out.itemRef = itemRef;
+  const maxTotalMinor = optInt(r, 'maxTotalMinor');
+  if (maxTotalMinor !== undefined) {
+    if (maxTotalMinor <= 0) bad('maxTotalMinor must be positive');
+    out.maxTotalMinor = maxTotalMinor;
+  }
+  const areas = optStringArray(r, 'areas');
+  if (areas !== undefined) {
+    if (areas.length > 6 || areas.some((a) => a.length > 40)) bad('areas is a few place names');
+    out.areas = areas;
+  }
   const attendees = optStringArray(r, 'attendeeMemberIds');
   if (attendees !== undefined) out.attendeeMemberIds = attendees;
   const excludedIds = optStringArray(r, 'excludedMemberIds');
@@ -85,6 +95,16 @@ export function createProposeBookingTool(
         eventId: { type: 'string' },
         offerId: { type: 'string' },
         itemRef: { type: 'string', description: 'lodging: the rateId from search_lodging' },
+        maxTotalMinor: {
+          type: 'integer',
+          minimum: 1,
+          description: 'lodging: the budget the member said, in minor units; never propose over it',
+        },
+        areas: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'lodging: the neighbourhoods the member asked for, e.g. ["eixample"]',
+        },
         attendeeMemberIds: { type: 'array', items: { type: 'string' } },
         excludedMemberIds: { type: 'array', items: { type: 'string' } },
         excludedNames: { type: 'array', items: { type: 'string' } },

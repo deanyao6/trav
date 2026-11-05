@@ -91,6 +91,10 @@ export interface ProposeInput {
   readonly offerId?: string;
   /** Lodging: the `rateId` from `search_lodging` (T-132). */
   readonly itemRef?: string;
+  /** Lodging: the most the member said the stay may cost, in trip minor units; a dearer live rate is never proposed (T-132 r1 #1). */
+  readonly maxTotalMinor?: number;
+  /** Lodging: the neighbourhoods the member asked for; the non-refundable trade-off line stays inside them (T-132 r1 #5). */
+  readonly areas?: readonly string[];
   /** Exactly who is going; wins over quantity and roster. */
   readonly attendeeMemberIds?: readonly MemberId[];
   /** Named out ("Henry's sick"), by id or by display name. */
@@ -1255,6 +1259,14 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
       };
     }
     const rate = rechecked.value;
+    // The budget the member said holds at the live price (T-132 r1 #1).
+    if (input.maxTotalMinor !== undefined && rate.totalAmount.amountMinor > input.maxTotalMinor) {
+      return {
+        kind: 'unavailable',
+        reason: 'not_found',
+        text: `that one's ${formatMoney(rate.totalAmount)}, over the ${formatMoney(money(input.maxTotalMinor, rate.totalAmount.currency))} you said, so nothing's booked\n@ me with a bigger budget or another area`,
+      };
+    }
 
     // ---- 2. who's staying ----
     const existing = findLodgingActivity(group, trip, undefined, input.activityId);
@@ -1294,7 +1306,16 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
     const refundable = refundableNow(rate, now);
     const totalMinor = rate.totalAmount.amountMinor;
     const currency = rate.totalAmount.currency;
+    // The trade-off is a like-for-like stay (T-132 r1 #5): the same kind of
+    // place, sleeping everyone, in the areas asked when any were.
+    const areas = (input.areas ?? []).map((a) => foldText(a).trim()).filter((a) => a.length > 0);
     const fits = results
+      .filter((r) => property === undefined || r.property.kind === property.kind)
+      .filter((r) => {
+        if (areas.length === 0) return true;
+        const area = foldText(areaOf(r.property.place.address) ?? '');
+        return areas.includes(area);
+      })
       .map((r) => ({ ...r, rates: r.rates.filter((x) => x.sleeps >= attendees.length) }))
       .filter((r) => r.rates.length > 0);
     const cheaperLocked = refundable

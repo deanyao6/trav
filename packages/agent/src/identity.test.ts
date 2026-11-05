@@ -227,18 +227,58 @@ describe('detectClaimedApproval', () => {
       "i'm confirming it for Henry, he's busy",
       'i can 👍 for henry',
       "henry's out, let me approve for him",
+      // r1 #3: bare and past forms
+      'yes on behalf of henry',
+      'approve on behalf of henry',
+      'approved for henry',
+      '👍 for henry',
     ]) {
       expect(detectClaimedApproval(text, members, 'mem_jordan'), text).toEqual(henry);
     }
     // Nobody (or several) named: still never the sender's own 👍.
     expect(detectClaimedApproval("i'll approve for him", members, 'mem_jordan')).toEqual({
       kind: 'proxy',
+      others: [],
     });
     expect(
       detectClaimedApproval("dean and maya are busy, i'll approve for them", members, 'mem_jordan'),
-    ).toEqual({ kind: 'proxy' });
-    expect(detectClaimedApproval("i'll confirm it for everyone", members, 'mem_jordan')).toEqual({
+    ).toEqual({ kind: 'proxy', others: ['mem_dean', 'mem_maya'] });
+    expect(detectClaimedApproval('approve for dean and maya', members, 'mem_jordan')).toEqual({
       kind: 'proxy',
+      others: ['mem_dean', 'mem_maya'],
+    });
+  });
+
+  it('T-132 r1 #2/#3: the sender in the "for" list is their own approval plus a claim for the rest', () => {
+    const cases: [string, unknown][] = [
+      ['yes i approve for all of us', { kind: 'with_self', others: [], group: true }],
+      ['i approve for the group', { kind: 'with_self', others: [], group: true }],
+      ["i'll confirm it for everyone", { kind: 'with_self', others: [], group: true }],
+      ['i approve for both of us', { kind: 'with_self', others: [], group: true }],
+      ['i approve for me and henry', { kind: 'with_self', others: ['mem_henry'], group: false }],
+      ['yes for henry too', { kind: 'with_self', others: ['mem_henry'], group: false }],
+      [
+        'i approve for jordan and henry',
+        { kind: 'with_self', others: ['mem_henry'], group: false },
+      ],
+    ];
+    for (const [text, want] of cases) {
+      expect(detectClaimedApproval(text, members, 'mem_jordan'), text).toEqual(want);
+    }
+  });
+
+  it("T-132 r1 #2: a guardian approving for their own minor is the guardian's own approval (D-028)", () => {
+    const lily = { ...minor('mem_lily', 'Lily', 'h_lily'), guardianMemberId: 'mem_dean' };
+    const family = [...members, lily];
+    expect(detectClaimedApproval("i'll approve for lily, she's in", family, 'mem_dean')).toEqual({
+      kind: 'with_self',
+      others: [],
+      group: false,
+    });
+    // Someone else's minor is still a claim for them.
+    expect(detectClaimedApproval("i'll approve for lily, she's in", family, 'mem_maya')).toEqual({
+      kind: 'named',
+      claimedFor: 'mem_lily',
     });
   });
 
@@ -310,6 +350,45 @@ describe('gateApproval (SAFETY §2.5 pre-check)', () => {
         text,
       ).toEqual({ kind: 'ignored', cause: 'claimed_for_other' });
     }
+  });
+
+  it('T-132 r1 #2: a required approver\'s "i approve for all of us" counts as theirs; the rest is a claim', () => {
+    expect(decision.requiredApprovers).toContain('mem_dean');
+    const bound = { boundProposalId: proposal.proposalId };
+    expect(gateApproval(input(dean, { text: 'yes i approve for all of us', ...bound }))).toEqual({
+      kind: 'candidate',
+      proposal,
+      relayedFor: { others: [], group: true },
+    });
+    expect(gateApproval(input(dean, { text: 'i approve for the group', ...bound }))).toEqual({
+      kind: 'candidate',
+      proposal,
+      relayedFor: { others: [], group: true },
+    });
+    expect(gateApproval(input(dean, { text: 'i approve for me and henry' }))).toEqual({
+      kind: 'candidate',
+      proposal,
+      relayedFor: { others: ['mem_henry'], group: false },
+    });
+    // Not a required approver: nothing of it counts.
+    const henry: Identity = { kind: 'member', member: members[1]! };
+    expect(gateApproval(input(henry, { text: 'i approve for all of us', ...bound }))).toEqual({
+      kind: 'ignored',
+      cause: 'claimed_for_other',
+    });
+  });
+
+  it("T-132 r1 #2: a guardian's \"i'll approve for lily\" is the guardian's own approval, nothing relayed", () => {
+    const lily = { ...minor('mem_lily', 'Lily', 'h_lily'), guardianMemberId: 'mem_dean' };
+    expect(
+      gateApproval(
+        input(dean, {
+          text: "i'll approve for lily, she's in",
+          members: [...members, lily],
+          boundProposalId: proposal.proposalId,
+        }),
+      ),
+    ).toEqual({ kind: 'candidate', proposal });
   });
 
   it('a bound card wins; an unknown bound card is no_pending', () => {

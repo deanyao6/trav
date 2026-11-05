@@ -33,6 +33,9 @@ import {
   lodgingResponder as rawLodging,
   parseRememberAsk,
   parseStayAsk,
+  refundableAsked,
+  stayBudgetMinor,
+  stayKindAsked,
   rememberResponder as rawRemember,
 } from './asks.js';
 import type { Member } from '@trav/core';
@@ -1104,6 +1107,64 @@ describe('lodging, remember, honest gaps', () => {
       expect(res.toolCalls).toEqual([]);
       expect(res.text).toContain('non-refundable');
       expect(res.text).toContain("nothing refundable fits that, so nothing's booked");
+    });
+
+    it('r1 #1: budgets with a thousands comma, a dot, "k" and cents; nightly figures are not totals', () => {
+      expect(stayBudgetMinor('find an airbnb under €1,500 total')).toBe(150000);
+      expect(stayBudgetMinor('find an airbnb under €1,000')).toBe(100000);
+      expect(stayBudgetMinor('max 1.500€')).toBe(150000);
+      expect(stayBudgetMinor('below 1.5k')).toBe(150000);
+      expect(stayBudgetMinor('up to €1,500.50')).toBe(150050);
+      expect(stayBudgetMinor('under €1500')).toBe(150000);
+      expect(stayBudgetMinor('under 300 a night')).toBeUndefined();
+      expect(stayBudgetMinor('a place near the beach')).toBeUndefined();
+      expect(parseStayAsk('find a 6 person airbnb under €1,000 total')).toMatchObject({
+        maxTotalMinor: 100000,
+      });
+    });
+
+    it('r1 #1: a stay over the budget said is never proposed, even if the search returned it', () => {
+      const thousand = round2(
+        'Dean: @trav find a 6 person airbnb in eixample, under €1,000 total',
+        [stay({ rateId: 'rate_eix', area: "Carrer d'Aragó 255, Eixample", totalMinor: 138000 })],
+      );
+      expect(thousand.toolCalls).toEqual([]);
+      expect(thousand.text).toMatch(/^nothing fits that/);
+      const ok = round2('Dean: @trav find a 6 person airbnb in eixample, under €1,500 total', [
+        stay({ rateId: 'rate_eix', area: "Carrer d'Aragó 255, Eixample", totalMinor: 138000 }),
+      ]);
+      expect(ok.toolCalls[0]!.input).toEqual({
+        kind: 'lodging',
+        itemRef: 'rate_eix',
+        maxTotalMinor: 150000,
+        areas: ['eixample'],
+      });
+    });
+
+    it('r1 #4: a hotel ask with no hotel that fits asks about the whole place instead of carding it', () => {
+      expect(stayKindAsked('find us a hotel for 6')).toBe('hotel');
+      expect(parseStayAsk('find us a hotel for 6')).toMatchObject({ wholeUnit: false });
+      const res = round2('Dean: @trav find us a hotel for 6 in eixample', [
+        stay({ rateId: 'rate_eix', area: "Carrer d'Aragó 255, Eixample", kind: 'vacation_rental' }),
+      ]);
+      expect(res.toolCalls).toEqual([]);
+      expect(res.text).toBe(
+        "no hotel fits that for everyone, so nothing's booked\nclosest is a whole place: Place, €1,380 for the trip · free cancel until mar 7. want that one?",
+      );
+      const hotel = round2('Dean: @trav find us a hotel for 6', [
+        stay({ rateId: 'rate_eix', kind: 'vacation_rental' }),
+        stay({ rateId: 'rate_hotel', kind: 'hotel', totalMinor: 150000 }),
+      ]);
+      expect(hotel.toolCalls[0]!.input).toMatchObject({ itemRef: 'rate_hotel' });
+    });
+
+    it('r1 #4: refundable not asked ⇒ a non-refundable best fit is proposed (its card says non-refundable)', () => {
+      expect(refundableAsked('refundable pls')).toBe(true);
+      expect(refundableAsked('non-refundable is fine')).toBe(false);
+      const res = round2('Dean: @trav find a 6 person airbnb in eixample', [
+        stay({ rateId: 'rate_nr', area: 'y, Eixample', refundable: false, refundableUntil: null }),
+      ]);
+      expect(res.toolCalls[0]!.input).toMatchObject({ kind: 'lodging', itemRef: 'rate_nr' });
     });
 
     it('no propose_booking offered ⇒ the stay in text, with its refund date in VOICE time', () => {

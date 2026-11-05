@@ -69,7 +69,12 @@ describe('lodging ask in chat (T-132)', () => {
     const asked = h.model.responses
       .flatMap((r) => r.toolCalls)
       .find((c) => c.name === 'propose_booking');
-    expect(asked?.input).toEqual({ kind: 'lodging', itemRef: EIXAMPLE });
+    expect(asked?.input).toEqual({
+      kind: 'lodging',
+      itemRef: EIXAMPLE,
+      maxTotalMinor: 150000,
+      areas: ['eixample', 'gracia'],
+    });
     expect(proposal).toMatchObject({
       kind: 'lodging',
       provider: 'mock-lodging',
@@ -104,7 +109,7 @@ describe('lodging ask in chat (T-132)', () => {
       [
         'found a place for 6: Eixample 3BR with balcony, mar 12–17',
         '€1,380 for 5 nights · €230 each · free cancel until mar 7',
-        "there's a €1,190 one in Poblenou but it's non-refundable, so i'd go with this",
+        "there's a €1,250 one in Eixample but it's non-refundable, so i'd go with this",
         "Dean, Henry, Maya, Jordan, Priya, Sam · on Dean's card, split 6 ways on the tab",
         'lodging is on everyone paying, so all 6 of you have to 👍',
         '👍 to book, or say "not me" first. open for 15 min',
@@ -178,6 +183,46 @@ describe('lodging ask in chat (T-132)', () => {
       .listActivities(T)
       .filter((a) => a.kind === 'lodging');
     expect(plans).toHaveLength(2);
+  });
+
+  it('r1 #2: "yes i approve for all of us" and "i approve for me and henry" count only for the sender', async () => {
+    const h = planning();
+    const { card } = await ask(h);
+    const cardId = card!.id;
+    const granted = (): string[] =>
+      h
+        .audit()
+        .filter((e) => e.type === 'approval.granted')
+        .map((e) => String((e.payload as Record<string, unknown>)['memberId']));
+    const lastInvalid = () =>
+      h
+        .audit()
+        .filter((e) => e.type === 'approval.invalid_attempt')
+        .at(-1)?.payload;
+
+    const dean = await h.say('h_dean', 'yes i approve for all of us', { replyToMessageId: cardId });
+    expect(dean.note).toBe('approval:handled');
+    expect(granted()).toEqual(['mem_dean']);
+    expect(lastInvalid()).toMatchObject({
+      cause: 'claimed_for_other',
+      claimKind: 'with_self',
+      group: true,
+      partial: true,
+    });
+
+    const jordan = await h.say('h_jordan', 'i approve for me and henry', {
+      replyToMessageId: cardId,
+    });
+    expect(jordan.note).toBe('approval:handled');
+    expect(granted()).toEqual(['mem_dean', 'mem_jordan']);
+    expect(lastInvalid()).toMatchObject({ claimedFor: 'mem_henry', claimedForAll: ['mem_henry'] });
+    expect(stays(h)).toHaveLength(0);
+
+    for (const who of ['h_maya', 'h_priya', 'h_sam']) await h.react(who, cardId, '👍');
+    // Henry's part was never his: nothing is booked until his own 👍.
+    expect(stays(h)).toHaveLength(0);
+    await h.react('h_henry', cardId, '👍');
+    expect(stays(h)).toHaveLength(1);
   });
 
   it('asking again while it waits does not post a second card', async () => {
@@ -458,6 +503,40 @@ describe('proposal service, lodging (T-132)', () => {
     if (again.kind !== 'proposal') return;
     expect(again.proposal.itemRef).toBe(EIXAMPLE);
     expect(again.proposal.payers.every((p) => p.shareMinor === 27600)).toBe(true);
+  });
+
+  it('r1 #1: a live rate over the budget said is refused with one line, nothing written', async () => {
+    const s = service();
+    const res = await s.propose({ itemRef: EIXAMPLE, maxTotalMinor: 100000 });
+    expect(res).toMatchObject({ kind: 'unavailable' });
+    if (res.kind === 'unavailable') {
+      expect(res.text).toBe(
+        "that one's €1,380, over the €1,000 you said, so nothing's booked\n@ me with a bigger budget or another area",
+      );
+    }
+    expect(s.stores.group.audit.listByGroup(G)).toHaveLength(0);
+    // Re-priced over the budget (gràcia €1,640 ⇒ €1,720): refused at the live price.
+    const repriced = await s.propose({ itemRef: 'rate_bcn_gracia_flex', maxTotalMinor: 170000 });
+    expect(repriced).toMatchObject({ kind: 'unavailable' });
+    expect((await s.propose({ itemRef: EIXAMPLE, maxTotalMinor: 138000 })).kind).toBe('proposal');
+  });
+
+  it('r1 #5: the non-refundable trade-off is the same kind of place, in the areas asked', async () => {
+    const line = async (areas?: string[]) => {
+      const s = service();
+      const res = await s.propose({ itemRef: EIXAMPLE, ...(areas !== undefined ? { areas } : {}) });
+      if (res.kind !== 'proposal') throw new Error(res.kind);
+      return res.text.split('\n').find((l) => l.startsWith("there's a")) ?? null;
+    };
+    // No area asked: the cheapest non-refundable whole place anywhere.
+    expect(await line()).toBe(
+      "there's a €1,190 one in Poblenou but it's non-refundable, so i'd go with this",
+    );
+    expect(await line(['eixample', 'gracia'])).toBe(
+      "there's a €1,250 one in Eixample but it's non-refundable, so i'd go with this",
+    );
+    // Nothing non-refundable and cheaper in Gràcia: no trade-off line.
+    expect(await line(['gracia'])).toBeNull();
   });
 
   it('without a lodging adapter, stays stay unsupported', async () => {

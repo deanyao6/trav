@@ -74,8 +74,20 @@ export type ClaimedApproval =
   | { readonly kind: 'named'; readonly claimedFor: MemberId }
   /** "everyone's in": a claim about the group that names nobody in particular. */
   | { readonly kind: 'everyone' }
-  /** "i'll approve for him" naming nobody: relayed consent, never the sender's own 👍 (T-132). */
-  | { readonly kind: 'proxy' };
+  /**
+   * "i'll approve for him" / "approve for dean and maya": relayed consent for
+   * others only (named in `others` when the text names them), never the
+   * sender's own 👍 (T-132).
+   */
+  | { readonly kind: 'proxy'; readonly others: readonly MemberId[] }
+  /**
+   * "i approve for all of us", "i approve for me and henry", a guardian's
+   * "i'll approve for lily": the sender's OWN approval (it counts where they
+   * are a required approver), plus a claim for `others` (or, `group`, for
+   * everyone else) that never counts (T-132 r1 #2). A guardian approving for
+   * their own minor is only their own approval (D-028).
+   */
+  | { readonly kind: 'with_self'; readonly others: readonly MemberId[]; readonly group: boolean };
 
 /**
  * "Dean said it's fine", "Dean's ok", "Dean is good". Attendance words ("in",
@@ -123,44 +135,131 @@ export function detectClaimedApproval(
     const re = new RegExp(`\\b${escapeRegExp(name)}${SAID_YES}`, 'i');
     if (re.test(t)) return { kind: 'named', claimedFor: m.memberId };
   }
-  const proxy = PROXY_APPROVAL.exec(t);
-  if (proxy !== null) {
-    // "i'll approve for henry" / "henry's at practice, i'll approve for him":
-    // relayed consent (SAFETY §2.5, T-132). The person meant is the member
-    // named, else (a pronoun) the only other member the text names; else
-    // nobody in particular, and it still never counts as the sender's own 👍.
-    // "i approve for sure" names no one: not a proxy.
-    const others = members.filter((m) => m.memberId !== sender && m.displayName.trim().length > 0);
-    const named = (s: string) =>
-      others.filter((m) => new RegExp(`\\b${escapeRegExp(m.displayName.trim())}\\b`, 'i').test(s));
-    const who = (proxy[1] ?? proxy[2] ?? '').toLowerCase().replace(/'s$/, '');
-    const direct = named(who);
-    if (direct.length > 0 || PROXY_PRONOUN.test(who)) {
-      const inText = direct.length > 0 ? direct : named(t);
-      return inText.length === 1
-        ? { kind: 'named', claimedFor: inText[0]!.memberId }
-        : { kind: 'proxy' };
+  const relay = relayedApproval(t, members, sender);
+  if (relay !== undefined) {
+    if (relay.self) return { kind: 'with_self', others: relay.others, group: relay.group };
+    if (relay.others.length === 1 && !relay.group && !relay.unresolved) {
+      return { kind: 'named', claimedFor: relay.others[0]! };
     }
+    return { kind: 'proxy', others: relay.others };
   }
   if (EVERYONE_IN.test(t)) return { kind: 'everyone' };
   return undefined;
 }
 
 /**
- * "i'll approve for him", "approving on henry's behalf", "i can 👍 for maya",
- * "we'll confirm it for everyone": the sender approving for someone else. The
- * approval is the sender's own act (first person, or a bare "approving …"),
- * so "can you confirm for everyone what time" is not one. Group 1 (or 2, the
- * "on X's behalf" form) is who it is for.
+ * An approval word, then who it is "for" ("i'll approve for him", "approve on
+ * behalf of henry", "approved for henry", "👍 for henry", "yes for henry too",
+ * "i approve for me and henry", "i approve for both of us"), or "… on henry's
+ * behalf". The subject, if any, is the sender ("can you confirm for everyone
+ * what time" is a question to Trav, not an approval).
  */
-const PROXY_VERB = String.raw`(?:\b(?:i|i'll|ill|i will|i'm|im|i am|let me|i can|i'd|we'll|we will|we can)\s+(?:just\s+|gonna\s+|going to\s+|also\s+)?(?:approve|approving|confirm|confirming|👍|sign off|signing off|say yes|saying yes|vote yes)|\b(?:approving|confirming|signing off))`;
-const PROXY_APPROVAL = new RegExp(
-  String.raw`${PROXY_VERB}\s+(?:it\s+|this\s+|that\s+|(?:this|that|the) one\s+)?(?:(?:for|on behalf of|in place of|instead of)\s+(him|her|them|everyone|everybody|all of (?:us|them)|the group|[\p{L}][\p{L}'-]*)(?![\p{L}])|on\s+(his|her|their|[\p{L}][\p{L}-]*'s)\s+behalf\b)`,
+const RELAY_VERB = String.raw`(?:^|[\s,.!:;(])(?<subj>(?:i|i'll|ill|i will|i'm|im|i am|let me|i can|i'd|we'll|we will|we can)\s+(?:just\s+|gonna\s+|going to\s+|also\s+)?)?(?:approve[sd]?|approving|confirm(?:s|ed|ing)?|yes|yep|👍|sign(?:ed|ing)? off|say(?:ing)? yes|vote yes)`;
+const RELAY_FOR = new RegExp(
+  String.raw`${RELAY_VERB}\s*(?:it\s+|this\s+|that\s+|(?:this|that|the) one\s+)?(?<too>too\s+|also\s+)?(?:for|on behalf of|in place of|instead of)\s+(?<who>[^.!?;]*)`,
   'iu',
 );
-/** Who a proxy approval can be for without a name. */
-const PROXY_PRONOUN =
-  /^(?:him|her|them|his|their|everyone|everybody|all of us|all of them|the group)$/;
+const RELAY_BEHALF = new RegExp(
+  String.raw`${RELAY_VERB}\s*(?:it\s+|this\s+|that\s+)?on\s+(?<who>his|her|their|[\p{L}][\p{L}-]*'s)\s+behalf\b`,
+  'iu',
+);
+/** A bare verb asked of someone else ("can you confirm for everyone …") is no approval. */
+const ASKED_OF_OTHERS =
+  /\b(?:you|u|they|he|she|to|should|would|could|can|will|did|does|do|pls|please)\s*$/i;
+/** Who "for …" can mean without a name. */
+const SELF_WORDS = new Set(['me', 'myself', 'mine']);
+const GROUP_PHRASES =
+  /\b(?:both of us|all of us|us all|us both|all of them|both of them|the (?:whole )?group|everyone|everybody|all six|all 6)\b/g;
+const PRONOUNS = new Set(['him', 'her', 'them', 'his', 'their']);
+const CONNECTORS = new Set(['and', '&', 'plus', 'too', 'also', ',']);
+
+interface Relay {
+  readonly others: MemberId[];
+  readonly self: boolean;
+  readonly group: boolean;
+  /** A pronoun nobody in the text resolves. */
+  readonly unresolved: boolean;
+}
+
+/**
+ * Who an approval "for …" is for (T-132): the sender themself ("me", their
+ * own name, "all of us"/"the group", and a guardian's own minor, D-028), the
+ * other members it names (a pronoun resolves to the other members the text
+ * names), and whether it speaks for the whole group. Undefined when the
+ * words after "for" name nobody ("i approve for sure").
+ */
+function relayedApproval(
+  t: string,
+  members: readonly Member[],
+  sender: MemberId | null,
+): Relay | undefined {
+  const forMatch = RELAY_FOR.exec(t);
+  const match = forMatch ?? RELAY_BEHALF.exec(t);
+  if (match === null) return undefined;
+  if (match.groups?.['subj'] === undefined && ASKED_OF_OTHERS.test(t.slice(0, match.index + 1))) {
+    return undefined;
+  }
+  const tail = (match.groups?.['who'] ?? '').toLowerCase();
+  if (tail.length === 0) return undefined;
+  const people = members.filter((m) => m.displayName.trim().length > 0);
+  const nameOf = (w: string): Member | undefined =>
+    people.find((m) => m.displayName.trim().toLowerCase() === w.replace(/'s$/, ''));
+  let group = false;
+  const words = tail
+    .replace(GROUP_PHRASES, () => {
+      group = true;
+      return ' ';
+    })
+    .replace(/,/g, ' , ')
+    .split(/\s+/)
+    .filter(Boolean);
+  const targets = new Set<MemberId>();
+  // "yes for henry too": the sender says yes as well.
+  let self = group || match.groups?.['too'] !== undefined;
+  let pronoun = false;
+  for (const w of words) {
+    if (w === 'too' || w === 'also') self = true;
+    if (CONNECTORS.has(w)) continue;
+    if (SELF_WORDS.has(w)) {
+      self = true;
+      continue;
+    }
+    if (PRONOUNS.has(w)) {
+      pronoun = true;
+      continue;
+    }
+    const m = nameOf(w);
+    if (m === undefined) break;
+    targets.add(m.memberId);
+  }
+  if (!self && !pronoun && targets.size === 0) return undefined;
+  let unresolved = false;
+  if (pronoun && targets.size === 0) {
+    // "henry's at practice, i'll approve for him": the other members the text names.
+    const lower = t.toLowerCase();
+    const inText = people.filter(
+      (m) =>
+        m.memberId !== sender &&
+        new RegExp(`\\b${escapeRegExp(m.displayName.trim().toLowerCase())}\\b`).test(lower),
+    );
+    for (const m of inText) targets.add(m.memberId);
+    unresolved = inText.length === 0;
+  }
+  const others: MemberId[] = [];
+  for (const id of targets) {
+    if (id === sender) {
+      self = true;
+      continue;
+    }
+    // A guardian approving for their own minor approves as themself (D-028).
+    if (sender !== null && people.find((m) => m.memberId === id)?.guardianMemberId === sender) {
+      self = true;
+      continue;
+    }
+    others.push(id);
+  }
+  return { others, self, group, unresolved };
+}
 
 /**
  * Approval-shaped words that turn a claim about someone else ("Dean said it's
@@ -193,7 +292,16 @@ export type ApprovalGateCause =
 export type ApprovalGateResult =
   | { readonly kind: 'ignored'; readonly cause: ApprovalGateCause }
   | { readonly kind: 'ambiguous'; readonly candidates: readonly BookingProposal[] }
-  | { readonly kind: 'candidate'; readonly proposal: BookingProposal };
+  | {
+      readonly kind: 'candidate';
+      readonly proposal: BookingProposal;
+      /**
+       * "i approve for me and henry": the sender's own approval is the
+       * candidate; the part said for others (`others`, or `group` for
+       * everyone else) never counts and is audited `claimed_for_other` (T-132).
+       */
+      readonly relayedFor?: { readonly others: readonly MemberId[]; readonly group: boolean };
+    };
 
 export interface ApprovalGateInput {
   readonly identity: Identity;
@@ -231,14 +339,24 @@ export function gateApproval(input: ApprovalGateInput): ApprovalGateResult {
   const me = identity.member.memberId;
 
   let ownAsApprover = false;
+  let relayedFor: { readonly others: readonly MemberId[]; readonly group: boolean } | undefined;
   const claim =
     input.text.length > 0 ? detectClaimedApproval(input.text, input.members, me) : undefined;
   if (claim !== undefined) {
-    if (claim.kind !== 'everyone' || !hasApprovalIntentWord(input.text)) {
+    if (claim.kind === 'with_self') {
+      // The sender's own part counts where they are a required approver; the rest is a claim.
+      if (claim.others.length > 0 || claim.group) {
+        relayedFor = { others: claim.others, group: claim.group };
+      }
+    } else if (claim.kind !== 'everyone' || !hasApprovalIntentWord(input.text)) {
       return { kind: 'ignored', cause: 'claimed_for_other' };
     }
     ownAsApprover = true;
   }
+  const candidate = (proposal: BookingProposal): ApprovalGateResult =>
+    relayedFor === undefined
+      ? { kind: 'candidate', proposal }
+      : { kind: 'candidate', proposal, relayedFor };
   const isApprover = (p: BookingProposal): boolean =>
     input.decisionFor(p.proposalId)?.requiredApprovers.includes(me) === true;
 
@@ -246,7 +364,7 @@ export function gateApproval(input: ApprovalGateInput): ApprovalGateResult {
     const bound = input.pending.find((p) => p.proposalId === input.boundProposalId);
     if (bound === undefined) return { kind: 'ignored', cause: 'no_pending' };
     if (ownAsApprover && !isApprover(bound)) return { kind: 'ignored', cause: 'claimed_for_other' };
-    return { kind: 'candidate', proposal: bound };
+    return candidate(bound);
   }
 
   if (input.pending.length === 0) return { kind: 'ignored', cause: 'no_pending' };
@@ -262,7 +380,7 @@ export function gateApproval(input: ApprovalGateInput): ApprovalGateResult {
     if (own.length === 0) return { kind: 'ignored', cause: 'not_requester' };
     const approvable = own.filter(isApprover);
     if (approvable.length === 0) return { kind: 'ignored', cause: 'claimed_for_other' };
-    if (approvable.length === 1) return { kind: 'candidate', proposal: approvable[0]! };
+    if (approvable.length === 1) return candidate(approvable[0]!);
     return { kind: 'ambiguous', candidates: approvable };
   }
   const candidates = input.pending.filter(input.intent === 'not_me' ? chargedOrMine : mine);

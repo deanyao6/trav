@@ -1133,6 +1133,7 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
         const proposalId = boundProposalId ?? pending[0]?.proposalId;
         invalid('claimed_for_other', proposalId, {
           claimedFor,
+          ...(claim?.kind === 'proxy' ? { claimedForAll: claim.others } : {}),
           claimKind: claim?.kind ?? null,
           addressed,
         });
@@ -1201,6 +1202,19 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       ];
       const sent = await send(r, [message(r, lines.join('\n'))]);
       return finish(sent, 'approval:ambiguous');
+    }
+
+    // "i approve for me and henry": the sender's own part goes on below; the
+    // part said for anyone else is audited and never counts (SAFETY §2.5, T-132).
+    if (gate.relayedFor !== undefined) {
+      invalid('claimed_for_other', gate.proposal.proposalId, {
+        claimedFor: gate.relayedFor.others.length === 1 ? gate.relayedFor.others[0]! : null,
+        claimedForAll: gate.relayedFor.others,
+        claimKind: 'with_self',
+        group: gate.relayedFor.group,
+        partial: true,
+        addressed,
+      });
     }
 
     // A real candidate from an adult member: the approval handler owns the rest (T-030).

@@ -132,11 +132,13 @@
           "name": "propose_booking",
           "input": {
             "kind": "lodging",
-            "itemRef": "rate_bcn_eixample_3br_flex"
+            "itemRef": "rate_bcn_eixample_3br_flex",
+            "maxTotalMinor": 150000,
+            "areas": ["eixample", "gracia"]
           }
         }
       ]
     },
-    "note": "T-021 step 3, round 2 (T-132): keyed on the search_lodging result for the 6-person ask above (mock lodging inventory, trip dates mar 12-17). Refundable first: the model proposes the cheapest refundable rate (Eixample, €1,380) through propose_booking; the proposal card, its VOICE §4.1 C text and the passed-over non-refundable Poblenou line come from the proposal service. Nothing is bought until the policy and every payer approve. If the mock inventory changes, this key misses and the offline lodging responder does the same."
+    "note": "T-021 step 3, round 2 (T-132): keyed on the search_lodging result for the 6-person ask above (mock lodging inventory, trip dates mar 12-17). Refundable first: the model proposes the cheapest refundable rate (Eixample, €1,380) through propose_booking; the proposal card, its VOICE §4.1 C text and the passed-over non-refundable line (same kind, same areas: the €1,250 Eixample rate) come from the proposal service. Nothing is bought until the policy and every payer approve. If the mock inventory changes, this key misses and the offline lodging responder does the same."
   }
 ]
