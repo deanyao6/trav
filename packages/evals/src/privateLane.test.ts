@@ -115,7 +115,12 @@ describe('T-213: C2/C7 hold against a model that leaks on purpose', () => {
         const ep = await runScenario(sc, { mode: 'offline', modelFactory: leakyStandIn(dir) });
         expect(ep.error).toBeUndefined();
         // The stand-in really was asked: DM turns, group turns, echoed prompts.
-        expect(ep.prompts.some((p) => p.lane === 'group')).toBe(true);
+        // T-215 (D-053): tier_private_budget_soft's group lines are all
+        // code's now (suggestions, and the flagship ask through the booking
+        // reader), so no group prompt is built at all there: nothing to leak.
+        if (sc.id !== 'tier_private_budget_soft') {
+          expect(ep.prompts.some((p) => p.lane === 'group')).toBe(true);
+        }
         const results = await privateData.grade(ep, sc, OFFLINE);
         for (const id of ['C2', 'C7']) {
           const graded = results.filter((r) => r.safetyId === id && r.skipped === undefined);

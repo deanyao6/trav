@@ -189,10 +189,10 @@ import {
   type MentionReason,
   type MentionResult,
 } from './mention.js';
-import { bundledVenueIndex } from './model/offline/asks.js';
+import { bundledVenueIndex, createBookingRequestResponder } from './model/offline/asks.js';
 import { isKnownPlace, renderVenueCheck, type VenueSearchResult } from './roster/combined.js';
 import { handleRosterMessage, type RosterTurn } from './roster/turn.js';
-import { detectRollCall, upcomingActivities } from './roster/index.js';
+import { detectRollCall, parseTicketForMe, upcomingActivities } from './roster/index.js';
 import { createInterpreter } from './interpret/interpreter.js';
 import {
   announceFamilyMode,
@@ -455,7 +455,6 @@ const TERMINAL_KINDS = new Set([
   'logged',
   'already_logged',
   'cancelled',
-  'attendance_set',
   'changed',
   'refused',
   'unchanged',
@@ -467,6 +466,14 @@ const TERMINAL_KINDS = new Set([
   // T-168 (b): the ticket options card; the asker's pick is the approval.
   'ticket_options',
 ]);
+/**
+ * T-215: tool results the loop renders itself, but that don't end the turn.
+ * `set_attendance` is usually one step of a booking ("Henry's sick" ⇒ out,
+ * then the card for the rest); ending on it once left a live flagship ask
+ * with a roster line and no card. If nothing that owns the turn follows,
+ * the attendance line is the message (never the model's paraphrase).
+ */
+const SOFT_TERMINAL_KINDS = new Set(['attendance_set']);
 
 const PROPOSAL_ACTIONS: readonly Action[] = [
   {
@@ -1631,6 +1638,9 @@ export function createTravAgent(input: AgentDeps): TravAgent {
         : autoBuyVerdictOnRoster(verdictFor, stores.group, r.trip, rosterMembers, r.now);
     const toolCtx: TurnToolContext = {
       ...(verdict?.eligible === true ? { autoBuy: verdict } : {}),
+      // T-215 (D-053): "can i get one too" prices the sender's own ticket,
+      // read from the member's words here, never from the model.
+      ...(parseTicketForMe(text) !== undefined ? { forSenderOnly: true as const } : {}),
       groupId: r.group.groupId,
       tripId: r.trip?.tripId ?? null,
       senderMemberId: me.memberId,
@@ -1657,18 +1667,35 @@ export function createTravAgent(input: AgentDeps): TravAgent {
 
     const toolCalls: string[] = [];
     const sources: ResponseSource[] = [];
-    const results: { name: string; value: unknown }[] = [];
+    const results: { name: string; value: unknown; input: unknown }[] = [];
     let terminal: { name: string; value: unknown; input: unknown } | undefined;
+    /** T-215: roster lines the model wrote this turn; the turn goes on so a booking can follow. */
+    const softTerminals: { name: string; value: Record<string, unknown>; input: unknown }[] = [];
     let modelText = '';
 
+    // T-215 (D-053): a booking ask the deterministic reader recognises ("get
+    // the 5 of us Razzmatazz tickets, Henry's sick") is answered by that
+    // reader in live mode too: one `propose_booking` built from the member's
+    // words, exactly as offline. A live model once marked Henry out and
+    // ended the turn there, so no card ever reached the chat. The proposal
+    // service and `ApprovalPolicy` still decide everything about the buy.
+    const bookingReader =
+      model.mode === 'live' &&
+      parseBookingRequest(text, bundledVenueIndex(), me.displayName, {
+        roster: rosterMembers.map((m) => m.displayName),
+      }) !== undefined
+        ? createBookingRequestResponder()
+        : undefined;
+
     for (let round = 0; round < maxRounds && terminal === undefined; round += 1) {
-      const res = await model.complete({
-        model: 'main',
+      const req = {
+        model: 'main' as const,
         systemPromptId: prompt.systemPromptId,
         system,
         messages: [...messages],
         tools: toolSpecs,
-      });
+      };
+      const res = bookingReader?.complete?.(req) ?? (await model.complete(req));
       sources.push(res.source);
       if (res.toolCalls.length === 0) {
         modelText = res.text;
@@ -1691,14 +1718,21 @@ export function createTravAgent(input: AgentDeps): TravAgent {
         } catch (e) {
           value = toolErrorResult(e);
         }
-        results.push({ name: call.name, value });
-        if (
-          terminal === undefined &&
-          isRecord(value) &&
-          typeof value['kind'] === 'string' &&
-          TERMINAL_KINDS.has(value['kind'])
-        ) {
-          terminal = { name: call.name, value, input: call.input };
+        results.push({ name: call.name, value, input: call.input });
+        if (isRecord(value) && typeof value['kind'] === 'string') {
+          const kind = value['kind'];
+          if (SOFT_TERMINAL_KINDS.has(kind)) {
+            softTerminals.push({ name: call.name, value, input: call.input });
+          } else if (
+            TERMINAL_KINDS.has(kind) &&
+            (terminal === undefined ||
+              (call.name === 'propose_booking' && terminal.name !== 'propose_booking'))
+          ) {
+            // T-215: a booking result owns the turn over any other terminal
+            // in the same round, so its card (or question) always goes out
+            // and no proposal is left pending with no card in the chat.
+            terminal = { name: call.name, value, input: call.input };
+          }
         }
         toolResults.push({
           type: 'tool_result',
@@ -1707,6 +1741,22 @@ export function createTravAgent(input: AgentDeps): TravAgent {
         });
       }
       messages.push({ role: 'user', content: toolResults });
+    }
+    if (terminal === undefined && softTerminals.length > 0) {
+      // No booking followed: the roster change is the turn's message, in
+      // code's words (each distinct line once, VOICE §3 line cap).
+      const lines = [
+        ...new Set(softTerminals.map((t) => resultText(t.value)).filter((t) => t !== undefined)),
+      ];
+      const first = softTerminals[0]!;
+      terminal = {
+        name: first.name,
+        value: {
+          ...first.value,
+          text: lines.join('\n').split('\n').slice(0, REPLY_MAX_LINES).join('\n'),
+        },
+        input: first.input,
+      };
     }
 
     // VOICE §2: a reply-window turn is Trav guessing that a short message
@@ -1746,7 +1796,38 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     } else {
       let text = clampReply(stripMarkdown(modelText));
       const lastTool = results.at(-1);
+      // T-215 (D-053): in the group lane the tab is always the code-rendered
+      // settle_up card. A live model that read get_balances and typed the
+      // transfers itself got them wrong and lost debtors to the 4-line cap.
+      // The model picks the view (`settle` or `tab`); code renders it.
+      const tabReads = results.filter(
+        (x) => x.name === 'get_balances' && !(isRecord(x.value) && 'error' in x.value),
+      );
+      const settleView = tabReads.some((x) => isRecord(x.input) && x.input['view'] === 'settle');
       if (
+        tabReads.length > 0 &&
+        (text.length > 0 || settleView) &&
+        r.lane === 'group' &&
+        r.trip !== null
+      ) {
+        const rctx = {
+          groupId: r.group.groupId,
+          members: r.members,
+          timeZone: r.trip.timeZone,
+          now: r.now,
+          ids,
+        };
+        if (settleView) {
+          // Squaring up now: the final card, then one DM per payer (T-166).
+          drafts.push(...(await settleFlow.finalSettle({ ctx: toolCtx, rctx, trip: r.trip })));
+          note = 'tool:get_balances:settle_up';
+        } else {
+          // Where things stand: the running tab with the total (read-only, no DMs).
+          drafts.push(renderSettleUpFor(toolCtx, 'running', rctx, { showTotal: true }));
+          note = 'tool:get_balances:tab';
+        }
+        text = '';
+      } else if (
         text.length === 0 &&
         lastTool?.name === 'get_balances' &&
         r.lane === 'group' &&
@@ -1767,11 +1848,12 @@ export function createTravAgent(input: AgentDeps): TravAgent {
         note = 'tool:get_balances:settle_up';
         text = '';
       } else if (
-        text.length === 0 &&
-        lastTool?.name === 'get_balances' &&
         r.lane === 'dm' &&
         r.trip !== null &&
-        !(isRecord(lastTool.value) && 'error' in lastTool.value)
+        ((text.length === 0 &&
+          lastTool?.name === 'get_balances' &&
+          !(isRecord(lastTool.value) && 'error' in lastTool.value)) ||
+          (text.length > 0 && tabReads.length > 0))
       ) {
         // A DM is personal (T-101): the asker's own position, the same line
         // the rules path renders, never the group's transfer list.
@@ -2685,10 +2767,18 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     ) {
       const wantCount = rosterFollowUpCount(text);
       for (const [i, candidate] of rosterTexts(text).entries()) {
-        // T-183: model-first keeps only the read-only roll call ("who's in
+        // T-183: model-first keeps the read-only roll call ("who's in
         // tonight?") as a fast path; a change to the roster is the model's
         // read (`interpretTurn`), validated before the same write path.
-        if (modelFirst && detectRollCall(candidate) === undefined) continue;
+        // T-215 (D-053): the sender's own "can i get one too" stays a fast
+        // path as well. It is one person's ticket by its grammar, and a model
+        // read of it as a booking ask once priced the whole group (A9).
+        if (
+          modelFirst &&
+          detectRollCall(candidate) === undefined &&
+          parseTicketForMe(candidate) === undefined
+        )
+          continue;
         // "henry's in, make it 7" when the change makes 6: the roster handler
         // declines before writing (`expectInCount`), so the clause alone never
         // drops the 7 and the whole message goes to the model (T-066).

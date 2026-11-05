@@ -27,6 +27,13 @@ export interface TurnToolContext extends ToolContext {
    * only when the proposal is exactly that ask.
    */
   readonly autoBuy?: EligibleAutoBuy;
+  /**
+   * T-215 (D-053): the message is the sender asking for a ticket of their own
+   * ("can i get one too"), read by code from the member's words, never from
+   * model output. `propose_booking` then prices one ticket for the sender
+   * only, whoever the model named, and leaves everyone else's roster alone.
+   */
+  readonly forSenderOnly?: true;
 }
 
 export interface SettingsGateway {

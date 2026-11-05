@@ -872,14 +872,29 @@ export function renderSettleUpFor(
   );
 }
 
-export const getBalancesTool: ToolDefinition<Record<string, never>, BalancesResult> = {
+export interface GetBalancesInput {
+  /**
+   * T-215 (D-053): which card the loop posts in the group. `settle`: the
+   * final settle card, with each payer's DM on how to pay; `tab` (default):
+   * where things stand so far, with the total. The numbers are always code's.
+   */
+  readonly view?: 'settle' | 'tab';
+}
+
+export const GET_BALANCES_VIEWS = ['settle', 'tab'] as const;
+
+export const getBalancesTool: ToolDefinition<GetBalancesInput, BalancesResult> = {
   name: 'get_balances',
   description:
-    "The tab: total spent on the trip, each member's net position (positive = is owed) and the minimal set of transfers that settles up. Read-only.",
-  inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    "The tab: total spent on the trip, each member's net position (positive = is owed) and the minimal set of transfers that settles up. Read-only. In the group chat the result is posted as the settle-up card by code; never type the transfers or amounts yourself. view 'settle' when the group is squaring up now (who pays whom to close it out), 'tab' for where things stand so far.",
+  inputSchema: {
+    type: 'object',
+    properties: { view: { type: 'string', enum: [...GET_BALANCES_VIEWS] } },
+    additionalProperties: false,
+  },
   parse: (raw) => {
-    asRecord(raw);
-    return {};
+    const view = optEnum(asRecord(raw), 'view', GET_BALANCES_VIEWS);
+    return view === undefined ? {} : { view };
   },
   handler: async (_input, ctx) => balancesFor(ctx),
 };

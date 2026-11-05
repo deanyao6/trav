@@ -5,7 +5,8 @@
 import type { ProposalService, ProposeInput, ProposeResult } from '../booking/proposals.js';
 import { askedMinutes } from '../booking/request.js';
 import type { JsonSchema } from '../model/client.js';
-import type { ToolDefinition } from './registry.js';
+import type { MemberId } from '@trav/core';
+import type { ToolContext, ToolDefinition } from './registry.js';
 import type { TurnToolContext } from './shared.js';
 import {
   asRecord,
@@ -164,7 +165,7 @@ export function createProposeBookingTool(
       const requester = requireMember(ctx);
       // T-168: only the loop sets this, from the member's own words.
       const autoBuy = (ctx as Partial<TurnToolContext>).autoBuy;
-      return service.propose(input, {
+      return service.propose(senderOnly(input, ctx, requester.memberId), {
         groupId: ctx.groupId,
         tripId: ctx.tripId,
         requestedBy: requester.memberId,
@@ -173,4 +174,24 @@ export function createProposeBookingTool(
       });
     },
   };
+}
+
+/**
+ * T-215 (D-053): "can i get one too" is a ticket for the sender. The party
+ * comes from code, never the model's read: exactly the sender, as a separate
+ * add-on (no one else's roster row is written, and anyone who already holds a
+ * ticket is never bought another). A flight pick keeps its option's travelers.
+ */
+function senderOnly(input: ProposeInput, ctx: ToolContext, sender: MemberId): ProposeInput {
+  if ((ctx as Partial<TurnToolContext>).forSenderOnly !== true) return input;
+  if (input.kind === 'flight') return input;
+  const {
+    attendeeMemberIds: _ids,
+    attendeeNames: _names,
+    excludedMemberIds: _outIds,
+    excludedNames: _outNames,
+    quantity: _quantity,
+    ...rest
+  } = input;
+  return { ...rest, attendeeMemberIds: [sender], rosterMode: 'add_on' };
 }

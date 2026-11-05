@@ -240,11 +240,40 @@ describe('item 0 (T-182 r2): only the message’s own verdict skips the card', (
         });
       },
     };
+    // T-215 (D-053): the flagship words are the deterministic reader's in
+    // live mode too, so this model is never asked and can't propose all 6.
     const h = harness({ model, autoBuyCapMinor: DEFAULT_AUTO_BUY_CAP_MINOR });
-    // The ask is for 5 (Henry out); the model proposes all 6.
     const turn = await h.say('h_dean', RAZZMATAZZ_ASK);
-    expect(h.tickets.purchaseCount()).toBe(0);
-    expect(group(turn).some((m) => m.card?.type === 'booking_proposal')).toBe(true);
+    expect(turn.note).toBe('tool:propose_booking:auto_approved');
+    expect(h.runtime.stores.group.bookings.listByTrip('trip_barcelona')[0]?.attendees).toEqual(
+      FIVE,
+    );
+    // The ask is for 5 (Henry out); a proposal for all 6 under the same
+    // eligible verdict still gets the card, whoever builds it.
+    const six = harness({ autoBuyCapMinor: DEFAULT_AUTO_BUY_CAP_MINOR });
+    const verdict = autoBuyVerdict({
+      text: RAZZMATAZZ_ASK,
+      index: {
+        venues: [{ key: 'razzmatazz', terms: ['razzmatazz'], tierWords: [] }],
+        generic: new Set(),
+      },
+      sender: 'Dean',
+      roster: BARCELONA.members.map((m) => m.name),
+      lane: 'group',
+    });
+    if (!verdict.eligible) throw new Error('setup');
+    const res = await six.runtime.proposals.propose(
+      { kind: 'ticket', query: 'razzmatazz', attendeeMemberIds: SIX },
+      {
+        groupId: G,
+        tripId: 'trip_barcelona',
+        requestedBy: 'mem_dean',
+        sourceMessageId: 'msg_x',
+        autoBuy: verdict,
+      },
+    );
+    expect(res.kind).toBe('proposal');
+    expect(six.tickets.purchaseCount()).toBe(0);
   });
 });
 

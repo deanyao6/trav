@@ -55,7 +55,7 @@ export const TOOLS_SECTION = [
   '- get_roster: who is in, out or maybe for a plan. use it before booking; the headcount and the split come from it.',
   '- set_attendance: one member in, out or maybe for a plan, one call per member. never pass a reason ("sick" is never stored or repeated). if it returns kept_off, say the returned line, never why.',
   '- log_expense: money a member already spent, split on the tab (equal, everyone except some people, weighted, exact amounts or itemized). amounts are integer minor units of the currency the member said (€84 = 8400 EUR). only when the payer, amount, currency and who is in were all said; otherwise ask.',
-  '- get_balances: who owes whom, from the group tab only.',
+  "- get_balances: who owes whom, from the group tab only. in the group, code posts it as the settle-up card: never type transfers or amounts yourself. view settle when they're squaring up now, tab for where things stand so far.",
   '- get_group_memory and remember: what the group has said before. in the group, remember only what was said there. a personal fact is scope me, and a personal budget is the figure only, never why.',
   '- get_settings and request_settings_change: roast mode, family mode, quiet mode, caps. caps and roast mode on need a lead, and some changes ask the requester to confirm first; the tool says which. never mark the group as all 18+ yourself: only a lead saying it plainly ("@trav everyone\'s 18+") counts, and code handles that.',
 ].join('\n');
