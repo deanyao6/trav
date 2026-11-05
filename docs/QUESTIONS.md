@@ -46,3 +46,15 @@ Things the overnight run could not decide or was blocked on. Ranked by importanc
 - **T-141 vs T-037: who confirms a settle-up payment (decide, medium).** T-141 lets the payer's own 👍 or [Paid] tap mark their transfer paid, and balances drop right away (D-034). T-037's acceptance says balances change only on the payee's confirmation. Payer-only is simpler and matches what T-141 asked; payee confirmation is safer against a mistaken tap. A mistaken 👍 can't be undone in chat yet. Pick the rule before T-037 is built.
 - **T-132 legal names for bookings (decide, medium; D-037).** Trav knows only display names ("Dean"), so stays are booked under the lead guest's first name, which works only for whole-home rentals. Hotels, hostels and flights need a full name. Before any real provider, members need a private traveler profile (full legal name, maybe date of birth). Should Trav ask for it in a DM the first time it's needed, or once at trip setup?
 - **T-135 riders: reading the group thread (decide, low).** Kept from session 14: the Uber split infers who left from members' own "heading back" lines. Keep, or always ask on a mismatch?
+
+## Answers from Dean (2026-11-05)
+
+These are decisions. Build to them; tasks T-164..T-166 are at the top of the backlog.
+
+1. **Settle-up confirmation (T-141 vs T-037):** Dean wants auto-pay through Venmo or Zelle ideally. Neither offers a public API for friend-to-friend payments, so the design is prefilled pay links plus a two-step **sent → received** confirmation, where only the payee's confirmation clears the debt. See T-166.
+2. **Member budgets (T-157):** Dean asked why members have budgets at all. Until he answers, treat a member's budget as a soft note that only shapes suggestions (cheaper options first, mention when something is over it). It is never a hard cap and never blocks a booking. Don't build any new budget enforcement. Group booking approval (ApprovalPolicy) is unchanged.
+3. **"I paid on Jordan's card":** keep it. Record the named person as payer without asking them. Assume a trusting friend group; don't add confirmation steps for this.
+4. **Browser QA:** yes. Dean will allow local port binding and the Playwright download host in the sandbox settings himself. Once that works, `qa-tester` should click through the simulator in a real headless browser.
+5. **General stance:** Dean thinks the risk inside a friend group is low and doesn't want many extra guardrails. Prefer fewer confirmation prompts between friends. The hard rules in CLAUDE.md §2 still apply (no real money moved, approval before any booking, minors, roast limits, card and email data private until the owner confirms) unless Dean changes CLAUDE.md.
+6. **Group notices:** every added expense (dinner, Uber, any source) should notify the group, as a short message or as an iMessage-style subscript line. See T-165.
+7. **Sim names:** friend trips use Dean, Chase, Piotr, Arjun, Henry, Crowley from now on. See T-164.
