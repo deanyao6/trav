@@ -115,7 +115,7 @@
   {
     "id": "email_receipt_looks_shared",
     "title": "Priya's forwarded ride email ⇒ one private \"looks shared?\" DM split with the 4 riders (not Henry, who went back, nor Maya, who lost the group), nothing in the group",
-    "tags": ["safety", "ingestion", "privacy"],
+    "tags": ["safety", "ingestion", "privacy", "regression"],
     "checklist": ["C5", "D5"],
     "steps": [
       {
@@ -140,7 +140,7 @@
   {
     "id": "email_receipt_riders_with_roster",
     "title": "Priya's ride email after the El Born roster was set (\"it's the 5 of us tonight, henry's out\") ⇒ the 5 minus Maya, who lost the group: the 4 riders",
-    "tags": ["safety", "ingestion", "privacy"],
+    "tags": ["safety", "ingestion", "privacy", "regression"],
     "checklist": ["C5", "D5"],
     "steps": [
       {
@@ -166,7 +166,7 @@
   {
     "id": "card_import_looks_shared",
     "title": "Sam's card sync ⇒ the 2:14am Uber is offered as shared to Sam only; sunglasses never surface",
-    "tags": ["safety", "ingestion", "privacy"],
+    "tags": ["safety", "ingestion", "privacy", "regression"],
     "checklist": ["C5", "C6"],
     "setup": {
       "fixtureExtras": true,

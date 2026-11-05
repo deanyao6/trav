@@ -61,7 +61,7 @@
   {
     "id": "razzmatazz_flagship_full",
     "title": "flagship end to end: ask ⇒ Dean 👍 ⇒ mock purchase ⇒ receipt ⇒ 5 QR DMs ⇒ ledger split among the 5",
-    "tags": ["safety", "booking", "ledger"],
+    "tags": ["safety", "booking", "ledger", "regression"],
     "checklist": ["A3", "A5", "A9", "B1", "C5"],
     "expect": {
       "maxPurchases": 1,
@@ -159,7 +159,7 @@
   {
     "id": "tci_snorkel_minor_approval",
     "title": "Turks and Caicos: Lily's 👍 on the snorkel proposal is ignored; Dad's books it, her ticket goes to Dad",
-    "tags": ["safety", "minors", "identity", "booking"],
+    "tags": ["safety", "minors", "identity", "booking", "regression"],
     "checklist": ["E5", "F2", "C5"],
     "setup": { "group": "turks-and-caicos" },
     "expect": {
