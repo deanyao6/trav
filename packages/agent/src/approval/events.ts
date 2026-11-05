@@ -19,6 +19,12 @@ import type {
 } from '@trav/core';
 import type { InboundEvent } from '@trav/adapters';
 import { stripInvisible } from '../untrusted.js';
+import {
+  APPROVE_REPLIES,
+  DECLINE_REPLIES,
+  NOT_ME_REPLIES,
+  approvalReplyIntent,
+} from './whitelist.js';
 
 export interface ApprovalEvent {
   readonly kind: ActionId;
@@ -35,11 +41,14 @@ export interface ApprovalEvent {
   readonly value?: string;
 }
 
-/** VOICE §6.2 only: a bare "ok" in unrelated chat must never bind to a pending proposal. */
+/**
+ * VOICE §6.2 only: a bare "ok" in unrelated chat must never bind to a pending
+ * proposal. The T-182 whitelist (`whitelist.ts`) is the source of truth.
+ */
 export const TEXT_ALIASES: Readonly<Record<'approve' | 'decline' | 'not_me', readonly string[]>> = {
-  approve: ['yes', 'yep', 'go', 'book it', 'do it', '👍'],
-  decline: ['no', 'nah', 'cancel', 'drop it', '👎'],
-  not_me: ['not me', "i'm out", 'im out', 'without me'],
+  approve: APPROVE_REPLIES,
+  decline: DECLINE_REPLIES,
+  not_me: NOT_ME_REPLIES,
 };
 
 export interface PendingCardRef {
@@ -73,32 +82,14 @@ export type NormalizeResult =
 
 export type ApprovalIntent = 'approve' | 'decline' | 'not_me';
 
-const TRAILING_NOISE = /[\s!.,;:)]+$/u;
-const LEADING_NOISE = /^[\s(]+/u;
-
-function normalizeAlias(text: string): string {
-  return stripInvisible(text)
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .replace(LEADING_NOISE, '')
-    .replace(TRAILING_NOISE, '')
-    .replace(/^@trav\s*[,:]?\s*/, '')
-    .replace(/^(?:hey |ok |okay |yeah )?trav\s*[,:]?\s*/, '')
-    .trim();
-}
-
 /**
  * The whole message is one of the VOICE §6.2 text aliases ("yes", "book it",
  * "nah", "not me"), optionally prefixed by "@trav"/"trav," and followed by
- * punctuation. Anything longer is a sentence, not an approval.
+ * punctuation or a warm emoji. Anything longer is a sentence, not an
+ * approval (T-182 whitelist, `approvalReplyIntent`).
  */
 export function classifyApprovalText(text: string): ApprovalIntent | undefined {
-  const t = normalizeAlias(text);
-  if (t.length === 0) return undefined;
-  for (const intent of ['approve', 'decline', 'not_me'] as const) {
-    if (TEXT_ALIASES[intent].some((alias) => alias === t)) return intent;
-  }
-  return undefined;
+  return approvalReplyIntent(text);
 }
 
 /** "cancel that", "drop mine", "scrap my ticket": a cancel that names no proposal but the sender's own. */
@@ -218,6 +209,8 @@ export function normalizeApprovalEvent(
     case 'message': {
       const intent = classifyApprovalText(inbound.text);
       if (intent === undefined) return none;
+      // A forwarded "yes" is old words from somewhere else (T-182).
+      if (inbound.forwarded === true) return none;
       const base = {
         kind: intent,
         senderId: inbound.sender,

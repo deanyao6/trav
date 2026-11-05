@@ -90,6 +90,11 @@ export interface InboundMessage extends InboundBase {
   readonly replyToMessageId?: MessageId;
   /** True if the platform itself marked Trav as mentioned (Telegram entities etc.). */
   readonly platformMention?: boolean;
+  /**
+   * True if the platform marked the message as forwarded (WhatsApp, Telegram).
+   * A forwarded "yes" is someone else's old words, never an approval (T-182).
+   */
+  readonly forwarded?: boolean;
 }
 
 export interface InboundReaction extends InboundBase {

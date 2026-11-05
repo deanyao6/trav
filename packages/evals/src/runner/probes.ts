@@ -10,6 +10,7 @@
  * - `album_consent` the mock album's `listPhotos` along the fixture's consent timeline
  * - `roast_screen`  roast lines through the agent's real send path (gate 1 + gate 2)
  * - `minor_screen`  Turks and Caicos drafts through the real send path
+ * - `auto_buy`      `autoBuyVerdict` over `fixtures/safety/auto-buy-asks.json` (T-182)
  */
 import type {
   Clock,
@@ -38,11 +39,12 @@ import type { FlightOfferTemplate } from '@trav/adapters';
 import {
   createMockAlbum,
   createSimulatorChannel,
+  loadAllTicketInventories,
   loadMockFlightInventory,
   sliceToLeg,
 } from '@trav/adapters';
 import type { ModelClient } from '@trav/agent';
-import { detectMention, sendOutbound } from '@trav/agent';
+import { autoBuyVerdict, detectMention, sendOutbound, venueIndexFrom } from '@trav/agent';
 import type { TripName } from '../fixtures.js';
 import { loadFixture } from '../fixtures.js';
 import type { ProbeName } from '../types.js';
@@ -638,6 +640,51 @@ export async function probeMinorScreen(): Promise<{ cases: ScreenCase[] }> {
   return { cases };
 }
 
+// ---------- auto_buy (T-182) ----------
+
+interface AutoBuyFixture {
+  readonly sender: string;
+  readonly roster: readonly string[];
+  readonly cases: readonly {
+    readonly id: string;
+    readonly text: string;
+    readonly eligible: boolean;
+    readonly quantity?: number;
+    readonly excluded?: readonly string[];
+  }[];
+}
+
+export interface AutoBuyCase {
+  readonly id: string;
+  readonly text: string;
+  readonly expectedEligible: boolean;
+  readonly expectedQuantity?: number;
+  readonly expectedExcluded?: readonly string[];
+  readonly eligible: boolean;
+  readonly quantity?: number;
+  readonly excluded?: readonly string[];
+  readonly reason?: string;
+}
+
+/** `fixtures/safety/auto-buy-asks.json` through `autoBuyVerdict` on the bundled ticket inventories. */
+export function probeAutoBuy(): { cases: AutoBuyCase[] } {
+  const fx = loadFixture<AutoBuyFixture>('safety/auto-buy-asks.json');
+  const index = venueIndexFrom(loadAllTicketInventories());
+  const cases = fx.cases.map((c): AutoBuyCase => {
+    const v = autoBuyVerdict({ text: c.text, index, sender: fx.sender, roster: fx.roster });
+    return {
+      id: c.id,
+      text: c.text,
+      expectedEligible: c.eligible,
+      ...(c.quantity !== undefined ? { expectedQuantity: c.quantity } : {}),
+      ...(c.excluded !== undefined ? { expectedExcluded: c.excluded } : {}),
+      eligible: v.eligible,
+      ...(v.eligible ? { quantity: v.quantity, excluded: v.excluded } : { reason: v.reason }),
+    };
+  });
+  return { cases };
+}
+
 // ---------- dispatch ----------
 
 export async function runProbe(
@@ -658,6 +705,8 @@ export async function runProbe(
       return probeRoastScreen();
     case 'minor_screen':
       return probeMinorScreen();
+    case 'auto_buy':
+      return probeAutoBuy();
     default: {
       // Scenario validation rejects unknown probes; this is the backstop, so an
       // unknown name is a step error (graded), never a silent no-op.

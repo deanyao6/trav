@@ -274,6 +274,7 @@ const PROBE_ARGS: Readonly<Record<ProbeName, Shape>> = {
   album_consent: { trip: req(tripName) },
   roast_screen: {},
   minor_screen: {},
+  auto_buy: {},
 };
 
 const STEPS: Readonly<Record<Step['do'], Shape>> = {

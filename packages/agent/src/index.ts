@@ -40,3 +40,6 @@ export * from './personality/roast.js';
 export * from './personality/refusals.js';
 export * from './loop.js';
 export * from './compose.js';
+export * from './approval/whitelist.js';
+export * from './booking/autoBuy.js';
+export { venueIndexFrom, type VenueIndex } from './booking/request.js';

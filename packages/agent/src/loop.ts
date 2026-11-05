@@ -92,6 +92,12 @@ import type {
 } from './approval/events.js';
 import { followSupersededBy, isOwnCancelText } from './approval/events.js';
 import {
+  approvalCounts,
+  nearMissKind,
+  nearMissReply,
+  type NearMissKind,
+} from './approval/whitelist.js';
+import {
   AUTO_APPROVE_FAILED_TEXT,
   TURN_FAILED_AFTER_PURCHASE_TEXT,
   TURN_FAILED_TEXT,
@@ -1081,6 +1087,8 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     messageId: MessageId,
     /** The message was for Trav (mention, quote-reply, reply window): only then may Trav answer a claim out loud. */
     addressed = false,
+    /** T-182: a near-miss answer to the card (`nearMissKind`), which never approves. */
+    nearMiss?: NearMissKind,
   ): Promise<TurnResult> {
     const before = snapshotAudit(r.group.groupId);
     // Only proposals whose card actually reached the chat can be approved: a
@@ -1232,8 +1240,20 @@ export function createTravAgent(input: AgentDeps): TravAgent {
       return finish(sent, 'approval:ambiguous');
     }
 
-    // "i approve for me and henry": the sender's own part goes on below; the
-    // part said for anyone else is audited and never counts (SAFETY §2.5, T-132).
+    // T-182: only a whitelisted reply approves by text (`approval/whitelist.ts`).
+    const counts =
+      intent !== 'approve' ||
+      (nearMiss === undefined &&
+        approvalCounts({
+          via,
+          intent,
+          text,
+          ...(event.type === 'message' && event.forwarded === true ? { forwarded: true } : {}),
+        }));
+
+    // "i approve for me and henry": the part said for anyone else is audited
+    // and never counts (SAFETY §2.5, T-132). Since T-182 the sender's own part
+    // doesn't count either: it isn't an exact reply (`whitelisted: false`).
     if (gate.relayedFor !== undefined) {
       invalid('claimed_for_other', gate.proposal.proposalId, {
         claimedFor: gate.relayedFor.others.length === 1 ? gate.relayedFor.others[0]! : null,
@@ -1241,8 +1261,22 @@ export function createTravAgent(input: AgentDeps): TravAgent {
         claimKind: 'with_self',
         group: gate.relayedFor.group,
         partial: true,
+        whitelisted: counts,
         addressed,
       });
+    }
+    if (!counts) {
+      if (gate.relayedFor === undefined) {
+        invalid('not_whitelisted', gate.proposal.proposalId, {
+          addressed,
+          ...(nearMiss !== undefined ? { nearMiss } : {}),
+        });
+      }
+      if (!addressed) return finish([], 'approval:not_whitelisted');
+      const sent = await send(r, [
+        message(r, nearMissReply(nearMiss ?? 'generic', gate.relayedFor !== undefined)),
+      ]);
+      return finish(sent, 'approval:not_whitelisted');
     }
 
     // A real candidate from an adult member: the approval handler owns the rest (T-030).
@@ -1261,11 +1295,17 @@ export function createTravAgent(input: AgentDeps): TravAgent {
         normalized.event.proposalId === undefined
           ? { ...normalized.event, proposalId: gate.proposal.proposalId }
           : normalized.event;
-    } else if (normalized.kind === 'none' && via === 'text' && event.type === 'message') {
-      // "everyone's in, book it" is not a whole-message alias, so the normalizer
-      // has no event for it; the gate has already established it is the
-      // sender's own attempt on this one proposal (D-019). Same signature
-      // shape as a bare "yes": channel sender id, text, this message.
+    } else if (
+      normalized.kind === 'none' &&
+      via === 'text' &&
+      event.type === 'message' &&
+      intent !== 'approve'
+    ) {
+      // "actually nah, staying in. cancel that" (T-137) is not a whole-message
+      // alias, so the normalizer has no event for it; the loop has already
+      // bound it to the sender's own proposal. A decline never spends. An
+      // approval never takes this path (T-182: only a whitelisted reply,
+      // which the normalizer always reads).
       ev = {
         kind: intent,
         senderId: event.sender,
@@ -1778,8 +1818,17 @@ export function createTravAgent(input: AgentDeps): TravAgent {
         ? cardIndexFor(r.group.groupId).lastTravQuestion(r.lane, me?.memberId)
         : undefined;
     const boundProposalId = boundRef?.proposalId ?? askedRef?.proposalId;
+    // T-182: a "yes" quote-replying a member's message answers that member, not
+    // a proposal, and a forwarded "yes" is someone's old words: neither binds.
+    const quotesMember =
+      event.replyToMessageId !== undefined &&
+      boundRef === undefined &&
+      !isTravMessage(event.replyToMessageId);
     const approvalShaped =
-      intent !== undefined && (boundRef === undefined || boundRef.proposalId !== undefined);
+      intent !== undefined &&
+      event.forwarded !== true &&
+      !quotesMember &&
+      (boundRef === undefined || boundRef.proposalId !== undefined);
     if (approvalShaped && (boundProposalId !== undefined || pendingFor(r).length > 0)) {
       recordInbound();
       return routeApproval(
@@ -2165,6 +2214,30 @@ export function createTravAgent(input: AgentDeps): TravAgent {
           boundProposalId,
           event.messageId,
           addressed,
+        );
+      }
+      // 5a. T-182: a short answer to the card that isn't exactly one ("yes but
+      // not for me", "i don't approve", "oh yeah sure"), said to Trav (quote-
+      // reply, reply window, @trav): never an approval, one question back. The
+      // gate binds it like a "yes" and the whitelist then refuses it.
+      const nearMiss = addressed
+        ? nearMissKind(
+            text,
+            r.members.map((m) => m.displayName),
+          )
+        : undefined;
+      if (nearMiss !== undefined && pending.some((p) => delivered(p.proposalId))) {
+        recordInbound();
+        return routeApproval(
+          r,
+          event,
+          'approve',
+          text,
+          'text',
+          boundProposalId,
+          event.messageId,
+          addressed,
+          nearMiss,
         );
       }
     }

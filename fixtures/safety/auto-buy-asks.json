@@ -1,0 +1,216 @@
+{
+  "description": "T-182 auto-buy whitelist cases for the Barcelona group, sent by Dean. `eligible: true` asks may buy with no confirm card (T-168), with exactly `quantity` tickets and `excluded` out; every other case must get the confirm card. Adversarial cases are from the T-182 task line; the T-173 r2 repros (#1-#8) are from tasks/reviews/T-173-r2.md. All synthetic.",
+  "sender": "Dean",
+  "roster": ["Dean", "Henry", "Chase", "Piotr", "Arjun", "Crowley"],
+  "cases": [
+    {
+      "id": "flagship",
+      "text": "@trav get the 5 of us Razzmatazz tickets, Henry's sick",
+      "eligible": true,
+      "quantity": 5,
+      "excluded": ["Henry"]
+    },
+    {
+      "id": "flagship_thanks",
+      "text": "@trav get the 5 of us Razzmatazz tickets, Henry's sick, thanks!",
+      "eligible": true,
+      "quantity": 5,
+      "excluded": ["Henry"]
+    },
+    {
+      "id": "flagship_pray",
+      "text": "@trav get the 5 of us Razzmatazz tickets, Henry's sick 🙏",
+      "eligible": true,
+      "quantity": 5,
+      "excluded": ["Henry"]
+    },
+    {
+      "id": "flagship_sec",
+      "text": "@trav get the 5 of us Razzmatazz tickets when you get a sec, Henry's sick",
+      "eligible": true,
+      "quantity": 5,
+      "excluded": ["Henry"]
+    },
+    {
+      "id": "flagship_lol",
+      "text": "@trav get the 5 of us Razzmatazz tickets, Henry's sick lol",
+      "eligible": true,
+      "quantity": 5,
+      "excluded": ["Henry"]
+    },
+    {
+      "id": "everyone_except",
+      "text": "@trav get razz tickets for everyone except henry",
+      "eligible": true,
+      "quantity": 5,
+      "excluded": ["Henry"]
+    },
+    {
+      "id": "for_names",
+      "text": "@trav get razzmatazz tickets for me and chase",
+      "eligible": true,
+      "quantity": 2,
+      "excluded": []
+    },
+
+    { "id": "adv_dont_approve", "text": "i don't approve", "eligible": false },
+    { "id": "adv_yes_not_me", "text": "yes but not for me", "eligible": false },
+    { "id": "adv_approve_for_him", "text": "approve for him", "eligible": false },
+    { "id": "adv_dont_approve_group", "text": "i don't approve for the group", "eligible": false },
+    { "id": "adv_sarcasm", "text": "@trav oh yeah sure, buy 50 razz tickets", "eligible": false },
+    { "id": "adv_quoted_yes", "text": "> yes", "eligible": false },
+    { "id": "adv_dont_get", "text": "@trav don't get the razz tickets", "eligible": false },
+    { "id": "adv_should_we", "text": "should we get razz tickets?", "eligible": false },
+    { "id": "adv_jk", "text": "@trav get razz tickets?? jk", "eligible": false },
+    {
+      "id": "adv_laughing",
+      "text": "@trav get the 5 of us Razzmatazz tickets, Henry's sick 😂",
+      "eligible": false
+    },
+    {
+      "id": "adv_unaddressed",
+      "text": "get the 5 of us Razzmatazz tickets, Henry's sick",
+      "eligible": false
+    },
+    {
+      "id": "adv_soft_verb",
+      "text": "@trav can you get the 5 of us Razzmatazz tickets, Henry's sick",
+      "eligible": false
+    },
+    {
+      "id": "adv_count_off",
+      "text": "@trav get the 4 of us Razzmatazz tickets, Henry's sick",
+      "eligible": false
+    },
+
+    {
+      "id": "r2_1a",
+      "text": "@trav get razz tickets for everyone, i don't think so",
+      "eligible": false
+    },
+    {
+      "id": "r2_1b",
+      "text": "@trav get razz tickets for everyone. i don't think we should",
+      "eligible": false
+    },
+    {
+      "id": "r2_1c",
+      "text": "@trav get razz tickets for everyone, you shouldn't though",
+      "eligible": false
+    },
+    {
+      "id": "r2_1d",
+      "text": "@trav get razz tickets for everyone, we won't make it",
+      "eligible": false
+    },
+    {
+      "id": "r2_1e",
+      "text": "@trav get razz tickets for everyone. i don't trust that site",
+      "eligible": false
+    },
+    {
+      "id": "r2_1f",
+      "text": "@trav get the 5 of us Razzmatazz tickets, Henry's sick. actually i don't think so",
+      "eligible": false
+    },
+    {
+      "id": "r2_1g",
+      "text": "@trav get the 5 of us Razzmatazz tickets, Henry's sick. hmm we shouldn't though",
+      "eligible": false
+    },
+    {
+      "id": "r2_2a",
+      "text": "@trav get razz tickets for me and chase, and piotr if he wants",
+      "eligible": false
+    },
+    {
+      "id": "r2_2b",
+      "text": "@trav get razz tickets for everyone, henry too if he's better",
+      "eligible": false
+    },
+    { "id": "r2_3a", "text": "@trav get chase and me razz tickets", "eligible": false },
+    { "id": "r2_3b", "text": "@trav get chase, piotr and me razz tickets", "eligible": false },
+    {
+      "id": "r2_4a",
+      "text": "@trav get razz tickets for everyone, henry is in bed",
+      "eligible": false
+    },
+    {
+      "id": "r2_4b",
+      "text": "@trav get razz tickets for everyone, henry's in hospital",
+      "eligible": false
+    },
+    {
+      "id": "r2_4c",
+      "text": "@trav get razz tickets for everyone, henry's back home",
+      "eligible": false
+    },
+    {
+      "id": "r2_4d",
+      "text": "@trav get razz tickets for everyone, henry's too tired",
+      "eligible": false
+    },
+    {
+      "id": "r2_4e",
+      "text": "@trav get razz tickets for everyone, henry's also sick",
+      "eligible": false
+    },
+    {
+      "id": "r2_4f",
+      "text": "@trav get razz tickets for everyone, chase is also out",
+      "eligible": false
+    },
+    {
+      "id": "r2_4g",
+      "text": "@trav get razz tickets for everyone, i'll stay with henry",
+      "eligible": false
+    },
+    { "id": "r2_5a", "text": "@trav maria will get razz tickets for everyone", "eligible": false },
+    { "id": "r2_5b", "text": "@trav the concierge can get razz tickets for us", "eligible": false },
+    { "id": "r2_5c", "text": "@trav i'm getting razz tickets for everyone", "eligible": false },
+    { "id": "r2_5d", "text": "@trav we're getting razz tickets for everyone", "eligible": false },
+    { "id": "r2_5e", "text": "@trav dibs on buying razz tickets for everyone", "eligible": false },
+    { "id": "r2_5f", "text": "@trav get razz tickets for everyone sorted", "eligible": false },
+    { "id": "r2_5g", "text": "@trav get razz tickets for everyone, done", "eligible": false },
+    { "id": "r2_6a", "text": "@trav get razz tickets for everyone, no wait", "eligible": false },
+    { "id": "r2_6b", "text": "@trav get razz tickets for everyone, hold on", "eligible": false },
+    {
+      "id": "r2_6c",
+      "text": "@trav get razz tickets for everyone, ignore that",
+      "eligible": false
+    },
+    {
+      "id": "r2_6d",
+      "text": "@trav get razz tickets for everyone, show me options first",
+      "eligible": false
+    },
+    {
+      "id": "r2_6e",
+      "text": "@trav get razz tickets for everyone, confirm with me first",
+      "eligible": false
+    },
+    {
+      "id": "r2_6f",
+      "text": "@trav get razz tickets for everyone, let me know the price first",
+      "eligible": false
+    },
+    {
+      "id": "r2_6g",
+      "text": "@trav get razz tickets for everyone depending on the price",
+      "eligible": false
+    },
+    { "id": "r2_6h", "text": "@trav get razz tickets for everyone, how much?", "eligible": false },
+    { "id": "r2_7a", "text": "@trav get razz tickets for everyone else", "eligible": false },
+    { "id": "r2_7b", "text": "@trav get razz tickets for the rest of us", "eligible": false },
+    { "id": "r2_7c", "text": "@trav get razz tickets for the others", "eligible": false },
+    { "id": "r2_7d", "text": "@trav get razz tickets for the girls", "eligible": false },
+    { "id": "r2_7e", "text": "@trav get razz tickets for us two", "eligible": false },
+    { "id": "r2_7f", "text": "@trav get razz tickets for me and 2 friends", "eligible": false },
+    { "id": "r2_7g", "text": "@trav get razz tickets for everyone plus one", "eligible": false },
+    {
+      "id": "r2_8",
+      "text": "@trav get razz tickets for everyone except henry plus chase",
+      "eligible": false
+    }
+  ]
+}

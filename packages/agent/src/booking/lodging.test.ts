@@ -185,7 +185,7 @@ describe('lodging ask in chat (T-132)', () => {
     expect(plans).toHaveLength(2);
   });
 
-  it('r1 #2: "yes i approve for all of us" and "i approve for me and henry" count only for the sender', async () => {
+  it('r1 #2 + T-182: "yes i approve for all of us" and "i approve for me and henry" count for nobody (audited as claims); exact replies count only for the sender', async () => {
     const h = planning();
     const { card } = await ask(h);
     const cardId = card!.id;
@@ -201,22 +201,31 @@ describe('lodging ask in chat (T-132)', () => {
         .at(-1)?.payload;
 
     const dean = await h.say('h_dean', 'yes i approve for all of us', { replyToMessageId: cardId });
-    expect(dean.note).toBe('approval:handled');
-    expect(granted()).toEqual(['mem_dean']);
+    expect(dean.note).toBe('approval:not_whitelisted');
+    expect(dean.outbound.map((o) => ('text' in o ? o.text : ''))).toEqual([
+      'not booked. everyone approves for themselves: 👍 the card or reply "yes"',
+    ]);
+    expect(granted()).toEqual([]);
     expect(lastInvalid()).toMatchObject({
       cause: 'claimed_for_other',
       claimKind: 'with_self',
       group: true,
       partial: true,
+      whitelisted: false,
     });
 
     const piotr = await h.say('h_piotr', 'i approve for me and henry', {
       replyToMessageId: cardId,
     });
-    expect(piotr.note).toBe('approval:handled');
-    expect(granted()).toEqual(['mem_dean', 'mem_piotr']);
+    expect(piotr.note).toBe('approval:not_whitelisted');
+    expect(granted()).toEqual([]);
     expect(lastInvalid()).toMatchObject({ claimedFor: 'mem_henry', claimedForAll: ['mem_henry'] });
     expect(stays(h)).toHaveLength(0);
+
+    // Their exact replies count, each for themselves only.
+    await h.say('h_dean', 'yes', { replyToMessageId: cardId });
+    await h.say('h_piotr', 'i approve', { replyToMessageId: cardId });
+    expect(granted()).toEqual(['mem_dean', 'mem_piotr']);
 
     for (const who of ['h_chase', 'h_arjun', 'h_crowley']) await h.react(who, cardId, '👍');
     // Henry's part was never his: nothing is booked until his own 👍.

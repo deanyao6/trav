@@ -1043,7 +1043,6 @@ const OBJECT_FILLER: ReadonlySet<string> = new Set([
   'any',
   'another',
   'us',
-  'me',
   'all',
   'everyone',
   'everybody',
@@ -1084,9 +1083,22 @@ function objectList(
   if (m === null) return undefined;
   const names: string[] = [];
   let other = false;
+  let self = false;
   for (const raw of m[1]!.split(/\s*(?:,|&|\+|\/)\s*|\s+/)) {
     const w = raw.trim();
     if (w.length === 0) continue;
+    // T-182 (T-173 r2 #3): "get chase and me razz tickets" keeps the sender,
+    // and a list joiner is never a venue word (some venue names have "and").
+    if (w === 'me' || w === 'myself') {
+      self = true;
+      continue;
+    }
+    if (w === 'and') continue;
+    // "get chase or piotr razz tickets": one of them, which is their call.
+    if (w === 'or') {
+      other = true;
+      continue;
+    }
     // The tickets themselves end the people: the venue, a ticket word, a count.
     if (ctx.skip.has(w) || TICKET_WORD.test(w) || isCountWord(w) || w === 'for') break;
     if (OBJECT_FILLER.has(w)) continue;
@@ -1097,6 +1109,8 @@ function objectList(
   }
   if (names.length === 0) return undefined;
   if (other) return 'ambiguous';
+  if (self)
+    return ctx.sender === undefined ? 'ambiguous' : { names: withSender(ctx.sender, names, ctx) };
   return { names: names.map((n) => displayName(n, ctx)) };
 }
 
@@ -1795,9 +1809,16 @@ function conditionGoverns(t: string, terms: readonly string[]): boolean {
     const c = raw.trim();
     if (c.length === 0 || !CONDITION_CUE.test(c)) continue;
     if (aboutTheBuy(c, terms) || CONDITION_LEAD.test(c)) return true;
+    // T-182 (T-173 r2 #2): a condition on one person ("and piotr if he wants",
+    // "henry too if he's better") leaves who's going unsure, so no ask.
+    if (CONDITION_ON_SOMEONE.test(c)) return true;
   }
   return false;
 }
+
+/** A strong conditional anywhere in a clause, or a weak one about a person ("piotr when he's back"). */
+const CONDITION_ON_SOMEONE =
+  /\b(?:if|unless|as long as|provided|assuming|in case)\b|\b(?:once|when|whenever|after|until|till)\s+(?:he|she|they|he's|she's|they're|hes|shes|theyre|[a-z][a-z'-]*\s+(?:is|feels|gets|wakes|says|confirms|wants|can|does))\b/;
 
 /** A clause that talks about the buy itself: a buy or soft verb, a ticket word, the venue. */
 function aboutTheBuy(c: string, terms: readonly string[]): boolean {
@@ -1816,27 +1837,45 @@ function aboutTheBuy(c: string, terms: readonly string[]): boolean {
  */
 const NEGATED_WORD =
   /\b(?:don'?t|dont|do not|doesn'?t|can'?t|cant|cannot|can not|couldn'?t|won'?t|wont|wouldn'?t|didn'?t|isn'?t|aren'?t|wasn'?t|weren'?t|shouldn'?t|haven'?t|hasn'?t|never)(?:\s+(?:even|really|actually|just|totally|quite|ever))*(?:\s+([a-z][a-z'-]*))?/g;
-/**
- * Negated words that still say no to the buy, in any clause: none ("…,
- * actually don't"), "do", "bother", a buy verb, "need", "afford", "yet".
- */
-const BUY_NEGATED =
-  /^(?:do|doing|bother|buy|buying|book|booking|get|getting|grab|grabbing|order|ordering|purchase|reserve|need|want|wanna|afford|pay|spend|go|yet|now|them|those|tickets?|tix|passes|vip|count|happen|happening)$/;
 
 /**
- * Does a negation take the ask back (T-173 r1 #6)? Any negation in a clause
- * about the buy does. In another clause it does unless it plainly says no to
- * something else: "he can't make it", "i can't believe it", "we shouldn't
- * miss it", "isn't that sad". Fail closed: a bare "…, don't" or "not yet"
- * still takes it back. `t` has the name negations removed already.
+ * Negated words that never say no to the buy, whoever says them (T-182, from
+ * T-173 r2 #1): "i can't believe it", "can't wait", "we shouldn't miss it".
+ */
+const HARMLESS_NEGATED = /^(?:believe|wait|miss)$/;
+/**
+ * Out-reasons: harmless only with one other person as the subject ("he can't
+ * make it", "henry doesn't feel great"). "we won't make it" is the whole
+ * party saying no, so it takes the ask back.
+ */
+const OUT_NEGATED = /^(?:make|come|coming|join|joining|feel|feeling)$/;
+const NOT_ONE_PERSON =
+  /^(?:i|we|you|u|they|us|it|that|this|there|which|who|everyone|everybody|all|people|ppl|so|and|but|though|tho)$/;
+
+/**
+ * Does a negation take the ask back (T-173 r1 #6, T-182)? Retraction is the
+ * default: any negation does, in any clause, except a small harmless list
+ * (`HARMLESS_NEGATED`, and `OUT_NEGATED` with one other person as subject).
+ * "…, i don't think so", "…, you shouldn't though", "…, we won't make it",
+ * "…, i don't trust that site" all take it back. `t` has the name negations
+ * removed already.
  */
 function negationGoverns(t: string, terms: readonly string[]): boolean {
   for (const raw of t.split(CLAUSE_SPLIT)) {
     const c = raw.trim();
     if (c.length === 0 || !NEGATION_CUE.test(c)) continue;
     if (aboutTheBuy(c, terms)) return true;
-    const rest = c.replace(NEGATED_WORD, (span: string, w: string | undefined) =>
-      w === undefined || BUY_NEGATED.test(w) ? span : ' ',
+    const rest = c.replace(
+      NEGATED_WORD,
+      (span: string, w: string | undefined, offset: number): string => {
+        if (w === undefined) return span;
+        if (HARMLESS_NEGATED.test(w)) return ' ';
+        const subject = /([a-z][a-z'-]*)\s*$/.exec(c.slice(0, offset))?.[1]?.replace(/'s$/, '');
+        if (OUT_NEGATED.test(w) && subject !== undefined && !NOT_ONE_PERSON.test(subject)) {
+          return ' ';
+        }
+        return span;
+      },
     );
     if (NEGATION_CUE.test(rest)) return true;
   }

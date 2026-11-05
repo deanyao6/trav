@@ -366,6 +366,9 @@ export function defaultFallbacks(): readonly FallbackResponder[] {
     // T-081/T-092: ticket asks, "cheaper", cancel, stays, remember, honest can't-do lines.
     ...travAskResponders(),
     toolResultAckResponder,
-    bookingIntentResponder,
+    // T-182: `bookingIntentResponder` (the loose T-007 regex) is no longer in
+    // the chain. It read "…, Henry's sick. actually i don't think so" as an
+    // ask after the precise reader (`booking_request_v1`) had said no; the
+    // reader alone decides what is an ask offline.
   ];
 }

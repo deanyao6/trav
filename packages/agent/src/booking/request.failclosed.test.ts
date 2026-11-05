@@ -202,7 +202,6 @@ describe('r1 #6: a cue in another clause about something else does not kill the 
     "get the 5 of us razz tickets when you get a sec, Henry's sick",
     "get the 5 of us razz tickets, Henry's sick. I can't believe it",
     "get the 5 of us razz tickets, Henry's sick, we shouldn't miss it",
-    "get the 5 of us razz tickets, Henry's sick, isn't that sad",
     "get the 5 of us razz tickets, Henry's sick until tomorrow",
   ])('flagship tail: %s', (text) => {
     for (const r of both(text)) {
@@ -217,6 +216,9 @@ describe('r1 #6: a cue in another clause about something else does not kill the 
     "if it's not sold out, get razz tickets for all of us",
     'get razz tickets for all of us after we eat',
     "get razz tickets for all of us, we can't afford vip though",
+    // T-182: retraction is the default for a negation; only a small harmless
+    // list (believe, wait, miss, one person's out-reason) is let through.
+    "get the 5 of us razz tickets, Henry's sick, isn't that sad",
   ])('a cue that governs the buy still does: %s', (text) => {
     for (const r of both(text)) expect(r, text).toBeUndefined();
   });

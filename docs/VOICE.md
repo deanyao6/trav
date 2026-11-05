@@ -758,8 +758,13 @@ Trav never spends without an approval event that passes `ApprovalPolicy`. The po
 ### 6.2 What counts as approval
 | Channel | Approve | Decline | Opt out of this one |
 |---|---|---|---|
-| iMessage / WhatsApp | 👍 tapback on the proposal, or a reply `yes` / `yep` / `go` / `book it` / `do it` | 👎 tapback, or `no` / `nah` / `cancel` / `drop it` | `not me` / `i'm out` / `without me` |
+| iMessage / WhatsApp | 👍 tapback on the proposal, or a reply that is exactly `yes` / `yep` / `go` / `book it` / `do it` / `approve` / `approved` / `i approve` (also `yes book it`, `yes do it`, `yes please`) | 👎 tapback, or `no` / `nah` / `cancel` / `drop it` | `not me` / `i'm out` / `without me` |
 | Simulator | **Approve** button on the card (emits the same 👍 event) | **Decline** button | **Not me** button |
+
+- **Exact means exact (T-182, D-042).** Case, trailing punctuation and a warm emoji (🙏 🎉 🙌 🔥 💯 😊 ✅) don't matter; anything else does. "i don't approve", "yes but not for me", "approve for him", "i approve for me and henry", "everyone's in, book it", "oh yeah sure", "yes 😂", a quoted or forwarded "yes" are not approvals. Said to Trav (on the card, in the reply window, or with @trav), one question back, never a purchase:
+  - `not booked. 👍 the card or reply "yes" to book it`
+  - `not booked. reply "not me" to drop out, or "yes" to book it` (it sounds like they want out)
+  - `not booked. everyone approves for themselves: 👍 the card or reply "yes"` (an approval said for others)
 
 - The approval must come from a member in `policy.requiresApprovalFrom`. A 👍 from anyone else is **ignored silently** (no "you can't approve this" message; the proposal just stays pending). Exception: if the only 👍s are from non-approvers after 5 minutes, Trav posts once: "need a 👍 from @Dean on this one".
 - Default policy (v0): **always one tap**, even under the cap. Requester approves if they're charged and the purchase is refundable and under cap; otherwise a lead.

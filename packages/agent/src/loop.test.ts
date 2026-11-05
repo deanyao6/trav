@@ -1358,7 +1358,7 @@ describe('unaddressed claims get no @tag (major 3) and "everyone" names nobody (
     expect(outboundCount(h)).toBe(sentBefore);
   });
 
-  it('"everyone\'s in, book it" from the requester-approver counts as their own 👍; from Crowley (not the requester, not an approver) it is audited silently, and nobody is told "that has to come from Henry"', async () => {
+  it('"everyone\'s in, book it" from Crowley (not the requester, not an approver) is audited silently, nobody is told "that has to come from Henry"; from the requester it gets a question back (T-182), and only "book it" counts', async () => {
     const h = harness();
     leadOnlyApprover(h);
     const { proposal, cardMessageId } = await propose(h);
@@ -1379,7 +1379,13 @@ describe('unaddressed claims get no @tag (major 3) and "everyone" names nobody (
     expect(h.auditTypes()).not.toContain('approval.granted');
     expect(outboundCount(h)).toBe(1);
 
-    const dean = await h.say('h_dean', "@trav everyone's in, book it");
+    // T-182: from the requester-approver it is still not an exact reply: a question back, no grant.
+    const dean0 = await h.say('h_dean', "@trav everyone's in, book it");
+    expect(dean0.note).toBe('approval:not_whitelisted');
+    expect(firstMessage(dean0).text).toBe('not booked. 👍 the card or reply "yes" to book it');
+    expect(h.auditTypes()).not.toContain('approval.granted');
+    expect(h.tickets.purchaseCount()).toBe(0);
+    const dean = await h.say('h_dean', '@trav book it');
     expect(dean.note).toBe('approval:handled');
     const granted = h.audit().find((e) => e.type === 'approval.granted');
     expect(granted?.actor).toEqual({ kind: 'member', id: 'mem_dean' });
@@ -1408,12 +1414,16 @@ describe('unaddressed claims get no @tag (major 3) and "everyone" names nobody (
     expect(h.tickets.purchaseCount()).toBe(0);
   });
 
-  it("the same \"everyone's in, book it\" from Crowley quote-replying the card is Crowley's 👍 (never Henry's or anyone else's)", async () => {
+  it('T-182: the same "everyone\'s in, book it" from Crowley quote-replying the card approves nothing (a question back); his exact "book it" on the card is Crowley\'s 👍 (never Henry\'s or anyone else\'s)', async () => {
     const h = harness();
     const { proposal, cardMessageId } = await propose(h);
-    const turn = await h.say('h_crowley', "everyone's in, book it", {
+    const claim = await h.say('h_crowley', "everyone's in, book it", {
       replyToMessageId: cardMessageId,
     });
+    expect(claim.note).toBe('approval:not_whitelisted');
+    expect(firstMessage(claim).text).toBe('not booked. 👍 the card or reply "yes" to book it');
+    expect(h.auditTypes()).not.toContain('approval.granted');
+    const turn = await h.say('h_crowley', 'book it', { replyToMessageId: cardMessageId });
     expect(turn.note).toBe('approval:handled');
     const granted = h.audit().find((e) => e.type === 'approval.granted');
     expect(granted?.actor).toEqual({ kind: 'member', id: 'mem_crowley' });
@@ -1687,12 +1697,22 @@ describe('T-066: agent loop hardening (T-007-b round-3 review)', () => {
     expect(h.auditTypes()).not.toContain('approval.granted');
   });
 
-  it('2. the requester\'s own card-less "everyone\'s in, book it" still counts as their 👍', async () => {
+  it('2. T-182: the requester\'s own card-less "everyone\'s in, book it" is not an exact reply, so it approves nothing (audited); a bare "book it" does', async () => {
     const h = harness();
     const { proposal } = await propose(h);
     h.clock.advanceMs(5 * 60 * 1000);
     const turn = await h.say('h_dean', "everyone's in, book it");
-    expect(turn.note).toBe('approval:handled');
+    expect(turn.note).toBe('approval:not_whitelisted');
+    expect(turn.outbound).toEqual([]);
+    expect(h.auditTypes()).not.toContain('approval.granted');
+    expect(
+      h
+        .audit()
+        .filter((e) => e.type === 'approval.invalid_attempt')
+        .at(-1)?.payload,
+    ).toMatchObject({ cause: 'not_whitelisted' });
+    const exact = await h.say('h_dean', 'book it');
+    expect(exact.note).toBe('approval:handled');
     const granted = h.audit().find((e) => e.type === 'approval.granted');
     expect(granted?.actor).toEqual({ kind: 'member', id: 'mem_dean' });
     expect(granted?.proposalId).toBe(proposal.proposalId);
