@@ -214,33 +214,72 @@ export function evaluate(
 }
 
 /**
- * The `any_one` approver set (T-104): the eligible pool plus the requester,
- * restricted to the booking's attendees, so a member who is excluded from it
- * (out tonight, "Henry's sick") can never approve a purchase alone. When no
- * attendee can approve (a parent booking for the kids), the adult payers and
- * the requester stand in, so the card is never unapprovable.
+ * The members a booking is about (T-104, SAFETY §2.1): its attendees, whoever's
+ * card is charged (`paidBy.memberId`, or every payer under `per_person_cards`),
+ * and the guardian of each minor attendee. Anyone else (excluded, out tonight,
+ * "Henry's sick" on Dean's card) is not a party to it.
+ */
+export function bookingParties(
+  p: Pick<BookingProposal, 'attendees' | 'payers' | 'paidBy'>,
+  byId: ReadonlyMap<MemberId, MemberView>,
+): ReadonlySet<MemberId> {
+  const cardOwners =
+    p.paidBy.kind === 'member_card' ? [p.paidBy.memberId] : p.payers.map((s) => s.memberId);
+  return new Set([...p.attendees, ...cardOwners, ...minorAttendeeGuardians(p, byId)]);
+}
+
+/** Adult guardians (who can approve) of the booking's minor attendees, in attendee order. */
+function minorAttendeeGuardians(
+  p: Pick<BookingProposal, 'attendees'>,
+  byId: ReadonlyMap<MemberId, MemberView>,
+): MemberId[] {
+  const out: MemberId[] = [];
+  for (const id of p.attendees) {
+    const m = byId.get(id);
+    if (m?.isMinor !== true || m.guardianMemberId === undefined) continue;
+    const g = byId.get(m.guardianMemberId);
+    if (canApprove(g)) out.push(g.memberId);
+  }
+  return unique(out);
+}
+
+/**
+ * The `any_one` approver set (T-104, SAFETY §2.1): the eligible pool
+ * (`policy.approvers`, adults only), the requester (one-tap) and the guardians
+ * of minor attendees, kept only if they are a party to the booking
+ * (`bookingParties`). So Henry, left off "the 5 of us", never approves a charge
+ * on Dean's card, but does approve his own request on his own card.
+ *
+ * When no party can approve (a kid-only booking with no guardian in the group,
+ * or a named approver list that names no party), the pool stands in: it
+ * respects `policy.approvers`, and a non-party requester is not added. Only
+ * when the pool is empty too does the requester, then any adult member, stand
+ * in. The result is empty only when the group has no adult who can approve.
  */
 export function anyOneApprovers(
-  p: Pick<BookingProposal, 'attendees' | 'payers' | 'requestedBy'>,
+  p: Pick<BookingProposal, 'attendees' | 'payers' | 'paidBy'>,
   pool: readonly MemberId[],
   requesterId: MemberId | undefined,
   byId: ReadonlyMap<MemberId, MemberView>,
 ): readonly MemberId[] {
-  const attendees = new Set(p.attendees);
-  const candidates = unique(requesterId === undefined ? pool : [...pool, requesterId]);
-  const attending = candidates.filter((id) => attendees.has(id));
-  if (attending.length > 0) return attending;
-  const standIns = p.payers
-    .map((s) => byId.get(s.memberId))
-    .filter((m): m is MemberView => canApprove(m))
-    .map((m) => m.memberId);
-  return unique(requesterId === undefined ? standIns : [...standIns, requesterId]);
+  const parties = bookingParties(p, byId);
+  const guardians = minorAttendeeGuardians(p, byId);
+  const candidates = unique([
+    ...pool,
+    ...(requesterId === undefined ? [] : [requesterId]),
+    ...guardians,
+  ]);
+  const party = candidates.filter((id) => parties.has(id));
+  if (party.length > 0) return party;
+  if (pool.length > 0) return unique(pool);
+  if (requesterId !== undefined) return [requesterId];
+  return [...byId.values()].filter(canApprove).map((m) => m.memberId);
 }
 
 /**
- * any_one: adult, active, non-guest members per `policy.approvers`, plus the
- * requester (the one-tap flow), among the attendees (`anyOneApprovers`). each_payer: every adult payer, plus one adult
- * (guardian, else requester, else first eligible approver) per minor payer.
+ * any_one: `anyOneApprovers` (pool, requester and guardians, booking parties
+ * only). each_payer: every adult payer, plus one adult (guardian, else
+ * requester, else first eligible approver) per minor payer.
  */
 function requiredApproversFor(
   mode: ApprovalMode,
@@ -273,7 +312,9 @@ function requiredApproversFor(
     if (minor.isMinor) {
       const guardian =
         minor.guardianMemberId === undefined ? undefined : byId.get(minor.guardianMemberId);
-      const standIn = canApprove(guardian) ? guardian.memberId : (requesterId ?? pool[0]);
+      const standIn = canApprove(guardian)
+        ? guardian.memberId
+        : (requesterId ?? pool[0] ?? members.find(canApprove)?.memberId);
       if (standIn !== undefined) required.push(standIn);
     }
   }

@@ -1140,9 +1140,19 @@ export function renderProposalText(input: RenderInput): string {
     if (!p.refundable) lines.push("it's non-refundable, so check the date before you tap");
     lines.push(`👍 to book. ${held}`);
   } else {
-    const okBy = names(approvers.slice(0, 3), byId);
-    lines.push(`${!p.refundable ? "it's non-refundable, so " : ''}${okBy} has to ok it`);
-    lines.push(`👍 from ${okBy} to book, or anyone can say "not me" first. ${held}`);
+    // VOICE §4.1 B: name everyone who can approve; under any_one one tap from
+    // any of them is enough, so say so instead of implying they all must.
+    const so = !p.refundable ? "it's non-refundable, so " : '';
+    const list = approvers.map((id) => names([id], byId));
+    if (list.length <= 1) {
+      const okBy = list[0] ?? 'a trip adult';
+      lines.push(`${so}${okBy} has to ok it`);
+      lines.push(`👍 from ${okBy} to book, or anyone can say "not me" first. ${held}`);
+    } else {
+      const anyOf = `${list.slice(0, -1).join(', ')} or ${list[list.length - 1] ?? ''}`;
+      lines.push(`${so}any one of ${anyOf} can ok it`);
+      lines.push(`one 👍 from any of them books it, or anyone can say "not me" first. ${held}`);
+    }
   }
   return lines.join('\n');
 }

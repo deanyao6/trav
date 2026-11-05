@@ -177,7 +177,7 @@ Confirmation triggers (only if no deny fired):
 
 `approvalMode` is the strongest mode among fired triggers (`each_payer` > `any_one`). `requiredApprovers`:
 
-- `any_one`: adult, active, non-guest members per `policy.approvers`. The requester is always allowed to be the one who confirms their own request (this is the one-tap flow).
+- `any_one` (T-104, D-028): adult, active, non-guest members per `policy.approvers`, plus the requester (the one-tap flow), plus the guardian of each minor attendee, kept only if they are a **party to the booking**: an attendee, the card owner (`paidBy.memberId`, or every payer under `per_person_cards`), or a minor attendee's guardian. So a requester who is on their own card always confirms their own request (Henry asking for "the 5 of us, Henry's sick" on his card taps once), but a non-attendee who is not the card owner never approves (Henry cannot approve a charge on Dean's card for a night he's out). If no party can approve (a kid-only booking with no guardian in the group, or a named approver list naming no party), the eligible pool (`policy.approvers`, adults only) stands in, without adding a non-party requester; only if that pool is empty does the requester, then any adult member, stand in. Under `needs_confirmation` the list is never empty while the group has an adult who can approve. The approval handler refuses a non-party's 👍 with `approval.invalid_attempt{not_attendee}` whenever a party is listed, which also covers decisions stored before this rule.
 - `each_payer`: every adult payer, plus one adult approver for each minor payer. A proposal with mode `each_payer` executes only when every listed approver has confirmed.
 
 If no trigger fires: `auto_approve` with `within_all_caps`. This can only happen when the group has explicitly raised `autoApproveCapMinor` above 0.
@@ -261,7 +261,7 @@ The hash commits to the payload only through its digest (D-016), so a §2.9 tomb
 | `approval.rejected` | `memberId, messageId` |
 | `approval.expired` | `expiresAt` |
 | `approval.invalidated` | `cause: 'price_changed' \| 'payers_changed' \| 'policy_changed' \| 'member_inactive'` |
-| `approval.invalid_attempt` | `senderId, cause: 'not_member' \| 'guest' \| 'minor' \| 'not_required_approver' \| 'claimed_for_other' \| 'ambiguous' \| 'expired' \| 'already_granted' \| 'not_pending', messageId` (`claimed_for_other`: a known sender whose signature names another member; `already_granted`: the same member twice; `not_pending`: the grant is already complete or terminal) |
+| `approval.invalid_attempt` | `senderId, cause: 'not_member' \| 'guest' \| 'minor' \| 'not_required_approver' \| 'not_attendee' \| 'claimed_for_other' \| 'ambiguous' \| 'expired' \| 'already_granted' \| 'not_pending', messageId` (`not_attendee`: the sender is not a party to the booking (not an attendee, the card owner, or a minor attendee's guardian) and a party can approve it, §2.1; `claimed_for_other`: a known sender whose signature names another member; `already_granted`: the same member twice; `not_pending`: the grant is already complete or terminal) |
 | `booking.attempted` | `idempotencyKey, quoteRef, grantId` |
 | `booking.completed` | `providerRef, totalMinor, currency, payers, attendees, refundable` |
 | `booking.failed` | `errorCode, retriable` |
@@ -272,7 +272,7 @@ The hash commits to the payload only through its digest (D-016), so a §2.9 tomb
 | `ledger.entry_edited` / `ledger.entry_deleted` | `expenseId, memberId, before, after` |
 | `private.item_ingested` (owner) | `source: 'card' \| 'email' \| 'photo_receipt', itemId, amountMinor, currency, classifierLabel, classifierScore` |
 | `private.item_promoted` (group) | `itemId, expenseId, strippedFields: string[]` |
-| `private.item_dismissed` (owner) | `itemId` |
+| `private.item_dismissed` (owner) | `itemId` (the owner dismissed a pending item). Consent-gate variant (T-090, document intake refused before anything is read or stored): `source, sourceItemId, cause: 'consent_missing' \| 'minor' \| 'not_eligible', flag` (ids only, no document text; `flag` is the import consent that was missing, e.g. `cardImport` / `emailImport`) |
 | `consent.changed` | `memberId, flag, from, to, via` |
 | `policy.changed` | `memberId, before, after` |
 | `roast.generated` | `targets, topics` |

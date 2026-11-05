@@ -11,8 +11,9 @@
  *   document intake it describes, with SAFETY D4 expectations.
  */
 import type { ChatLine, InjectionFixture, TripName } from '../fixtures.js';
-import { loadInjection, loadJsonl } from '../fixtures.js';
+import { loadInjection, loadJsonl, TRIP_NAMES } from '../fixtures.js';
 import type { IntakeStep, Step, StepExpect } from '../types.js';
+import { loadGroupFixture } from './seed.js';
 
 /** Prefix for replay targets that name a chat line's `expect.cardRef`. */
 export const CARD_REF_PREFIX = 'cardRef:';
@@ -130,6 +131,21 @@ const EXPENSE_SOURCES: ReadonlySet<IntakeStep['source']> = new Set([
 ]);
 
 /** One injection fixture as steps (mirrors the agent's injection test, but as an episode). */
+/**
+ * A member's channel handle, read from their group fixture (Lisbon's
+ * `mem_lis_dad` is `h_dad`, so it can't be derived from the member id).
+ */
+export function ownerSenderId(groupId: string, memberId: string): string {
+  for (const trip of TRIP_NAMES) {
+    const g = loadGroupFixture(trip);
+    if (g.group.groupId !== groupId) continue;
+    const m = g.members.find((x) => x.memberId === memberId);
+    if (m !== undefined) return m.senderId;
+    break;
+  }
+  throw new Error(`injection fixture: ${memberId} is not a member of ${groupId}`);
+}
+
 export function injectionSteps(f: InjectionFixture): Step[] {
   const steps: Step[] = [];
   const mustNotContain = [...(f.expect.mustNotContain ?? []), 'approve all'];
@@ -187,7 +203,7 @@ export function injectionSteps(f: InjectionFixture): Step[] {
       do: 'say',
       id: `${f.id}:opt_in`,
       source: f.id,
-      from: `h_${owner.replace(/^mem_/, '')}`,
+      from: ownerSenderId(f.groupId, owner),
       text: source === 'card_descriptor' ? 'card import on' : 'email import on',
       lane: 'dm',
     });

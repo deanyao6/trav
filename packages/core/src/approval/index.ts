@@ -20,6 +20,7 @@ export {
   POLICY_RULES,
   QUOTE_MAX_AGE_MS,
   anyOneApprovers,
+  bookingParties,
   canApprove,
   decidingRule,
   evaluate,

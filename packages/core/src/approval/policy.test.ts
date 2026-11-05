@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { ReasonCode } from '../domain/approval.js';
-import { decidingRule, evaluate, POLICY_RULES } from './policy.js';
+import type { GroupSpendingPolicy, ReasonCode } from '../domain/approval.js';
+import { bookingParties, decidingRule, evaluate, POLICY_RULES } from './policy.js';
 import {
   FIVE,
   NOW,
@@ -676,7 +676,7 @@ describe('evaluate: required approvers', () => {
     expect(d.requiredApprovers).toEqual(['mem_dean', 'mem_sam']);
   });
 
-  it('any_one (T-104): no attendee can approve (kids only) ⇒ the adult payers and the requester stand in', () => {
+  it('any_one (T-104): kid-only booking on Dean\'s card ⇒ Dean (card owner, Kid\'s guardian); a non-party requester is not added', () => {
     const d = evaluate(
       razzmatazz({
         ageRestriction: null,
@@ -691,7 +691,171 @@ describe('evaluate: required approvers', () => {
     );
     expect(d.outcome).toBe('needs_confirmation');
     expect(d.approvalMode).toBe('any_one');
-    expect(d.requiredApprovers).toEqual(['mem_dean', 'mem_sam']);
+    expect(d.requiredApprovers).toEqual(['mem_dean']);
+  });
+
+  describe('any_one (T-104 round 2): parties, guardians, named approvers', () => {
+    // Turks and Caicos shape: Mom, Dad (Lily's guardian), Lily (14), plus Uncle.
+    const tci = () =>
+      views([
+        member('mem_mom', { role: 'lead' }),
+        member('mem_dad', { role: 'guardian' }),
+        member('mem_uncle'),
+        member('mem_lily', { ageBand: 'under18', guardianMemberId: 'mem_dad' }),
+      ]);
+    const snorkel = (overrides: Parameters<typeof razzmatazz>[0] = {}) =>
+      razzmatazz({
+        currency: 'EUR',
+        ageRestriction: null,
+        contentTags: ['family'],
+        totalMinor: 4500,
+        payers: equalShares(['mem_lily'], 4500),
+        attendees: ['mem_lily'],
+        ...overrides,
+      });
+
+    it("Lily's own request on her own card (minor requester, payer, attendee) ⇒ her guardian Dad, never empty", () => {
+      const d = evaluate(
+        snorkel({ requestedBy: 'mem_lily', paidBy: { kind: 'member_card', memberId: 'mem_lily' } }),
+        policy(),
+        context({ members: tci() }),
+      );
+      expect(d.outcome).toBe('needs_confirmation');
+      expect(d.approvalMode).toBe('any_one');
+      expect(d.requiredApprovers).toEqual(['mem_dad']);
+    });
+
+    it("Mom asks for Lily on Mom's card ⇒ Mom (requester, card) and Dad (guardian); Uncle is not a party", () => {
+      const d = evaluate(
+        snorkel({ requestedBy: 'mem_mom', paidBy: { kind: 'member_card', memberId: 'mem_mom' } }),
+        policy(),
+        context({ members: tci() }),
+      );
+      expect(d.requiredApprovers).toEqual(['mem_mom', 'mem_dad']);
+    });
+
+    it('a minor attendee with no guardian and no adult party ⇒ the pool stands in (never empty)', () => {
+      const members = views([
+        member('mem_mom'),
+        member('mem_uncle'),
+        member('mem_lily', { ageBand: 'under18' }),
+      ]);
+      const d = evaluate(
+        snorkel({ requestedBy: 'mem_lily', paidBy: { kind: 'member_card', memberId: 'mem_lily' } }),
+        policy(),
+        context({ members }),
+      );
+      expect(d.requiredApprovers).toEqual(['mem_mom', 'mem_uncle']);
+    });
+
+    it("named approvers ['mem_dean'] and a non-party requester (Maya): Maya can never approve alone", () => {
+      // Dean's card: Dean is the card owner, so he is the party in the pool.
+      const onDean = evaluate(
+        razzmatazz({
+          requestedBy: 'mem_maya',
+          payers: equalShares(['mem_sam', 'mem_leo'], 4500),
+          attendees: ['mem_sam', 'mem_leo'],
+        }),
+        policy({ approvers: ['mem_dean'] }),
+        context(),
+      );
+      expect(onDean.requiredApprovers).toEqual(['mem_dean']);
+      // Sam's card, Dean not on it: no party is in the pool, so the pool (Dean) stands in, not Maya.
+      const onSam = evaluate(
+        razzmatazz({
+          requestedBy: 'mem_maya',
+          payers: equalShares(['mem_sam', 'mem_leo'], 4500),
+          attendees: ['mem_sam', 'mem_leo'],
+          paidBy: { kind: 'member_card', memberId: 'mem_sam' },
+        }),
+        policy({ approvers: ['mem_dean'] }),
+        context(),
+      );
+      expect(onSam.requiredApprovers).toEqual(['mem_dean']);
+      expect(onSam.requiredApprovers).not.toContain('mem_maya');
+    });
+
+    it("Henry asks for \"the 5 of us, Henry's sick\" on his own card ⇒ he can confirm his own request", () => {
+      const d = evaluate(
+        razzmatazz({
+          requestedBy: 'mem_henry',
+          paidBy: { kind: 'member_card', memberId: 'mem_henry' },
+        }),
+        policy(),
+        context(),
+      );
+      expect(d.requiredApprovers).toContain('mem_henry');
+      expect(d.requiredApprovers).toEqual([...FIVE, 'mem_henry']);
+    });
+
+    it("bookingParties: attendees, the card owner(s) and minor attendees' guardians, nobody else", () => {
+      const byId = new Map(views().map((v) => [v.memberId, v] as const));
+      const p = razzmatazz({
+        attendees: ['mem_sam', 'mem_kid'],
+        paidBy: { kind: 'member_card', memberId: 'mem_leo' },
+      });
+      expect([...bookingParties(p, byId)].sort()).toEqual(
+        ['mem_dean', 'mem_kid', 'mem_leo', 'mem_sam'].sort(),
+      );
+      const perCard = razzmatazz({
+        attendees: ['mem_sam'],
+        payers: equalShares(['mem_sam', 'mem_ava'], 4500),
+        paidBy: { kind: 'per_person_cards' },
+      });
+      expect([...bookingParties(perCard, byId)].sort()).toEqual(['mem_ava', 'mem_sam']);
+    });
+
+    it("Henry asks for the 5 of us on Dean's card ⇒ Henry is not an approver", () => {
+      const d = evaluate(razzmatazz({ requestedBy: 'mem_henry' }), policy(), context());
+      expect(d.requiredApprovers).toEqual([...FIVE]);
+    });
+
+    it('needs_confirmation never has an empty approver list while the group has an adult (exhaustive)', () => {
+      const groups = [views(), tci()];
+      let checked = 0;
+      for (const members of groups) {
+        const ids = members.map((m) => m.memberId);
+        const adults = members.filter((m) => m.role === 'member' && m.active && !m.isMinor);
+        const approverLists: GroupSpendingPolicy['approvers'][] = [
+          'any_adult_member',
+          [adults[0]!.memberId],
+          [adults[1]!.memberId],
+          ['mem_nobody'],
+        ];
+        for (const requestedBy of ids) {
+          for (const attendee of ids) {
+            for (const cardOwner of ids) {
+              for (const approvers of approverLists) {
+                for (const kind of ['ticket', 'lodging'] as const) {
+                  const d = evaluate(
+                    razzmatazz({
+                      kind,
+                      ageRestriction: null,
+                      contentTags: ['family'],
+                      requestedBy,
+                      totalMinor: 1800,
+                      payers: equalShares([attendee], 1800),
+                      attendees: [attendee],
+                      paidBy: { kind: 'member_card', memberId: cardOwner },
+                    }),
+                    policy({ approvers }),
+                    context({ members }),
+                  );
+                  if (d.outcome !== 'needs_confirmation') continue;
+                  checked += 1;
+                  expect(d.requiredApprovers.length).toBeGreaterThan(0);
+                  // and only adults who can approve are ever listed
+                  for (const id of d.requiredApprovers) {
+                    expect(adults.map((m) => m.memberId)).toContain(id);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      expect(checked).toBeGreaterThan(100);
+    });
   });
 
   it('each_payer (T-104 leaves it unchanged): a non-attending adult payer must still 👍', () => {

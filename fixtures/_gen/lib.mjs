@@ -312,14 +312,31 @@ export function evaluatePolicy(p, policy, members, { prefs = {}, spentTodayMinor
   let requiredApprovers;
   if (mode === 'any_one') {
     const pool = (policy.approvers === 'any_adult_member' ? members : policy.approvers.map((id) => byId.get(id))).filter(canApprove).map((m) => m.memberId);
-    // T-104 (core anyOneApprovers): attendees only; adult payers + requester stand in when none can.
-    const candidates = [...new Set(canApprove(requester) ? [...pool, requester.memberId] : pool)];
-    const attending = candidates.filter((id) => p.attendees.includes(id));
-    const standIns = p.payers.map((s) => byId.get(s.memberId)).filter(canApprove).map((m) => m.memberId);
+    // T-104 (core anyOneApprovers): pool + requester + minor attendees' guardians, booking
+    // parties only (attendees, card owner(s), those guardians); else the pool, the requester,
+    // then any adult stand in.
+    const guardians = [
+      ...new Set(
+        p.attendees
+          .map((id) => byId.get(id))
+          .filter((m) => m?.isMinor && m.guardianMemberId !== undefined)
+          .map((m) => byId.get(m.guardianMemberId))
+          .filter(canApprove)
+          .map((m) => m.memberId),
+      ),
+    ];
+    const cardOwners = p.paidBy.kind === 'member_card' ? [p.paidBy.memberId] : payerIds;
+    const parties = new Set([...p.attendees, ...cardOwners, ...guardians]);
+    const candidates = [...new Set([...pool, ...(canApprove(requester) ? [requester.memberId] : []), ...guardians])];
+    const party = candidates.filter((id) => parties.has(id));
     requiredApprovers =
-      attending.length > 0
-        ? attending
-        : [...new Set(canApprove(requester) ? [...standIns, requester.memberId] : standIns)];
+      party.length > 0
+        ? party
+        : pool.length > 0
+          ? [...new Set(pool)]
+          : canApprove(requester)
+            ? [requester.memberId]
+            : members.filter(canApprove).map((m) => m.memberId);
   } else {
     const req = [];
     for (const s of p.payers) {

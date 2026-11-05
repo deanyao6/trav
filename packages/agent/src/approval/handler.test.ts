@@ -548,6 +548,39 @@ describe('T-104: a member the booking leaves out never approves it', () => {
     expect(h.audit().filter((e) => e.type === 'approval.granted')).toEqual([]);
   });
 
+  it("round 2: Henry's own request on his own card (\"the 5 of us, Henry's sick\") is his to confirm", async () => {
+    const { h, fake } = rig();
+    const { proposal, cardMessageId } = await propose(h, 'h_henry');
+    expect(proposal.requestedBy).toBe('mem_henry');
+    expect(proposal.attendees).not.toContain('mem_henry');
+    expect(proposal.paidBy).toEqual({ kind: 'member_card', memberId: 'mem_henry' });
+    const decision = decisionOf(h, proposal.proposalId);
+    expect(decision.approvalMode).toBe('any_one');
+    expect(decision.requiredApprovers).toContain('mem_henry');
+    // His tap is the card owner's: it books, once.
+    await h.tap('h_henry', cardMessageId, 'approve');
+    expect(fake.calls).toHaveLength(1);
+    expect(attempts(h).filter((e) => e.payload['cause'] === 'not_attendee')).toEqual([]);
+    expect(status(h, proposal.proposalId)).toBe('completed');
+  });
+
+  it("round 2: a stored decision listing Henry on Dean's card still refuses him; the card owner is a party", async () => {
+    const { h, fake } = rig();
+    const { proposal, cardMessageId } = await propose(h);
+    expect(proposal.paidBy).toEqual({ kind: 'member_card', memberId: 'mem_dean' });
+    const stored = h.runtime.stores.group.bookings.getDecision(proposal.proposalId)!;
+    // Only Henry and Dean listed: Dean (card owner) is a party, Henry is not.
+    h.runtime.stores.group.bookings.saveDecision(
+      { ...stored.decision, requiredApprovers: ['mem_henry', 'mem_dean'] },
+      stored.auditEventId,
+    );
+    expect((await h.tap('h_henry', cardMessageId, 'approve')).silent).toBe(true);
+    expect(attempts(h).at(-1)?.payload).toMatchObject({ cause: 'not_attendee' });
+    expect(fake.calls).toEqual([]);
+    await h.tap('h_dean', cardMessageId, 'approve');
+    expect(fake.calls).toHaveLength(1);
+  });
+
   it('a decision stored before the rule (Henry listed as an approver) still refuses his tap', async () => {
     const { h, fake } = rig();
     const { proposal, cardMessageId } = await propose(h);

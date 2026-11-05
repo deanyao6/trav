@@ -824,21 +824,24 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
       proposal.requestedBy === sender.memberId &&
       ctx.grant.status === 'complete' &&
       ctx.grant.complete;
-    // T-104: a member the booking leaves out (excluded, out tonight) never
-    // approves it. The policy already keeps them out of `any_one` approvers;
-    // this also covers a decision stored before that rule. A non-attendee
-    // still approves when the policy needs them: a non-attending payer under
-    // `each_payer`, or the stand-in when no attendee can approve.
+    // T-104: a member the booking is not about (excluded, out tonight, and not
+    // the card owner or a minor attendee's guardian) never approves it. The
+    // policy already keeps them out of `any_one` approvers; this also covers a
+    // decision stored before that rule. A non-party still approves when the
+    // policy needs them: a non-attending payer under `each_payer`, or the
+    // pool stand-in when no party can approve.
     const me = sender.memberId;
-    const attendee = proposal.attendees.includes(me);
-    const attendeeCanApprove = decision.requiredApprovers.some((id) =>
-      proposal.attendees.includes(id),
+    const parties = approval.bookingParties(
+      proposal,
+      new Map(approval.toMemberViews(members, now).map((v) => [v.memberId, v] as const)),
     );
+    const party = parties.has(me);
+    const partyCanApprove = decision.requiredApprovers.some((id) => parties.has(id));
     const required = decision.requiredApprovers.includes(me);
     if (
       !autoRetry &&
-      !attendee &&
-      (!required || (decision.approvalMode === 'any_one' && attendeeCanApprove))
+      !party &&
+      (!required || (decision.approvalMode === 'any_one' && partyCanApprove))
     ) {
       // VOICE §6.2: ignored silently; the card stays live for the attendees.
       invalidAttempt(proposal, event, 'not_attendee', sender);
