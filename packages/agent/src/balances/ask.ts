@@ -41,8 +41,10 @@ const MINE: readonly RegExp[] = [
   /^(?:how much|what) am i owed(?: (?:so far|right now|now))?$/,
   /^(?:does )?(?:anyone|anybody) owe me(?: (?:anything|money))?$/,
   /^who owes me(?: (?:money|anything))?(?: (?:so far|right now|now))?$/,
-  // what's my balance / where do i stand / am i square
-  /^what(?:'s| is) my (?:balance|share|position|tab|total)(?: (?:so far|right now|now|at))?$/,
+  // what's my balance / where do i stand / am i square. Never "my share" or
+  // "my total": with tickets on the table that is the ticket share, not the
+  // ledger, so it stays the model's (it reads the proposal).
+  /^what(?:'s| is) my (?:balance|position|tab)(?: (?:so far|right now|now|at))?$/,
   /^where do i stand(?: (?:money wise|moneywise|on money|on the tab))?$/,
   /^am i (?:square|even|all square|settled|settled up)$/,
 ];
@@ -53,8 +55,9 @@ const TAB: readonly RegExp[] = [
   // how much have we spent (so far) / how much did we spend
   /^how much (?:have we|has everyone|has the group|did we) (?:spent|spend)(?: (?:so far|in total|total|on this trip|on the trip))?(?: (?:so far))?$/,
   /^how much(?: have| has)? (?:we|everyone|the group) spent(?: (?:so far|in total))?$/,
-  // what's the tab / the running tab / the total so far / balances
-  /^what(?:'s| is) the (?:running )?(?:tab|total|damage|balance|balances)(?: (?:so far|right now|now|at|looking like))?$/,
+  // what's the tab / the running tab / balances. Never "the total" or "the
+  // damage": next to a proposal or a receipt that is the booking's price.
+  /^what(?:'s| is) the (?:running )?(?:tab|balance|balances)(?: (?:so far|right now|now|at|looking like))?$/,
   /^(?:show (?:me |us )?)?(?:the )?(?:running tab|balances|tab so far)$/,
 ];
 
@@ -98,6 +101,19 @@ export interface MyPositionInput {
   readonly meIsMinor: boolean;
   /** A DM "who owes who": point at the group list (adults, split tab only). */
   readonly groupListHint?: boolean;
+  /**
+   * Where the answer goes. In a DM the guardian question is not asked (the
+   * leads answer it in the group); the asker hears why there's no split yet.
+   */
+  readonly lane?: 'group' | 'dm';
+}
+
+/** A balance ask with no trip on: one line, never the generic fallback. */
+export const NO_TRIP_BALANCE_TEXT = 'nothing on the tab yet, no trip set up';
+
+function joinNames(names: readonly string[], joiner: 'or' | 'and'): string {
+  if (names.length <= 1) return names.join('');
+  return `${names.slice(0, -1).join(', ')} ${joiner} ${names.at(-1)!}`;
 }
 
 /** The last line of a DM "who owes who": the whole list belongs in the group. */
@@ -121,7 +137,15 @@ export function myPositionText(input: MyPositionInput): string {
       : "you don't owe anyone, under-18s never do";
   }
   // A minor with money and no guardian: the leads' question, never a guess (VOICE §8).
-  if (b.needsGuardian !== undefined) return b.text;
+  // In a DM that is a personal line; the question itself stays in the group.
+  if (b.needsGuardian !== undefined) {
+    if (input.lane !== 'dm') return b.text;
+    const minors = joinNames(b.needsGuardian.minors.map(name), 'and');
+    const leads = joinNames(b.needsGuardian.askMemberIds.map(name), 'or');
+    return leads.length === 0
+      ? `can't split yet, someone has to say who's covering ${minors}`
+      : `can't split yet, ${leads} has to say who's covering ${minors}`;
+  }
   if (b.mode === 'family_tab') return b.text;
 
   const total = `${fmt(b.totalSpentMinor)} on the tab so far`;

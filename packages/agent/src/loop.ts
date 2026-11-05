@@ -163,7 +163,12 @@ import {
   type SettingsTurnContext,
 } from './settings/flow.js';
 import { balancesFor, renderSettleUpFor } from './tools/ledger.js';
-import { myPositionText, parseBalanceAsk, type BalanceAskKind } from './balances/ask.js';
+import {
+  myPositionText,
+  NO_TRIP_BALANCE_TEXT,
+  parseBalanceAsk,
+  type BalanceAskKind,
+} from './balances/ask.js';
 import type { ToolRegistry } from './tools/registry.js';
 import type { TurnToolContext } from './tools/shared.js';
 import { detectInjection, stripInvisible } from './untrusted.js';
@@ -1279,6 +1284,24 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
         drafts.push(card);
         note = 'tool:get_balances:settle_up';
         text = '';
+      } else if (
+        text.length === 0 &&
+        lastTool?.name === 'get_balances' &&
+        r.lane === 'dm' &&
+        r.trip !== null &&
+        !(isRecord(lastTool.value) && 'error' in lastTool.value)
+      ) {
+        // A DM is personal (T-101): the asker's own position, the same line
+        // the rules path renders, never the group's transfer list.
+        text = myPositionText({
+          balances: balancesFor(toolCtx),
+          me,
+          members: stores.group.members.listByGroup(r.group.groupId),
+          meIsMinor: safety.isMinor(me, r.now),
+          groupListHint: true,
+          lane: 'dm',
+        });
+        note = 'tool:get_balances:mine';
       } else if (text.length === 0) {
         const fallback = [...results]
           .reverse()
@@ -1912,8 +1935,28 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     // "how much have we spent so far"; T-091, T-085, T-101): rules, never a
     // scripted turn keyed on the sender, so any member in any group gets the
     // same answer in the group thread or a DM. Anything longer is the model's.
+    // A quote-reply to a proposal or receipt card, or a proposal still open
+    // inside the reply window, is about that booking's price (the ticket
+    // share), not the ledger: the model's, with the proposal in context.
+    const aboutBooking =
+      boundRef?.proposalId !== undefined ||
+      boundRef?.card.type === 'booking_proposal' ||
+      boundRef?.card.type === 'receipt' ||
+      askedRef?.proposalId !== undefined ||
+      pendingFor(r).some((p) => parseIso(r.now) - parseIso(p.requestedAt) <= REPLY_WINDOW_MS);
     const balanceAsk =
-      r.trip !== null && canRequest(r.identity) ? parseBalanceAsk(text) : undefined;
+      canRequest(r.identity) && !aboutBooking ? parseBalanceAsk(text) : undefined;
+    if (balanceAsk !== undefined && r.trip === null) {
+      const sent = await send(r, [message(r, NO_TRIP_BALANCE_TEXT)]);
+      return withResumed({
+        outbound: sent,
+        toolCalls: [],
+        auditEventIds: [],
+        silent: sent.length === 0,
+        modelSources: [],
+        note: 'balances:no_trip',
+      });
+    }
     if (balanceAsk !== undefined) return withResumed(await balanceTurn(r, me, event, balanceAsk));
 
     const expense = await expenseTurn(false);
@@ -1978,6 +2021,7 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
         members,
         meIsMinor,
         groupListHint: r.lane === 'dm' && ask !== 'mine',
+        lane: r.lane,
       });
       draft = message(r, text);
       note = 'balances:mine';
