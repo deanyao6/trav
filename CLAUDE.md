@@ -20,7 +20,7 @@ A demoable product that runs locally with **no real money, no real messages, and
 8. **Personality engine:** Trav's voice, plus opt-in roast mode with hard guardrails.
 9. **Shared album:** a mock adapter (opt-in, consent-gated) that the recaps can pull photos from.
 10. **Eval harness:** scenario-based evals scoring Trav's decisions, with a regression suite.
-11. `README.md` with a one-command demo of the Barcelona flagship scenario.
+11. `docs/DEMO.md` with a one-command demo of the Barcelona flagship scenario. `README.md` is exactly one line, "trav - all in one travel agent" (Dean, 2026-11-05); never add anything to it.
 
 Real integrations (iMessage relay, WhatsApp, Plaid, Stripe, ticketing APIs) sit **behind adapter interfaces** with mock implementations. Real adapters may be stubbed with TODOs and docs. Never call them live.
 
@@ -135,7 +135,7 @@ Independent tasks can run builder loops in parallel **only if they touch disjoin
 After every ~6 completed tasks: run `qa-tester` (once the simulator exists), `safety-reviewer` over the diff since the last checkpoint, and `conversation-designer` over any new user-facing text, then re-prioritize the backlog. QA bugs that break the Barcelona flow go to the top. Run `market-researcher`/`gap-hunter` again only if the backlog runs dry.
 
 ### Phase 5: Finish
-When all P0 tasks are done (or time/budget is running out): run `qa-tester` on every journey, fix what it finds, and make sure the demo runs end to end, all tests pass, and the README is accurate. Write `MORNING_REPORT.md`. Then keep working down P1 tasks under the same loop. Always end on a green commit.
+When all P0 tasks are done (or time/budget is running out): run `qa-tester` on every journey, fix what it finds, and make sure the demo runs end to end, all tests pass, and `docs/DEMO.md` is accurate. Write `MORNING_REPORT.md`. Then keep working down P1 tasks under the same loop. Always end on a green commit.
 
 ## 6. Definition of done (every task)
 - Acceptance criteria met; unit tests added; `pnpm test && pnpm typecheck && pnpm lint` pass.
