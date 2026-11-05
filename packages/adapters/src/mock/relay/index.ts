@@ -1,6 +1,9 @@
 /**
  * Mock iMessage relay (T-169): an in-memory stand-in for the vendor's side
- * of the wire, for tests, the contract suite and `pnpm relay:dev`.
+ * of the wire, for tests, the contract suite and `pnpm relay:dev`. For
+ * BlueBubbles (T-187) it is the fake self-hosted server: its REST API
+ * (password in the query, multipart attachment uploads, Private API gating)
+ * and its webhooks (message rows, the secret as the URL's `?token=`).
  *
  * It mirrors each vendor independently of the client modules in
  * `channel/relay/vendors/` (its own request validation and its own webhook
@@ -34,10 +37,15 @@ import type {
   TapbackName,
 } from '../../channel/relay/types.js';
 import { MOCK_RELAY_KEY, MOCK_RELAY_LINE, MOCK_RELAY_SECRET } from '../../channel/relay/config.js';
+import { BLUEBUBBLES_MOCK_SERVER_URL } from '../../channel/relay/vendors/bluebubbles.js';
 
 export interface MockRelayOptions {
   readonly vendor: RelayVendorId;
   readonly clock: Clock;
+  /** BlueBubbles: the fake server's origin. Default `BLUEBUBBLES_MOCK_SERVER_URL`. */
+  readonly serverUrl?: string;
+  /** BlueBubbles: the server's Private API helper is on (tapbacks, inline replies). Default true. */
+  readonly privateApi?: boolean;
   /** Trav's line. Default the fictional `MOCK_RELAY_LINE`. */
   readonly line?: string;
   readonly webhookSecret?: string;
@@ -66,6 +74,8 @@ export interface MockRelaySend {
 export interface SignedWebhook {
   readonly rawBody: string;
   readonly headers: Readonly<Record<string, string>>;
+  /** BlueBubbles: the registered webhook URL's query (`?token=<secret>`), which carries the secret. */
+  readonly query?: string;
 }
 
 export type MockRelayFault =
@@ -85,6 +95,12 @@ export interface MockMemberMessage {
   readonly vendorMessageId?: string;
   /** The service the vendor reports (default `iMessage`; `SMS` for an MMS-fallback thread). */
   readonly service?: string;
+  /**
+   * BlueBubbles: addresses the member tapped in the mention picker, each sent
+   * as a structured mention run in `attributedBody`. Ignored by vendors that
+   * report no mentions (Photon, Sendblue): there "@trav" is only text.
+   */
+  readonly mentions?: readonly string[];
 }
 
 export interface MockRelay {
@@ -109,7 +125,11 @@ export interface MockRelay {
     readonly removed?: boolean;
     readonly eventId?: string;
   }): SignedWebhook;
-  /** Photon posts a webhook; Sendblue has none (the roster rides on the next group message). */
+  /**
+   * Photon posts a webhook; Sendblue has none (the roster rides on the next
+   * group message); BlueBubbles posts `participant-added` with the new
+   * member only as a row id, so its roster also updates on the next message.
+   */
   memberJoined(input: {
     readonly chatId: string;
     readonly address: string;
@@ -158,6 +178,9 @@ function isObj(v: unknown): v is Record<string, unknown> {
 }
 
 function bad(status: number, message: string, vendor: RelayVendorId): RelayHttpResponse {
+  if (vendor === 'bluebubbles') {
+    return { status, body: { status, message, error: { type: 'Error', message } } };
+  }
   return vendor === 'photon'
     ? {
         status,
@@ -166,6 +189,11 @@ function bad(status: number, message: string, vendor: RelayVendorId): RelayHttpR
     : { status, body: { status: 'ERROR', error_message: message } };
 }
 
+/** Messages' chat styles. */
+const BB_GROUP_STYLE = 43;
+const BB_DM_STYLE = 45;
+const BB_METHODS: readonly string[] = ['apple-script', 'private-api'];
+
 export function createMockRelay(options: MockRelayOptions): MockRelay {
   const { vendor, clock } = options;
   const line = options.line ?? MOCK_RELAY_LINE;
@@ -173,6 +201,8 @@ export function createMockRelay(options: MockRelayOptions): MockRelay {
   const apiKey = options.apiKey ?? MOCK_RELAY_KEY;
   const apiSecret = options.apiSecret ?? MOCK_RELAY_KEY;
   const media = options.media ?? createMemoryMediaHost();
+  const bbOrigin = new URL(options.serverUrl ?? BLUEBUBBLES_MOCK_SERVER_URL).origin;
+  const bbPrivateApi = options.privateApi ?? true;
   const chats = new Map<string, Set<string>>();
   for (const c of options.chats ?? [])
     chats.set(c.chatId, new Set(c.participants.filter((a) => a !== line)));
@@ -192,6 +222,8 @@ export function createMockRelay(options: MockRelayOptions): MockRelay {
   const nextMessageId = (): string => {
     counter += 1;
     const n = String(counter).padStart(6, '0');
+    if (vendor === 'bluebubbles')
+      return `B10EB0B5-0000-4000-8000-${String(counter).padStart(12, '0')}`;
     return vendor === 'photon' ? `PHM-${n}` : `sb-${n}-mock`;
   };
 
@@ -354,7 +386,158 @@ export function createMockRelay(options: MockRelayOptions): MockRelay {
     return bad(404, 'unknown endpoint', vendor);
   }
 
+  function bbChat(guid: unknown): RelayChatRef | undefined {
+    if (typeof guid !== 'string') return undefined;
+    const dm = /^(?:iMessage|SMS|any);-;(.+)$/.exec(guid);
+    if (dm) return { kind: 'dm', address: dm[1]! };
+    return chats.has(guid) ? { kind: 'group', chatId: guid } : undefined;
+  }
+
+  /** The server's REST API, as the BlueBubbles docs describe it (password in the query). */
+  async function handleBlueBubbles(
+    req: RelayHttpRequest,
+  ): Promise<RelayHttpResponse | MockRelaySend> {
+    const url = new URL(req.url);
+    if (url.origin !== bbOrigin) return bad(404, 'unknown host', vendor);
+    const passwords = url.searchParams.getAll('password');
+    if (passwords.length !== 1 || passwords[0] !== apiKey) return bad(401, 'Unauthorized', vendor);
+    if (req.method !== 'POST') return bad(405, 'POST only', vendor);
+    const at = clock.now();
+    const checkMethod = (m: unknown): string | undefined =>
+      typeof m !== 'string' || !BB_METHODS.includes(m)
+        ? 'method must be apple-script or private-api'
+        : m === 'private-api' && !bbPrivateApi
+          ? 'iMessage Private API is not enabled'
+          : undefined;
+
+    if (url.pathname === '/api/v1/message/attachment') {
+      const form = req.form;
+      if (form === undefined || req.body !== undefined) {
+        return bad(400, 'attachment must be multipart/form-data', vendor);
+      }
+      const chat = bbChat(form.fields['chatGuid']);
+      if (!chat) return bad(404, 'Chat does not exist', vendor);
+      if (!(form.fields['tempGuid'] ?? '').startsWith('temp-')) {
+        return bad(400, 'tempGuid is required', vendor);
+      }
+      if ((form.fields['name'] ?? '').length === 0) return bad(400, 'name is required', vendor);
+      const methodProblem = checkMethod(form.fields['method']);
+      if (methodProblem !== undefined) return bad(400, methodProblem, vendor);
+      const file = form.files.length === 1 ? form.files[0] : undefined;
+      if (!file || file.field !== 'attachment') {
+        return bad(400, 'exactly one attachment file is required', vendor);
+      }
+      const bytes = Buffer.from(file.base64, 'base64');
+      if (bytes.length === 0 || !/^image\//.test(file.mimeType)) {
+        return bad(400, 'attachment must be a non-empty image', vendor);
+      }
+      // The server stores the upload and the phones show it; the mock keeps the
+      // bytes in the shared media host so the simulator can draw them.
+      const stored = await media.publish({
+        bytes,
+        mimeType: file.mimeType,
+        fileName: file.fileName,
+      });
+      return {
+        vendorMessageId: nextMessageId(),
+        kind: 'message',
+        chat,
+        text: '',
+        media: [{ url: stored.url, mimeType: file.mimeType, fileName: file.fileName }],
+        at,
+      };
+    }
+
+    const body = req.body;
+    if (!isObj(body) || req.form !== undefined) return bad(400, 'POST a JSON object', vendor);
+    const chat = bbChat(body['chatGuid']);
+    if (!chat) return bad(404, 'Chat does not exist', vendor);
+
+    if (url.pathname === '/api/v1/message/text') {
+      const text = body['message'];
+      if (typeof text !== 'string' || text.length === 0) {
+        return bad(400, 'message is required', vendor);
+      }
+      const tempGuid = body['tempGuid'];
+      if (typeof tempGuid !== 'string' || !tempGuid.startsWith('temp-')) {
+        return bad(400, 'tempGuid is required', vendor);
+      }
+      const methodProblem = checkMethod(body['method']);
+      if (methodProblem !== undefined) return bad(400, methodProblem, vendor);
+      const replyTo = body['selectedMessageGuid'];
+      if (replyTo !== undefined) {
+        if (body['method'] !== 'private-api') {
+          return bad(400, 'replies need the private-api method', vendor);
+        }
+        const target = typeof replyTo === 'string' ? messages.get(replyTo) : undefined;
+        if (!target || !sameChat(target.chat, chat)) {
+          return bad(404, 'selected message not found', vendor);
+        }
+      }
+      return {
+        vendorMessageId: nextMessageId(),
+        kind: 'message',
+        chat,
+        text,
+        media: [],
+        ...(typeof replyTo === 'string' ? { replyToVendorId: replyTo } : {}),
+        at,
+      };
+    }
+
+    if (url.pathname === '/api/v1/message/react') {
+      if (!bbPrivateApi) return bad(400, 'iMessage Private API is not enabled', vendor);
+      const target = body['selectedMessageGuid'];
+      const known = typeof target === 'string' ? messages.get(target) : undefined;
+      if (!known || typeof target !== 'string' || !sameChat(known.chat, chat)) {
+        return bad(404, 'selected message not found', vendor);
+      }
+      const raw = body['reaction'];
+      const remove = typeof raw === 'string' && raw.startsWith('-');
+      const name = typeof raw === 'string' ? raw.replace(/^-/, '') : '';
+      if (!(TAPBACKS as readonly string[]).includes(name)) {
+        return bad(400, 'reaction must be a tapback', vendor);
+      }
+      return {
+        vendorMessageId: nextMessageId(),
+        kind: 'reaction',
+        chat,
+        text: '',
+        media: [],
+        targetVendorId: target,
+        tapback: name as TapbackName,
+        remove,
+        at,
+      };
+    }
+    return bad(404, 'unknown endpoint', vendor);
+  }
+
   function okReply(send: MockRelaySend): RelayHttpResponse {
+    if (vendor === 'bluebubbles') {
+      return {
+        status: 200,
+        body: {
+          status: 200,
+          message: 'Message sent!',
+          data: {
+            guid: send.vendorMessageId,
+            text: send.text,
+            isFromMe: true,
+            dateCreated: clock.nowMs(),
+            ...(send.kind === 'reaction'
+              ? { associatedMessageGuid: `p:0/${send.targetVendorId ?? ''}` }
+              : {}),
+            chats: [
+              {
+                guid:
+                  send.chat.kind === 'group' ? send.chat.chatId : `iMessage;-;${send.chat.address}`,
+              },
+            ],
+          },
+        },
+      };
+    }
     if (vendor === 'photon') {
       const inner = { guid: send.vendorMessageId, status: 'queued', created_at: send.at };
       return {
@@ -388,10 +571,20 @@ export function createMockRelay(options: MockRelayOptions): MockRelay {
           fault.retryAfterSeconds !== undefined
             ? { 'retry-after': String(fault.retryAfterSeconds) }
             : {},
-        body: vendor === 'photon' ? { error: { code: 'unavailable' } } : { status: 'ERROR' },
+        body:
+          vendor === 'photon'
+            ? { error: { code: 'unavailable' } }
+            : vendor === 'bluebubbles'
+              ? { status: fault.status, message: 'error', error: { type: 'Server Error' } }
+              : { status: 'ERROR' },
       };
     }
-    const handled = vendor === 'photon' ? handlePhoton(req) : handleSendblue(req);
+    const handled =
+      vendor === 'photon'
+        ? handlePhoton(req)
+        : vendor === 'bluebubbles'
+          ? await handleBlueBubbles(req)
+          : handleSendblue(req);
     if ('status' in handled) return handled;
     sends.push(handled);
     messages.set(handled.vendorMessageId, { chat: handled.chat, text: handled.text });
@@ -407,6 +600,15 @@ export function createMockRelay(options: MockRelayOptions): MockRelay {
 
   function sign(body: unknown): SignedWebhook {
     const rawBody = JSON.stringify(body);
+    if (vendor === 'bluebubbles') {
+      // No signature and no custom headers: the secret is part of the URL the
+      // server was given.
+      return {
+        rawBody,
+        headers: { 'content-type': 'application/json' },
+        query: `?token=${encodeURIComponent(secret)}`,
+      };
+    }
     if (vendor === 'photon') {
       const t = Math.floor(clock.nowMs() / 1000);
       const v1 = createHmac('sha256', secret)
@@ -452,6 +654,100 @@ export function createMockRelay(options: MockRelayOptions): MockRelay {
     return [...(chats.get(chatId) ?? [])];
   }
 
+  // ---- BlueBubbles webhook bodies (the server's serialized message rows)
+  let bbRowId = 1000;
+  const bbHandles = new Map<string, number>();
+  const bbHandle = (address: string, service = 'iMessage') => {
+    let id = bbHandles.get(address);
+    if (id === undefined) {
+      id = bbHandles.size + 1;
+      bbHandles.set(address, id);
+    }
+    return { originalROWID: id, address, service, country: 'us', uncanonicalizedId: null };
+  };
+  const bbChatOf = (chat: RelayChatRef) =>
+    chat.kind === 'group'
+      ? {
+          originalROWID: 1,
+          guid: chat.chatId,
+          style: BB_GROUP_STYLE,
+          chatIdentifier: chat.chatId.replace(/^.*;\+;/, ''),
+          displayName: '',
+          participants: rosterList(chat.chatId).map((a) => bbHandle(a)),
+        }
+      : {
+          originalROWID: 2,
+          guid: `iMessage;-;${chat.address}`,
+          style: BB_DM_STYLE,
+          chatIdentifier: chat.address,
+          displayName: '',
+        };
+
+  function bbMessage(input: {
+    readonly guid: string;
+    readonly chat: RelayChatRef;
+    readonly from: string;
+    readonly text: string;
+    readonly service?: string;
+    readonly attachments?: readonly Record<string, unknown>[];
+    readonly threadOriginatorGuid?: string;
+    readonly associatedMessageGuid?: string;
+    readonly associatedMessageType?: string;
+    readonly itemType?: number;
+    readonly groupActionType?: number;
+    readonly otherHandle?: number;
+    readonly mentions?: readonly string[];
+  }): Record<string, unknown> {
+    bbRowId += 1;
+    const mentions = input.mentions ?? [];
+    return {
+      originalROWID: bbRowId,
+      guid: input.guid,
+      text: input.text,
+      attributedBody:
+        mentions.length === 0
+          ? null
+          : [
+              {
+                string: input.text,
+                runs: [
+                  {
+                    range: [0, input.text.length],
+                    attributes: { __kIMMessagePartAttributeName: 0 },
+                  },
+                  ...mentions.map((address) => ({
+                    range: [0, 0],
+                    attributes: {
+                      __kIMMessagePartAttributeName: 0,
+                      __kIMMentionConfirmedMention: address,
+                    },
+                  })),
+                ],
+              },
+            ],
+      handle: bbHandle(input.from, input.service),
+      handleId: bbHandles.get(input.from) ?? 0,
+      otherHandle: input.otherHandle ?? 0,
+      attachments: input.attachments ?? [],
+      subject: null,
+      error: 0,
+      dateCreated: clock.nowMs(),
+      dateRead: null,
+      dateDelivered: null,
+      isFromMe: false,
+      itemType: input.itemType ?? 0,
+      groupTitle: null,
+      groupActionType: input.groupActionType ?? 0,
+      balloonBundleId: null,
+      associatedMessageGuid: input.associatedMessageGuid ?? null,
+      associatedMessageType: input.associatedMessageType ?? null,
+      expressiveSendStyleId: null,
+      threadOriginatorGuid: input.threadOriginatorGuid ?? null,
+      threadOriginatorPart: input.threadOriginatorGuid !== undefined ? '0:0:0' : null,
+      chats: [bbChatOf(input.chat)],
+    };
+  }
+
   const relay: MockRelay = {
     vendor,
     line,
@@ -477,6 +773,42 @@ export function createMockRelay(options: MockRelayOptions): MockRelay {
         const set = chats.get(input.chat.chatId) ?? new Set<string>();
         set.add(input.from);
         chats.set(input.chat.chatId, set);
+      }
+      if (vendor === 'bluebubbles') {
+        // Attachments stay on the server; Trav gets a guid to download.
+        const attachments = (input.attachments ?? []).map((a, i) => {
+          const guid = `at_${String(i)}_${id}`;
+          uploads.set(`${bbOrigin}/api/v1/attachment/${encodeURIComponent(guid)}/download`, a);
+          return {
+            originalROWID: i + 1,
+            guid,
+            uti: a.mimeType === 'image/png' ? 'public.png' : 'public.jpeg',
+            mimeType: a.mimeType,
+            transferName:
+              a.fileName ??
+              `IMG_${String(4100 + i)}.${a.mimeType === 'image/png' ? 'png' : 'jpeg'}`,
+            totalBytes: 1,
+            isOutgoing: false,
+            hideAttachment: false,
+            isSticker: false,
+          };
+        });
+        return sign({
+          type: 'new-message',
+          data: bbMessage({
+            guid: id,
+            chat: input.chat,
+            from: input.from,
+            // Messages puts U+FFFC where each attachment sits.
+            text: `${'\uFFFC'.repeat(attachments.length)}${input.text}`,
+            attachments,
+            ...(input.service !== undefined ? { service: input.service } : {}),
+            ...(input.replyToVendorId !== undefined
+              ? { threadOriginatorGuid: input.replyToVendorId }
+              : {}),
+            ...(input.mentions !== undefined ? { mentions: input.mentions } : {}),
+          }),
+        });
       }
       const uploaded: RelayMedia[] = [];
       for (const a of input.attachments ?? []) {
@@ -542,6 +874,28 @@ export function createMockRelay(options: MockRelayOptions): MockRelay {
 
     memberTapback(input) {
       const at = clock.now();
+      if (vendor === 'bluebubbles') {
+        // A tapback is its own message row pointing at the target, with the
+        // iOS text spelled out for clients that can't draw it.
+        const guid = input.eventId ?? nextMessageId();
+        const target = messages.get(input.targetVendorId)?.text ?? '';
+        const flat = target.replace(/\s+/g, ' ').trim();
+        const quoted = flat.length > IOS_QUOTE_LIMIT ? `${flat.slice(0, IOS_QUOTE_LIMIT)}…` : flat;
+        return sign({
+          type: 'new-message',
+          data: bbMessage({
+            guid,
+            chat: input.chat,
+            from: input.from,
+            text:
+              input.removed === true
+                ? `Removed ${REMOVED_NOUN[input.tapback]} from “${quoted}”`
+                : `${ADDED_VERB[input.tapback]} “${quoted}”`,
+            associatedMessageGuid: `p:0/${input.targetVendorId}`,
+            associatedMessageType: `${input.removed === true ? '-' : ''}${input.tapback}`,
+          }),
+        });
+      }
       if (vendor === 'photon') {
         return sign({
           id: input.eventId ?? eventId(),
@@ -574,6 +928,25 @@ export function createMockRelay(options: MockRelayOptions): MockRelay {
       const set = chats.get(input.chatId) ?? new Set<string>();
       set.add(input.address);
       chats.set(input.chatId, set);
+      if (vendor === 'bluebubbles') {
+        // Messages records who added whom; the server reports the added
+        // person only as a handle row id, so Trav learns the address from
+        // the roster on the next group message.
+        const adder = [...set].find((a) => a !== input.address) ?? input.address;
+        bbHandle(input.address);
+        return sign({
+          type: 'participant-added',
+          data: bbMessage({
+            guid: nextMessageId(),
+            chat: { kind: 'group', chatId: input.chatId },
+            from: adder,
+            text: '',
+            itemType: 1,
+            groupActionType: 0,
+            otherHandle: bbHandles.get(input.address) ?? 0,
+          }),
+        });
+      }
       if (vendor !== 'photon') return undefined;
       return sign({
         id: eventId(),
@@ -591,6 +964,20 @@ export function createMockRelay(options: MockRelayOptions): MockRelay {
 
     memberLeft(input) {
       chats.get(input.chatId)?.delete(input.address);
+      if (vendor === 'bluebubbles') {
+        // Someone leaving on their own: the row's handle is the person who left.
+        return sign({
+          type: 'participant-left',
+          data: bbMessage({
+            guid: nextMessageId(),
+            chat: { kind: 'group', chatId: input.chatId },
+            from: input.address,
+            text: '',
+            itemType: 3,
+            groupActionType: 1,
+          }),
+        });
+      }
       if (vendor !== 'photon') return undefined;
       return sign({
         id: eventId(),

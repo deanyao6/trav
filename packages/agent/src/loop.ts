@@ -214,6 +214,8 @@ import type { ToolRegistry } from './tools/registry.js';
 import type { TurnToolContext } from './tools/shared.js';
 import { detectInjection, stripInvisible } from './untrusted.js';
 import { createExpenseNotices } from './notices/expenseNotices.js';
+import { createLaneTextGuard, stringLeaves } from './privacy/laneText.js';
+import { guardGroupText } from './privacy/guardSend.js';
 import { createSuggestFlow, parseSuggestAsk } from './tiers/suggest.js';
 import type { SuggestOutcome, SuggestTurnInput } from './tiers/suggest.js';
 import type { GroupLine, TravelFact } from './tiers/signals.js';
@@ -383,6 +385,12 @@ export interface TravAgent {
   intakeDocument(input: DocumentIntake): Promise<DocumentIntakeResult>;
   /** Trav's pending cards (for the approval normalizer and tests). */
   readonly pendingCards: PendingCardIndex;
+  /**
+   * The family-mode notice for a group that has not been told yet (idempotent,
+   * `settings/flow.ts`), sent through the agent's wrapped send path (T-213 r2:
+   * the DM-text guard and expense notices see it like every other send).
+   */
+  announceFamilyMode(groupId: string): Promise<readonly Outbound[]>;
 }
 
 // ---------- constants (VOICE §4.12, §6.4) ----------
@@ -394,7 +402,14 @@ export const NOTHING_TO_ADD_TEXT = 'nothing to add on that';
 /** A proposal card the family screen held back: withdrawn, nothing booked (VOICE §4.12 C, all-ages wording). */
 export const UNDELIVERED_PROPOSAL_TEXT =
   "that one's not all-ages, so i won't set it up in this chat. nothing's booked, no charge";
-/** A proposal card that failed to send (channel error, no DM lane): withdrawn, nothing booked (T-148 #7). */
+/** Screen causes `UNDELIVERED_PROPOSAL_TEXT` is true for (a family group's all-ages screen). */
+const ALL_AGES_CAUSES: ReadonlySet<string> = new Set([
+  'minor_nightlife',
+  'minor_alcohol',
+  'age_restricted',
+  'adult_audience_not_named',
+]);
+/** A proposal card that failed to send (channel error, no DM lane, any other hold): withdrawn, nothing booked (T-148 #7). */
 export const UNSENT_PROPOSAL_TEXT =
   "that card didn't go through, so i dropped it. nothing's booked, no charge. @ me to try again";
 const TRAV_ACTOR = { kind: 'trav', id: 'trav' } as const;
@@ -691,6 +706,38 @@ function resultCard(v: unknown): RichCard | undefined {
     : undefined;
 }
 
+/**
+ * T-213 r2: per tool, the free-text input fields the GroupStore keeps
+ * verbatim and the group sees (notices, cards, recaps, Wrapped). From a
+ * private thread these may not carry the member's DM wording. Every other
+ * group-writing input resolves before it is stored: `propose_booking`'s query
+ * and venue against inventory, member names against the roster,
+ * `set_attendance` / `cancel_proposal` / `request_settings_change` to ids and
+ * enums, so none is checked. `remember` is not here: from a DM it only ever
+ * writes the sender's private notes (group scope is refused).
+ */
+export const DM_STORED_TEXT: Readonly<Record<string, (input: unknown) => string[]>> = {
+  log_expense: (input) => {
+    if (!isRecord(input)) return [];
+    const out: string[] = [];
+    if (typeof input['description'] === 'string') out.push(input['description']);
+    const split = input['split'];
+    const items = isRecord(split) ? split['lineItems'] : undefined;
+    if (Array.isArray(items)) {
+      for (const li of items as unknown[])
+        if (isRecord(li) && typeof li['label'] === 'string') out.push(li['label']);
+    }
+    return out;
+  },
+};
+
+/** Tools whose results are provider inventory (public wording, `notePublicInventory`). */
+const SEARCH_TOOLS: ReadonlySet<string> = new Set([
+  'search_events',
+  'search_flights',
+  'search_lodging',
+]);
+
 function toolErrorResult(e: unknown): Record<string, unknown> {
   if (e instanceof TravError) return { error: e.code, message: e.message };
   return { error: 'failed', message: e instanceof Error ? e.message : String(e) };
@@ -711,11 +758,32 @@ export function createTravAgent(input: AgentDeps): TravAgent {
   // T-165: every expense committed during an operation gets one group notice
   // (`notices/expenseNotices.ts`); the wrapped send path notes which ones a
   // group card already announced. Every send below goes through it.
+  // T-213: DM-only wording never reaches the group lane. The guard knows each
+  // member's DM text (and their private notes); the wrapped sender below
+  // checks every group message in the agent (replies, cards, expense notices,
+  // recaps), whatever sender was injected: a model-written reply carrying it
+  // is held back, a code-rendered message has the member-written field
+  // redacted and still goes out (`privacy/guardSend.ts`).
+  /** Ids of group-lane drafts the model wrote; taken off as the guard checks them. */
+  const modelReplyIds = new Set<string>();
+  const laneText = createLaneTextGuard({
+    extraPrivate: (groupId) =>
+      input.stores.group.members.listByGroup(groupId).flatMap((m) =>
+        input.memberMemory
+          .recall(m.memberId, groupId)
+          .filter((f) => f.sourceLane === 'private')
+          .map((f) => ({ ownerId: m.memberId, text: f.text })),
+      ),
+  });
   const notices = createExpenseNotices({
     stores: input.stores,
     clock: input.clock,
     ids: input.ids,
-    sendTurn: input.sendTurn,
+    // Only the chat loop's own reply is model-written (`modelReplyIds`); every
+    // other group message is rendered by code and is never dropped by this.
+    sendTurn: guardGroupText(input.sendTurn, laneText, input.stores, {
+      isModelText: (o) => modelReplyIds.delete(o.id),
+    }),
     scheduler: input.scheduler,
   });
   const deps: AgentDeps = { ...input, sendTurn: notices.sendTurn };
@@ -1011,6 +1079,9 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     // all-ages line says nothing was booked (T-081 r1 #1, VOICE §4.12 C).
     // A card that never went out for any other reason (a channel error, a
     // DM with no lane) is withdrawn the same way, with its own line (T-148 #7).
+    // T-213 r2: the all-ages line only for an all-ages screen; a card held
+    // back for anything else (a lane stop, DM-only wording) gets the neutral
+    // "didn't go through" line, which is true and says nothing about why.
     let screened = false;
     let failed = false;
     for (const o of outcomes) {
@@ -1018,7 +1089,7 @@ export function createTravAgent(input: AgentDeps): TravAgent {
       const card = o.outbound.card;
       if (card?.type !== 'booking_proposal') continue;
       if (!(await withdrawUndelivered(card.proposalId))) continue;
-      if (o.suppressed) screened = true;
+      if (o.suppressed && o.suppressions.some((s) => ALL_AGES_CAUSES.has(s.cause))) screened = true;
       else failed = true;
     }
     const notes = [
@@ -1498,7 +1569,12 @@ export function createTravAgent(input: AgentDeps): TravAgent {
       { recentMessages: recent.get(key) ?? [], recentMessageLimit: recentLimit },
     );
     const prompt = renderGroupPrompt(ctx, template, { lane: r.lane === 'dm' ? 'dm' : 'group' });
-    let system = `${prompt.system}\n\n${prompt.context}`;
+    // T-213: the group lane never sees a member's DM wording, whatever wrote
+    // it into the GroupStore or the transcript; the template is code.
+    const groupLane = r.lane === 'group';
+    const forModel = <T>(value: T): T =>
+      groupLane ? laneText.redactDeep(r.group.groupId, value) : value;
+    let system = `${prompt.system}\n\n${forModel(prompt.context)}`;
     if (r.lane === 'dm') {
       // DM lane only: this member's own memory and pending-item count (SAFETY §2.3).
       const facts = deps.memberMemory.recall(me.memberId, r.group.groupId);
@@ -1609,7 +1685,9 @@ export function createTravAgent(input: AgentDeps): TravAgent {
         toolCalls.push(call.name);
         let value: unknown;
         try {
+          dmWordingCheck(r, call.name, call.input);
           value = await tools.run(call.name, call.input, toolCtx);
+          notePublicInventory(r, call.name, value);
         } catch (e) {
           value = toolErrorResult(e);
         }
@@ -1625,7 +1703,7 @@ export function createTravAgent(input: AgentDeps): TravAgent {
         toolResults.push({
           type: 'tool_result',
           toolUseId: call.id,
-          content: JSON.stringify(value),
+          content: JSON.stringify(forModel(value)),
         });
       }
       messages.push({ role: 'user', content: toolResults });
@@ -1714,7 +1792,12 @@ export function createTravAgent(input: AgentDeps): TravAgent {
         text = fallback ?? (results.length > 0 ? NOTHING_TO_ADD_TEXT : '');
         note = fallback !== undefined ? 'tool:text' : 'model:empty';
       }
-      if (text.length > 0) drafts.push(message(r, text));
+      if (text.length > 0) {
+        const draft = message(r, text);
+        // T-213: the model wrote this one; the group send guard holds it to the strict check.
+        if (note === 'model:text' && draft.to.kind === 'group') modelReplyIds.add(draft.id);
+        drafts.push(draft);
+      }
     }
     // An earlier terminal tool owns the turn; the settings flow's question or
     // answer still goes out after it, so a change never happens unsaid.
@@ -1731,6 +1814,38 @@ export function createTravAgent(input: AgentDeps): TravAgent {
       modelSources: sources,
       note,
     };
+  }
+
+  /**
+   * T-213: a tool call from a private thread may not write the member's DM
+   * wording into a free-text field the GroupStore keeps verbatim and the
+   * group sees (`DM_STORED_TEXT`). Fields that resolve against inventory or
+   * the roster (a booking query, a venue, a member name, an enum) are never
+   * stored as typed, so "get me razzmatazz tickets" from a DM still books.
+   * Thrown as `invalid_argument` so the model can retry with a neutral word.
+   */
+  function dmWordingCheck(r: Resolved, name: string, input: unknown): void {
+    if (r.lane !== 'dm') return;
+    const stored = DM_STORED_TEXT[name]?.(input) ?? [];
+    const leaked = stored.some((s) => laneText.leaks(r.group.groupId, s).length > 0);
+    if (leaked) {
+      throw new TravError(
+        'invalid_argument',
+        "that wording is from this private thread and would show in the group. use a neutral word or two (e.g. 'dinner', 'tickets'), or ask them to say it in the group",
+      );
+    }
+  }
+
+  /**
+   * T-213 r2: what a search returns is provider inventory (event names,
+   * venues, tiers, listings, flights), public from the start: a DM that
+   * names it ("are club tickets refundable?") never makes it private wording.
+   * The member's own query is not inventory and is left out.
+   */
+  function notePublicInventory(r: Resolved, name: string, value: unknown): void {
+    if (!SEARCH_TOOLS.has(name) || !isRecord(value) || 'error' in value) return;
+    const { query: _q, requestText: _t, ...inventory } = value;
+    for (const s of stringLeaves(inventory)) laneText.notePublic(r.group.groupId, s);
   }
 
   /**
@@ -2002,6 +2117,10 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     const me = r.me;
     const groupKey = laneKey(r.group.groupId, 'group', null);
     const rawText = stripInvisible(event.text);
+    // T-213: a member's words in their private thread are DM-only; anything
+    // said in the group thread is public from now on.
+    if (r.lane === 'dm' && me !== null) laneText.notePrivate(r.group.groupId, me.memberId, rawText);
+    else if (r.lane === 'group') laneText.notePublic(r.group.groupId, rawText);
     if (r.lane === 'group' && me !== null && me.role !== 'guest')
       noteChatTime(r.group.groupId, r.now);
     // Pasted or forwarded content is data, never instructions (SAFETY §2.4);
@@ -4329,5 +4448,7 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     importCardTransactions: notices.around(importCardTransactions),
     importEmailReceipts: notices.around(importEmailReceipts),
     pendingCards,
+    announceFamilyMode: (groupId) =>
+      announceFamilyMode({ stores, clock, ids, sendTurn: deps.sendTurn }, groupId),
   };
 }

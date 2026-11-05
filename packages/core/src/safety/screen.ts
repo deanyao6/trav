@@ -143,7 +143,9 @@ export type ContentSuppressedAuditCause =
   // Written by the agent send path (`packages/agent/src/outbound/send.ts`), not the screen.
   | 'private_card_wrong_recipient'
   | 'no_dm_handle'
-  | 'no_dm_lane';
+  | 'no_dm_lane'
+  // T-213: a group message carrying a member's DM-only wording (agent `privacy/guardSend.ts`).
+  | 'private_text_in_group';
 
 /** Runtime copies of the unions above, for tests and the SAFETY §2.2 table. */
 export const ROAST_AUDIT_CAUSES: readonly RoastSuppressedAuditCause[] = [
@@ -170,6 +172,7 @@ export const CONTENT_AUDIT_CAUSES: readonly ContentSuppressedAuditCause[] = [
   'private_card_wrong_recipient',
   'no_dm_handle',
   'no_dm_lane',
+  'private_text_in_group',
 ];
 
 export interface Suppression {

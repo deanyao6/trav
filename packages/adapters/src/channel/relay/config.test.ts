@@ -210,8 +210,8 @@ describe('no live relay call unless TRAV_RELAY_LIVE=1 and a key are both set', (
     expect(line).not.toContain(FAKE_KEY);
     expect(line).not.toContain(FAKE_SECRET);
     expect(line).not.toContain('whsec-test');
-    expect(() => resolveRelayConfig({ TRAV_RELAY_VENDOR: 'bluebubbles' })).toThrow(
-      /photon or sendblue/,
+    expect(() => resolveRelayConfig({ TRAV_RELAY_VENDOR: 'beeper' })).toThrow(
+      /photon, sendblue or bluebubbles/,
     );
   });
 

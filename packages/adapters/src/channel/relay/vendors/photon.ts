@@ -144,6 +144,8 @@ export const photonVendor: RelayVendor = {
     idempotencyKeys: true,
     membershipEvents: true,
     structuredTapbacksIn: true,
+    mediaUpload: false,
+    textWithMedia: true,
   },
 
   verifyWebhook({ rawBody, headers, secret, nowMs }) {

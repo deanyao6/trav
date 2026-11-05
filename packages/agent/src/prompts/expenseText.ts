@@ -24,13 +24,19 @@ export function expenseTextSystemPrompt(input: {
   ].join('\n');
 }
 
+/**
+ * T-214: sent as a structured-output format, so every object level is closed
+ * (`additionalProperties: false`; the API answers 400 otherwise) and it holds
+ * no bounds the format does not take: "at most 4" is enforced by
+ * `draftsFromModelJson`, which also rejects any key not listed here.
+ */
 export const EXPENSE_TEXT_SCHEMA = {
   type: 'object',
   properties: {
     isExpense: { type: 'boolean' },
     expenses: {
       type: 'array',
-      maxItems: 4,
+      description: 'at most 4',
       items: {
         type: 'object',
         properties: {
@@ -59,6 +65,7 @@ export const EXPENSE_TEXT_SCHEMA = {
               members: { type: 'array', items: { type: 'string' } },
             },
             required: ['kind'],
+            additionalProperties: false,
           },
           shares: {
             type: 'array',
@@ -66,6 +73,7 @@ export const EXPENSE_TEXT_SCHEMA = {
               type: 'object',
               properties: { member: { type: 'string' }, amount: { type: 'string' } },
               required: ['member', 'amount'],
+              additionalProperties: false,
             },
           },
           weights: {
@@ -74,12 +82,15 @@ export const EXPENSE_TEXT_SCHEMA = {
               type: 'object',
               properties: { member: { type: 'string' }, weight: { type: 'number' } },
               required: ['member', 'weight'],
+              additionalProperties: false,
             },
           },
         },
         required: ['description', 'amount', 'currency', 'paidBy', 'split'],
+        additionalProperties: false,
       },
     },
   },
   required: ['isExpense', 'expenses'],
+  additionalProperties: false,
 } as const;

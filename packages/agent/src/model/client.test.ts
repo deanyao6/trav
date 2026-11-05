@@ -42,12 +42,13 @@ function liveEnv(stateDir: string, budget = '45'): ModelEnv {
 const proposeTool: ToolSpec = {
   name: 'propose_booking',
   description: 'propose a booking',
-  inputSchema: { type: 'object', properties: {} },
+  // T-214: the live client refuses an open schema.
+  inputSchema: { type: 'object', properties: {}, additionalProperties: false },
 };
 const rosterTool: ToolSpec = {
   name: 'get_roster',
   description: 'roster',
-  inputSchema: { type: 'object', properties: {} },
+  inputSchema: { type: 'object', properties: {}, additionalProperties: false },
 };
 
 function chatReq(

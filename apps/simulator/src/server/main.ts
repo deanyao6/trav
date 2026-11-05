@@ -11,7 +11,7 @@
  * by the agent runtime), TRAV_SIM_BACKEND (optional, `agent` only; the old
  * `scripted` value is refused, T-021).
  *
- * `--relay[=photon|sendblue]` (`pnpm relay:dev`, T-169): every session runs
+ * `--relay[=photon|sendblue|bluebubbles]` (`pnpm relay:dev`, T-169, T-187): every session runs
  * over the iMessage relay adapter and that vendor's in-process mock relay
  * (`relay.ts`), and a webhook receiver listens on 127.0.0.1:TRAV_RELAY_PORT
  * (default 5181) at /relay/webhook, forwarding to the current session.

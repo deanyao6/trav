@@ -84,7 +84,6 @@ import { createModelClient, readModelEnv, type ModelClient } from './model/clien
 import { sendTurn as sendTurnViaSendPath, type SendDeps } from './outbound/send.js';
 import { morningAfterJobsFor } from './recaps/morningAfter.js';
 import { wrappedJobFor } from './recaps/wrapped.js';
-import { announceFamilyMode } from './settings/flow.js';
 import { createV0ToolRegistry } from './tools/index.js';
 import type { ToolRegistry } from './tools/registry.js';
 
@@ -341,7 +340,8 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
       return added;
     },
     announceFamilyMode(groupId) {
-      return announceFamilyMode({ stores, clock, ids, sendTurn }, groupId);
+      // T-213 r2: through the agent's wrapped send path, never the bare sender.
+      return agent.announceFamilyMode(groupId);
     },
     close() {
       unsubscribe?.();

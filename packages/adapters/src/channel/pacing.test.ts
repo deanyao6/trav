@@ -515,6 +515,35 @@ describe('withOutboundPacing: retries, reserve, expiry, resends, hard cap (T-071
     expect(t.ch.failures()).toEqual([]);
   });
 
+  it('T-187: a retryable refusal of a message sent at once is queued (its try counted), not handed back', async () => {
+    const t = rig({ maxSendsPerDay: 10, criticalReserve: 0, retryBackoffMs: 30_000 });
+    const a = groupMsg('your ticket, QR below');
+    t.control.refuse.set(a.id, { retryable: true, times: 1 });
+    expect(await t.ch.sendGroup(BCN_CONVERSATION, a)).toMatchObject({
+      ok: true,
+      value: { queued: true },
+    });
+    expect(t.ch.queue()).toEqual([
+      { messageId: a.id, lane: 'group', priority: 'normal', attempts: 1 },
+    ]);
+    // The refused try gave its slot back.
+    expect(t.ch.stats().sentInDay).toBe(0);
+    t.advanceMs(30_000);
+    await t.ch.tick();
+    expect(t.outbound()).toContain(a.id);
+    expect(t.ch.queue()).toEqual([]);
+    expect(t.ch.failures()).toEqual([]);
+  });
+
+  it('T-187: wireSendsOf makes one message cost several slots of the day cap', async () => {
+    const t = rig({ maxSendsPerDay: 3, criticalReserve: 0, wireSendsOf: () => 2 });
+    await t.ch.sendGroup(BCN_CONVERSATION, groupMsg('one'));
+    expect(t.ch.stats().sentInDay).toBe(2);
+    expect(await t.ch.sendGroup(BCN_CONVERSATION, groupMsg('two'))).toMatchObject({
+      value: { queued: true },
+    });
+  });
+
   it('a critical message refused on every try is reported once and audited after maxAttempts', async () => {
     const t = rig({ maxSendsPerDay: 1, criticalReserve: 0, maxAttempts: 3, retryBackoffMs: 1_000 });
     await t.ch.sendGroup(BCN_CONVERSATION, groupMsg('one'));

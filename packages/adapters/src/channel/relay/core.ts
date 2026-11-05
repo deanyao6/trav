@@ -6,7 +6,8 @@
  * (`http.ts`) calls for every delivery. In this order it checks the body
  * size, verifies the vendor's signature on the raw bytes, parses the JSON,
  * lets the vendor module normalize it, drops our own echoes and anything
- * already seen (vendor ids, bounded memory; T-185 persists them), maps
+ * already seen (provider ids in a `RelaySeenStore`: memory by default, the
+ * runtime's SQLite once T-185 lands), maps
  * addresses to Trav handles, vendor ids back to Trav's own message ids (so a
  * 👍 tapback on a proposal points at the card the agent sent), and diffs
  * group rosters where the vendor has no membership events. It answers as soon
@@ -67,6 +68,7 @@ import {
   isAcceptableInboundMediaUrl,
   prepareOutboundImages,
 } from './media.js';
+import { mentionsContactName } from './mention.js';
 import {
   emojiToTapback,
   isSmsService,
@@ -93,8 +95,35 @@ import { RelayPayloadError } from './types.js';
 export const MAX_WEBHOOK_BYTES = 1_000_000;
 /** Vendor ids remembered for dedupe and id mapping. */
 export const RELAY_MEMORY_CAP = 10_000;
+/**
+ * Tries for a message whose image part keeps failing after its text went out
+ * (the first send included). Matches the T-071 pacing queue's 3 attempts, so
+ * the queue's last try ends in a degraded success, never a "never sent".
+ */
+export const RELAY_PART_TRIES = 3;
 /** Trav messages per conversation remembered for matching an iOS `Liked “…”` text. */
 const RECENT_WIRE_PER_CONVERSATION = 50;
+
+/**
+ * Provider message ids already delivered to Trav. Vendors retry a webhook
+ * until they get a 2xx (and BlueBubbles re-sends on reconnect), so a restart
+ * must not forget them: pass a store backed by the runtime's SQLite (T-185);
+ * the default is in memory. Keys are `<vendor>:<kind>:<provider id>`, and
+ * nothing else (no text, no addresses). Synchronous, like `node:sqlite`.
+ */
+export interface RelaySeenStore {
+  has(key: string): boolean;
+  add(key: string): void;
+}
+
+/** The default `RelaySeenStore`: in memory, bounded (oldest dropped past `cap`). */
+export function createMemorySeenStore(cap = RELAY_MEMORY_CAP): RelaySeenStore {
+  const keys = new Map<string, true>();
+  return {
+    has: (key) => keys.has(key),
+    add: (key) => remember(keys, key, true, cap),
+  };
+}
 
 export interface RelayRetryOptions {
   /** Tries per send, the first included. Default 3. */
@@ -133,6 +162,12 @@ export interface RelayChannelOptions {
   readonly mode?: AdapterMode;
   /** Trav's own handle (default `trav`). */
   readonly travHandle?: ChannelHandle;
+  /**
+   * Names the members saved the line's contact under (`TRAV_RELAY_CONTACT_NAME`).
+   * "Trav" itself needs no entry: the agent's mention rules read "trav" and
+   * "@trav". See `mention.ts`.
+   */
+  readonly travNames?: readonly string[];
   /** Known people: address ↔ Trav handle. Unknown addresses are passed through as handles. */
   readonly contacts?: readonly RelayContact[];
   /** Group chats the line is known to be in. Others are learned from webhooks. */
@@ -150,6 +185,8 @@ export interface RelayChannelOptions {
    * Default: the URL as is. Returning undefined drops the attachment.
    */
   readonly resolveInboundMedia?: (attachment: Attachment) => Promise<Attachment | undefined>;
+  /** Dedupe by provider message id across restarts (T-185). Default: in memory. */
+  readonly seen?: RelaySeenStore;
   readonly retry?: RelayRetryOptions;
   /** Backoff wait. Default: a real (unref'd) timer. Tests pass an instant one. */
   readonly sleep?: (ms: number) => Promise<void>;
@@ -160,6 +197,8 @@ export interface RelayWebhookInput {
   /** The exact bytes received (signatures are over these, never over re-serialized JSON). */
   readonly rawBody: string;
   readonly headers: RelayHeaders;
+  /** The request URL's query string, `?…` (BlueBubbles carries its shared secret there). */
+  readonly query?: string;
 }
 
 export interface RelayWebhookOutcome {
@@ -253,6 +292,7 @@ export function createRelayChannel(options: RelayChannelOptions): RelayChannel {
   const { vendor, transport, auth, clock } = options;
   const line = normalizeAddress(options.line);
   const travHandle = options.travHandle ?? 'trav';
+  const travNames = options.travNames ?? [];
   const mode = options.mode ?? 'mock';
   const info: AdapterInfo = { provider: `relay-${vendor.id}`, mode };
   const profile = channelProfile(options.profile ?? 'imessage_relay_group');
@@ -315,11 +355,16 @@ export function createRelayChannel(options: RelayChannelOptions): RelayChannel {
   };
 
   // ---- memory (bounded)
-  const seen = new Map<string, true>();
+  const seen = options.seen ?? createMemorySeenStore();
   const travIdByVendorId = new Map<string, MessageId>();
   /** Inbound vendor message ids → their conversation (tapback targets Trav may react to). */
   const inboundConversation = new Map<string, ConversationId>();
   const sentByTravId = new Map<MessageId, SentRecord>();
+  /** Messages whose first parts went out and a later image part did not (resumed on resend). */
+  const partialSends = new Map<
+    MessageId,
+    { conversationId: ConversationId; vendorIds: readonly string[]; tries: number }
+  >();
   const inFlight = new Map<MessageId, Promise<Result<SentMessage>>>();
   /** Trav's own tapbacks already on the wire (reaction id, `:remove` for an undo) → vendor id. */
   const sentReactions = new Map<string, string>();
@@ -369,8 +414,9 @@ export function createRelayChannel(options: RelayChannelOptions): RelayChannel {
   }
 
   function firstSighting(key: string): boolean {
-    if (seen.has(key)) return false;
-    remember(seen, key, true, RELAY_MEMORY_CAP);
+    const k = `${vendor.id}:${key}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
     return true;
   }
 
@@ -416,10 +462,29 @@ export function createRelayChannel(options: RelayChannelOptions): RelayChannel {
     return out;
   }
 
+  // A self-hosted server on the same Mac (BlueBubbles on http://127.0.0.1) serves
+  // attachments from its own origin; the module builds those URLs from the
+  // configured origin, never from the payload.
+  const vendorOrigin = ((): string | undefined => {
+    try {
+      return new URL(vendor.baseUrl).origin;
+    } catch {
+      return undefined;
+    }
+  })();
+  const fromVendorOrigin = (url: string): boolean => {
+    try {
+      const u = new URL(url);
+      return vendorOrigin !== undefined && u.origin === vendorOrigin && u.username === '';
+    } catch {
+      return false;
+    }
+  };
+
   function inboundAttachments(list: readonly RelayMedia[]): Attachment[] {
     const out: Attachment[] = [];
     for (const m of list) {
-      if (!isAcceptableInboundMediaUrl(m.url)) {
+      if (!isAcceptableInboundMediaUrl(m.url) && !fromVendorOrigin(m.url)) {
         diag('attachment_dropped', 'not an https url');
         continue;
       }
@@ -500,6 +565,11 @@ export function createRelayChannel(options: RelayChannelOptions): RelayChannel {
           events.push(tapback);
           return { events, duplicate: false };
         }
+        // iMessage has no bot mentions: a structured mention of the line, or
+        // the line's saved contact name, is the platform's "@trav" (mention.ts).
+        const mentioned =
+          (item.mentionedAddresses ?? []).some((a) => normalizeAddress(a) === line) ||
+          mentionsContactName(item.text, travNames);
         const message: InboundMessage = {
           type: 'message',
           channel: 'imessage_relay',
@@ -513,6 +583,7 @@ export function createRelayChannel(options: RelayChannelOptions): RelayChannel {
           ...(item.replyToVendorId !== undefined
             ? { replyToMessageId: travTarget(item.replyToVendorId) }
             : {}),
+          ...(mentioned ? { platformMention: true } : {}),
         };
         events.push(message);
         return { events, duplicate: false };
@@ -557,12 +628,25 @@ export function createRelayChannel(options: RelayChannelOptions): RelayChannel {
 
   // ---------------------------------------------------------------- outbound
 
-  const retrySafe = (status: number): boolean =>
-    vendor.support.idempotencyKeys
-      ? status === 0 || status === 408 || status === 425 || status === 429 || status >= 500
-      : status === 429 || status === 503;
+  const anyTransient = (status: number): boolean =>
+    status === 0 || status === 408 || status === 425 || status === 429 || status >= 500;
+  /**
+   * Retry-safe statuses. A send whose duplicate would be harmless (a follow-up
+   * image part: a second copy of a QR beats a ticket with none) retries every
+   * transient failure, like a vendor with idempotency keys.
+   */
+  const retrySafeFor =
+    (duplicateHarmless: boolean) =>
+    (status: number): boolean =>
+      vendor.support.idempotencyKeys || duplicateHarmless
+        ? anyTransient(status)
+        : status === 429 || status === 503;
 
-  async function deliver(request: RelayHttpRequest): Promise<Result<string>> {
+  async function deliver(
+    request: RelayHttpRequest,
+    opts: { duplicateHarmless?: boolean } = {},
+  ): Promise<Result<string>> {
+    const retrySafe = retrySafeFor(opts.duplicateHarmless === true);
     for (let attempt = 1; ; attempt += 1) {
       stats.sends += 1;
       let outcome;
@@ -623,7 +707,9 @@ export function createRelayChannel(options: RelayChannelOptions): RelayChannel {
     if (pending) return pending;
     const run = (async (): Promise<Result<SentMessage>> => {
       const text = textForChannel(message, capabilities);
-      const prepared = await prepareOutboundImages(message.images ?? [], media);
+      const prepared = await prepareOutboundImages(message.images ?? [], media, {
+        upload: vendor.support.mediaUpload,
+      });
       for (const s of prepared.skipped) diag('image_skipped', s.reason);
       const replyTravId = capabilities.threadedReplies
         ? (opts?.replyToMessageId ?? message.replyTo)
@@ -633,14 +719,25 @@ export function createRelayChannel(options: RelayChannelOptions): RelayChannel {
           ? undefined
           : (sentByTravId.get(replyTravId)?.vendorIds[0] ??
             (inboundConversation.has(replyTravId) ? replyTravId : undefined));
-      // Split images into as many sends as the vendor needs; the text rides on the first.
+      // Split images into as many sends as the vendor needs; the text rides on
+      // the first, or goes alone first where text and files can't share a send.
       const per = Math.max(1, vendor.support.mediaPerMessage);
       const groups: RelayMedia[][] = [];
+      if (!vendor.support.textWithMedia && text.length > 0 && prepared.media.length > 0) {
+        groups.push([]);
+      }
       for (let i = 0; i < prepared.media.length; i += per)
         groups.push(prepared.media.slice(i, i + per));
       if (groups.length === 0) groups.push([]);
-      const vendorIds: string[] = [];
+      // A resend of a message whose text went out but an image part did not
+      // resumes at that part: the text is never sent twice.
+      const resume = partialSends.get(message.id);
+      const resumeHere = resume !== undefined && resume.conversationId === conversationId;
+      const vendorIds: string[] = resumeHere ? [...resume.vendorIds] : [];
+      const tries = resumeHere ? resume.tries + 1 : 1;
+      let missingImages = 0;
       for (const [i, chunk] of groups.entries()) {
+        if (i < vendorIds.length) continue;
         const send: RelaySend = {
           kind: 'message',
           chat,
@@ -649,25 +746,59 @@ export function createRelayChannel(options: RelayChannelOptions): RelayChannel {
           ...(i === 0 && replyToVendorId !== undefined ? { replyToVendorId } : {}),
           idempotencyKey: i === 0 ? message.id : `${message.id}:${String(i + 1)}`,
         };
-        const result = await deliver(vendor.buildSend(send, auth, line));
+        const result = await deliver(vendor.buildSend(send, auth, line), {
+          duplicateHarmless: i > 0,
+        });
         if (!result.ok) {
           if (i === 0) return result;
-          // The text went out; a later image did not. Report it, keep the message sent.
+          // The text (and any earlier part) went out; this image did not. A
+          // ticket without its QR is not delivered: while the failure is
+          // transient, keep what went out and fail retryably, so a resend
+          // (the pacing queue's retry) sends only the missing parts. Past
+          // RELAY_PART_TRIES, or on a permanent refusal, report the message
+          // sent but degraded, with the count of images that never arrived.
+          for (const v of vendorIds) remember(travIdByVendorId, v, message.id, RELAY_MEMORY_CAP);
+          if (!resumeHere) rememberWire(conversationId, message.id, text);
+          if (result.error.retryable && tries < RELAY_PART_TRIES) {
+            remember(
+              partialSends,
+              message.id,
+              { conversationId, vendorIds, tries },
+              RELAY_MEMORY_CAP,
+            );
+            diag(
+              'send_failed',
+              `image part ${String(i + 1)} of ${String(groups.length)}; resumable`,
+            );
+            return fail(
+              result.error.code,
+              `the text went out but image part ${String(i + 1)} did not; resend to finish`,
+              true,
+            );
+          }
           diag('image_skipped', 'send_failed');
+          missingImages = groups.slice(i).reduce((n, g) => n + g.length, 0);
           break;
         }
         vendorIds.push(result.value);
       }
+      partialSends.delete(message.id);
       const degraded =
         message.card !== undefined ||
         (message.actions ?? []).length > 0 ||
         message.kind === 'system_notice' ||
         text !== message.text ||
-        prepared.skipped.length > 0;
-      const sent: SentMessage = { messageId: message.id, sentAt: clock.now(), degraded };
+        prepared.skipped.length > 0 ||
+        missingImages > 0;
+      const sent: SentMessage = {
+        messageId: message.id,
+        sentAt: clock.now(),
+        degraded,
+        ...(missingImages > 0 ? { missingImages } : {}),
+      };
       remember(sentByTravId, message.id, { conversationId, vendorIds, sent }, RELAY_MEMORY_CAP);
       for (const v of vendorIds) remember(travIdByVendorId, v, message.id, RELAY_MEMORY_CAP);
-      rememberWire(conversationId, message.id, text);
+      if (!resumeHere) rememberWire(conversationId, message.id, text);
       return { ok: true, value: sent };
     })();
     inFlight.set(message.id, run);
@@ -703,6 +834,7 @@ export function createRelayChannel(options: RelayChannelOptions): RelayChannel {
         headers: input.headers,
         secret: options.webhookSecret,
         nowMs: clock.nowMs(),
+        ...(input.query !== undefined ? { query: input.query } : {}),
       });
       if (!verified) return reject(401, 'bad signature');
       let body: unknown;

@@ -48,6 +48,7 @@ import {
   activeMembers,
   asRecord,
   bad,
+  closedKeys,
   isRecord,
   messageIdOf,
   nameOf,
@@ -109,6 +110,7 @@ export interface LogExpenseInput {
 
 function parseSplit(v: unknown): RawSplit {
   if (!isRecord(v)) bad('split must be an object');
+  closedKeys(v, SPLIT_KEYS);
   const method = v['method'];
   const refs = (key: string): string[] => {
     const arr = optStringArray(v, key);
@@ -127,6 +129,7 @@ function parseSplit(v: unknown): RawSplit {
         method,
         weights: weights.map((w) => {
           if (!isRecord(w)) bad('split.weights entries must be objects');
+          closedKeys(w, ['member', 'weight']);
           const weight = w['weight'];
           if (typeof weight !== 'number' || !(weight > 0)) bad('weight must be > 0');
           return { member: reqString(w, 'member', 80), weight };
@@ -140,6 +143,7 @@ function parseSplit(v: unknown): RawSplit {
         method,
         amounts: amounts.map((a) => {
           if (!isRecord(a)) bad('split.amounts entries must be objects');
+          closedKeys(a, ['member', 'amountMinor']);
           const amountMinor = optInt(a, 'amountMinor');
           if (amountMinor === undefined || amountMinor < 0)
             bad('amountMinor must be a non-negative integer');
@@ -155,6 +159,7 @@ function parseSplit(v: unknown): RawSplit {
         participants: refs('participants'),
         lineItems: items.map((li) => {
           if (!isRecord(li)) bad('split.lineItems entries must be objects');
+          closedKeys(li, ['label', 'amountMinor', 'claimedBy', 'kind']);
           const amountMinor = optInt(li, 'amountMinor');
           if (amountMinor === undefined) bad('lineItems.amountMinor must be an integer');
           const kind = optEnum(li, 'kind', [
@@ -179,8 +184,21 @@ function parseSplit(v: unknown): RawSplit {
   }
 }
 
+const SPLIT_KEYS = ['method', 'participants', 'excluded', 'weights', 'amounts', 'lineItems'];
+const LOG_EXPENSE_KEYS = [
+  'description',
+  'amountMinor',
+  'currency',
+  'paidBy',
+  'split',
+  'category',
+  'occurredAt',
+  'activityId',
+];
+
 export function parseLogExpenseInput(raw: unknown): LogExpenseInput {
   const r = asRecord(raw);
+  closedKeys(r, LOG_EXPENSE_KEYS);
   const amountMinor = optInt(r, 'amountMinor');
   if (amountMinor === undefined || amountMinor <= 0)
     bad('amountMinor must be a positive integer (minor units)');
@@ -418,17 +436,51 @@ export const logExpenseTool: ToolDefinition<LogExpenseInput, LogExpenseResult> =
       amountMinor: { type: 'integer', minimum: 1 },
       currency: { type: 'string', description: 'ISO 4217' },
       paidBy: { type: 'string', description: 'member id or name; default sender' },
+      // T-214: closed at every level, like the parser (`closedKeys`).
       split: {
         type: 'object',
         properties: {
           method: { type: 'string', enum: ['equal', 'exclude', 'weighted', 'exact', 'itemized'] },
           participants: { type: 'array', items: { type: 'string' } },
           excluded: { type: 'array', items: { type: 'string' } },
-          weights: { type: 'array', items: { type: 'object' } },
-          amounts: { type: 'array', items: { type: 'object' } },
-          lineItems: { type: 'array', items: { type: 'object' } },
+          weights: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: { member: { type: 'string' }, weight: { type: 'number' } },
+              required: ['member', 'weight'],
+              additionalProperties: false,
+            },
+          },
+          amounts: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: { member: { type: 'string' }, amountMinor: { type: 'integer' } },
+              required: ['member', 'amountMinor'],
+              additionalProperties: false,
+            },
+          },
+          lineItems: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                label: { type: 'string' },
+                amountMinor: { type: 'integer' },
+                claimedBy: { type: 'array', items: { type: 'string' } },
+                kind: {
+                  type: 'string',
+                  enum: ['item', 'tax', 'tip', 'service', 'fee', 'discount'],
+                },
+              },
+              required: ['label', 'amountMinor'],
+              additionalProperties: false,
+            },
+          },
         },
         required: ['method'],
+        additionalProperties: false,
       },
       category: { type: 'string', enum: [...CATEGORIES] },
       occurredAt: {

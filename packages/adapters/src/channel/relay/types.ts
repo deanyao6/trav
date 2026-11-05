@@ -22,9 +22,9 @@
  */
 import type { IsoDateTime } from '../../interfaces/common.js';
 
-export type RelayVendorId = 'photon' | 'sendblue';
+export type RelayVendorId = 'photon' | 'sendblue' | 'bluebubbles';
 
-export const RELAY_VENDOR_IDS: readonly RelayVendorId[] = ['photon', 'sendblue'];
+export const RELAY_VENDOR_IDS: readonly RelayVendorId[] = ['photon', 'sendblue', 'bluebubbles'];
 
 export function isRelayVendorId(value: string): value is RelayVendorId {
   return (RELAY_VENDOR_IDS as readonly string[]).includes(value);
@@ -40,6 +40,25 @@ export interface RelayHttpRequest {
   readonly headers: Readonly<Record<string, string>>;
   /** JSON body, serialized by the transport. */
   readonly body?: unknown;
+  /**
+   * A `multipart/form-data` body instead of JSON (BlueBubbles takes an
+   * attachment as an upload, not a URL). The transport builds the form; never
+   * set together with `body`.
+   */
+  readonly form?: RelayForm;
+}
+
+/** A multipart form, kept as plain data so vendor modules stay pure and fixtures stay JSON. */
+export interface RelayForm {
+  readonly fields: Readonly<Record<string, string>>;
+  readonly files: readonly RelayFormFile[];
+}
+
+export interface RelayFormFile {
+  readonly field: string;
+  readonly fileName: string;
+  readonly mimeType: string;
+  readonly base64: string;
 }
 
 export interface RelayHttpResponse {
@@ -72,10 +91,16 @@ export type RelayChatRef =
 export type TapbackName = 'love' | 'like' | 'dislike' | 'laugh' | 'emphasize' | 'question';
 
 export interface RelayMedia {
-  /** An `https:` URL the vendor can fetch. */
+  /**
+   * An `https:` URL the vendor can fetch. For a vendor that takes uploads
+   * (`support.mediaUpload`), an outbound image is never published: its URL
+   * is a local `upload:<sha>.<ext>` label and the bytes ride in `base64`.
+   */
   readonly url: string;
   readonly mimeType: string;
   readonly fileName?: string;
+  /** The bytes, base64, only on an outbound image for an upload vendor (BlueBubbles). */
+  readonly base64?: string;
 }
 
 export type RelaySend =
@@ -117,6 +142,12 @@ export type RelayInbound =
       readonly senderName?: string;
       /** iMessage, SMS or RCS, if the vendor says. */
       readonly service?: string;
+      /**
+       * Addresses the vendor reports as structured mentions in this message
+       * (BlueBubbles: the iMessage mention attribute in `attributedBody`).
+       * The core sets `platformMention` when Trav's line is among them.
+       */
+      readonly mentionedAddresses?: readonly string[];
     }
   | {
       readonly kind: 'reaction';
@@ -148,6 +179,12 @@ export interface RelayVerifyInput {
   readonly secret: string;
   /** From the injected clock (replay window). */
   readonly nowMs: number;
+  /**
+   * The request URL's query string (`?token=…`) for a vendor that can neither
+   * sign nor set headers and so carries the shared secret in the webhook URL
+   * (BlueBubbles). Optional; other vendors ignore it.
+   */
+  readonly query?: string;
 }
 
 export interface RelaySendResult {
@@ -184,6 +221,14 @@ export interface RelayVendorSupport {
    * false (Sendblue), on every message.
    */
   readonly structuredTapbacksIn: boolean;
+  /**
+   * Takes images as a file upload rather than a URL (BlueBubbles). The core
+   * then never publishes them to a media host: it hands the bytes over in
+   * `RelayMedia.base64`, and skips an `https:` image it doesn't hold.
+   */
+  readonly mediaUpload: boolean;
+  /** Text and attachments travel in one send (else the text goes first, then each image). */
+  readonly textWithMedia: boolean;
 }
 
 export interface RelayVendor {

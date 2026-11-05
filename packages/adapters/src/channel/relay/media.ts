@@ -240,23 +240,50 @@ function mimeOfUrl(url: string): string {
   return 'image/*';
 }
 
-export type SkippedImageReason = 'unsupported_svg' | 'bad_data_url' | 'not_public_url';
+export type SkippedImageReason =
+  | 'unsupported_svg'
+  | 'bad_data_url'
+  | 'not_public_url'
+  /** An upload vendor (BlueBubbles) needs the bytes; Trav does not fetch a remote URL to get them. */
+  | 'needs_upload';
 
 export interface PreparedImages {
   readonly media: readonly RelayMedia[];
   readonly skipped: readonly { readonly alt: string; readonly reason: SkippedImageReason }[];
 }
 
+export interface PrepareImagesOptions {
+  /**
+   * The vendor takes uploads (`support.mediaUpload`): nothing is published.
+   * Each `data:` image comes back as `upload:<sha>.<ext>` with its bytes in
+   * `base64`, and an `https:` image is skipped (`needs_upload`).
+   */
+  readonly upload?: boolean;
+}
+
+function asUpload(bytes: MediaBytes): RelayMedia {
+  const hash = createHash('sha256').update(bytes.bytes).digest('hex').slice(0, 24);
+  const name = `trav-${hash}.${EXT_OF[bytes.mimeType] ?? 'bin'}`;
+  return {
+    url: `upload:${name}`,
+    mimeType: bytes.mimeType,
+    fileName: name,
+    base64: Buffer.from(bytes.bytes).toString('base64'),
+  };
+}
+
 /**
  * `OutboundMessage.images` → what the vendor gets. A `data:` image is
- * decoded (an SVG rasterized to PNG) and published; an `https:` URL passes
- * through; anything else (a relative path, `http:`) is skipped, since the
- * vendor could not fetch it.
+ * decoded (an SVG rasterized to PNG) and published (or, for an upload vendor,
+ * kept as bytes); an `https:` URL passes through; anything else (a relative
+ * path, `http:`) is skipped, since the vendor could not fetch it.
  */
 export async function prepareOutboundImages(
   images: readonly { readonly url: string; readonly alt: string }[],
   host: RelayMediaHost,
+  options: PrepareImagesOptions = {},
 ): Promise<PreparedImages> {
+  const upload = options.upload === true;
   const media: RelayMedia[] = [];
   const skipped: { alt: string; reason: SkippedImageReason }[] = [];
   for (const img of images) {
@@ -275,10 +302,14 @@ export async function prepareOutboundImages(
         }
         bytes = { bytes: png, mimeType: 'image/png' };
       }
-      media.push(await host.publish(bytes));
+      media.push(upload ? asUpload(bytes) : await host.publish(bytes));
       continue;
     }
     if (/^https:\/\//i.test(img.url)) {
+      if (upload) {
+        skipped.push({ alt: img.alt, reason: 'needs_upload' });
+        continue;
+      }
       media.push({ url: img.url, mimeType: mimeOfUrl(img.url) });
       continue;
     }

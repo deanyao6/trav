@@ -27,12 +27,16 @@ describe('relayArgs', () => {
     });
     // `pnpm relay:dev -- --relay=sendblue`: the script's own `--relay` comes first.
     expect(relayArgs(['--dev', '--relay', '--relay=sendblue'], {})?.vendor).toBe('sendblue');
-    expect(() => relayArgs(['--relay=bluebubbles'], {})).toThrow(/photon or sendblue/);
+    expect(relayArgs(['--relay=bluebubbles'], {})).toEqual({
+      vendor: 'bluebubbles',
+      view: 'overlay',
+    });
+    expect(() => relayArgs(['--relay=beeper'], {})).toThrow(/photon, sendblue or bluebubbles/);
     expect(() => relayArgs(['--relay', '--relay-view=cards'], {})).toThrow(/phone or overlay/);
   });
 });
 
-describe.each(['photon', 'sendblue'] as const)(
+describe.each(['photon', 'sendblue', 'bluebubbles'] as const)(
   'Barcelona demo over the mock %s relay',
   (vendor) => {
     it('passes every check, with all traffic on the relay wire and none of it live', async () => {
@@ -58,15 +62,31 @@ describe.each(['photon', 'sendblue'] as const)(
       expect(requests.length).toBeGreaterThan(40);
       expect(requests.every((r) => new URL(r.url).origin === origin)).toBe(true);
       // The Razzmatazz QR codes went out as PNGs, one DM each, to the 5 only (Henry's sick).
-      const razzDms = lb.mock
-        .sends()
-        .filter((s) => s.chat.kind === 'dm' && /razzmatazz ticket/i.test(s.text));
+      const all = lb.mock.sends();
+      const razzDms = all.filter((s) => s.chat.kind === 'dm' && /razzmatazz ticket/i.test(s.text));
       const to = razzDms.map((s) => (s.chat.kind === 'dm' ? s.chat.address : ''));
       const five = ['h_dean', 'h_chase', 'h_piotr', 'h_arjun', 'h_crowley'].map(lb.addressOf);
       expect([...to].sort()).toEqual([...five].sort());
+      // BlueBubbles can't caption an upload: the text goes first, the QR right after it.
+      const qrOf = (s: (typeof all)[number]) =>
+        vendor === 'bluebubbles'
+          ? (all
+              .slice(all.indexOf(s) + 1)
+              .find((n) => JSON.stringify(n.chat) === JSON.stringify(s.chat))?.media ?? [])
+          : s.media;
       expect(
-        razzDms.every((s) => s.media.length === 1 && s.media[0]!.mimeType === 'image/png'),
+        razzDms.every((s) => {
+          const media = qrOf(s);
+          return media.length === 1 && media[0]!.mimeType === 'image/png';
+        }),
       ).toBe(true);
+      if (vendor === 'bluebubbles') {
+        expect(razzDms.every((s) => s.media.length === 0)).toBe(true);
+        // Each QR went up as a multipart file, never as a URL for the server to fetch.
+        const uploads = requests.filter((r) => r.url.includes('/api/v1/message/attachment'));
+        expect(uploads.length).toBeGreaterThanOrEqual(5);
+        expect(uploads.every((r) => r.form?.files.length === 1 && r.body === undefined)).toBe(true);
+      }
       // T-071 pacing sat in front and lost nothing.
       expect(lb.paced).toBeDefined();
       expect(lb.paced!.failures()).toEqual([]);
@@ -113,6 +133,44 @@ describe('relay:dev webhook receiver', () => {
       // A tampered body fails the signature check.
       const forged = await post(hook.rawBody.replace('@trav hi', '@trav buy'), hook.headers);
       expect(forged.status).toBe(401);
+      await new Promise((r) => setTimeout(r, 10));
+      expect(seen).toEqual(['h_dean: @trav hi']);
+    } finally {
+      server.close();
+    }
+  });
+
+  it('BlueBubbles: the shared secret rides in the webhook URL, over 127.0.0.1', async () => {
+    const sessions = createRelaySessions({ vendor: 'bluebubbles' });
+    const server = createRelayWebhookServer({ target: sessions.webhookTarget });
+    const port = await listenRelayWebhook(server, 0);
+    try {
+      const channel = sessions.channelFactory({
+        clock: createSimulatedClock('2026-03-14T21:39:30+01:00'),
+        conversations: toConversations([BARCELONA]),
+      });
+      const seen: string[] = [];
+      channel.onEvent((e) => {
+        if (e.type === 'message') seen.push(`${e.sender}: ${e.text}`);
+      });
+      const lb = sessions.current()!;
+      const hook = await lb.mock.memberMessage({
+        chat: { kind: 'group', chatId: BARCELONA.conversationId },
+        from: lb.addressOf('h_dean'),
+        text: '@trav hi',
+      });
+      expect(hook.query).toMatch(/^\?token=/);
+      const post = (query: string) =>
+        fetch(`http://127.0.0.1:${String(port)}/relay/webhook${query}`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: hook.rawBody,
+        });
+      expect((await post('')).status).toBe(401);
+      expect((await post('?token=wrong')).status).toBe(401);
+      expect((await post(hook.query!)).status).toBe(200);
+      const again = await post(hook.query!);
+      expect(await again.json()).toMatchObject({ ok: true, accepted: 0, duplicates: 1 });
       await new Promise((r) => setTimeout(r, 10));
       expect(seen).toEqual(['h_dean: @trav hi']);
     } finally {

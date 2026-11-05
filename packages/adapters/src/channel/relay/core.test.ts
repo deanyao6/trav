@@ -97,324 +97,367 @@ function setup(vendorId: RelayVendorId, extra: Partial<RelayChannelOptions> = {}
 
 const group = { kind: 'group' as const, chatId: CHAT };
 
-describe.each(['photon', 'sendblue'] as const)('relay core over the %s mock', (vendorId) => {
-  it('maps a group message to an InboundMessage on the group lane, from the member handle', async () => {
-    const t = setup(vendorId);
-    const status = await t.deliver(
-      await t.mock.memberMessage({
+describe.each(['photon', 'sendblue', 'bluebubbles'] as const)(
+  'relay core over the %s mock',
+  (vendorId) => {
+    it('maps a group message to an InboundMessage on the group lane, from the member handle', async () => {
+      const t = setup(vendorId);
+      const status = await t.deliver(
+        await t.mock.memberMessage({
+          chat: group,
+          from: DEAN,
+          text: '@trav hi',
+          vendorMessageId: 'V1',
+        }),
+      );
+      expect(status).toBe(200);
+      expect(t.events).toEqual([
+        {
+          type: 'message',
+          channel: 'imessage_relay',
+          conversationId: CHAT,
+          lane: 'group',
+          receivedAt: t.clock.now(),
+          messageId: 'V1',
+          sender: 'h_dean',
+          text: '@trav hi',
+          attachments: [],
+        },
+      ]);
+    });
+
+    it('a DM arrives on the dm lane as dm:<handle>; an unknown number passes as its address', async () => {
+      const t = setup(vendorId);
+      await t.deliver(
+        await t.mock.memberMessage({
+          chat: { kind: 'dm', address: DEAN },
+          from: DEAN,
+          text: 'photos on',
+        }),
+      );
+      await t.deliver(
+        await t.mock.memberMessage({
+          chat: { kind: 'dm', address: SAM },
+          from: SAM,
+          text: 'hello?',
+        }),
+      );
+      const [a, b] = t.events as InboundMessage[];
+      expect(a).toMatchObject({ lane: 'dm', conversationId: 'dm:h_dean', sender: 'h_dean' });
+      expect(b).toMatchObject({ lane: 'dm', conversationId: `dm:${SAM}`, sender: SAM });
+    });
+
+    it('drops a redelivered webhook (same vendor id) and counts it', async () => {
+      const t = setup(vendorId);
+      const hook = await t.mock.memberMessage({
         chat: group,
         from: DEAN,
-        text: '@trav hi',
-        vendorMessageId: 'V1',
-      }),
-    );
-    expect(status).toBe(200);
-    expect(t.events).toEqual([
-      {
-        type: 'message',
-        channel: 'imessage_relay',
-        conversationId: CHAT,
-        lane: 'group',
-        receivedAt: t.clock.now(),
-        messageId: 'V1',
+        text: 'yes',
+        vendorMessageId: 'V2',
+      });
+      expect(await t.deliver(hook)).toBe(200);
+      const again = await t.relay.handleWebhook(hook);
+      await again.delivered;
+      expect(again).toMatchObject({ status: 200, accepted: 0, duplicates: 1 });
+      expect(t.events).toHaveLength(1);
+      expect(t.relay.stats().duplicatesDropped).toBe(1);
+    });
+
+    it('refuses a bad signature (401), a non-JSON or foreign body (400) and an oversized one (413), delivering nothing', async () => {
+      const t = setup(vendorId);
+      const hook = await t.mock.memberMessage({ chat: group, from: DEAN, text: 'yes' });
+      const forged = { ...hook, rawBody: hook.rawBody.replace('yes', 'buy') };
+      const forgedOutcome = await t.relay.handleWebhook(forged);
+      await forgedOutcome.delivered;
+      const forgedStatus = forgedOutcome.status;
+      // Sendblue's shared secret and BlueBubbles' URL token do not cover the body; Photon's HMAC does.
+      expect(forgedStatus).toBe(vendorId === 'photon' ? 401 : 200);
+      t.events.length = 0;
+      expect((await t.relay.handleWebhook({ rawBody: hook.rawBody, headers: {} })).status).toBe(
+        401,
+      );
+      const signedJunk = vendorId === 'photon' ? undefined : { ...hook, rawBody: 'not json' };
+      if (signedJunk) expect((await t.relay.handleWebhook(signedJunk)).status).toBe(400);
+      if (vendorId !== 'photon') {
+        expect((await t.relay.handleWebhook({ ...hook, rawBody: '{"x":1}' })).status).toBe(400);
+      }
+      const big = { ...hook, rawBody: 'x'.repeat(MAX_WEBHOOK_BYTES + 1) };
+      expect((await t.relay.handleWebhook(big)).status).toBe(413);
+      expect(t.events).toEqual([]);
+      expect(t.relay.stats().webhooksRejected).toBeGreaterThanOrEqual(2);
+    });
+
+    it('an empty webhook secret refuses every delivery (fail closed)', async () => {
+      const t = setup(vendorId, { webhookSecret: '' });
+      const hook = await t.mock.memberMessage({ chat: group, from: DEAN, text: 'yes' });
+      expect((await t.relay.handleWebhook(hook)).status).toBe(401);
+      expect(t.events).toEqual([]);
+    });
+
+    it('a 👍 tapback on a Trav message points at the Trav message id the agent sent', async () => {
+      const t = setup(vendorId);
+      const card = groupMsg(PROPOSAL_TEXT, { card: proposalCard(), actions: PROPOSAL_ACTIONS });
+      const sent = await t.relay.sendGroup(CHAT, card);
+      expect(sent.ok).toBe(true);
+      const vendorId0 = t.relay.vendorIdsOf(card.id)[0]!;
+      expect(vendorId0).not.toBe(card.id);
+      await t.deliver(
+        t.mock.memberTapback({
+          chat: group,
+          from: DEAN,
+          targetVendorId: vendorId0,
+          tapback: 'like',
+        }),
+      );
+      const r = t.events[0] as InboundReaction;
+      expect(r).toMatchObject({
+        type: 'reaction',
         sender: 'h_dean',
-        text: '@trav hi',
-        attachments: [],
-      },
-    ]);
-  });
-
-  it('a DM arrives on the dm lane as dm:<handle>; an unknown number passes as its address', async () => {
-    const t = setup(vendorId);
-    await t.deliver(
-      await t.mock.memberMessage({
-        chat: { kind: 'dm', address: DEAN },
-        from: DEAN,
-        text: 'photos on',
-      }),
-    );
-    await t.deliver(
-      await t.mock.memberMessage({ chat: { kind: 'dm', address: SAM }, from: SAM, text: 'hello?' }),
-    );
-    const [a, b] = t.events as InboundMessage[];
-    expect(a).toMatchObject({ lane: 'dm', conversationId: 'dm:h_dean', sender: 'h_dean' });
-    expect(b).toMatchObject({ lane: 'dm', conversationId: `dm:${SAM}`, sender: SAM });
-  });
-
-  it('drops a redelivered webhook (same vendor id) and counts it', async () => {
-    const t = setup(vendorId);
-    const hook = await t.mock.memberMessage({
-      chat: group,
-      from: DEAN,
-      text: 'yes',
-      vendorMessageId: 'V2',
-    });
-    expect(await t.deliver(hook)).toBe(200);
-    const again = await t.relay.handleWebhook(hook);
-    await again.delivered;
-    expect(again).toMatchObject({ status: 200, accepted: 0, duplicates: 1 });
-    expect(t.events).toHaveLength(1);
-    expect(t.relay.stats().duplicatesDropped).toBe(1);
-  });
-
-  it('refuses a bad signature (401), a non-JSON or foreign body (400) and an oversized one (413), delivering nothing', async () => {
-    const t = setup(vendorId);
-    const hook = await t.mock.memberMessage({ chat: group, from: DEAN, text: 'yes' });
-    const forged = { rawBody: hook.rawBody.replace('yes', 'buy'), headers: hook.headers };
-    const forgedOutcome = await t.relay.handleWebhook(forged);
-    await forgedOutcome.delivered;
-    const forgedStatus = forgedOutcome.status;
-    // Sendblue's shared secret does not cover the body; Photon's HMAC does.
-    expect(forgedStatus).toBe(vendorId === 'photon' ? 401 : 200);
-    t.events.length = 0;
-    expect((await t.relay.handleWebhook({ rawBody: hook.rawBody, headers: {} })).status).toBe(401);
-    const signedJunk =
-      vendorId === 'photon' ? undefined : { rawBody: 'not json', headers: hook.headers };
-    if (signedJunk) expect((await t.relay.handleWebhook(signedJunk)).status).toBe(400);
-    if (vendorId === 'sendblue') {
-      expect(
-        (await t.relay.handleWebhook({ rawBody: '{"x":1}', headers: hook.headers })).status,
-      ).toBe(400);
-    }
-    const big = { rawBody: 'x'.repeat(MAX_WEBHOOK_BYTES + 1), headers: hook.headers };
-    expect((await t.relay.handleWebhook(big)).status).toBe(413);
-    expect(t.events).toEqual([]);
-    expect(t.relay.stats().webhooksRejected).toBeGreaterThanOrEqual(2);
-  });
-
-  it('an empty webhook secret refuses every delivery (fail closed)', async () => {
-    const t = setup(vendorId, { webhookSecret: '' });
-    const hook = await t.mock.memberMessage({ chat: group, from: DEAN, text: 'yes' });
-    expect((await t.relay.handleWebhook(hook)).status).toBe(401);
-    expect(t.events).toEqual([]);
-  });
-
-  it('a 👍 tapback on a Trav message points at the Trav message id the agent sent', async () => {
-    const t = setup(vendorId);
-    const card = groupMsg(PROPOSAL_TEXT, { card: proposalCard(), actions: PROPOSAL_ACTIONS });
-    const sent = await t.relay.sendGroup(CHAT, card);
-    expect(sent.ok).toBe(true);
-    const vendorId0 = t.relay.vendorIdsOf(card.id)[0]!;
-    expect(vendorId0).not.toBe(card.id);
-    await t.deliver(
-      t.mock.memberTapback({ chat: group, from: DEAN, targetVendorId: vendorId0, tapback: 'like' }),
-    );
-    const r = t.events[0] as InboundReaction;
-    expect(r).toMatchObject({
-      type: 'reaction',
-      sender: 'h_dean',
-      targetMessageId: card.id,
-      reaction: '👍',
-      removed: false,
-      conversationId: CHAT,
-    });
-    // Removing it is a removal on the same target.
-    await t.deliver(
-      t.mock.memberTapback({
-        chat: group,
-        from: DEAN,
-        targetVendorId: vendorId0,
-        tapback: 'like',
+        targetMessageId: card.id,
+        reaction: '👍',
+        removed: false,
+        conversationId: CHAT,
+      });
+      // Removing it is a removal on the same target.
+      await t.deliver(
+        t.mock.memberTapback({
+          chat: group,
+          from: DEAN,
+          targetVendorId: vendorId0,
+          tapback: 'like',
+          removed: true,
+        }),
+      );
+      expect(t.events[1]).toMatchObject({
+        type: 'reaction',
+        targetMessageId: card.id,
         removed: true,
-      }),
-    );
-    expect(t.events[1]).toMatchObject({
-      type: 'reaction',
-      targetMessageId: card.id,
-      removed: true,
+      });
     });
-  });
 
-  it('wire text is the fallback text: no buttons, 👍 instructions kept (tapbacks exist), card left out', async () => {
-    const t = setup(vendorId);
-    const card = groupMsg(PROPOSAL_TEXT, { card: proposalCard(), actions: PROPOSAL_ACTIONS });
-    const sent = await t.relay.sendGroup(CHAT, card);
-    expect(sent).toMatchObject({ ok: true, value: { messageId: card.id, degraded: true } });
-    const wire = t.mock.sends()[0]!;
-    expect(wire.text).toBe(textForChannel(card, t.relay.capabilities));
-    expect(wire.text).toMatch(/👍/u);
-    expect(JSON.stringify(t.mock.requests()[0]!.body)).not.toMatch(/approve|cardId|actions/);
-  });
+    it('wire text is the fallback text: no buttons, 👍 instructions kept (tapbacks exist), card left out', async () => {
+      const t = setup(vendorId);
+      const card = groupMsg(PROPOSAL_TEXT, { card: proposalCard(), actions: PROPOSAL_ACTIONS });
+      const sent = await t.relay.sendGroup(CHAT, card);
+      expect(sent).toMatchObject({ ok: true, value: { messageId: card.id, degraded: true } });
+      const wire = t.mock.sends()[0]!;
+      expect(wire.text).toBe(textForChannel(card, t.relay.capabilities));
+      expect(wire.text).toMatch(/👍/u);
+      expect(JSON.stringify(t.mock.requests()[0]!.body)).not.toMatch(/approve|cardId|actions/);
+    });
 
-  it('a ticket QR (SVG) goes out as a PNG on an https URL the vendor can fetch', async () => {
-    const t = setup(vendorId);
-    const msg = dmMsg('mem_dean', 'your razzmatazz ticket for tonight 🎟️', {
-      card: ticketCard('mem_dean'),
-      images: [{ url: mockQrDataUrl('TRAV-MOCK-TICKET|x'), alt: 'QR code' }],
+    it('a ticket QR (SVG) goes out as a PNG on an https URL the vendor can fetch', async () => {
+      const t = setup(vendorId);
+      const msg = dmMsg('mem_dean', 'your razzmatazz ticket for tonight 🎟️', {
+        card: ticketCard('mem_dean'),
+        images: [{ url: mockQrDataUrl('TRAV-MOCK-TICKET|x'), alt: 'QR code' }],
+      });
+      expect((await t.relay.sendDirect('h_dean', msg)).ok).toBe(true);
+      if (vendorId === 'bluebubbles') {
+        // Text and file can't share a send: the text goes first, then the PNG
+        // as a multipart upload (never published to a media host).
+        const [text, file] = t.mock.sends();
+        expect(text!.text).toContain('razzmatazz');
+        expect(text!.media).toEqual([]);
+        expect(file!.text).toBe('');
+        const upload = t.mock.requests().at(-1)!;
+        expect(upload.url).toMatch(/\/api\/v1\/message\/attachment\?/);
+        expect(upload.body).toBeUndefined();
+        expect(upload.form?.files).toHaveLength(1);
+        expect(upload.form?.files[0]).toMatchObject({ field: 'attachment', mimeType: 'image/png' });
+        expect(t.relay.vendorIdsOf(msg.id)).toHaveLength(2);
+      }
+      const wire = t.mock.sends().find((s) => s.media.length > 0)!;
+      expect(wire.chat).toEqual({ kind: 'dm', address: DEAN });
+      expect(wire.media).toHaveLength(1);
+      expect(wire.media[0]!.url).toMatch(
+        /^https:\/\/media\.mock-relay\.invalid\/m\/[0-9a-f]{24}\.png$/,
+      );
+      const bytes = t.mock.media.resolve(wire.media[0]!.url)!.bytes;
+      expect(Buffer.from(bytes).subarray(1, 4).toString('ascii')).toBe('PNG');
     });
-    expect((await t.relay.sendDirect('h_dean', msg)).ok).toBe(true);
-    const wire = t.mock.sends()[0]!;
-    expect(wire.chat).toEqual({ kind: 'dm', address: DEAN });
-    expect(wire.media).toHaveLength(1);
-    expect(wire.media[0]!.url).toMatch(
-      /^https:\/\/media\.mock-relay\.invalid\/m\/[0-9a-f]{24}\.png$/,
-    );
-    const bytes = t.mock.media.resolve(wire.media[0]!.url)!.bytes;
-    expect(Buffer.from(bytes).subarray(1, 4).toString('ascii')).toBe('PNG');
-  });
 
-  it('refuses what the simulator refuses: DM-only card in the group, a ticket to the wrong member, unknown chats and handles', async () => {
-    const t = setup(vendorId);
-    const ticket = groupMsg('ticket', { card: ticketCard('mem_dean') });
-    expect(await t.relay.sendGroup(CHAT, ticket)).toMatchObject({
-      ok: false,
-      error: { code: 'invalid_request' },
+    it('refuses what the simulator refuses: DM-only card in the group, a ticket to the wrong member, unknown chats and handles', async () => {
+      const t = setup(vendorId);
+      const ticket = groupMsg('ticket', { card: ticketCard('mem_dean') });
+      expect(await t.relay.sendGroup(CHAT, ticket)).toMatchObject({
+        ok: false,
+        error: { code: 'invalid_request' },
+      });
+      const wrong = dmMsg('mem_chase', 'ticket', { card: ticketCard('mem_dean') });
+      expect(await t.relay.sendDirect('h_chase', wrong)).toMatchObject({
+        ok: false,
+        error: { code: 'invalid_request' },
+      });
+      const astray = dmMsg('mem_chase', 'hi');
+      expect(await t.relay.sendDirect('h_dean', astray)).toMatchObject({
+        ok: false,
+        error: { code: 'invalid_request' },
+      });
+      expect(await t.relay.sendGroup('iMessage;+;chat-unknown', groupMsg('hi'))).toMatchObject({
+        ok: false,
+        error: { code: 'not_found' },
+      });
+      expect(await t.relay.sendDirect('h_nobody', dmMsg('mem_x', 'hi'))).toMatchObject({
+        ok: false,
+        error: { code: 'not_found' },
+      });
+      expect(await t.relay.sendGroup(CHAT, dmMsg('mem_dean', 'hi'))).toMatchObject({ ok: false });
+      expect(t.mock.requests()).toEqual([]);
     });
-    const wrong = dmMsg('mem_chase', 'ticket', { card: ticketCard('mem_dean') });
-    expect(await t.relay.sendDirect('h_chase', wrong)).toMatchObject({
-      ok: false,
-      error: { code: 'invalid_request' },
-    });
-    const astray = dmMsg('mem_chase', 'hi');
-    expect(await t.relay.sendDirect('h_dean', astray)).toMatchObject({
-      ok: false,
-      error: { code: 'invalid_request' },
-    });
-    expect(await t.relay.sendGroup('iMessage;+;chat-unknown', groupMsg('hi'))).toMatchObject({
-      ok: false,
-      error: { code: 'not_found' },
-    });
-    expect(await t.relay.sendDirect('h_nobody', dmMsg('mem_x', 'hi'))).toMatchObject({
-      ok: false,
-      error: { code: 'not_found' },
-    });
-    expect(await t.relay.sendGroup(CHAT, dmMsg('mem_dean', 'hi'))).toMatchObject({ ok: false });
-    expect(t.mock.requests()).toEqual([]);
-  });
 
-  it('sends each Trav message id once: a resend and a concurrent resend reuse the first send', async () => {
-    const t = setup(vendorId);
-    const m = groupMsg('done ✅');
-    const [a, b] = await Promise.all([t.relay.sendGroup(CHAT, m), t.relay.sendGroup(CHAT, m)]);
-    const c = await t.relay.sendGroup(CHAT, m);
-    expect(a).toEqual(b);
-    expect(c).toEqual(a);
-    expect(t.mock.sends()).toHaveLength(1);
-    expect(
-      await t.relay.sendDirect('h_dean', { ...m, to: { kind: 'member', memberId: 'mem_dean' } }),
-    ).toMatchObject({
-      ok: false,
-      error: { code: 'duplicate' },
+    it('sends each Trav message id once: a resend and a concurrent resend reuse the first send', async () => {
+      const t = setup(vendorId);
+      const m = groupMsg('done ✅');
+      const [a, b] = await Promise.all([t.relay.sendGroup(CHAT, m), t.relay.sendGroup(CHAT, m)]);
+      const c = await t.relay.sendGroup(CHAT, m);
+      expect(a).toEqual(b);
+      expect(c).toEqual(a);
+      expect(t.mock.sends()).toHaveLength(1);
+      expect(
+        await t.relay.sendDirect('h_dean', { ...m, to: { kind: 'member', memberId: 'mem_dean' } }),
+      ).toMatchObject({
+        ok: false,
+        error: { code: 'duplicate' },
+      });
     });
-  });
 
-  it('retries a 429 after its Retry-After (capped) and succeeds', async () => {
-    const t = setup(vendorId);
-    t.mock.failNext({ kind: 'status', status: 429, retryAfterSeconds: 2 });
-    const r = await t.relay.sendGroup(CHAT, groupMsg('hi'));
-    expect(r.ok).toBe(true);
-    expect(t.mock.requests()).toHaveLength(2);
-    expect(t.mock.sends()).toHaveLength(1);
-    expect(t.sleeps).toEqual([2000]);
-    expect(t.relay.stats()).toMatchObject({ retries: 1, sendFailures: 0 });
-  });
-
-  it('a 400 is never retried and comes back as invalid_request', async () => {
-    const t = setup(vendorId);
-    t.mock.failNext({ kind: 'status', status: 400 });
-    const r = await t.relay.sendGroup(CHAT, groupMsg('hi'));
-    expect(r).toMatchObject({ ok: false, error: { code: 'invalid_request', retryable: false } });
-    expect(t.mock.requests()).toHaveLength(1);
-  });
-
-  it('three 503s fail as provider_unavailable, still retryable (the pacing queue tries later)', async () => {
-    const t = setup(vendorId);
-    t.mock.failNext(
-      { kind: 'status', status: 503 },
-      { kind: 'status', status: 503 },
-      { kind: 'status', status: 503 },
-    );
-    const r = await t.relay.sendGroup(CHAT, groupMsg('hi'));
-    expect(r).toMatchObject({
-      ok: false,
-      error: { code: 'provider_unavailable', retryable: true },
+    it('retries a 429 after its Retry-After (capped) and succeeds', async () => {
+      const t = setup(vendorId);
+      t.mock.failNext({ kind: 'status', status: 429, retryAfterSeconds: 2 });
+      const r = await t.relay.sendGroup(CHAT, groupMsg('hi'));
+      expect(r.ok).toBe(true);
+      expect(t.mock.requests()).toHaveLength(2);
+      expect(t.mock.sends()).toHaveLength(1);
+      expect(t.sleeps).toEqual([2000]);
+      expect(t.relay.stats()).toMatchObject({ retries: 1, sendFailures: 0 });
     });
-    expect(t.mock.requests()).toHaveLength(3);
-    expect(t.sleeps).toEqual([500, 1000]);
-    // Nothing was recorded as sent, so the same id can go out later.
-    expect((await t.relay.sendGroup(CHAT, { ...groupMsg('x'), id: 'later' })).ok).toBe(true);
-  });
 
-  it('a Trav 👍 on a member message is a tapback request; unknown targets are not_found', async () => {
-    const t = setup(vendorId);
-    await t.deliver(
-      await t.mock.memberMessage({
-        chat: group,
-        from: DEAN,
-        text: 'got the tickets?',
-        vendorMessageId: 'V9',
-      }),
-    );
-    const ok = await t.relay.react(CHAT, {
-      id: 'rx1',
-      groupId: BCN_GROUP,
-      kind: 'reaction',
-      to: { kind: 'group' },
-      targetMessageId: 'V9',
-      emoji: '👍',
+    it('a 400 is never retried and comes back as invalid_request', async () => {
+      const t = setup(vendorId);
+      t.mock.failNext({ kind: 'status', status: 400 });
+      const r = await t.relay.sendGroup(CHAT, groupMsg('hi'));
+      expect(r).toMatchObject({ ok: false, error: { code: 'invalid_request', retryable: false } });
+      expect(t.mock.requests()).toHaveLength(1);
     });
-    expect(ok.ok).toBe(true);
-    expect(t.mock.sends()[0]).toMatchObject({
-      kind: 'reaction',
-      targetVendorId: 'V9',
-      tapback: 'like',
-    });
-    const missing = await t.relay.react(CHAT, {
-      id: 'rx2',
-      groupId: BCN_GROUP,
-      kind: 'reaction',
-      to: { kind: 'group' },
-      targetMessageId: 'nope',
-      emoji: '❤️',
-    });
-    expect(missing).toMatchObject({ ok: false, error: { code: 'not_found' } });
-  });
 
-  it('keeps only https attachments from a webhook, then hands them to the media resolver', async () => {
-    const resolved: string[] = [];
-    const t = setup(vendorId, {
-      resolveInboundMedia: async (a) => {
-        resolved.push(a.uri);
-        return { ...a, uri: 'fixtures/receipts/r1.jpg' };
-      },
+    it('three 503s fail as provider_unavailable, still retryable (the pacing queue tries later)', async () => {
+      const t = setup(vendorId);
+      t.mock.failNext(
+        { kind: 'status', status: 503 },
+        { kind: 'status', status: 503 },
+        { kind: 'status', status: 503 },
+      );
+      const r = await t.relay.sendGroup(CHAT, groupMsg('hi'));
+      expect(r).toMatchObject({
+        ok: false,
+        error: { code: 'provider_unavailable', retryable: true },
+      });
+      expect(t.mock.requests()).toHaveLength(3);
+      expect(t.sleeps).toEqual([500, 1000]);
+      // Nothing was recorded as sent, so the same id can go out later.
+      expect((await t.relay.sendGroup(CHAT, { ...groupMsg('x'), id: 'later' })).ok).toBe(true);
     });
-    await t.deliver(
-      await t.mock.memberMessage({
-        chat: group,
-        from: CHASE,
-        text: 'receipt',
-        attachments: [
-          { kind: 'image', mimeType: 'image/jpeg', uri: 'https://cdn.example.test/a.jpg' },
-        ],
-      }),
-    );
-    const m = t.events[0] as InboundMessage;
-    expect(resolved).toEqual(['https://cdn.example.test/a.jpg']);
-    expect(m.attachments).toEqual([
-      { kind: 'image', mimeType: 'image/jpeg', uri: 'fixtures/receipts/r1.jpg' },
-    ]);
-  });
 
-  it('lists the roster with Trav, mapped to handles', async () => {
-    const t = setup(vendorId);
-    const r = await t.relay.listParticipants(CHAT);
-    expect(r.ok && r.value.map((p) => p.handle)).toEqual(['h_dean', 'h_chase', 'h_henry', 'trav']);
-    expect(r.ok && r.value.at(-1)).toEqual({ handle: 'trav', displayName: 'Trav', isTrav: true });
-  });
-
-  it('composes with the T-071 pacing decorator', async () => {
-    const t = setup(vendorId);
-    const paced = withOutboundPacing(t.relay, {
-      clock: t.clock,
-      ratioAllowance: 1,
-      maxSendToReceiveRatio: 0,
+    it('a Trav 👍 on a member message is a tapback request; unknown targets are not_found', async () => {
+      const t = setup(vendorId);
+      await t.deliver(
+        await t.mock.memberMessage({
+          chat: group,
+          from: DEAN,
+          text: 'got the tickets?',
+          vendorMessageId: 'V9',
+        }),
+      );
+      const ok = await t.relay.react(CHAT, {
+        id: 'rx1',
+        groupId: BCN_GROUP,
+        kind: 'reaction',
+        to: { kind: 'group' },
+        targetMessageId: 'V9',
+        emoji: '👍',
+      });
+      expect(ok.ok).toBe(true);
+      expect(t.mock.sends()[0]).toMatchObject({
+        kind: 'reaction',
+        targetVendorId: 'V9',
+        tapback: 'like',
+      });
+      const missing = await t.relay.react(CHAT, {
+        id: 'rx2',
+        groupId: BCN_GROUP,
+        kind: 'reaction',
+        to: { kind: 'group' },
+        targetMessageId: 'nope',
+        emoji: '❤️',
+      });
+      expect(missing).toMatchObject({ ok: false, error: { code: 'not_found' } });
     });
-    expect((await paced.sendGroup(CHAT, groupMsg('one'))).ok).toBe(true);
-    const second = await paced.sendGroup(CHAT, groupMsg('two'));
-    expect(second).toMatchObject({ ok: true, value: { queued: true } });
-    expect(t.mock.sends()).toHaveLength(1);
-  });
-});
+
+    it('keeps only https attachments from a webhook, then hands them to the media resolver', async () => {
+      const resolved: string[] = [];
+      const t = setup(vendorId, {
+        resolveInboundMedia: async (a) => {
+          resolved.push(a.uri);
+          return { ...a, uri: 'fixtures/receipts/r1.jpg' };
+        },
+      });
+      await t.deliver(
+        await t.mock.memberMessage({
+          chat: group,
+          from: CHASE,
+          text: 'receipt',
+          attachments: [
+            { kind: 'image', mimeType: 'image/jpeg', uri: 'https://cdn.example.test/a.jpg' },
+          ],
+        }),
+      );
+      const m = t.events[0] as InboundMessage;
+      // BlueBubbles keeps the file on the server: Trav gets its download URL.
+      expect(resolved).toEqual([
+        vendorId === 'bluebubbles'
+          ? expect.stringMatching(
+              /^https:\/\/bluebubbles\.mock-relay\.invalid\/api\/v1\/attachment\/[^/]+\/download$/,
+            )
+          : 'https://cdn.example.test/a.jpg',
+      ]);
+      expect(m.attachments).toEqual([
+        {
+          kind: 'image',
+          mimeType: 'image/jpeg',
+          uri: 'fixtures/receipts/r1.jpg',
+          // BlueBubbles reports the file's transfer name.
+          ...(vendorId === 'bluebubbles' ? { fileName: expect.any(String) } : {}),
+        },
+      ]);
+    });
+
+    it('lists the roster with Trav, mapped to handles', async () => {
+      const t = setup(vendorId);
+      const r = await t.relay.listParticipants(CHAT);
+      expect(r.ok && r.value.map((p) => p.handle)).toEqual([
+        'h_dean',
+        'h_chase',
+        'h_henry',
+        'trav',
+      ]);
+      expect(r.ok && r.value.at(-1)).toEqual({ handle: 'trav', displayName: 'Trav', isTrav: true });
+    });
+
+    it('composes with the T-071 pacing decorator', async () => {
+      const t = setup(vendorId);
+      const paced = withOutboundPacing(t.relay, {
+        clock: t.clock,
+        ratioAllowance: 1,
+        maxSendToReceiveRatio: 0,
+      });
+      expect((await paced.sendGroup(CHAT, groupMsg('one'))).ok).toBe(true);
+      const second = await paced.sendGroup(CHAT, groupMsg('two'));
+      expect(second).toMatchObject({ ok: true, value: { queued: true } });
+      expect(t.mock.sends()).toHaveLength(1);
+    });
+  },
+);
 
 describe('vendor-specific behaviour', () => {
   it('photon: participant webhooks become joins and leaves; Trav itself being added is flagged', async () => {

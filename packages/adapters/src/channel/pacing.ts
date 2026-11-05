@@ -35,7 +35,9 @@
  *   are dead, so delivering it late would ask for a yes that can't book.
  * - `send_failed`: the inner channel refused it when it finally went out. A
  *   `retryable` refusal goes back to the front of its class, retried after
- *   `retryBackoffMs × attempt`, up to `maxAttempts` (3) tries in all.
+ *   `retryBackoffMs × attempt`, up to `maxAttempts` (3) tries in all. A
+ *   retryable refusal of a message sent at once is queued the same way (its
+ *   first try counted), and the caller hears `queued`.
  *
  * An over-limit tapback is not queued (a late 👍 is noise) and returns
  * `rate_limited`. The queue drains on every inbound event, every send,
@@ -96,6 +98,12 @@ export interface OutboundPacingOptions {
   readonly onFailure?: (failure: PacingFailure) => void;
   /** Default 500 per rolling 24h (far under every vendor's per-line guidance). */
   readonly maxSendsPerDay?: number;
+  /**
+   * How many wire messages one outbound message becomes (T-187: on a line
+   * that sends each image as its own iMessage, a ticket DM is 2). The day cap
+   * counts these; the send-to-receive ratio still counts messages. Default 1.
+   */
+  readonly wireSendsOf?: (message: OutboundMessage) => number;
   /** Daily-cap slots only critical messages may use. Default 20 (clamped to the cap). */
   readonly criticalReserve?: number;
   /** Default 3 sends per receive. */
@@ -120,6 +128,7 @@ export interface OutboundPacingOptions {
 }
 
 export interface PacingStats {
+  /** Wire sends in the rolling day (what the day cap counts; see `wireSendsOf`). */
   readonly sentInDay: number;
   readonly sentInRatioWindow: number;
   readonly receivedInRatioWindow: number;
@@ -316,8 +325,13 @@ export function withOutboundPacing(
   let cancelTimer: (() => void) | undefined;
   const handlers = new Set<(event: InboundEvent) => void | Promise<void>>();
 
+  /** One entry per wire send beyond a message's first (`wireSendsOf` > 1), by epoch ms. */
+  let extraWire: number[] = [];
+  const wireIn = (now: number, windowMs: number): number =>
+    sentIn(now, windowMs) + extraWire.filter((t) => t > now - windowMs).length;
   const prune = (now: number): void => {
     sends = sends.filter((t) => t > now - keepMs);
+    extraWire = extraWire.filter((t) => t > now - keepMs);
     receives = receives.filter((t) => t > now - ratioWindowMs);
   };
   const ratioLimit = (): number => Math.max(allowance, Math.floor(ratio * receives.length));
@@ -325,20 +339,35 @@ export function withOutboundPacing(
     sends.filter((t) => t > now - windowMs).length;
   const dayLimit = (priority: PacingPriority): number =>
     priority === 'critical' ? maxPerDay : maxPerDay - reserve;
-  const hasCapacity = (priority: PacingPriority): boolean => {
+  /** Wire sends a message costs (at least 1, never more than a whole day's open cap). */
+  const costOf = (message: OutboundMessage | undefined): number => {
+    if (message === undefined || options.wireSendsOf === undefined) return 1;
+    const n = Math.floor(options.wireSendsOf(message));
+    return Math.min(Math.max(1, Number.isFinite(n) ? n : 1), Math.max(1, maxPerDay - reserve));
+  };
+  const hasCapacity = (priority: PacingPriority, cost = 1): boolean => {
     const now = clock.nowMs();
     prune(now);
-    return sentIn(now, DAY_MS) < dayLimit(priority) && sentIn(now, ratioWindowMs) < ratioLimit();
+    // The day cap counts wire sends (what the line's volume is judged on); the
+    // send-to-receive ratio counts messages (one reply is one reply, QR or not).
+    return (
+      wireIn(now, DAY_MS) + cost <= dayLimit(priority) && sentIn(now, ratioWindowMs) < ratioLimit()
+    );
   };
-  /** Reserve a slot before awaiting so concurrent sends can't both take the last one. */
-  const take = (): number => {
+  /** Reserve the slots before awaiting so concurrent sends can't both take the last one. */
+  const take = (cost = 1): number => {
     const t = clock.nowMs();
     sends.push(t);
+    for (let i = 1; i < cost; i += 1) extraWire.push(t);
     return t;
   };
-  const release = (t: number): void => {
+  const release = (t: number, cost = 1): void => {
     const i = sends.lastIndexOf(t);
     if (i >= 0) sends.splice(i, 1);
+    for (let n = 1; n < cost; n += 1) {
+      const j = extraWire.lastIndexOf(t);
+      if (j >= 0) extraWire.splice(j, 1);
+    }
   };
 
   function scheduleWake(): void {
@@ -489,17 +518,20 @@ export function withOutboundPacing(
     for (;;) {
       expireDue();
       const now = clock.nowMs();
-      const next = queued.find((q) => q.retryAtMs <= now && hasCapacity(q.priority));
+      const next = queued.find(
+        (q) => q.retryAtMs <= now && hasCapacity(q.priority, costOf(q.message)),
+      );
       if (next === undefined) break;
       queued.splice(queued.indexOf(next), 1);
-      const t = take();
+      const cost = costOf(next.message);
+      const t = take(cost);
       next.attempts += 1;
       const result = await sendTracked(next.message.id, next.send);
       if (result.ok) {
         sent.set(next.message.id, result.value);
         continue;
       }
-      release(t);
+      release(t, cost);
       if (result.error.retryable && next.attempts < maxAttempts) {
         next.retryAtMs = clock.nowMs() + backoffMs * next.attempts;
         insertFront(next);
@@ -551,12 +583,20 @@ export function withOutboundPacing(
 
     const priority = pacingPriority(message);
     const ahead = queued.some((q) => RANK[q.priority] <= RANK[priority]);
-    if (!ahead && hasCapacity(priority)) {
-      const t = take();
+    let attempts = 0;
+    let retryAtMs = 0;
+    const cost = costOf(message);
+    if (!ahead && hasCapacity(priority, cost)) {
+      const t = take(cost);
       const result = await sendTracked(message.id, send);
       if (result.ok) sent.set(message.id, result.value);
-      else release(t);
-      return result;
+      else release(t, cost);
+      // A retryable refusal on the first try (T-187: a relay image part that
+      // didn't go out after its text did) is queued for a later try like a
+      // queued message's, instead of being handed back as lost.
+      if (result.ok || !result.error.retryable || maxAttempts <= 1) return result;
+      attempts = 1;
+      retryAtMs = clock.nowMs() + backoffMs;
     }
     const deadline = pacingDeadline(message);
     const kept = enqueue({
@@ -566,8 +606,8 @@ export function withOutboundPacing(
       send,
       lane,
       ...(deadline !== undefined ? { deadlineMs: parseIso(deadline) } : {}),
-      attempts: 0,
-      retryAtMs: 0,
+      attempts,
+      retryAtMs,
     });
     if (!kept) {
       return {
@@ -674,7 +714,7 @@ export function withOutboundPacing(
       const now = clock.nowMs();
       prune(now);
       return {
-        sentInDay: sentIn(now, DAY_MS),
+        sentInDay: wireIn(now, DAY_MS),
         sentInRatioWindow: sentIn(now, ratioWindowMs),
         receivedInRatioWindow: receives.length,
         ratioLimit: ratioLimit(),

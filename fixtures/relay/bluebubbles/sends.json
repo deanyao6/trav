@@ -1,0 +1,279 @@
+{
+  "vendor": "bluebubbles",
+  "provenance": "Reconstructed request and reply shapes for the BlueBubbles server's message/text, message/attachment and message/react endpoints (see webhooks.json provenance). Requests are built against the fake server origin with the Private API helper on. The password is the placeholder \"fixture-password\"; never put a real one here.",
+  "line": "+16175550100",
+  "auth": {
+    "apiKey": "fixture-password"
+  },
+  "requests": [
+    {
+      "name": "group text with an inline reply (Private API)",
+      "send": {
+        "kind": "message",
+        "chat": {
+          "kind": "group",
+          "chatId": "iMessage;+;chat640219872311"
+        },
+        "text": "booked ✅ razzmatazz, 5 tickets, €90",
+        "media": [],
+        "replyToVendorId": "B10EB0B5-6F1A-4A00-8000-000000000001",
+        "idempotencyKey": "msg_rz_receipt"
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://bluebubbles.mock-relay.invalid/api/v1/message/text?password=fixture-password",
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": {
+          "chatGuid": "iMessage;+;chat640219872311",
+          "tempGuid": "temp-msg_rz_receipt",
+          "message": "booked ✅ razzmatazz, 5 tickets, €90",
+          "method": "private-api",
+          "selectedMessageGuid": "B10EB0B5-6F1A-4A00-8000-000000000001",
+          "partIndex": 0
+        }
+      }
+    },
+    {
+      "name": "DM text",
+      "send": {
+        "kind": "message",
+        "chat": {
+          "kind": "dm",
+          "address": "+16175550101"
+        },
+        "text": "your razzmatazz ticket for tonight 🎟️",
+        "media": [],
+        "idempotencyKey": "msg_rz_ticket_dean"
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://bluebubbles.mock-relay.invalid/api/v1/message/text?password=fixture-password",
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": {
+          "chatGuid": "iMessage;-;+16175550101",
+          "tempGuid": "temp-msg_rz_ticket_dean",
+          "message": "your razzmatazz ticket for tonight 🎟️",
+          "method": "private-api"
+        }
+      }
+    },
+    {
+      "name": "DM QR image as a multipart upload (no caption)",
+      "send": {
+        "kind": "message",
+        "chat": {
+          "kind": "dm",
+          "address": "+16175550101"
+        },
+        "text": "",
+        "media": [
+          {
+            "url": "upload:trav-0123456789abcdef01234567.png",
+            "mimeType": "image/png",
+            "fileName": "trav-0123456789abcdef01234567.png",
+            "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+          }
+        ],
+        "idempotencyKey": "msg_rz_ticket_dean#1"
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://bluebubbles.mock-relay.invalid/api/v1/message/attachment?password=fixture-password",
+        "headers": {},
+        "form": {
+          "fields": {
+            "chatGuid": "iMessage;-;+16175550101",
+            "tempGuid": "temp-msg_rz_ticket_dean_1",
+            "name": "trav-0123456789abcdef01234567.png",
+            "method": "private-api"
+          },
+          "files": [
+            {
+              "field": "attachment",
+              "fileName": "trav-0123456789abcdef01234567.png",
+              "mimeType": "image/png",
+              "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "thumbs-up tapback",
+      "send": {
+        "kind": "reaction",
+        "chat": {
+          "kind": "group",
+          "chatId": "iMessage;+;chat640219872311"
+        },
+        "targetVendorId": "B10EB0B5-6F1A-4A00-8000-000000000004",
+        "tapback": "like",
+        "remove": false,
+        "idempotencyKey": "rx_ack_0004"
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://bluebubbles.mock-relay.invalid/api/v1/message/react?password=fixture-password",
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": {
+          "chatGuid": "iMessage;+;chat640219872311",
+          "selectedMessageGuid": "B10EB0B5-6F1A-4A00-8000-000000000004",
+          "reaction": "like",
+          "partIndex": 0
+        }
+      }
+    },
+    {
+      "name": "tapback removed",
+      "send": {
+        "kind": "reaction",
+        "chat": {
+          "kind": "group",
+          "chatId": "iMessage;+;chat640219872311"
+        },
+        "targetVendorId": "B10EB0B5-6F1A-4A00-8000-000000000004",
+        "tapback": "like",
+        "remove": true,
+        "idempotencyKey": "rx_ack_0004:remove"
+      },
+      "request": {
+        "method": "POST",
+        "url": "https://bluebubbles.mock-relay.invalid/api/v1/message/react?password=fixture-password",
+        "headers": {
+          "content-type": "application/json"
+        },
+        "body": {
+          "chatGuid": "iMessage;+;chat640219872311",
+          "selectedMessageGuid": "B10EB0B5-6F1A-4A00-8000-000000000004",
+          "reaction": "-like",
+          "partIndex": 0
+        }
+      }
+    }
+  ],
+  "responses": [
+    {
+      "name": "text sent",
+      "response": {
+        "status": 200,
+        "body": {
+          "status": 200,
+          "message": "Message sent!",
+          "data": {
+            "guid": "B10EB0B5-6F1A-4A00-8000-0000000000A3",
+            "text": "booked ✅ razzmatazz, 5 tickets, €90",
+            "isFromMe": true,
+            "dateCreated": 1773520805120,
+            "chats": [
+              {
+                "guid": "iMessage;+;chat640219872311"
+              }
+            ]
+          }
+        }
+      },
+      "expect": {
+        "ok": true,
+        "value": {
+          "vendorMessageId": "B10EB0B5-6F1A-4A00-8000-0000000000A3"
+        }
+      }
+    },
+    {
+      "name": "accepted but only the temp label came back (final, never retried)",
+      "response": {
+        "status": 200,
+        "body": {
+          "status": 200,
+          "message": "Message sent!",
+          "data": {
+            "guid": "temp-msg_rz_receipt"
+          }
+        }
+      },
+      "expect": {
+        "ok": false,
+        "status": 200,
+        "retryable": false,
+        "message": "bluebubbles: no message guid in reply"
+      }
+    },
+    {
+      "name": "HTTP 200 with an error status in the body",
+      "response": {
+        "status": 200,
+        "body": {
+          "status": 500,
+          "message": "Failed to send message",
+          "error": {
+            "type": "iMessage Error"
+          }
+        }
+      },
+      "expect": {
+        "ok": false,
+        "status": 200,
+        "retryable": false,
+        "message": "bluebubbles: error in reply"
+      }
+    },
+    {
+      "name": "rate limited, with Retry-After",
+      "response": {
+        "status": 429,
+        "headers": {
+          "retry-after": "4"
+        },
+        "body": {
+          "status": 429,
+          "message": "Too many requests"
+        }
+      },
+      "expect": {
+        "ok": false,
+        "status": 429,
+        "retryable": true,
+        "message": "bluebubbles: HTTP 429",
+        "retryAfterSeconds": 4
+      }
+    },
+    {
+      "name": "server error",
+      "response": {
+        "status": 500,
+        "body": {
+          "status": 500,
+          "message": "Server Error"
+        }
+      },
+      "expect": {
+        "ok": false,
+        "status": 500,
+        "retryable": true,
+        "message": "bluebubbles: HTTP 500"
+      }
+    },
+    {
+      "name": "wrong password",
+      "response": {
+        "status": 401,
+        "body": {
+          "status": 401,
+          "message": "Unauthorized"
+        }
+      },
+      "expect": {
+        "ok": false,
+        "status": 401,
+        "retryable": false,
+        "message": "bluebubbles: HTTP 401"
+      }
+    }
+  ]
+}

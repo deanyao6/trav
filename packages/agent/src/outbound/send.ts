@@ -106,7 +106,7 @@ export type DropReason = 'no_dm_lane' | 'no_dm_handle';
  * (`safety.Suppression`) or the send path's own privacy/lane stop.
  */
 export interface SendSuppression {
-  readonly cause: safety.SuppressionCause | LaneViolationCause;
+  readonly cause: safety.SuppressionCause | LaneViolationCause | 'private_text_in_group';
   readonly detail?: string;
   readonly event: safety.Suppression['event'];
   readonly payload: safety.Suppression['payload'];

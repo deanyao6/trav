@@ -130,6 +130,7 @@ export function recapRuntime(): {
       intakeDocument: () => Promise.reject(new Error('not used here')),
       importCardTransactions: () => Promise.reject(new Error('not used here')),
       importEmailReceipts: () => Promise.reject(new Error('not used here')),
+      announceFamilyMode: () => Promise.resolve([]),
       pendingCards: {
         byMessageId: () => undefined,
         pendingProposalsRequestedBy: () => [],

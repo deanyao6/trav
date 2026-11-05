@@ -2165,6 +2165,22 @@ function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
+/** T-214: the schema is closed, and so is the reading of it: any other key rejects the JSON. */
+function onlyKeys(o: Record<string, unknown>, allowed: readonly string[]): boolean {
+  return Object.keys(o).every((k) => allowed.includes(k));
+}
+
+const ITEM_KEYS = [
+  'description',
+  'category',
+  'amount',
+  'currency',
+  'paidBy',
+  'split',
+  'shares',
+  'weights',
+];
+
 /**
  * Turns the extraction call's JSON into drafts, applying the same member and
  * amount rules as the parser: unknown names make "who's in" a question, a null
@@ -2175,8 +2191,8 @@ export function draftsFromModelJson(
   json: unknown,
   ctx: ExpenseTextContext,
 ): ExpenseDraft[] | undefined {
-  if (!isObj(json) || json['isExpense'] !== true || !Array.isArray(json['expenses']))
-    return undefined;
+  if (!isObj(json) || !onlyKeys(json, ['isExpense', 'expenses'])) return undefined;
+  if (json['isExpense'] !== true || !Array.isArray(json['expenses'])) return undefined;
   const items = json['expenses'] as unknown[];
   if (items.length === 0 || items.length > 4) return undefined;
   const who = (ref: unknown): MemberId | undefined => {
@@ -2187,7 +2203,10 @@ export function draftsFromModelJson(
   };
   const drafts: ExpenseDraft[] = [];
   for (const raw of items) {
-    if (!isObj(raw)) return undefined;
+    if (!isObj(raw) || !onlyKeys(raw, ITEM_KEYS)) return undefined;
+    const rawSplit = raw['split'];
+    if (rawSplit !== undefined && !(isObj(rawSplit) && onlyKeys(rawSplit, ['kind', 'members'])))
+      return undefined;
     const description =
       typeof raw['description'] === 'string'
         ? raw['description']
@@ -2223,7 +2242,7 @@ export function draftsFromModelJson(
       participants = { kind: 'list', ids: uniq(ids as MemberId[]) };
     const fixed: { memberId: MemberId; decimal: string }[] = [];
     for (const s of Array.isArray(raw['shares']) ? (raw['shares'] as unknown[]) : []) {
-      if (!isObj(s)) return undefined;
+      if (!isObj(s) || !onlyKeys(s, ['member', 'amount'])) return undefined;
       const id = who(s['member']);
       const d = typeof s['amount'] === 'string' ? normalizeDecimal(s['amount'].trim()) : undefined;
       if (id === undefined || d === undefined) return undefined;
@@ -2231,7 +2250,7 @@ export function draftsFromModelJson(
     }
     const weights: { memberId: MemberId; weight: number }[] = [];
     for (const w of Array.isArray(raw['weights']) ? (raw['weights'] as unknown[]) : []) {
-      if (!isObj(w)) return undefined;
+      if (!isObj(w) || !onlyKeys(w, ['member', 'weight'])) return undefined;
       const id = who(w['member']);
       const weight = w['weight'];
       if (id === undefined || typeof weight !== 'number' || !(weight > 0) || weight > 20)

@@ -91,7 +91,9 @@ export function relayArgs(
     .toLowerCase();
   const vendor = raw === '' ? 'photon' : raw;
   if (!isRelayVendorId(vendor)) {
-    throw new Error(`--relay must be photon or sendblue, got "${vendor}"`);
+    throw new Error(
+      `--relay must be photon, sendblue or bluebubbles, got "${vendor.slice(0, 20)}"`,
+    );
   }
   const viewFlag = argv.findLast((a) => a.startsWith('--relay-view='));
   const rawView = viewFlag?.slice('--relay-view='.length) ?? 'overlay';

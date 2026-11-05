@@ -22,7 +22,11 @@ export const DEFAULT_WEBHOOK_PATH = '/relay/webhook';
 
 /** Anything with a `handleWebhook` (the channel, or a forwarder to the current session's one). */
 export interface WebhookTarget {
-  handleWebhook(input: { rawBody: string; headers: RelayHeaders }): Promise<RelayWebhookOutcome>;
+  handleWebhook(input: {
+    rawBody: string;
+    headers: RelayHeaders;
+    query?: string;
+  }): Promise<RelayWebhookOutcome>;
 }
 
 export interface RelayWebhookHandlerOptions {
@@ -103,7 +107,13 @@ export function createRelayWebhookHandler(
         send(res, 413, { error: 'too large' });
         return;
       }
-      const outcome = await options.target.handleWebhook({ rawBody: raw, headers: req.headers });
+      // The query goes to the channel as is: BlueBubbles carries its shared
+      // secret there (`?token=…`), so it is never logged.
+      const outcome = await options.target.handleWebhook({
+        rawBody: raw,
+        headers: req.headers,
+        query: url.search,
+      });
       // The agent turn runs after the ack; its errors are the channel's to report.
       void outcome.delivered.catch(() => undefined);
       send(res, outcome.status, {

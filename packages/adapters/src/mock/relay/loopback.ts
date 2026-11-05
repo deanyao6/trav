@@ -38,7 +38,11 @@ import type { Clock } from '../../interfaces/common.js';
 import type { OutboundMessage } from '@trav/core';
 import type { RelayChannel, RelayDiagnostic } from '../../channel/relay/core.js';
 import { createRelayChannel } from '../../channel/relay/core.js';
-import { MOCK_RELAY_KEY, MOCK_RELAY_SECRET } from '../../channel/relay/config.js';
+import {
+  MOCK_RELAY_KEY,
+  MOCK_RELAY_SECRET,
+  relayPacingDefaults,
+} from '../../channel/relay/config.js';
 import { createMemoryMediaHost } from '../../channel/relay/media.js';
 import type {
   RelayChatRef,
@@ -252,7 +256,11 @@ export function createRelayLoopback(options: RelayLoopbackOptions): RelayLoopbac
   const paced =
     options.pacing === false
       ? undefined
-      : withOutboundPacing(recording, { clock, ...options.pacing });
+      : withOutboundPacing(recording, {
+          clock,
+          ...relayPacingDefaults(vendorId),
+          ...options.pacing,
+        });
   const front: ChannelAdapter = paced ?? recording;
 
   // ---- world → webhook → relay. Every member action becomes the vendor's signed delivery.
@@ -262,7 +270,8 @@ export function createRelayLoopback(options: RelayLoopbackOptions): RelayLoopbac
       : { kind: 'dm', address: addressOf(event.conversationId.replace(/^dm:/, '')) };
 
   async function deliver(
-    webhook: { rawBody: string; headers: Readonly<Record<string, string>> } | undefined,
+    webhook:
+      { rawBody: string; headers: Readonly<Record<string, string>>; query?: string } | undefined,
   ): Promise<void> {
     if (!webhook) return;
     const outcome = await relay.handleWebhook(webhook);

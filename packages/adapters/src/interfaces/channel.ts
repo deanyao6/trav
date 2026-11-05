@@ -177,6 +177,12 @@ export interface SentMessage {
    * as a 👍 tapback on the message it answered instead of as a text.
    */
   readonly asReaction?: true;
+  /**
+   * T-187: images that never reached the chat although the text did (a relay
+   * line that sends each image separately, after its retries ran out).
+   * `degraded` is true whenever this is set.
+   */
+  readonly missingImages?: number;
 }
 
 export interface ChannelAdapter {

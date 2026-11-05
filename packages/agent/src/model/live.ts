@@ -23,6 +23,7 @@ import type {
   CompletionRequest,
   CompletionResponse,
   ContentBlock,
+  JsonSchema,
   ModelClient,
   ModelEnv,
   ModelMessage,
@@ -32,6 +33,21 @@ import type {
 } from './client.js';
 import { assertClassifyUntrustedRules, assertUntrustedRules } from './invariants.js';
 import { deriveScriptKey } from './offline/scripts.js';
+import { assertSendableSchema } from './schemaCheck.js';
+
+/** The fast classifier's structured output (T-214: closed, walked by the schema test). */
+export function classifySchema(labels: readonly string[]): JsonSchema {
+  return {
+    type: 'object',
+    properties: {
+      label: { type: 'string', enum: [...labels] },
+      score: { type: 'number' },
+      reason: { type: 'string' },
+    },
+    required: ['label', 'score'],
+    additionalProperties: false,
+  };
+}
 
 /** The one seam between Trav and the network. */
 export interface LiveTransport {
@@ -140,6 +156,11 @@ export function createLiveModelClient(opts: LiveModelClientOptions): ModelClient
 
     async complete(req: CompletionRequest): Promise<CompletionResponse> {
       assertUntrustedRules(req);
+      // T-214: an open object schema is a 400 from the API; refuse it here, before any spend.
+      if (req.jsonSchema !== undefined)
+        assertSendableSchema(req.jsonSchema, req.systemPromptId, 'output');
+      for (const t of req.tools)
+        assertSendableSchema(t.inputSchema, `${req.systemPromptId} tool ${t.name}`, 'tool');
       const params: MessageCreateParamsNonStreaming = {
         model: env.models[req.model],
         max_tokens: req.maxTokens ?? DEFAULT_MAX_TOKENS,
@@ -202,19 +223,7 @@ export function createLiveModelClient(opts: LiveModelClientOptions): ModelClient
         system: req.system,
         messages: [{ role: 'user', content: req.input }],
         output_config: {
-          format: {
-            type: 'json_schema',
-            schema: {
-              type: 'object',
-              properties: {
-                label: { type: 'string', enum: [...req.labels] },
-                score: { type: 'number' },
-                reason: { type: 'string' },
-              },
-              required: ['label', 'score'],
-              additionalProperties: false,
-            },
-          },
+          format: { type: 'json_schema', schema: { ...classifySchema(req.labels) } },
         },
       };
       const { msg, usage } = await call(params);

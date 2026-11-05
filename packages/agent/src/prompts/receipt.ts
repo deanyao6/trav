@@ -39,8 +39,15 @@ const MONEY = {
   type: 'object',
   properties: { amountMinor: { type: 'integer' }, currency: { type: 'string' } },
   required: ['amountMinor', 'currency'],
+  additionalProperties: false,
 } as const;
 
+/**
+ * T-214: sent as a structured-output format, so every object level is closed
+ * (`additionalProperties: false`; the API answers 400 otherwise) and it holds
+ * no bounds the format does not take: the line cap is `RECEIPT_MAX_LINES` in
+ * `parseReceiptJson`, which also rejects any key not listed here.
+ */
 export const RECEIPT_SCHEMA = {
   type: 'object',
   properties: {
@@ -68,7 +75,7 @@ export const RECEIPT_SCHEMA = {
     occurredAt: { type: 'string' },
     lineItems: {
       type: 'array',
-      maxItems: 40,
+      description: 'at most 40',
       items: {
         type: 'object',
         properties: {
@@ -77,9 +84,11 @@ export const RECEIPT_SCHEMA = {
           amount: MONEY,
         },
         required: ['description', 'quantity', 'amount'],
+        additionalProperties: false,
       },
     },
     confidence: { type: 'number' },
     warnings: { type: 'array', items: { type: 'string' } },
   },
+  additionalProperties: false,
 } as const;

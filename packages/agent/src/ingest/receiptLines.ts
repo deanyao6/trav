@@ -56,8 +56,28 @@ function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
+/** T-214: `RECEIPT_SCHEMA` is closed, and so is the reading of it: any other key rejects the JSON. */
+function onlyKeys(o: Record<string, unknown>, allowed: readonly string[]): boolean {
+  return Object.keys(o).every((k) => allowed.includes(k));
+}
+
+const RECEIPT_KEYS = [
+  'unreadable',
+  'source',
+  'merchantName',
+  'total',
+  'subtotal',
+  'tax',
+  'tip',
+  'fees',
+  'occurredAt',
+  'lineItems',
+  'confidence',
+  'warnings',
+];
+
 function money(v: unknown, allowZero = false): Money | undefined {
-  if (!isObj(v)) return undefined;
+  if (!isObj(v) || !onlyKeys(v, ['amountMinor', 'currency'])) return undefined;
   const amountMinor = v['amountMinor'];
   const currency = v['currency'];
   if (typeof amountMinor !== 'number' || !Number.isSafeInteger(amountMinor)) return undefined;
@@ -80,7 +100,7 @@ function optionalMoney(v: unknown): Money | null | undefined {
  * built on a guessed line is worse than asking for the total.
  */
 export function parseReceiptJson(json: unknown): ParsedReceipt | null {
-  if (!isObj(json)) return null;
+  if (!isObj(json) || !onlyKeys(json, RECEIPT_KEYS)) return null;
   if (json['unreadable'] === true) return null;
   const total = money(json['total']);
   if (total === undefined || total.amountMinor > RECEIPT_MAX_TOTAL_MINOR) return null;
@@ -98,7 +118,7 @@ export function parseReceiptJson(json: unknown): ParsedReceipt | null {
   if (rawItems !== undefined && rawItems !== null) {
     if (!Array.isArray(rawItems) || rawItems.length > RECEIPT_MAX_LINES) return null;
     for (const it of rawItems) {
-      if (!isObj(it)) return null;
+      if (!isObj(it) || !onlyKeys(it, ['description', 'quantity', 'amount'])) return null;
       const amount = money(it['amount'], true);
       if (amount === undefined) return null;
       if (amount.amountMinor === 0) continue; // a free water is not a line to split
@@ -256,7 +276,9 @@ export function checkReceipt(
     adj('service', service ? 'service' : 'fees', service ? 'service' : 'fee', parsed.fees);
     adj('tip', 'tip', 'tip', parsed.tip);
   } else {
-    lines = [{ lineId: 'total', label: 'total', amount: parsed.total, claimedBy: [], kind: 'item' }];
+    lines = [
+      { lineId: 'total', label: 'total', amount: parsed.total, claimedBy: [], kind: 'item' },
+    ];
   }
 
   // Every amount the split uses must be printed on the receipt.
@@ -467,7 +489,10 @@ export function matchLines(phrase: string, lines: readonly LineItem[]): LineMatc
     if (score === 0) {
       // "the wine" ↔ "bottle of Priorat red": the line's kind of drink
       const cat = lineCategory(l.label);
-      if (cat !== undefined && CATEGORY_OF.some(([set, c]) => c === cat && q.some((w) => set.has(w))))
+      if (
+        cat !== undefined &&
+        CATEGORY_OF.some(([set, c]) => c === cat && q.some((w) => set.has(w)))
+      )
         score = 0.5;
     }
     if (score > best) {

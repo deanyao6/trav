@@ -25,19 +25,29 @@ interface SendsFixture {
   readonly responses: readonly { name: string; response: RelayHttpResponse; expect: unknown }[];
 }
 
-const VENDORS: readonly RelayVendorId[] = ['photon', 'sendblue'];
+const VENDORS: readonly RelayVendorId[] = ['photon', 'sendblue', 'bluebubbles'];
 const SECRET = 'whsec_fixture_not_a_real_secret';
 const NOW = '2026-03-14T21:40:05+01:00';
 
-function signed(vendor: RelayVendorId, rawBody: string, nowMs: number, secret = SECRET) {
+/** What a delivery carries to authenticate: headers, and (BlueBubbles) the registered URL's query. */
+function signed(
+  vendor: RelayVendorId,
+  rawBody: string,
+  nowMs: number,
+  secret = SECRET,
+): { headers: Record<string, string>; query?: string } {
+  if (vendor === 'bluebubbles') {
+    // No signature, no custom headers: the secret is in the webhook URL.
+    return { headers: {}, query: `?token=${encodeURIComponent(secret)}` };
+  }
   if (vendor === 'photon') {
     const t = Math.floor(nowMs / 1000);
     const v1 = createHmac('sha256', secret)
       .update(`${String(t)}.${rawBody}`)
       .digest('hex');
-    return { 'x-photon-signature': `t=${String(t)},v1=${v1}` };
+    return { headers: { 'x-photon-signature': `t=${String(t)},v1=${v1}` } };
   }
-  return { 'sb-signing-secret': secret };
+  return { headers: { 'sb-signing-secret': secret } };
 }
 
 describe.each(VENDORS)('%s contract (recorded fixtures)', (vendorId) => {
@@ -79,24 +89,38 @@ describe.each(VENDORS)('%s contract (recorded fixtures)', (vendorId) => {
     const clock = manualClock(NOW);
     const raw = JSON.stringify(hooks.cases[0]!.body);
     const ok = { rawBody: raw, secret: SECRET, nowMs: clock.nowMs() };
-    expect(vendor.verifyWebhook({ ...ok, headers: signed(vendorId, raw, clock.nowMs()) })).toBe(
-      true,
-    );
+    expect(vendor.verifyWebhook({ ...ok, ...signed(vendorId, raw, clock.nowMs()) })).toBe(true);
     // Wrong secret, missing header, empty configured secret.
-    expect(
-      vendor.verifyWebhook({ ...ok, headers: signed(vendorId, raw, clock.nowMs(), 'nope') }),
-    ).toBe(false);
+    expect(vendor.verifyWebhook({ ...ok, ...signed(vendorId, raw, clock.nowMs(), 'nope') })).toBe(
+      false,
+    );
     expect(vendor.verifyWebhook({ ...ok, headers: {} })).toBe(false);
     expect(
       vendor.verifyWebhook({
         ...ok,
         secret: '',
-        headers: signed(vendorId, raw, clock.nowMs(), ''),
+        ...signed(vendorId, raw, clock.nowMs(), ''),
       }),
     ).toBe(false);
+    if (vendorId === 'bluebubbles') {
+      // Only the query token counts: the secret in a header, a doubled token,
+      // a prefix, a near miss or the wrong parameter all fail; bad escapes never throw.
+      expect(vendor.verifyWebhook({ ...ok, headers: { token: SECRET } })).toBe(false);
+      expect(
+        vendor.verifyWebhook({ ...ok, headers: {}, query: `?token=${SECRET}&token=${SECRET}` }),
+      ).toBe(false);
+      expect(
+        vendor.verifyWebhook({ ...ok, headers: {}, query: `?token=${SECRET.slice(0, -1)}` }),
+      ).toBe(false);
+      expect(vendor.verifyWebhook({ ...ok, headers: {}, query: `?token=${SECRET}x` })).toBe(false);
+      expect(vendor.verifyWebhook({ ...ok, headers: {}, query: `?password=${SECRET}` })).toBe(
+        false,
+      );
+      expect(vendor.verifyWebhook({ ...ok, headers: {}, query: '?token=%E0%A4%A' })).toBe(false);
+    }
     if (vendorId === 'photon') {
       // The HMAC covers the body: one changed byte fails.
-      const headers = signed(vendorId, raw, clock.nowMs());
+      const { headers } = signed(vendorId, raw, clock.nowMs());
       expect(vendor.verifyWebhook({ ...ok, rawBody: raw.replace('5', '6'), headers })).toBe(false);
       // A delivery replayed 6 minutes later fails; 4 minutes passes.
       expect(vendor.verifyWebhook({ ...ok, nowMs: clock.nowMs() + 6 * 60_000, headers })).toBe(
@@ -165,6 +189,7 @@ describe.each(VENDORS)('%s contract (recorded fixtures)', (vendorId) => {
       vendor.verifyWebhook({
         rawBody: hook.rawBody,
         headers: hook.headers,
+        ...(hook.query !== undefined ? { query: hook.query } : {}),
         secret: SECRET,
         nowMs: clock.nowMs(),
       }),

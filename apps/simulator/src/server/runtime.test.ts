@@ -21,8 +21,13 @@ const SILENT: TurnResult = {
 /** The parts of `TravAgent` the simulator never calls. */
 const AGENT_REST: Pick<
   TravAgent,
-  'intakeDocument' | 'importCardTransactions' | 'importEmailReceipts' | 'pendingCards'
+  | 'intakeDocument'
+  | 'importCardTransactions'
+  | 'importEmailReceipts'
+  | 'pendingCards'
+  | 'announceFamilyMode'
 > = {
+  announceFamilyMode: () => Promise.resolve([]),
   intakeDocument: () => Promise.reject(new Error('not used by the simulator backend')),
   importCardTransactions: () => Promise.reject(new Error('not used by the simulator backend')),
   importEmailReceipts: () => Promise.reject(new Error('not used by the simulator backend')),

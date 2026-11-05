@@ -6,9 +6,10 @@
  *
  *   --no-write   print only, leave docs/DEMO_TRANSCRIPT.md alone
  *   --quiet      print only the summary line (and failures)
- *   --relay[=photon|sendblue]
+ *   --relay[=photon|sendblue|bluebubbles]
  *                play it over the iMessage relay adapter and that vendor's
- *                mock relay (T-169, docs/RELAY.md); implies --no-write so the
+ *                mock relay (T-169, T-187: bluebubbles is the fake
+ *                self-hosted server; docs/RELAY.md); implies --no-write so the
  *                saved transcript stays the simulator one
  *
  * Always offline: no API key is read and no model call leaves the machine

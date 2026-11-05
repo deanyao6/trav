@@ -5,6 +5,21 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { RelayPayloadError } from '../types.js';
 
+/** `127.0.0.1`, `localhost` or `[::1]` (a URL's `hostname`). */
+export function isLoopbackHostname(hostname: string): boolean {
+  return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '[::1]';
+}
+
+/** An `http:` origin on loopback (a self-hosted server on the same Mac). */
+export function isLoopbackHttpOrigin(origin: string): boolean {
+  try {
+    const u = new URL(origin);
+    return u.protocol === 'http:' && isLoopbackHostname(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
 /** Constant-time string equality (false on any length mismatch). */
 export function safeEqual(a: string, b: string): boolean {
   const x = Buffer.from(a, 'utf8');
