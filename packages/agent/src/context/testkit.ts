@@ -100,6 +100,7 @@ export function createFakeGroupStore(d: FakeGroupData): GroupStore {
     },
     settlements: {
       record: () => unused('settlements.record'),
+      update: () => unused('settlements.update'),
       listByTrip: () => [],
     },
     bookings: {
@@ -175,6 +176,8 @@ export function createFakePrivateStore(d: FakePrivateData): PrivateStore {
     listMemberMemory: () => unused('listMemberMemory'),
     putTicket: () => unused('putTicket'),
     listTickets: () => unused('listTickets'),
+    getPaymentProfile: () => unused('getPaymentProfile'),
+    putPaymentProfile: () => unused('putPaymentProfile'),
     deletePartition: () => unused('deletePartition'),
     purgeRawInputs: () => unused('purgeRawInputs'),
   };

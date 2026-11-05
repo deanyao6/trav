@@ -84,7 +84,7 @@ export const OFFLINE_FALLBACK = "i'm not sure what you mean";
 
 /** The steps that have no chat flow in v0 (printed in the transcript header). */
 export const DEMO_NOTES: readonly string[] = [
-  'step 10 (settle-up): Trav answers "@trav settle now" with the transfers; Chase\'s 👍 on the card (or a [Paid] tap) records that Chase says Chase paid and re-posts the card with Chase\'s row ticked (T-141). Payee confirmation, disputes and nudges are not built (T-037), so the demo applies the remaining transfers to the balances itself and checks that everyone ends at €0. No money moves.',
+  'step 10 (settle-up, T-166): Trav answers "@trav settle now" with the transfers and DMs each payer how to pay (a venmo link prefilled with the payee, amount and note; a zelle contact to copy; or the payee\'s handles when they share no app). Chase taps [Sent] (pending), and only Dean\'s 👍 as the payee clears it. Links are built locally and never opened; no money moves. Nudges and disputes are not built (T-037), so the demo applies the remaining transfers to the balances itself and checks that everyone ends at €0.',
 ];
 
 function nameOf(id: string): string {
@@ -703,30 +703,70 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
       lines.length > 0 && lines.every((l) => settleReply.includes(l)),
       settleReply,
     );
-    // Chase paid Dean outside Trav and says so with a 👍 (T-141): Chase's row is
-    // ticked, the rest still owed. No money moves; it is Chase's word, audited.
+    // T-166 (D-043): each payer gets one DM on how to pay; the group card names
+    // the rail only. Chase pays Dean on venmo from a prefilled link, taps
+    // [Sent] (pending), and only Dean's 👍 clears it. No money moves through Trav.
     const finalCard = settleNow.find((m) => m.card?.type === 'settle_up');
     const chaseRow = expectedTransfers(rt()).find((t) => t.from === 'mem_chase');
+    const chaseDm = messages(view().dms['mem_chase'] ?? [])
+      .filter((m) => m.isTrav)
+      .find((m) => m.text.startsWith('your settle:'));
+    const venmoLink = chaseDm?.text.split('\n').at(-1) ?? '';
+    check(
+      "Chase's DM has a venmo link prefilled with Dean's handle, the amount and the note",
+      chaseRow?.to === 'mem_dean' &&
+        /^venmo:\/\/paycharge\?txn=pay&recipients=dean-trav&amount=\d+\.\d\d&note=Barcelona%20spring%20break%20settle-up$/.test(
+          venmoLink,
+        ),
+      chaseDm?.text,
+    );
+    check(
+      'the group card names the rail, never a handle or contact',
+      finalCard !== undefined &&
+        finalCard.text.includes('· venmo') &&
+        !/dean-trav|@example\.com|\$crowleyc|piotrk/.test(
+          messages(view().thread)
+            .map((m) => m.text)
+            .join('\n'),
+        ),
+      finalCard?.text,
+    );
     if (finalCard !== undefined && chaseRow !== undefined) {
-      const ticked = (await react('Chase', finalCard)).find((m) => m.card?.type === 'settle_up');
-      const tcard = ticked?.card?.type === 'settle_up' ? ticked.card : undefined;
+      const owed = (): number =>
+        rt()
+          .stores.group.settlements.listByTrip(TRIP_ID)
+          .filter((p) => p.from === 'mem_chase' && p.status === 'received').length;
+      await tap('Chase', finalCard, 'sent');
+      const pendingCard = messages(view().thread)
+        .filter((m) => m.isTrav && m.card?.type === 'settle_up')
+        .at(-1);
       check(
-        "Chase's 👍 ticks Chase's transfer paid and leaves the rest owed",
-        tcard !== undefined &&
-          tcard.transfers
+        'Chase taps [Sent]: the card reads "Chase says sent … to Dean" and nothing is cleared yet',
+        pendingCard !== undefined &&
+          pendingCard.text.includes(`Chase says sent ${formatMoney(chaseRow.amount)} to Dean`) &&
+          owed() === 0,
+        pendingCard?.text,
+      );
+      const cleared = pendingCard
+        ? (await react('Dean', pendingCard)).find((m) => m.card?.type === 'settle_up')
+        : undefined;
+      const ccard = cleared?.card?.type === 'settle_up' ? cleared.card : undefined;
+      check(
+        "Dean's 👍 (the payee) clears Chase's transfer and leaves the rest owed",
+        ccard !== undefined &&
+          ccard.transfers
             .filter((t) => t.paid === true)
             .map((t) => t.from)
             .join() === 'mem_chase' &&
-          (ticked?.text.includes(
-            `${nameOf(chaseRow.from)} → ${nameOf(chaseRow.to)} ${formatMoney(chaseRow.amount)} · paid`,
-          ) ??
-            false),
-        ticked?.text,
+          (cleared?.text.includes(`Chase → Dean ${formatMoney(chaseRow.amount)} · paid`) ??
+            false) &&
+          owed() === 1,
+        cleared?.text,
       );
       check(
-        'marking paid is audited and moves no money',
-        auditLog().some(
-          (e) => e.type === 'settlement.marked_paid' && e.payload['moneyMoved'] === false,
+        'sent and received are audited and move no money',
+        ['settlement.sent', 'settlement.received'].every((type) =>
+          auditLog().some((e) => e.type === type && e.payload['moneyMoved'] === false),
         ),
       );
     }

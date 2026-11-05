@@ -335,6 +335,11 @@ export function lineExpect(line: ChatLine): StepExpect | undefined {
         if (typeof v === 'boolean') x.nightOutFraming = v;
         else ungraded.push(key);
         break;
+      case 'sentBy':
+        // T-166: a mark-sent line: whose transfer is now pending.
+        if (typeof v === 'string' && actions.includes('mark_sent')) x.markedSentBy = v;
+        else ungraded.push(key);
+        break;
       case 'paidBy':
         // Top-level `paidBy` only appears on mark-paid lines: whose transfer is now paid.
         if (typeof v === 'string' && actions.includes('mark_paid')) x.markedPaidBy = v;

@@ -587,7 +587,15 @@ describe('refusal reason', () => {
 // ---------------------------------------------------------------- settle-up and clock lines
 
 describe('settle-up transfers, mark-paid, night-out framing', () => {
-  const settle = (transfers: { from: string; to: string; amountMinor: number; paid?: boolean }[]) =>
+  const settle = (
+    transfers: {
+      from: string;
+      to: string;
+      amountMinor: number;
+      paid?: boolean;
+      pending?: boolean;
+    }[],
+  ) =>
     message({
       text: 'settle',
       card: {
@@ -597,6 +605,7 @@ describe('settle-up transfers, mark-paid, night-out framing', () => {
           to: t.to,
           amount: { amountMinor: t.amountMinor, currency: 'EUR' },
           ...(t.paid !== undefined ? { paid: t.paid } : {}),
+          ...(t.pending !== undefined ? { pending: t.pending } : {}),
         })),
       } as never,
     });
@@ -636,6 +645,14 @@ describe('settle-up transfers, mark-paid, night-out framing', () => {
     expect(failing(...line({ markedPaidBy: 'mem_chase' }, [paid]))).toEqual([]);
     expect(failing(...line({ markedPaidBy: 'mem_chase' }, [unpaid]))).toHaveLength(1);
     expect(failing(...line({ markedPaidBy: 'mem_crowley' }, [paid]))).toHaveLength(1);
+  });
+
+  it("T-166: markedSentBy needs that member's transfer pending and not yet paid", () => {
+    const sent = settle([{ from: 'mem_chase', to: 'mem_dean', amountMinor: 500, pending: true }]);
+    const open = settle([{ from: 'mem_chase', to: 'mem_dean', amountMinor: 500 }]);
+    expect(failing(...line({ markedSentBy: 'mem_chase' }, [sent]))).toEqual([]);
+    expect(failing(...line({ markedSentBy: 'mem_chase' }, [open]))).toHaveLength(1);
+    expect(failing(...line({ markedSentBy: 'mem_crowley' }, [sent]))).toHaveLength(1);
   });
 
   it('nightOutFraming false fails on a recap of last night’s events', () => {

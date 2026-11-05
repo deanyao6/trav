@@ -223,7 +223,7 @@ describe('T-065 trip money in the agent: Barcelona unchanged', () => {
       text: msg.text,
       card: { ...msg.card, cardId: 'x' },
     });
-    expect(viaStore.actions?.map((a) => a.id)).toEqual(['paid']);
+    expect(viaStore.actions?.map((a) => a.id)).toEqual(['sent', 'got_it']);
     expect({ text: msg.text, card: { ...msg.card, cardId: 'x' } }).toMatchInlineSnapshot(`
       {
         "card": {
@@ -286,7 +286,7 @@ describe('T-065 trip money in the agent: Barcelona unchanged', () => {
       Chase → Piotr €7.72
       Chase → Arjun €2.64
       Crowley → Dean €41.34
-      👍 on this message when you've paid, i'll tick you off",
+      tap Sent when you've paid. whoever's getting it taps Got it or 👍, that's what clears it",
           "mode": "final",
           "title": "final settle",
           "totalSpent": {
@@ -343,7 +343,7 @@ describe('T-065 trip money in the agent: Barcelona unchanged', () => {
       Chase → Piotr €7.72
       Chase → Arjun €2.64
       Crowley → Dean €41.34
-      👍 on this message when you've paid, i'll tick you off",
+      tap Sent when you've paid. whoever's getting it taps Got it or 👍, that's what clears it",
       }
     `);
   });
@@ -439,11 +439,7 @@ async function tciHarness(opts: TciSeedOptions = {}): Promise<Harness> {
 }
 
 function tciContext(h: Harness) {
-  return buildGroupContext(
-    { group: h.runtime.stores.group, clock: h.clock },
-    TG,
-    TT,
-  );
+  return buildGroupContext({ group: h.runtime.stores.group, clock: h.clock }, TG, TT);
 }
 
 function tciRender(h: Harness, members: readonly Member[] = TCI_GROUP.members): RenderContext {

@@ -131,6 +131,8 @@ const TEXT_ALIASES: Readonly<Record<ActionId, readonly string[]>> = {
   undo: ['undo'],
   paid: ['paid', 'i paid'],
   pick: [],
+  sent: ['sent', 'sent it', 'paid', 'i paid'],
+  got_it: ['got it', 'received'],
 };
 
 const LABELS: Readonly<Record<ActionId, string>> = {
@@ -142,6 +144,8 @@ const LABELS: Readonly<Record<ActionId, string>> = {
   undo: 'Undo',
   paid: 'Paid',
   pick: 'Pick',
+  sent: 'Sent',
+  got_it: 'Got it',
 };
 
 const TAPBACKS: Partial<Record<ActionId, '👍' | '👎'>> = {
@@ -151,6 +155,8 @@ const TAPBACKS: Partial<Record<ActionId, '👍' | '👎'>> = {
   keep_private: '👎',
   undo: '👎',
   paid: '👍',
+  // T-166: a payee's 👍 on the settle card is Got it (a payer's 👍 is their Sent).
+  got_it: '👍',
 };
 
 const STYLES: Readonly<Record<ActionId, Action['style']>> = {
@@ -162,6 +168,8 @@ const STYLES: Readonly<Record<ActionId, Action['style']>> = {
   undo: 'destructive',
   paid: 'primary',
   pick: 'primary',
+  sent: 'primary',
+  got_it: 'primary',
 };
 
 export function action(

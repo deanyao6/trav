@@ -937,6 +937,16 @@ export function detailChecks(
     });
   }
 
+  if (e.markedSentBy !== undefined) {
+    const who = e.markedSentBy;
+    checks.push({
+      ok: settleCards.some((c) =>
+        c.transfers.some((t) => t.from === who && t.pending === true && t.paid !== true),
+      ),
+      what: `${w}: no settle-up card shows ${who}'s transfer as sent and still owed`,
+    });
+  }
+
   if (e.suggestionAudience !== undefined) {
     const aud = e.suggestionAudience;
     checks.push({

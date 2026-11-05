@@ -622,9 +622,12 @@ describe('settle_up (VOICE §4.6)', () => {
       `final settle, ${String(m.card.transfers.length)} transfers and everyone's square`,
     );
     expect(m.card.transfers.length).toBeLessThanOrEqual(5);
-    expect(lines.at(-1)).toBe("👍 on this message when you've paid, i'll tick you off");
+    expect(lines.at(-1)).toBe(
+      "tap Sent when you've paid. whoever's getting it taps Got it or 👍, that's what clears it",
+    );
     expect(lines.slice(1, -1).every((l) => / → /.test(l))).toBe(true);
-    expect(m.actions?.map((a) => a.id)).toEqual(['paid']);
+    // T-166: [Sent] for payers, [Got it] for payees; no [Undo] until someone acts.
+    expect(m.actions?.map((a) => a.id)).toEqual(['sent', 'got_it']);
     expectClean(m);
 
     const square = renderSettleUp(

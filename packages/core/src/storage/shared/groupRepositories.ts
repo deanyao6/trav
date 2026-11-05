@@ -468,6 +468,29 @@ function createSettlementRepository(backend: Backend): SettlementRepository {
         rows.insert(payment);
       });
     },
+    update(payment) {
+      requireId(payment.paymentId, 'paymentId');
+      backend.transaction(() => {
+        const existing = rows.get(payment.paymentId);
+        if (existing === undefined) throw notFound('settlement payment', payment.paymentId);
+        const same =
+          existing.tripId === payment.tripId &&
+          existing.groupId === payment.groupId &&
+          existing.from === payment.from &&
+          existing.to === payment.to &&
+          existing.cardMessageId === payment.cardMessageId &&
+          existing.amount.amountMinor === payment.amount.amountMinor &&
+          existing.amount.currency === payment.amount.currency;
+        if (!same) {
+          throw new TravError(
+            'invalid_argument',
+            'a settlement update may change its state only, not who, what or which card',
+            { paymentId: payment.paymentId },
+          );
+        }
+        rows.upsert(payment);
+      });
+    },
     listByTrip: (tripId) => rows.find({ trip_id: tripId }),
   };
 }

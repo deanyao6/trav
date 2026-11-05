@@ -27,6 +27,7 @@ import {
   emailReceiptsSpec,
   memberMemorySpec,
   memberPrefsSpec,
+  paymentProfilesSpec,
   pendingItemsSpec,
   receiptScansSpec,
   ticketArtifactsSpec,
@@ -78,6 +79,7 @@ export function createPrivateStore(backend: Backend): PrivateStore {
   const prefs = backend.table(memberPrefsSpec);
   const memory = backend.table(memberMemorySpec);
   const tickets = backend.table(ticketArtifactsSpec);
+  const paymentProfiles = backend.table(paymentProfilesSpec);
 
   const tablesByName: Readonly<Record<PrivateTableName, RowTable<unknown>>> = {
     card_transactions: cards,
@@ -88,6 +90,7 @@ export function createPrivateStore(backend: Backend): PrivateStore {
     member_prefs: prefs,
     member_memory: memory,
     ticket_artifacts: tickets,
+    payment_profiles: paymentProfiles,
   };
 
   const owner = (ownerMemberId: MemberId): string => requireId(ownerMemberId, 'ownerMemberId');
@@ -235,6 +238,19 @@ export function createPrivateStore(backend: Backend): PrivateStore {
     },
     listMemberMemory: (ownerMemberId, groupId) =>
       memory.find({ owner_member_id: owner(ownerMemberId), group_id: groupId }),
+
+    // ---------- payment profile (T-166) ----------
+    getPaymentProfile: (ownerMemberId) => paymentProfiles.get(owner(ownerMemberId)),
+    putPaymentProfile(ownerMemberId, p) {
+      scopedPut(
+        paymentProfiles,
+        'payment_profiles',
+        owner(ownerMemberId),
+        p,
+        p.memberId,
+        (r) => r.memberId,
+      );
+    },
 
     // ---------- tickets ----------
     putTicket(ownerMemberId, ticket) {

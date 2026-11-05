@@ -20,7 +20,18 @@ import type {
   SettleUpCard,
   Transfer,
 } from '@trav/core';
-import { TravError, formatMoney, formatTransfer, ledger, money, safety } from '@trav/core';
+import {
+  TravError,
+  formatMoney,
+  formatTransfer,
+  ledger,
+  money,
+  payments,
+  safety,
+} from '@trav/core';
+import type { PaymentRail } from '@trav/core';
+
+const { RAIL_LABEL } = payments;
 import type { RenderContext } from './common.js';
 import { GROUP, action, cardMessage, nameOf } from './common.js';
 
@@ -50,7 +61,25 @@ export interface SettleUpRenderInput {
   readonly showTotal?: boolean;
   /** One line before the card's own first line (T-141: "tab changed since that card ..."). */
   readonly lead?: string;
+  /**
+   * T-166, final mode: transfers a payer said they sent and the payee hasn't
+   * confirmed. The open row for that pair reads "Chase says sent €42 to Dean"
+   * (`pending: true`); it is still owed. A pending pair with no open row is
+   * not shown.
+   */
+  readonly pending?: readonly Transfer[];
+  /** T-166, final mode: the rail picked per open transfer, keyed `from|to` ("Chase → Dean €42 · venmo"). */
+  readonly rails?: ReadonlyMap<string, PaymentRail>;
 }
+
+/** Key for `SettleUpRenderInput.rails`. */
+export const pairKey = (t: { readonly from: MemberId; readonly to: MemberId }): string =>
+  `${t.from}|${t.to}`;
+
+/** VOICE §4.6 B (T-166): the closing line of a final card with something still owed. */
+export const SETTLE_FOOTER =
+  "tap Sent when you've paid. whoever's getting it taps Got it or 👍, that's what clears it";
+export const SETTLE_FOOTER_DMS = `pay details are in your dms. ${SETTLE_FOOTER}`;
 
 /** Inline items per line (VOICE §3.3: up to 3 inline). */
 const PER_LINE = 3;
@@ -161,11 +190,32 @@ export function buildSettleUp(
     const i = order.indexOf(id);
     return i < 0 ? order.length : i;
   };
-  const open = transfers.map((t) => ({ t, paid: false }));
-  const rows: readonly { readonly t: Transfer; readonly paid: boolean }[] =
+  const finalSplit = input.familyTab !== true && input.mode === 'final';
+  const pendingBy = new Map<string, Transfer>();
+  for (const p of finalSplit ? (input.pending ?? []) : []) pendingBy.set(pairKey(p), p);
+  const railOf = (t: Transfer): PaymentRail | undefined =>
+    finalSplit ? input.rails?.get(pairKey(t)) : undefined;
+  interface Row {
+    readonly t: Transfer;
+    readonly paid: boolean;
+    /** T-166: what the payer said they sent, still owed until the payee confirms. */
+    readonly sent?: Transfer;
+    readonly rail?: PaymentRail;
+  }
+  const open: Row[] = transfers.map((t) => {
+    const sent = pendingBy.get(pairKey(t));
+    const rail = railOf(t);
+    return {
+      t,
+      paid: false,
+      ...(sent !== undefined ? { sent } : {}),
+      ...(rail !== undefined ? { rail } : {}),
+    };
+  });
+  const rows: readonly Row[] =
     paid.length === 0
       ? open
-      : [...paid.map((t) => ({ t, paid: true })), ...open].sort(
+      : [...paid.map((t): Row => ({ t, paid: true })), ...open].sort(
           (a, b) => rank(a.t.from) - rank(b.t.from) || rank(a.t.to) - rank(b.t.to),
         );
 
@@ -179,7 +229,14 @@ export function buildSettleUp(
     const showAll = n <= maxRows + 1;
     const shown = showAll ? rows : rows.slice(0, maxRows);
     for (const r of shown) {
-      const done = r.paid ? ' · paid' : '';
+      if (r.sent !== undefined) {
+        // T-166: the payer's word, waiting on the payee ("Chase says sent €42 to Dean").
+        lines.push(
+          `${nameOf(ctx, r.t.from)} says sent ${formatMoney(r.sent.amount)} to ${nameOf(ctx, r.t.to)}`,
+        );
+        continue;
+      }
+      const done = r.paid ? ' · paid' : r.rail !== undefined ? ` · ${RAIL_LABEL[r.rail]}` : '';
       lines.push(
         `${formatTransfer(nameOf(ctx, r.t.from), nameOf(ctx, r.t.to), r.t.amount)}${done}`,
       );
@@ -231,7 +288,7 @@ export function buildSettleUp(
         : `final settle, ${String(paid.length)} of ${String(rows.length)} paid, ${String(n)} to go`,
     );
     pushRows();
-    lines.push("👍 on this message when you've paid, i'll tick you off");
+    lines.push(rows.some((r) => r.rail !== undefined) ? SETTLE_FOOTER_DMS : SETTLE_FOOTER);
   }
 
   const card: SettleUpCard = {
@@ -254,6 +311,8 @@ export function buildSettleUp(
       to: r.t.to,
       amount: r.t.amount,
       ...(r.paid ? { paid: true } : {}),
+      ...(r.sent !== undefined ? { pending: true } : {}),
+      ...(r.rail !== undefined ? { rail: r.rail } : {}),
     })),
     totalSpent: input.totalSpent,
   };
@@ -266,13 +325,27 @@ export function renderSettleUp(
 ): OutboundMessage & { readonly card: SettleUpCard } {
   const { card, lines } = buildSettleUp(input, ctx);
   const { cardId: _id, fallbackText: _fb, ...rest } = card;
-  const debtors: MemberId[] = [
-    ...new Set(card.transfers.filter((t) => t.paid !== true).map((t) => t.from)),
-  ];
+  const uniq = (ids: readonly MemberId[]): MemberId[] => [...new Set(ids)];
+  const open = card.transfers.filter((t) => t.paid !== true);
+  // T-166 (D-043): [Sent] for a payer with an open row they haven't sent,
+  // [Got it] for the payee of any open row (sent or not: only the payee's
+  // word clears it), [Undo] for a payer with a pending Sent or a payee with a
+  // confirmed row. Each tap only ever acts on the tapper's own rows.
+  const senders = uniq(open.filter((t) => t.pending !== true).map((t) => t.from));
+  const payees = uniq(open.map((t) => t.to));
+  const undoers = uniq([
+    ...open.filter((t) => t.pending === true).map((t) => t.from),
+    ...card.transfers.filter((t) => t.paid === true).map((t) => t.to),
+  ]);
+  const actions =
+    input.mode !== 'final' || input.familyTab === true
+      ? []
+      : [
+          ...(senders.length > 0 ? [action('sent', { allowedMemberIds: senders })] : []),
+          ...(payees.length > 0 ? [action('got_it', { allowedMemberIds: payees })] : []),
+          ...(undoers.length > 0 ? [action('undo', { allowedMemberIds: undoers })] : []),
+        ];
   return cardMessage<SettleUpCard>(ctx, GROUP, lines, rest, {
-    // [Paid] is for a debtor with an open transfer only (T-141: payers mark their own).
-    ...(input.mode === 'final' && debtors.length > 0
-      ? { actions: [action('paid', { allowedMemberIds: debtors })] }
-      : {}),
+    ...(actions.length > 0 ? { actions } : {}),
   });
 }

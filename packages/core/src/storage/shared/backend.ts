@@ -84,6 +84,7 @@ export const PRIVATE_TABLES = [
   'member_prefs',
   'member_memory',
   'ticket_artifacts',
+  'payment_profiles',
 ] as const;
 
 export type GroupTableName = (typeof GROUP_TABLES)[number];

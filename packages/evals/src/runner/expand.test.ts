@@ -230,6 +230,9 @@ describe('lineExpect (T-077): every chat-line expectation is graded or listed as
     expect(lineExpect(line({ action: 'mark_paid', paidBy: 'mem_crowley' }))?.markedPaidBy).toBe(
       'mem_crowley',
     );
+    expect(lineExpect(line({ action: 'mark_sent', sentBy: 'mem_chase' }))?.markedSentBy).toBe(
+      'mem_chase',
+    );
     // A top-level paidBy anywhere else is not a mark-paid: listed, never passed.
     expect(lineExpect(line({ action: 'reply', paidBy: 'mem_crowley' }))?.ungraded).toEqual([
       'paidBy',

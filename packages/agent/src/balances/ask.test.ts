@@ -31,8 +31,10 @@ function messages(r: TurnResult): OutboundMessage[] {
   return r.outbound.filter((o): o is OutboundMessage => !isReaction(o));
 }
 
+/** The one group message (T-166: a final settle card also DMs each payer how to pay). */
 function only(r: TurnResult): OutboundMessage {
-  const m = messages(r);
+  const all = messages(r);
+  const m = r.note === 'balances:settle_up' ? all.filter((o) => o.to.kind === 'group') : all;
   expect(m, `note ${String(r.note)}`).toHaveLength(1);
   return m[0]!;
 }

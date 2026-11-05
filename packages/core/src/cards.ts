@@ -21,6 +21,7 @@ import type {
 import type { Money } from './money.js';
 import type { PaidBy } from './domain/booking.js';
 import type { ExpenseSource, SplitMethod } from './domain/expense.js';
+import type { PaymentRail } from './domain/payments.js';
 
 export type OutboundTarget =
   { readonly kind: 'group' } | { readonly kind: 'member'; readonly memberId: MemberId };
@@ -84,7 +85,18 @@ export function isSystemNotice(
 }
 
 export type ActionId =
-  'approve' | 'decline' | 'not_me' | 'confirm' | 'keep_private' | 'undo' | 'paid' | 'pick';
+  | 'approve'
+  | 'decline'
+  | 'not_me'
+  | 'confirm'
+  | 'keep_private'
+  | 'undo'
+  | 'paid'
+  | 'pick'
+  /** T-166: the payer of a settle-up transfer sent it (pending until the payee confirms). */
+  | 'sent'
+  /** T-166: the payee got it; only this clears the debt. */
+  | 'got_it';
 
 export interface Action {
   readonly id: ActionId;
@@ -266,7 +278,12 @@ export interface SettleUpCard extends CardBase {
     readonly from: MemberId;
     readonly to: MemberId;
     readonly amount: Money;
+    /** The payee confirmed it (T-166: Got it / 👍); it no longer counts as owed. */
     readonly paid?: boolean;
+    /** T-166: the payer said they sent it; still owed until the payee confirms. */
+    readonly pending?: boolean;
+    /** T-166: the rail Trav picked for this transfer (the payer's pay details are in their DM). */
+    readonly rail?: PaymentRail;
   }[];
   readonly totalSpent: Money;
 }

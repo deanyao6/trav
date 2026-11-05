@@ -25,6 +25,9 @@ export const DEFAULT_TEXT_ALIASES: Readonly<Record<ActionId, readonly string[]>>
   undo: ['undo', '👎'],
   paid: ['paid', 'i paid'],
   pick: [],
+  // T-166: settle-up. A payer's "sent", a payee's "got it" or 👍.
+  sent: ['sent', 'sent it', 'paid', 'i paid'],
+  got_it: ['got it', 'received', 'got it thanks', '👍'],
 };
 
 /** A card that is still waiting for a reply, as the keyword matcher needs it. */

@@ -6,3 +6,4 @@ export * from './booking.js';
 export * from './audit.js';
 export * from './consent.js';
 export * from './memory.js';
+export * from './payments.js';

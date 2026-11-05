@@ -37,6 +37,8 @@ export const LINE_ACTIONS = [
   'dismiss_private_item',
   'settle_up',
   'mark_paid',
+  // T-166: a payer's Sent: the settle card shows their transfer pending (still owed).
+  'mark_sent',
   'ask_required_approver',
   'ask_guardian',
 ] as const;
@@ -193,6 +195,10 @@ export function actionObserved(
       return audited(step, 'private.item_dismissed') && step.newExpenseIds.length === 0;
     case 'settle_up':
       return out.some((m) => m.card?.type === 'settle_up');
+    case 'mark_sent':
+      return out.some(
+        (m) => m.card?.type === 'settle_up' && m.card.transfers.some((t) => t.pending === true),
+      );
     case 'mark_paid':
       return out.some(
         (m) => m.card?.type === 'settle_up' && m.card.transfers.some((t) => t.paid === true),

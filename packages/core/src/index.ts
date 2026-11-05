@@ -22,3 +22,4 @@ export * as flights from './flights/index.js';
 export * as safety from './safety/index.js';
 export * as recaps from './recaps/index.js';
 export * as wrapped from './wrapped/index.js';
+export * as payments from './payments/index.js';

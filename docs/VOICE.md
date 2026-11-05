@@ -337,7 +337,7 @@ Card: `expense_confirm` with `status: "pending"`, `source: "card_transaction" | 
 > Arjun → Dean €22.80
 > Crowley → Dean €6.80
 > Crowley → Piotr €12
-> 👍 on this message when you've paid, i'll tick you off
+> tap Sent when you've paid. whoever's getting it taps Got it or 👍, that's what clears it
 
 **Example C (on request, all square):**
 
@@ -346,7 +346,57 @@ Card: `expense_confirm` with `status: "pending"`, `source: "card_transaction" | 
 > **trav:**
 > nobody owes anybody. rare. enjoy it
 
-Card: `settle_up` with `mode: "running" | "final"`. Notes: running mode shows net positions; final mode shows the minimal transfer list from the settlement algorithm. Trav never names a payment app unless the group set one ("send on Venmo"). Sums must reconcile to the cent; the card carries the proof.
+**Example D (payment profile, DM only; T-166):** the one ask, at sign-up or the first time they owe or are owed money, never again:
+
+> **trav (dm → Chase):**
+> quick one so settling up is painless later: which of these do you use? venmo, cash app, paypal, zelle, apple cash, cash. and which is your favourite?
+> like "venmo and zelle, venmo's my fave". i only ask once, and it stays between us
+
+> **Chase (dm):** venmo and cash app, venmo's my fave
+> **trav (dm):** got it: venmo and cash app, venmo first. i'll use that when you settle up
+> send your venmo when you get a sec, like "my venmo is @your-name", so people can pay you in one tap
+
+> **Chase (dm):** my venmo is @chase-w
+> **trav (dm):** saved your venmo (@chase-w). only someone paying you gets it, in their dm
+
+A handle said in the group is not stored: "send me that in a dm, handles stay between you and me". A bad one: "that doesn't look like a venmo handle. try "my venmo is @your-name"".
+
+**Example E (pay details, DM to the payer only):** sent with the final card, one per transfer, again only if the rail, amount or handle changes. A link is always the bare last line (§3.8).
+
+> **trav (dm → Chase):**
+> your settle: €372.48 (≈$406.08) to Dean on venmo
+> Dean, the amount and the note are filled in. tap Sent on the group card once it's gone
+> venmo://paycharge?txn=pay&recipients=dean-trav&amount=406.08&note=Barcelona%20spring%20break%20settle-up
+
+> **trav (dm → Henry):**
+> your settle: €319 (≈$347.77) to Dean on zelle
+> zelle has no links, so copy Dean's zelle into your bank app: dean@example.com
+> tap Sent on the group card once it's gone
+
+> **trav (dm → Piotr):**
+> your settle: €237.13 to Dean. you two don't have a payment app in common
+> Dean takes venmo @dean-trav · zelle dean@example.com. tap Sent on the group card once it's gone
+
+Shared app but no handle: the payer hears "you both have venmo, but Dean hasn't given me a handle yet / i asked, and i'll send you the link when it's in", and the payee gets one DM: "Chase owes you €42 and you both have venmo. what's your handle?".
+
+**Example F (Sent → Got it, group):**
+
+> _Chase taps [Sent]_
+> **trav:**
+> Dean, tap Got it or 👍 once it lands
+> final settle, 5 transfers and everyone's square
+> Chase says sent €372.48 to Dean
+> …
+
+> _Dean reacts 👍_
+> **trav:**
+> final settle, 1 of 5 paid, 4 to go
+> Chase → Dean €372.48 · paid
+> …
+
+A payee's bare 👍 with several open rows and nobody said sent: "nobody's said sent yet, so i can't tell whose landed. once they tap Sent, your 👍 clears it". A payer undoing a confirmed row: "Dean already said got it on that one, so only Dean can undo it".
+
+Card: `settle_up` with `mode: "running" | "final"`. Notes: running mode shows net positions; final mode shows the minimal transfer list from the settlement algorithm. On the final card a row may carry the rail Trav picked ("· venmo") and the footer then opens "pay details are in your dms."; handles, Zelle contacts and links only ever go in the payer's DM. Only the payee's Got it (or 👍) clears a row; a payer's Sent leaves it owed. Either side can take back their own step with [Undo] or 👎. Sums must reconcile to the cent; the card carries the proof.
 
 ### 4.7 Morning After recap
 

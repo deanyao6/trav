@@ -252,6 +252,8 @@ export interface StepExpect {
   readonly nightOutFraming?: boolean;
   /** A mark-paid line: the settle-up card shows this member's transfer as paid. */
   readonly markedPaidBy?: string;
+  /** T-166, a mark-sent line: the settle-up card shows this member's transfer as sent and still owed. */
+  readonly markedSentBy?: string;
   /** Who a suggestion is for: Trav answers, and nothing proposed on the line includes anyone else. */
   readonly suggestionAudience?: readonly string[];
   /** An adult asked for an adult-only plan: Trav answers, and no minor screen suppresses the reply. */
