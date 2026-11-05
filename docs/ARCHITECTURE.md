@@ -15,11 +15,12 @@ One sentence: **the model proposes, pure core code decides, a channel-authentica
 | `packages/agent` (`@trav/agent`) | Model client (live + offline + spend guard), prompts/voice, mention detection, identity gate, tool registry + tools, group context, memory, approval event normalization, **BookingExecutor**, card renderers, single send path, recap/Wrapped/personality rendering, ingestion flows (chat expense, receipt photo, email, card), composition root | `@trav/core`, `@trav/adapters`, `@anthropic-ai/sdk` |
 | `packages/evals` (`@trav/evals`) | Scenario runner, deterministic graders, rubric graders (live only), reports, architectural tests (grep-based) | all three |
 | `apps/simulator` (`@trav/simulator`) | Vite + React iMessage-style UI, local HTTP server on 127.0.0.1, CLI runner, `pnpm demo:barcelona` | all three |
+| `apps/server` (`@trav/server`) | T-188 (D-056): the long-running relay process: webhook endpoint, runtime over SQLite, scheduler on the real clock, STOP / START / "delete my data", health check, JSON logs; 127.0.0.1 in dev | all three |
 | `fixtures/` | Synthetic data, by feature (see §8) | n/a |
 
 Rules:
 - `core` is pure: no I/O except the `storage/` subtree, no `Date.now()`, no network, no `@trav/*` imports. Everything in it is unit-testable without mocks.
-- Dependency direction is strictly core ← adapters ← agent ← {evals, simulator}. ESLint will not stop a wrong import; the reviewer will.
+- Dependency direction is strictly core ← adapters ← agent ← {evals, simulator, server}. ESLint will not stop a wrong import; the reviewer will.
 - Packages export `src/index.ts` directly (D-001). Core exports namespaces for the function modules: `ledger.*`, `approval.*`, `audit.*`, `flights.*`, `safety.*`, `recaps.*`; types and `Money`/ids/clock/privacy/cards/repositories are top-level.
 
 ### Directory layout (target; create directories as you build)
@@ -52,6 +53,7 @@ packages/agent/src/
   loop.ts compose.ts                 (createTravAgent, createTravRuntime)
 packages/evals/src/ runner/ graders/ reports/ arch/   (arch = grep tests, T-054)
 apps/simulator/src/ server/ ui/ cli/ demo/
+apps/server/src/ server.ts config.ts commands.ts provision.ts relayState.ts log.ts clock.ts main.ts   (T-188)
 fixtures/<feature>/...                                      (see §8)
 ```
 

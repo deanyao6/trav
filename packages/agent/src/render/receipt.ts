@@ -52,8 +52,55 @@ export interface ReceiptRenderInput {
   readonly unit?: { readonly singular: string; readonly plural?: string } | null;
   /** Ticket DMs that were rendered for this booking (card ids, for tests and the simulator link). */
   readonly tickets?: readonly { readonly memberId: MemberId; readonly ticketCardId: string }[];
+  /**
+   * T-188 r1 #1: tickets whose DM was held, not sent (Trav can't DM the
+   * recipient right now). The receipt names whose QR is saved and never
+   * says it is in their dms.
+   */
+  readonly heldTickets?: readonly {
+    readonly holderMemberId: MemberId;
+    readonly deliveredToMemberId: MemberId;
+  }[];
   /** Split context for share computation; default: group member order, all active members. */
   readonly splitContext?: ledger.SplitContext;
+}
+
+/** "Chase's" / "Chase's and Arjun's" (member order). */
+function possessives(ctx: RenderContext, ids: readonly MemberId[]): string {
+  const names = inMemberOrder(ctx, ids).map((id) => possessive(nameOf(ctx, id)));
+  return names.length <= 1
+    ? (names[0] ?? '')
+    : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]!}`;
+}
+
+/** The ticket line of a receipt (VOICE §4.2 A), honest about held QRs. */
+function ticketLine(input: ReceiptRenderInput, ctx: RenderContext): string {
+  const { booking } = input;
+  const held = input.heldTickets ?? [];
+  const heldIds = new Set(held.map((h) => h.holderMemberId));
+  const sent = booking.tickets.filter((t) => !heldIds.has(t.holderMemberId));
+  const viaGuardian = sent.filter((t) => t.deliveredToMemberId !== t.holderMemberId);
+  const note =
+    viaGuardian.length > 0
+      ? ` (${viaGuardian
+          .map(
+            (t) =>
+              `${possessive(nameOf(ctx, t.holderMemberId))} went to ${nameOf(ctx, t.deliveredToMemberId)}`,
+          )
+          .join(', ')})`
+      : '';
+  if (held.length === 0) {
+    return booking.tickets.length === 1
+      ? `the QR code is in your dms${note}`
+      : `QR codes are in your dms, one each${note}`;
+  }
+  const waitingOn = listNames(ctx, [...new Set(held.map((h) => h.deliveredToMemberId))]);
+  if (sent.length === 0) {
+    return booking.tickets.length === 1
+      ? `the QR code is saved till i can dm ${waitingOn}`
+      : `the QR codes are saved till i can dm ${waitingOn}`;
+  }
+  return `QR codes are in your dms${note}, except ${possessives(ctx, [...heldIds])}, saved till i can dm ${waitingOn}`;
 }
 
 function mismatch(what: string, bookingId: string): never {
@@ -187,23 +234,7 @@ export function renderReceipt(
       : `order ${booking.orderRef} · ${refund}`;
 
   const lines = [line1, line2];
-  if (booking.tickets.length > 0) {
-    const viaGuardian = booking.tickets.filter((t) => t.deliveredToMemberId !== t.holderMemberId);
-    const note =
-      viaGuardian.length > 0
-        ? ` (${viaGuardian
-            .map(
-              (t) =>
-                `${possessive(nameOf(ctx, t.holderMemberId))} went to ${nameOf(ctx, t.deliveredToMemberId)}`,
-            )
-            .join(', ')})`
-        : '';
-    lines.push(
-      booking.tickets.length === 1
-        ? `the QR code is in your dms${note}`
-        : `QR codes are in your dms, one each${note}`,
-    );
-  }
+  if (booking.tickets.length > 0) lines.push(ticketLine(input, ctx));
 
   if (booking.paidBy.kind === 'per_person_cards') {
     // A traveler who pays nothing themselves (a minor) is on whoever carries

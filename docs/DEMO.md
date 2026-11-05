@@ -141,6 +141,7 @@ packages/agent      Trav's agent loop, prompts, personality, memory, offline mod
 packages/adapters   channel and provider adapters (all mock in v0)
 packages/evals      scenario runner, graders, reports
 apps/simulator      web chat simulator, server, and the demo CLI
+apps/server         Trav on a relay line: webhook, SQLite, real-clock scheduler (docs/SERVER.md)
 fixtures/           synthetic data for every feature
 docs/               architecture, decisions, voice, safety, demo transcript
 ```

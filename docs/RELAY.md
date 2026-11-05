@@ -6,6 +6,8 @@ Trav can live in an iMessage group through a **relay vendor**: a company that ru
 
 ## Run it locally
 
+The long-running server is `pnpm server` / `pnpm server:demo`: webhook, SQLite, the scheduler on the real clock, STOP and "delete my data" ([docs/SERVER.md](SERVER.md)). The commands below are the simulator over the relay.
+
 ```sh
 pnpm relay:dev                                   # simulator UI over the mock Photon relay
 pnpm relay:dev -- --relay=sendblue               # ... over the mock Sendblue relay
@@ -53,7 +55,7 @@ BlueBubbles is a self-hosted line for **Dean's own dogfooding only** (a dedicate
 | Daily send cap (T-071), counted in wire sends (`relayWireSends`) | 500 | 500 | 150 (`BLUEBUBBLES_MAX_SENDS_PER_DAY`; a ticket DM with its QR is 2) |
 
 - **Approvals** are a 👍 tapback on the proposal or a reply of "yes" (or another D-042 alias). The core maps the vendor id of the 👍 target back to the Trav message id, so the agent sees a 👍 on its own card. A relayed approval is still only an approval: every booking goes through `ApprovalPolicy` and the audit log, as on any channel.
-- **Images**: QR codes (SVG data URLs) are rendered to PNG and published through a media host. The mock host is in memory; a live deployment needs a real `https:` host (T-188). Inbound attachment URLs must be `https:`. They are passed to Trav only through `resolveInboundMedia`, because the receipt reader never opens a URL.
+- **Images**: QR codes (SVG data URLs) are rendered to PNG and published through a media host. The mock host is in memory; a live deployment needs a real `https:` host (still open after T-188; docs/SERVER.md). Inbound attachment URLs must be `https:`. They are passed to Trav only through `resolveInboundMedia`, because the receipt reader never opens a URL.
 - **"@trav" (T-187)**: iMessage has no bot mentions. The text ("@trav", "trav, …") goes to the agent untouched; its mention rules read it on every channel. The relay adds what only it can know, as `platformMention`: a structured mention of the line's own address (BlueBubbles' mention picker), or one of `TRAV_RELAY_CONTACT_NAME`'s names at the very start of the message followed by `,` `:` `!` `?`, nothing, or a request word (the agent's own `REQUEST_WORDS`: "Trav Bot can you split it"), or as `@<name>` anywhere (`relay/mention.ts`). "ask Trav Bot later", "Trav Bot is asleep" and a quoted `"Trav Bot," she said` are not mentions. A mention is never an approval.
 - **Idempotency**: inbound events are deduped on the vendor's message / event id through a `RelaySeenStore` (the `seen` option; keys are `<vendor>:<kind>:<id>`, no text). The default is in memory, bounded at 10,000; T-185 passes a SQLite-backed one so a restart doesn't replay deliveries. Each Trav message id is sent at most once. A resend returns the first result, and an in-flight resend waits for it.
 - **Retries**: exponential backoff (500 ms × 2ⁿ, capped at 8 s, `Retry-After` honored), 3 tries. For a vendor without idempotency keys (Sendblue), only `429` and `503` are retried, since both guarantee nothing was sent. Any other failure (a `500`, a network error, a lost reply) comes back as **not retryable**, so the pacing queue doesn't requeue it either. A lost reply never becomes a double text.
@@ -100,7 +102,7 @@ Not done in v0, and never from tests. To go live, each step is required:
    | `TRAV_BLUEBUBBLES_PRIVATE_API` | BlueBubbles only: `1` if the Private API helper is installed (tapbacks and threads out) |
 
    If `TRAV_CHANNEL`, `TRAV_RELAY_LIVE=1`, `TRAV_RELAY_API_KEY` or `TRAV_RELAY_LINE` is missing (or `TRAV_RELAY_API_SECRET` for Sendblue), the channel stays on the mock relay, and `resolveRelayConfig` gives the reason. `describeRelayConfig` logs which variables are set, never their values. The live transport refuses any URL outside the vendor's `https` API origin (for BlueBubbles, the configured server origin, which may be plain `http` only on loopback).
-5. **Still open before real groups:** a persistent dedupe and pacing store (T-185), a real media host plus inbound downloads into `.trav/attachments/` (T-188), contact and consent onboarding for a member's first DM (T-070), and the agent-side follow-ups listed below.
+5. **Still open before real groups:** persistent pacing counters (dedupe is stored in `apps/server` since T-188), a real media host plus inbound downloads into `.trav/attachments/` (not in T-188), contact and consent onboarding for a member's first DM (T-070), and the agent-side follow-ups listed below.
 
 ## Known gaps
 

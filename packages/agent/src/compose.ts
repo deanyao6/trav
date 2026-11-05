@@ -129,6 +129,8 @@ export interface TravRuntimeOptions {
   readonly interpretation?: AgentDeps['interpretation'];
   /** T-170 (D-055): newcomer setup over DM; default on for iMessage relay lines only. */
   readonly onboarding?: AgentDeps['onboarding'];
+  /** T-188 r1 #1: members Trav can't DM right now (the server's STOP list); their tickets are held. */
+  readonly dmHold?: AgentDeps['dmHold'];
   readonly scheduler?: Scheduler;
   /** Default: `outbound/send.ts` (screen → voice lint → lane → audit). */
   readonly sendTurn?: TurnSender;
@@ -260,7 +262,15 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
   const executor = options.executor ?? createLazyExecutor({ stores, providers, clock, ids });
   const approvalHandler =
     options.approvalHandler ??
-    createApprovalHandler({ stores, executor, proposals, scheduler, clock, ids });
+    createApprovalHandler({
+      stores,
+      executor,
+      proposals,
+      scheduler,
+      clock,
+      ids,
+      ...(options.dmHold !== undefined ? { dmHold: options.dmHold } : {}),
+    });
   const sendTurn =
     options.sendTurn ??
     createSendPathSender(options.channel, stores, clock, {
@@ -294,6 +304,7 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
     ...(options.travelFacts !== undefined ? { travelFacts: options.travelFacts } : {}),
     ...(options.interpretation !== undefined ? { interpretation: options.interpretation } : {}),
     ...(options.onboarding !== undefined ? { onboarding: options.onboarding } : {}),
+    ...(options.dmHold !== undefined ? { dmHold: options.dmHold } : {}),
   };
   const agent = createTravAgent(deps);
 

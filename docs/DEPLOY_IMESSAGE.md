@@ -7,7 +7,7 @@
 - Keep the volume low. The adapter caps a BlueBubbles line at **150 iMessages per rolling 24 h** (`BLUEBUBBLES_MAX_SENDS_PER_DAY`, against 500 for a paid line). The cap counts what goes on the wire: BlueBubbles sends each image as its own iMessage after the text, so a ticket DM with its QR counts as 2. Approvals keep their 20 reserved slots, and anything over the cap queues instead of being dropped (T-071).
 - If a QR upload fails after its text went out, the text is not sent again. The message reports a retryable failure, the pacing queue retries only the image (up to 3 tries in all), and after that it is reported as sent but degraded, with `missingImages`.
 
-Nothing in this repo talks to a real BlueBubbles server today. Tests, `pnpm relay:dev` and `pnpm demo:barcelona --relay=bluebubbles` use the fake server in `packages/adapters/src/mock/relay/` (origin `https://bluebubbles.mock-relay.invalid`). There is also no long-running process yet that would run the live channel: that is `apps/server` (T-188). This guide is what to set up once that lands.
+Nothing in this repo talks to a real BlueBubbles server today. Tests, `pnpm relay:dev` and `pnpm demo:barcelona --relay=bluebubbles` use the fake server in `packages/adapters/src/mock/relay/` (origin `https://bluebubbles.mock-relay.invalid`). The long-running process that would run the live channel is `apps/server` (T-188, [docs/SERVER.md](SERVER.md)). It stays on the fake relay until every live gate is set. This guide is what to set up before that.
 
 ## 1. The Mac
 

@@ -113,6 +113,14 @@ import { autoBuyVerdict } from './booking/autoBuy.js';
 import { pickTextIndex, planLive } from './booking/choice.js';
 import type { ProposalService, ProposeInput, ProposeResult } from './booking/proposals.js';
 import { autoBuyVerdictOnRoster, bookingHeadline, nightOf } from './booking/proposals.js';
+import {
+  heldTicketsFor,
+  releaseHeldTicket,
+  type DmHold,
+  type HeldTicket,
+} from './booking/heldTickets.js';
+import { renderTicket } from './render/ticket.js';
+import type { RenderContext } from './render/common.js';
 import { optionIndexOf } from './booking/flights.js';
 import { parseBookingRequest } from './booking/request.js';
 import {
@@ -337,6 +345,12 @@ export interface AgentDeps {
    * (the simulator's rosters are seeded). "@trav leave" works either way.
    */
   readonly onboarding?: boolean;
+  /**
+   * T-188 r1 #1 (D-056): members Trav can't DM right now (the server's STOP
+   * list). They have no DM handle, so the send path drops their DMs with
+   * its honest count line, and their ticket DMs are held for `deliverHeld`.
+   */
+  readonly dmHold?: DmHold;
 }
 
 export interface TurnResult {
@@ -433,6 +447,12 @@ export interface TravAgent {
    * so a later write never puts deleted data back. Idempotent.
    */
   forgetRuntimeState(target: { readonly memberId: MemberId } | { readonly tripId: TripId }): void;
+  /**
+   * T-188 r1 #1: sends the ticket DMs held for a member while they couldn't
+   * be DMed (`AgentDeps.dmHold`), one turn per group, and drops each pointer
+   * once its DM went out. Nothing while the member is still held. Idempotent.
+   */
+  deliverHeld(memberId: MemberId): Promise<readonly TurnResult[]>;
 }
 
 // ---------- constants (VOICE §4.12, §6.4) ----------
@@ -1175,7 +1195,8 @@ export function createTravAgent(input: AgentDeps): TravAgent {
       members: r.members,
       trip: r.trip,
       lane: r.lane,
-      handleFor: (memberId) => stores.group.members.get(memberId)?.senderId,
+      handleFor: (memberId) =>
+        deps.dmHold?.(memberId) === true ? undefined : stores.group.members.get(memberId)?.senderId,
     };
   }
 
@@ -5007,5 +5028,67 @@ export function createTravAgent(input: AgentDeps): TravAgent {
         stateRegistry.evictTrip(target.tripId);
       }
     },
+    deliverHeld,
   };
+
+  async function deliverHeld(memberId: MemberId): Promise<readonly TurnResult[]> {
+    if (deps.dmHold?.(memberId) === true) return [];
+    const byGroup = new Map<GroupId, HeldTicket[]>();
+    for (const h of heldTicketsFor(stores, memberId)) {
+      byGroup.set(h.groupId, [...(byGroup.get(h.groupId) ?? []), h]);
+    }
+    const results: TurnResult[] = [];
+    for (const [groupId, held] of byGroup) {
+      const group = stores.group.groups.get(groupId);
+      const me = stores.group.members.get(memberId);
+      if (group === undefined || me === undefined || me.groupId !== groupId) continue;
+      const before = snapshotAudit(groupId);
+      const now = clock.now();
+      const members = stores.group.members.listByGroup(groupId);
+      const drafts: { held: HeldTicket; draft: OutboundMessage }[] = [];
+      for (const h of held) {
+        const booking = stores.group.bookings.getBooking(h.bookingId);
+        const trip =
+          h.tripId === null ? undefined : (stores.group.trips.get(h.tripId) ?? undefined);
+        const artifact = stores.private
+          .listTickets(h.holderMemberId, h.bookingId)
+          .find((a) => a.ticketId === h.ticketId);
+        // The booking, trip or ticket is gone (forgotten, deleted): nothing to send.
+        if (booking === undefined || trip === undefined || artifact === undefined) {
+          releaseHeldTicket(stores, h);
+          continue;
+        }
+        const rctx: RenderContext = { groupId, members, timeZone: trip.timeZone, now, ids };
+        drafts.push({
+          held: h,
+          draft: renderTicket({ artifact, headline: bookingHeadline(booking) }, rctx),
+        });
+      }
+      if (drafts.length === 0) continue;
+      const r: Resolved = {
+        group,
+        members,
+        trip: stores.group.trips.current(groupId, now) ?? null,
+        identity: { kind: 'member', member: me },
+        me,
+        lane: 'dm',
+        now,
+      };
+      const sent = await send(
+        r,
+        drafts.map((d) => d.draft),
+      );
+      const sentIds = new Set(sent.map((o) => o.id));
+      for (const d of drafts) if (sentIds.has(d.draft.id)) releaseHeldTicket(stores, d.held);
+      results.push({
+        outbound: sent,
+        toolCalls: [],
+        auditEventIds: auditIdsSince(groupId, before),
+        silent: sent.length === 0,
+        modelSources: [],
+        note: 'held_tickets:delivered',
+      });
+    }
+    return results;
+  }
 }

@@ -18,6 +18,7 @@ export * from './mention.js';
 export * from './identity.js';
 export * from './prompts/index.js';
 export * from './booking/proposals.js';
+export * from './booking/heldTickets.js';
 export * from './tools/index.js';
 export * from './ingest/intake.js';
 export * from './ingest/card.js';
