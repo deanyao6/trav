@@ -167,7 +167,7 @@ describe('renderProposalText: the T-193 tab cap (D-046)', () => {
       capPerPersonMinor: 6000,
     }).split('\n');
     expect(lines.slice(-2)).toEqual([
-      "that's over €15 each on Dean's ask, so everyone charged has to 👍",
+      "that's over €15 for someone other than Dean, so everyone charged has to 👍",
       '👍 to book, or say "not me" first. price held for 15 min',
     ]);
   });

@@ -109,7 +109,7 @@ function reasonLine(
         return `that's over the ${formatMoney(money(policy.perPersonAutoCapMinor, cur))}/person cap`;
       case 'over_tab_auto_cap':
         // T-193 (D-046): more than the tab cap on someone else's word.
-        return `that's over ${formatMoney(money(tabAutoCapOf(policy), cur))} each on ${possessive(nameOf(ctx, proposal.requestedBy))} ask`;
+        return `that's over ${formatMoney(money(tabAutoCapOf(policy), cur))} for someone other than ${nameOf(ctx, proposal.requestedBy)}`;
       case 'over_member_share_cap':
         return "that's over someone's personal cap";
       case 'over_daily_cap':

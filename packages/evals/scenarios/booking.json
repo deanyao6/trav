@@ -762,7 +762,7 @@
         "text": "@trav get the 5 of us Razzmatazz tickets, Henry's sick",
         "expect": {
           "purchases": 0,
-          "mustContain": ["that's over €15 each on Dean's ask, so everyone charged has to 👍"],
+          "mustContain": ["that's over €15 for someone other than Dean, so everyone charged has to 👍"],
           "mustNotContain": ["booked ✅"]
         }
       }

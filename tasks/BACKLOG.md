@@ -13,7 +13,7 @@ Merged 2026-10-22 ~03:45 from the research sprint. Proposal IDs in brackets (M =
 
 ### P0 — safety checkpoint 2026-11-05 (post-P0; build first)
 
-- [ ] T-193 | P0 | `[x-pkg]` Auto-buy never puts people on the tab who didn't ask (SAFETY T17; merges SC-1 + SC-2) | source: safety | acceptance: an `explicit` ask auto-approves only when `requestedBy ∈ attendees`; `autoBuyVerdict` returns `party` for a names-only party without the sender ("for chase and henry") and for "except me" / "but me" / ", not me", so those get the one-tap card; D-042's '"for <names>" with me/myself' matches the code; inside the auto tier any non-requester share `> perPersonAutoCapMinor` fires C3 (`each_payer`); table tests at-cap and one-above for `explicit` and `pick`; the flagship (€18 each, Dean going) still auto-buys; A13 eval grader (every auto-approved explicit ask has requester ∈ attendees) with a positive and negative fixture; DECISIONS entry amending D-044
+- [x] T-193 | P0 | `[x-pkg]` Auto-buy never puts people on the tab who didn't ask (SAFETY T17; merges SC-1 + SC-2) | source: safety | acceptance: an `explicit` ask auto-approves only when `requestedBy ∈ attendees`; `autoBuyVerdict` returns `party` for a names-only party without the sender ("for chase and henry") and for "except me" / "but me" / ", not me", so those get the one-tap card; D-042's '"for <names>" with me/myself' matches the code; inside the auto tier any non-requester share `> perPersonAutoCapMinor` fires C3 (`each_payer`); table tests at-cap and one-above for `explicit` and `pick`; the flagship (€18 each, Dean going) still auto-buys; A13 eval grader (every auto-approved explicit ask has requester ∈ attendees) with a positive and negative fixture; DECISIONS entry amending D-044
 
 ### P0 — clean-checkout gate (external review handoff, 2026-11-05; build before everything else)
 
@@ -164,6 +164,8 @@ Goal: Trav joins a real iMessage group through a paid relay (Photon Business rec
 
 - [ ] T-191 | P1 | `[agent]` Serialize ticket-option picks per plan (from the T-168 r2 review): a non-asker's pick and the asker's pick racing on one plan leave a pending card plus an auto-buy. | source: review (T-168) | acceptance: a Promise.all of two picks gives one outcome; test
 - [ ] T-192 | P1 | `[agent]` Held-out razz 3b reader gap ("x5, henry's laid up" scores 76.9%) | source: eval (T-168) | acceptance: 3b passes without tests that mirror its text; no new false-positive asks in the fixture sweep
+- [ ] T-194 | P1 | `[agent]` Show and set the auto-buy tab cap in chat; decide whether a lowered per-person cap also lowers it (T-193 review minor 1; QUESTIONS) | source: review (T-193) | acceptance: the settings view shows the tab cap; a chat command sets it with the same fail-closed parsing; tests; if Dean picks min(), policy tests at and one above both caps
+- [ ] T-195 | P1 | `[evals]` Eval scenario for "sender already out" auto-buys (SC-5 runtime coverage) | source: review (T-193) | acceptance: a scenario where Dean is marked out and asks "get us razz tickets" gets the card, and one where a maybe member is left out of "us"; A13 passes; mutation of `autoBuyVerdictOnRoster` fails it
 
 ## Proposed
 - [ ] T-149 | P1 | `[agent]` Schedule recap jobs (Morning After, Wrapped) from the trip create/update path, not only at runtime build | source: review (T-138) | acceptance: a trip created mid-session gets its Morning Afters and Wrapped; jobIds stay idempotent

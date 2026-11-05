@@ -168,6 +168,8 @@ Each template: trigger → text (exact style) → card type (§5) → notes. Exa
 > that's over the €60/person cap, so @Dean has to ok it
 > 👍 from Dean to book, or anyone can say "not me" first
 
+T-193 (D-046): when an ask would auto-buy but puts more than the tab cap (€100 by default) on someone other than the asker, the reason line is `that's over €100 for someone other than Dean, so everyone charged has to 👍`. It names the asker, not "each", because only one share has to be over.
+
 **Example C (lodging, refundable-first; shipped shape, T-073/T-152):**
 
 > **trav:**

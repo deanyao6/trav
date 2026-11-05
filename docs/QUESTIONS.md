@@ -68,3 +68,6 @@ In T-165, the grey "Chase added Uber €18.60 · 4 ways" line appears only for e
 
 ## T-167: can one member's private budget alone set the group's tier? (2026-11-05)
 If one member's private budget is the only signal, the group gets a budget list when they're going and a "fancy or casual?" question when they're out, so others could work out where it came from. Nobody is named. Should one private signal be enough to skip the question, or should it need a second signal or a minimum group size? Right now one signal is enough.
+
+## T-193: the €100 auto-buy tab cap (2026-11-05)
+Inside the auto-buy tier, one member's ask can put up to €100 on each other member without them tapping (D-046 §4). That cap is separate from the group's per-person cap (€60 in Barcelona), which still governs the ordinary card flow, so a group that sets "per-person cap €20" in chat can still be auto-charged €100 each on someone else's ask, and the settings view doesn't show the tab cap. Options: keep €100; or use the lower of the two whenever a group has lowered its per-person cap below the default; and/or show the tab cap in settings and let the group change it in chat (logged as follow-up T-194).

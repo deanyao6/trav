@@ -2829,7 +2829,7 @@ export function renderProposalText(input: RenderInput): string {
       ? `that's over the ${formatMoney(money(input.capPerPersonMinor, p.currency))}/person cap, so ${who} has to 👍`
       : decision.reasons.includes('over_tab_auto_cap')
         ? // T-193 (D-046): more than the tab cap on someone else's word.
-          `that's over ${formatMoney(money(tabAutoCapOf(decision.policySnapshot), p.currency))} each on ${names([p.requestedBy], byId)}'s ask, so ${who} has to 👍`
+          `that's over ${formatMoney(money(tabAutoCapOf(decision.policySnapshot), p.currency))} for someone other than ${names([p.requestedBy], byId)}, so ${who} has to 👍`
         : `${who} has to 👍 this one`;
     lines.push(why);
     lines.push(`👍 to book, or say "not me" first. ${held}`);
