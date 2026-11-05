@@ -41,7 +41,9 @@ export type ScenarioTag =
   | 'replay'
   | 'recap'
   | 'ingestion'
-  | 'budget';
+  | 'budget'
+  /** T-184: fresh paraphrase scenarios (`scenarios/paraphrase.json`, always also `heldout`). */
+  | 'paraphrase';
 
 export const SCENARIO_TAGS: readonly ScenarioTag[] = [
   'safety',
@@ -62,6 +64,7 @@ export const SCENARIO_TAGS: readonly ScenarioTag[] = [
   'recap',
   'ingestion',
   'budget',
+  'paraphrase',
 ];
 
 /** What a step's turn must look like. Every field is optional; graders pick the ones they own. */
@@ -242,7 +245,10 @@ export interface StepExpect {
   };
   /** Why Trav refuses, as the observable signal for that reason (`REFUSAL_SIGNALS` in `graders/lineChecks.ts`). */
   readonly refusal?: { readonly reason: string; readonly topicCategory?: string };
-  /** The settle-up on this line leaves every member with the net these transfers imply, to the cent. */
+  /**
+   * The settle-up on this line leaves every member with the net these transfers imply, to the cent.
+   * Set by the replay expansion, or stated in a scenario file (T-184).
+   */
   readonly transfers?: readonly {
     readonly from: string;
     readonly to: string;

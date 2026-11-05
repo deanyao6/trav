@@ -69,6 +69,11 @@ mode
                        only if TRAV_OFFLINE is unset, TRAV_ANTHROPIC_API_KEY is set and the
                        spend guard (.trav/spend.json, TRAV_LIVE_BUDGET_USD) allows it;
                        otherwise runs offline and the report says why. Reports label the mode.
+  --max-spend <usd>    live only: start no new scenario once this run has added <usd> to
+                       the spend guard's total (a scenario in flight finishes; the report
+                       says where it stopped). TRAV_LIVE_BUDGET_USD still caps every call.
+  --preflight          print the mode this run would use, the spend so far and the budget,
+                       then exit without loading scenarios or calling any model
 
 output
   --out <dir>          report directory (default evals/reports)
@@ -93,6 +98,10 @@ export interface CliArgs {
   readonly static: boolean;
   /** `--live`: ask for live models (still gated by env and the spend guard). */
   readonly live: boolean;
+  /** T-184 `--max-spend`: this run's own cap in USD (live only). */
+  readonly maxSpendUsd?: number;
+  /** T-184 `--preflight`: report the mode decision and spend, run nothing. */
+  readonly preflight: boolean;
   readonly help: boolean;
 }
 
@@ -103,6 +112,8 @@ export function parseArgs(argv: readonly string[]): CliArgs {
   let report = true;
   let runStatic = true;
   let live = false;
+  let preflight = false;
+  let maxSpendUsd: number | undefined;
   let help = false;
   let split: Split | undefined;
   const setSplit = (v: Split): void => {
@@ -130,7 +141,14 @@ export function parseArgs(argv: readonly string[]): CliArgs {
     else if (a === '--no-report') report = false;
     else if (a === '--no-static') runStatic = false;
     else if (a === '--live') live = true;
-    else if (a === '--heldout') setSplit('heldout');
+    else if (a === '--preflight') preflight = true;
+    else if (a === '--max-spend') {
+      const v = next();
+      const n = Number(v);
+      if (!/^\d+(\.\d+)?$/.test(v) || !Number.isFinite(n) || n <= 0)
+        throw new Error(`--max-spend must be a positive number of USD, got ${v}`);
+      maxSpendUsd = n;
+    } else if (a === '--heldout') setSplit('heldout');
     else if (a === '--regression') setSplit('regression');
     else if (a === '-h' || a === '--help' || a === 'help') help = true;
     else if (a === '--split') {
@@ -150,6 +168,8 @@ export function parseArgs(argv: readonly string[]): CliArgs {
     split: split ?? 'all',
     static: runStatic,
     live,
+    ...(maxSpendUsd !== undefined ? { maxSpendUsd } : {}),
+    preflight,
     help,
   };
 }
@@ -258,6 +278,8 @@ export function createRubricJudge(model: ModelClient): RubricJudge {
           type: 'object',
           properties: { score: { type: 'number' }, rationale: { type: 'string' } },
           required: ['score', 'rationale'],
+          // The API's structured outputs reject an object schema without this (400; T-184 live run).
+          additionalProperties: false,
         },
       });
       const j = (res.json ?? {}) as { score?: unknown; rationale?: unknown };
@@ -265,6 +287,56 @@ export function createRubricJudge(model: ModelClient): RubricJudge {
       return { score: j.score, rationale: typeof j.rationale === 'string' ? j.rationale : '' };
     },
   };
+}
+
+/**
+ * T-184: this run's own spend cap. `current` reads the spend guard's running
+ * total (USD); the cap is reached once the run has added `maxUsd` to what the
+ * total was when the cap was created. Checked between scenarios only, so a
+ * scenario in flight finishes (the guard's budget still refuses any call
+ * past `TRAV_LIVE_BUDGET_USD`).
+ */
+export interface RunSpendCap {
+  readonly maxUsd: number;
+  runUsd(): number;
+  reached(): boolean;
+}
+
+export function createRunSpendCap(current: () => number, maxUsd: number): RunSpendCap {
+  if (!Number.isFinite(maxUsd) || maxUsd <= 0) throw new Error('run spend cap must be positive');
+  const start = current();
+  const runUsd = (): number => Math.max(0, current() - start);
+  return { maxUsd, runUsd, reached: () => runUsd() >= maxUsd };
+}
+
+/** `--preflight`: the mode this run would use and the spend so far; calls no model. */
+export function preflightLines(
+  args: Pick<CliArgs, 'live' | 'maxSpendUsd'>,
+  env: Readonly<Record<string, string | undefined>>,
+  spentUsd: () => number,
+  canSpend: () => boolean,
+): string[] {
+  const modelEnv = readModelEnv(env);
+  const decision = decideMode(env, canSpend, args.live);
+  // Every gate on its own, so a blocked live run says exactly what blocks it.
+  // The key is reported as present or absent only, never its value.
+  const offlineSet = env['TRAV_OFFLINE'] !== undefined;
+  const keyPresent = (env['TRAV_ANTHROPIC_API_KEY'] ?? '').trim() !== '';
+  const headroom = canSpend();
+  const lines = [
+    `trav eval preflight: would run ${decision.mode.toUpperCase()} (${decision.note})`,
+    `  gates: --live ${args.live ? 'passed' : 'not passed (blocks live)'} · TRAV_OFFLINE ${offlineSet ? 'set (blocks live; any value counts)' : 'unset'} · TRAV_ANTHROPIC_API_KEY ${keyPresent ? 'present' : 'absent (blocks live)'} · spend guard ${headroom ? 'has headroom' : 'budget reached (blocks live)'}`,
+    `  spend so far $${spentUsd().toFixed(2)} of the $${modelEnv.liveBudgetUsd.toFixed(2)} budget (${join(modelEnv.stateDir, 'spend.json')})`,
+  ];
+  if (args.maxSpendUsd !== undefined)
+    lines.push(`  this run stops starting scenarios after $${args.maxSpendUsd.toFixed(2)}`);
+  if (decision.mode === 'live')
+    lines.push(
+      `  models ${Object.entries(modelEnv.models)
+        .map(([k, v]) => `${k}=${v}`)
+        .join(', ')}`,
+    );
+  return lines;
 }
 
 export interface RunAllResult {
@@ -303,8 +375,18 @@ export async function runAll(
   );
   if (scenarios.length === 0) throw new Error(`no scenarios match (${selection})`);
   log(`trav eval: ${selection}, mode ${decision.mode.toUpperCase()} (${decision.note})`);
+  const cap =
+    decision.mode === 'live' && args.maxSpendUsd !== undefined
+      ? createRunSpendCap(() => guard().current().estimatedUsd, args.maxSpendUsd)
+      : undefined;
+  let stoppedEarly: string | undefined;
   const outcomes: ScenarioOutcome[] = [];
   for (const s of scenarios) {
+    if (cap?.reached() === true) {
+      stoppedEarly = `run spend cap $${cap.maxUsd.toFixed(2)} reached ($${cap.runUsd().toFixed(2)} this run) after ${String(outcomes.length)} of ${String(scenarios.length)} scenarios; next was ${s.id}`;
+      log(`  stopped: ${stoppedEarly}`);
+      break;
+    }
     const o = await evaluateScenario(s, {
       mode: decision.mode,
       modelFactory,
@@ -345,11 +427,21 @@ export async function runAll(
     stamp: stampOf(systemClock.now()),
     mode: decision.mode,
     modeNote: decision.note,
-    selection,
+    // A stopped run covers fewer scenarios: its own selection, never a full run's baseline.
+    selection:
+      stoppedEarly === undefined
+        ? selection
+        : `${selection} (stopped early: ${String(outcomes.length)} run)`,
     ...(staticChecks !== undefined ? { staticChecks } : {}),
     ...(decision.mode === 'live'
-      ? { models: { ...modelEnv.models }, spendUsd: guard().current().estimatedUsd }
+      ? {
+          models: { ...modelEnv.models },
+          spendUsd: guard().current().estimatedUsd,
+          budgetUsd: modelEnv.liveBudgetUsd,
+          ...(cap !== undefined ? { runSpendUsd: cap.runUsd(), maxSpendUsd: cap.maxUsd } : {}),
+        }
       : {}),
+    ...(stoppedEarly !== undefined ? { stoppedEarly } : {}),
   };
   let reportPath: string | undefined;
   if (args.report) {
@@ -381,6 +473,23 @@ export async function main(
     const args = parseArgs(argv);
     if (args.help) {
       log(HELP);
+      return 0;
+    }
+    if (args.preflight) {
+      const modelEnv = readModelEnv(env);
+      const guard = createFileSpendGuard({
+        filePath: join(modelEnv.stateDir, 'spend.json'),
+        budgetUsd: modelEnv.liveBudgetUsd,
+        pricing: DEFAULT_MODEL_PRICING,
+        clock: createSystemClock(),
+      });
+      for (const l of preflightLines(
+        args,
+        env,
+        () => guard.current().estimatedUsd,
+        () => guard.canSpend(),
+      ))
+        log(l);
       return 0;
     }
     return (await runAll(args, env, log)).exitCode;

@@ -139,6 +139,22 @@ describe('validateScenario', () => {
       /derived from chat lines/,
     ],
     [
+      'transfers (T-184) with a fractional amount',
+      withStep({
+        ...say,
+        expect: { transfers: [{ from: 'mem_a', to: 'mem_b', amountMinor: 12.5 }] },
+      }),
+      /must be an integer/,
+    ],
+    [
+      'transfers (T-184) with an unknown key',
+      withStep({
+        ...say,
+        expect: { transfers: [{ from: 'mem_a', to: 'mem_b', amountMinor: 100, eur: 1 }] },
+      }),
+      /unknown key "eur"/,
+    ],
+    [
       'ungraded is derived only',
       withStep({ ...say, expect: { ungraded: ['x'] } }),
       /derived from chat lines/,

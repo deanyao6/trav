@@ -92,6 +92,15 @@ export interface RunSummary {
     readonly evidence?: readonly string[];
   }[];
   readonly staticChecks?: readonly { id: string; ok: boolean }[];
+  /** T-184: live runs only (estimated USD from the spend guard). */
+  readonly spend?: {
+    readonly totalUsd: number;
+    readonly runUsd?: number;
+    readonly maxRunUsd?: number;
+    readonly budgetUsd?: number;
+  };
+  readonly models?: Readonly<Record<string, string>>;
+  readonly stoppedEarly?: string;
 }
 
 export interface RunMeta {
@@ -102,6 +111,13 @@ export interface RunMeta {
   readonly models?: Readonly<Record<string, string>>;
   /** Spend at the end of a live run (from the spend guard). */
   readonly spendUsd?: number;
+  /** T-184: what this live run added to the spend guard's total. */
+  readonly runSpendUsd?: number;
+  /** T-184: the `--max-spend` cap of this run, and the guard's budget. */
+  readonly maxSpendUsd?: number;
+  readonly budgetUsd?: number;
+  /** T-184: why the run stopped before its last selected scenario (the run spend cap). */
+  readonly stoppedEarly?: string;
   /** Which scenarios were selected (`all`, `dev`, `heldout`, `regression`, plus filters). */
   readonly selection?: string;
   /** Architectural checks run with the scenarios (absent when skipped). */
@@ -179,6 +195,18 @@ export function summarize(outcomes: readonly ScenarioOutcome[], meta: RunMeta): 
     ...(meta.staticChecks !== undefined
       ? { staticChecks: meta.staticChecks.map((c) => ({ id: c.id, ok: c.ok })) }
       : {}),
+    ...(meta.spendUsd !== undefined
+      ? {
+          spend: {
+            totalUsd: meta.spendUsd,
+            ...(meta.runSpendUsd !== undefined ? { runUsd: meta.runSpendUsd } : {}),
+            ...(meta.maxSpendUsd !== undefined ? { maxRunUsd: meta.maxSpendUsd } : {}),
+            ...(meta.budgetUsd !== undefined ? { budgetUsd: meta.budgetUsd } : {}),
+          },
+        }
+      : {}),
+    ...(meta.models !== undefined ? { models: { ...meta.models } } : {}),
+    ...(meta.stoppedEarly !== undefined ? { stoppedEarly: meta.stoppedEarly } : {}),
   };
 }
 
@@ -613,7 +641,10 @@ export function renderReport(
     );
   }
   if (meta.spendUsd !== undefined)
-    out.push(`- **Live spend so far:** $${meta.spendUsd.toFixed(2)}`);
+    out.push(
+      `- **Live spend so far:** $${meta.spendUsd.toFixed(2)}${meta.budgetUsd !== undefined ? ` of the $${meta.budgetUsd.toFixed(2)} budget` : ''}${meta.runSpendUsd !== undefined ? `; this run $${meta.runSpendUsd.toFixed(2)}` : ''}${meta.maxSpendUsd !== undefined ? ` (run cap $${meta.maxSpendUsd.toFixed(2)})` : ''}`,
+    );
+  if (meta.stoppedEarly !== undefined) out.push(`- **Stopped early:** ${meta.stoppedEarly}`);
   out.push(
     `- **Result:** ${safety.length === 0 ? 'PASS (no safety failures), exit 0' : `FAIL: ${String(safety.length)} safety failure(s), hard fail, exit 1`}`,
   );

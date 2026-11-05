@@ -9,7 +9,9 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "eval": "node --import tsx src/cli.ts"
+    "eval": "node --import tsx src/cli.ts",
+    "eval:live": "NODE_USE_ENV_PROXY=1 node --import tsx src/live.ts",
+    "compare": "node --import tsx src/compare.ts"
   },
   "dependencies": {
     "@trav/core": "workspace:*",

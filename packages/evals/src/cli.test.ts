@@ -13,9 +13,11 @@ import type { CompletionRequest, ModelClient } from '@trav/agent';
 import {
   HELP,
   createRubricJudge,
+  createRunSpendCap,
   decideMode,
   main,
   parseArgs,
+  preflightLines,
   runAll,
   selectScenarios,
 } from './cli.js';
@@ -73,6 +75,7 @@ describe('parseArgs', () => {
       split: 'all',
       static: true,
       live: false,
+      preflight: false,
       help: false,
     });
   });
@@ -93,6 +96,9 @@ describe('parseArgs', () => {
         '--no-report',
         '--no-static',
         '--live',
+        '--max-spend',
+        '12.5',
+        '--preflight',
         '--split',
         'dev',
         '--',
@@ -106,6 +112,8 @@ describe('parseArgs', () => {
       split: 'dev',
       static: false,
       live: true,
+      maxSpendUsd: 12.5,
+      preflight: true,
       help: false,
     });
     expect(parseArgs(['--heldout']).split).toBe('heldout');
@@ -121,6 +129,95 @@ describe('parseArgs', () => {
     expect(() => parseArgs(['--filter'])).toThrow(/--filter needs a value/);
     expect(() => parseArgs(['--out', '--live'])).toThrow(/--out needs a value/);
     expect(() => parseArgs(['--heldout', '--regression'])).toThrow(/conflicting splits/);
+    for (const bad of ['0', '-1', 'ten', '1e3', 'NaN', '0.0'])
+      expect(() => parseArgs(['--max-spend', bad])).toThrow(/--max-spend/);
+    expect(() => parseArgs(['--max-spend'])).toThrow(/--max-spend needs a value/);
+  });
+});
+
+describe('T-184 run spend cap', () => {
+  it('is reached once the run has added maxUsd to the starting total, never before', () => {
+    let total = 3.2; // earlier runs already spent this
+    const cap = createRunSpendCap(() => total, 2);
+    expect(cap.runUsd()).toBe(0);
+    expect(cap.reached()).toBe(false);
+    total = 5.19;
+    expect(cap.reached()).toBe(false);
+    total = 5.2;
+    expect(cap.reached()).toBe(true);
+    expect(cap.runUsd()).toBeCloseTo(2, 9);
+  });
+
+  it('rejects a non-positive cap', () => {
+    expect(() => createRunSpendCap(() => 0, 0)).toThrow(/positive/);
+    expect(() => createRunSpendCap(() => 0, Number.NaN)).toThrow(/positive/);
+  });
+});
+
+describe('T-184 --preflight', () => {
+  const KEY = 'sk-ant-test-not-a-real-key-000';
+
+  it('says offline without --live, without a key, with TRAV_OFFLINE, or with the budget spent', () => {
+    const at = (env: Record<string, string>, live: boolean, canSpend = true) =>
+      preflightLines(
+        { live },
+        env,
+        () => 1.5,
+        () => canSpend,
+      )[0];
+    expect(at({ TRAV_ANTHROPIC_API_KEY: KEY }, false)).toMatch(/would run OFFLINE/);
+    expect(at({}, true)).toMatch(/would run OFFLINE .*no TRAV_ANTHROPIC_API_KEY/);
+    expect(at({ TRAV_ANTHROPIC_API_KEY: KEY, TRAV_OFFLINE: '1' }, true)).toMatch(/OFFLINE/);
+    expect(at({ TRAV_ANTHROPIC_API_KEY: KEY }, true, false)).toMatch(/OFFLINE .*budget/);
+  });
+
+  it('says live with a key and headroom, names spend, budget, cap and models, never the key', () => {
+    const lines = preflightLines(
+      { live: true, maxSpendUsd: 15 },
+      { TRAV_ANTHROPIC_API_KEY: KEY, TRAV_LIVE_BUDGET_USD: '45', TRAV_STATE_DIR: '/x/state' },
+      () => 1.5,
+      () => true,
+    );
+    const text = lines.join('\n');
+    expect(lines[0]).toMatch(/would run LIVE/);
+    expect(text).toContain('spend so far $1.50 of the $45.00 budget');
+    expect(text).toContain('after $15.00');
+    expect(text).toMatch(/models main=/);
+    expect(text).toContain('TRAV_ANTHROPIC_API_KEY present');
+    expect(text).not.toContain(KEY);
+  });
+
+  it('names every gate that blocks live, each on its own', () => {
+    const gates = (env: Record<string, string>, live: boolean, canSpend: boolean) =>
+      preflightLines(
+        { live },
+        env,
+        () => 0,
+        () => canSpend,
+      )[1] ?? '';
+    const all = gates({ TRAV_OFFLINE: '1' }, false, false);
+    expect(all).toContain('--live not passed (blocks live)');
+    expect(all).toContain('TRAV_OFFLINE set (blocks live');
+    expect(all).toContain('TRAV_ANTHROPIC_API_KEY absent (blocks live)');
+    expect(all).toContain('budget reached (blocks live)');
+    // A key next to TRAV_OFFLINE: only TRAV_OFFLINE blocks, and the key value never shows.
+    const one = gates({ TRAV_OFFLINE: '1', TRAV_ANTHROPIC_API_KEY: KEY }, true, true);
+    expect(one.match(/blocks live/g)).toHaveLength(1);
+    expect(one).toContain('TRAV_OFFLINE set');
+    expect(one).not.toContain(KEY);
+  });
+
+  it('main --preflight exits 0, loads no scenarios and writes no report', async () => {
+    const { out, env } = workspace([CLEAN]);
+    const lines: string[] = [];
+    const code = await main(
+      ['--preflight', '--live', '--scenarios', '/does/not/exist', '--out', out],
+      env,
+      (l) => lines.push(l),
+    );
+    expect(code).toBe(0);
+    expect(lines[0]).toMatch(/would run OFFLINE/);
+    expect(() => readdirSync(out)).toThrow();
   });
 });
 
@@ -407,6 +504,8 @@ describe('rubric judge (live only)', () => {
     expect(seen[0]?.model).toBe('grader');
     expect(seen[0]?.tools).toEqual([]);
     expect(JSON.stringify(seen[0]?.messages)).toContain('untrusted');
+    // Structured outputs need additionalProperties: false on every object (the API 400s otherwise).
+    expect(seen[0]?.jsonSchema).toMatchObject({ type: 'object', additionalProperties: false });
   });
 
   it('rubric grader: skipped offline; scored live; a failing grader call is skipped, never a pass', async () => {

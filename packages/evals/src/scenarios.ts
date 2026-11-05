@@ -261,7 +261,8 @@ const STEP_EXPECT = {
   proposalDetails: opt(derivedOnly),
   booking: opt(derivedOnly),
   refusal: opt(derivedOnly),
-  transfers: opt(derivedOnly),
+  // T-184: a settle-up scenario may state the transfers its card must net to (graded by net, to the cent).
+  transfers: opt(arrayOf(object({ from: req(str), to: req(str), amountMinor: req(nonNegInt) }))),
   nightOutFraming: opt(derivedOnly),
   markedPaidBy: opt(derivedOnly),
   markedSentBy: opt(derivedOnly),
