@@ -1,0 +1,33 @@
+# GitHub Actions CI for Trav. NOT active: agents may not create files under
+# .github/workflows/ (the push token can't write them, and every later push
+# would fail; see CLAUDE.md §2). For Dean to install by hand: copy this to
+# .github/workflows/ci.yml in the GitHub web UI, or push it with a token that
+# has the "workflow" scope.
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.x', '24.x']
+    env:
+      TZ: UTC
+      TRAV_OFFLINE: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: fixtures are deterministic and committed
+        run: pnpm fixtures:gen && git status --porcelain --untracked-files=all && test -z "$(git status --porcelain --untracked-files=all)"
+      - run: pnpm check
+      - run: pnpm demo:barcelona
+      - run: pnpm eval --no-report
