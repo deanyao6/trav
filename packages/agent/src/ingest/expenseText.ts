@@ -1245,7 +1245,17 @@ export function parseExpenseText(text: string, ctx: ExpenseTextContext): Expense
   // "should've put it on Dean's card": the card did not pay, so it says
   // nothing about the payer. Parse the message without the phrase.
   const rest = `${clean.slice(0, card.index)}${clean.slice(card.index + card[0].length)}`;
-  if (CARD_DOUBT.test(clean)) return parseExpenseTextInner(rest, ctx);
+  // Only doubt near the card phrase counts: "split with everyone. not Henry"
+  // is about who's in, not the card. Same clause, up to 40 chars either side.
+  const before = clean
+    .slice(Math.max(0, card.index - 40), card.index)
+    .split(/[.;!?]/u)
+    .pop()!;
+  const after = clean
+    .slice(card.index + card[0].length)
+    .slice(0, 40)
+    .split(/[.;!?,]/u)[0]!;
+  if (CARD_DOUBT.test(`${before} ${card[0]} ${after}`)) return parseExpenseTextInner(rest, ctx);
   const parsed = parseExpenseTextInner(rest, ctx);
   if (parsed.kind !== 'drafts') return parsed;
   // Several expenses, or a stated payer who isn't the card owner ("Jordan paid

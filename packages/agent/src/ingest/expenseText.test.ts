@@ -719,7 +719,7 @@ describe('T-010 r2 review cases', () => {
   });
 });
 
-describe("T-017 r2: \"on X's card\" names the payer, not who's in", () => {
+describe('T-017 r2: "on X\'s card" names the payer, not who\'s in', () => {
   it.each([
     ["@trav split the €200 groceries with everyone, it went on Dean's card", 'mem_dean', 20000],
     ["@trav i paid €84 for dinner on Jordan's card, split with everyone", 'mem_jordan', 8400],
@@ -731,7 +731,10 @@ describe("T-017 r2: \"on X's card\" names the payer, not who's in", () => {
   });
 
   it("someone outside the group's card is left to the usual rules (the stated payer)", () => {
-    const [e] = ready("@trav i paid €84 for dinner on Alex's card, split with everyone", BCN('mem_sam'));
+    const [e] = ready(
+      "@trav i paid €84 for dinner on Alex's card, split with everyone",
+      BCN('mem_sam'),
+    );
     expect(e!.payer).toBe('mem_sam');
   });
 
@@ -743,6 +746,18 @@ describe("T-017 r2: \"on X's card\" names the payer, not who's in", () => {
   ])('negated or failed card keeps the sender as payer: %s', (text) => {
     const [e] = ready(text, BCN('mem_sam'));
     expect(e!.payer).toBe('mem_sam');
+  });
+
+  it('a "not Henry" exclusion elsewhere does not cancel the card owner (T-110)', () => {
+    const [e] = ready(
+      "@trav €84 dinner on Dean's card, split with everyone. not Henry",
+      BCN('mem_sam'),
+    );
+    expect(e!.payer).toBe('mem_dean');
+    expect(e!.split).not.toMatchObject({
+      method: 'equal',
+      participants: expect.arrayContaining(['mem_henry']),
+    });
   });
 
   it('a stated payer who is not the card owner, or several expenses, is not guessed', () => {
