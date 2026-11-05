@@ -1903,15 +1903,19 @@ const CURRENCY_NAMES: Readonly<Record<string, string>> = {
  * reference rate for it (T-084; the `log_expense` tool asks the same, T-156):
  * "what was the museum in euros? the tab's in EUR and i can't convert $40 yet".
  * `description` is already display-safe; "expense" (nothing named) reads "it".
+ * `reason` replaces the default why (the tool's "¥1 comes to under €0.01 each
+ * split 3 ways", T-156 r2).
  */
 export function noRateQuestion(
   description: string,
   said: string,
   tripCurrency: CurrencyCode,
+  reason?: string,
 ): string {
   const word = CURRENCY_NAMES[tripCurrency] ?? tripCurrency;
   const thing = description === 'expense' ? 'it' : `the ${description}`;
-  return `what was ${thing} in ${word}? the tab's in ${tripCurrency} and i can't convert ${said} yet`;
+  const why = reason ?? `the tab's in ${tripCurrency} and i can't convert ${said} yet`;
+  return `what was ${thing} in ${word}? ${why}`;
 }
 
 function questionFor(

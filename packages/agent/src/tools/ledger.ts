@@ -7,6 +7,7 @@ import type {
   Expense,
   ExpenseCategory,
   ExpenseConfirmCard,
+  IsoDateTime,
   LineItem,
   Member,
   MemberId,
@@ -18,12 +19,17 @@ import type {
 import {
   convertMoney,
   convertSplit,
+  formatIso,
   formatMoney,
   formatShares,
   formatTransfer,
   ledger,
+  localDate,
   money,
+  parseIso,
   TravError,
+  zonedWallTimeToMs,
+  zoneOffsetMinutes,
 } from '@trav/core';
 import { sanitizeInline } from '../context/groupContext.js';
 import { alreadyLoggedText, fxAuditFields, fxQuoteFor } from '../ingest/chatExpense.js';
@@ -40,7 +46,6 @@ import {
   activeMembers,
   asRecord,
   bad,
-  isoOrNow,
   isRecord,
   messageIdOf,
   nameOf,
@@ -250,20 +255,32 @@ function toSplit(raw: RawSplit, members: readonly Member[], currency: string): S
  * `draft` (amount, payer and split in the currency the member said) carried
  * into the trip currency at the reference rate for its date (T-156; same rate
  * lookup, conversion and split carry-over as the chat flow, D-036).
- * `undefined` ⇒ no usable rate (none on file, a malformed one, a split that
- * cannot be carried over, or a total that converts to nothing): ask, never guess.
+ * `no_rate` ⇒ no usable rate (none on file, a malformed one): ask, never
+ * guess. `too_small` ⇒ the converted total is less than one minor unit per
+ * person sharing it (`ways`), e.g. ¥1 three ways: ask for the trip amount.
  */
 async function convertToTrip(
   ctx: ToolContext,
   trip: Trip,
   draft: Expense,
-): Promise<Expense | undefined> {
+  ways: number,
+): Promise<
+  | { readonly kind: 'ok'; readonly expense: Expense }
+  | { readonly kind: 'no_rate' }
+  | { readonly kind: 'too_small' }
+> {
   const quote = await fxQuoteFor(ctx.fx, trip, draft.amount.currency, draft.occurredAt);
-  if (quote === undefined) return undefined;
+  if (quote === undefined) return { kind: 'no_rate' };
+  let amount: Money;
   try {
-    const amount = convertMoney(draft.amount, trip.currency, quote.rate);
-    if (amount.amountMinor <= 0) return undefined;
-    return {
+    amount = convertMoney(draft.amount, trip.currency, quote.rate);
+  } catch {
+    return { kind: 'no_rate' }; // a malformed rate is no rate
+  }
+  if (amount.amountMinor < Math.max(1, ways)) return { kind: 'too_small' };
+  return {
+    kind: 'ok',
+    expense: {
       ...draft,
       amount,
       original: {
@@ -273,10 +290,52 @@ async function convertToTrip(
         source: quote.source,
       },
       paidBy: draft.paidBy.map((p) => ({ memberId: p.memberId, amount })),
+      // the split was validated in the currency said, so this cannot throw
       split: convertSplit(draft.split, amount),
-    };
+    },
+  };
+}
+
+const ISO_DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+const ISO_LOCAL = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,3})?)?$/;
+
+/**
+ * `occurredAt` as the model may pass it (T-156 r2), always a full ISO time
+ * with an offset, so the rate lookup reads the right trip-local date:
+ * absent ⇒ now; "2026-03-14" ⇒ that trip-local day (now if it is today, else
+ * noon there); "2026-03-14T20:30" (no offset) ⇒ that wall time in the trip's
+ * time zone; a time with `Z` or an offset is kept. Anything else is
+ * `invalid_argument`, never a silent fall into the no-rate question.
+ */
+export function tripOccurredAt(
+  value: string | undefined,
+  now: IsoDateTime,
+  timeZone: string,
+): IsoDateTime {
+  if (value === undefined) return now;
+  const at = (date: string, hour: number, minute: number, second: number): IsoDateTime => {
+    const ms = zonedWallTimeToMs(date, hour, minute, timeZone) + second * 1000;
+    return formatIso(ms, zoneOffsetMinutes(ms, timeZone));
+  };
+  try {
+    if (ISO_DATE_ONLY.test(value)) {
+      return localDate(now, timeZone) === value ? now : at(value, 12, 0, 0);
+    }
+    const local = ISO_LOCAL.exec(value);
+    if (local !== null) {
+      const [, date, h, m, s] = local;
+      const hour = Number(h);
+      const minute = Number(m);
+      const second = Number(s ?? '0');
+      if (hour > 23 || minute > 59 || second > 59) bad('occurredAt: no such time');
+      return at(date!, hour, minute, second);
+    }
+    parseIso(value);
+    return value;
   } catch {
-    return undefined;
+    return bad(
+      'occurredAt must be YYYY-MM-DD (a trip-local day) or an ISO-8601 date-time, e.g. 2026-03-14T20:30:00+01:00',
+    );
   }
 }
 
@@ -314,8 +373,15 @@ export function renderExpenseLoggedText(
   const { said, approx } = paidPhrase(expense);
   const head = `logged: ${said} ${sanitizeInline(expense.description, 40).toLowerCase()}${approx} on ${nameOf(members, payer.memberId)}`;
   const nonZero = shares.filter((s) => s.amount.amountMinor !== 0);
+  // An equal-style split where rounding left someone at zero (€0.02 three
+  // ways) is not "2 ways": list the shares instead (T-156 r2).
+  const moneyFree =
+    expense.split.method === 'equal' ||
+    expense.split.method === 'exclude' ||
+    expense.split.method === 'weighted';
   const allEqualish =
     nonZero.length > 0 &&
+    (!moneyFree || nonZero.length === shares.length) &&
     Math.max(...nonZero.map((s) => s.amount.amountMinor)) -
       Math.min(...nonZero.map((s) => s.amount.amountMinor)) <=
       1;
@@ -325,7 +391,8 @@ export function renderExpenseLoggedText(
   } else if (allEqualish) {
     const not =
       excluded.length > 0 ? ` (not ${excluded.map((id) => nameOf(members, id)).join(', ')})` : '';
-    const each = nonZero[0]!.amount;
+    // what the others owe; a leftover cent stays with the payer (VOICE §4.4)
+    const each = (nonZero.find((s) => s.memberId !== payer.memberId) ?? nonZero[0]!).amount;
     line1 = `${head}, ${nonZero.length} ways${not} → ${formatMoney(each)} each`;
   } else {
     line1 = `${head} · ${formatShares(nonZero.map((s) => ({ name: nameOf(members, s.memberId), amount: s.amount })))}`;
@@ -336,7 +403,7 @@ export function renderExpenseLoggedText(
 export const logExpenseTool: ToolDefinition<LogExpenseInput, LogExpenseResult> = {
   name: 'log_expense',
   description:
-    'Log a shared expense a member paid and split it on the tab: equal, everyone except some people (exclude), weighted, exact amounts, or itemized line items. Pass the amount in the currency the member said, as integer minor units of that currency ($40 = 4000 with currency USD; €84 = 8400 with EUR); exact amounts and line items use that same currency. Another currency than the trip\'s is converted by the tool at the day\'s reference rate (the result shows both, e.g. "$40 museum (≈€36.90)"); never convert it yourself. If there is no rate the tool returns a question to ask instead. Only members may log; the payer defaults to the sender.',
+    'Log a shared expense a member paid and split it on the tab: equal, everyone except some people (exclude), weighted, exact amounts, or itemized line items. Pass the amount in the currency the member said, as integer minor units of that currency ($40 = 4000 with currency USD; €84 = 8400 with EUR; yen have no decimals, so ¥4000 = 4000 with JPY); exact amounts and line items use that same currency. Another currency than the trip\'s is converted by the tool at the day\'s reference rate (the result shows both, e.g. "$40 museum (≈€36.90)"); never convert it yourself. If there is no rate the tool returns a question to ask instead. Only members may log; the payer defaults to the sender.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -357,7 +424,11 @@ export const logExpenseTool: ToolDefinition<LogExpenseInput, LogExpenseResult> =
         required: ['method'],
       },
       category: { type: 'string', enum: [...CATEGORIES] },
-      occurredAt: { type: 'string' },
+      occurredAt: {
+        type: 'string',
+        description:
+          'when it was paid; default now. YYYY-MM-DD for a day in the trip time zone, or an ISO-8601 date-time (2026-03-14T20:30:00+01:00; without an offset it is read in the trip time zone). Picks the day of the reference rate.',
+      },
       activityId: { type: 'string' },
     },
     required: ['description', 'amountMinor', 'currency', 'split'],
@@ -388,7 +459,7 @@ export const logExpenseTool: ToolDefinition<LogExpenseInput, LogExpenseResult> =
       if (inIds.length > 0) universe = order.filter((id) => inIds.includes(id));
     }
     const splitCtx = { memberOrder: order, participantsUniverse: universe };
-    const occurredAt = isoOrNow(input.occurredAt, ctx.now);
+    const occurredAt = tripOccurredAt(input.occurredAt, ctx.now, trip.timeZone);
     const said = money(input.amountMinor, input.currency);
     // The id is drawn once the expense will be written (a question writes nothing).
     const draft: Expense = {
@@ -413,19 +484,30 @@ export const logExpenseTool: ToolDefinition<LogExpenseInput, LogExpenseResult> =
       // T-156 (D-036): the split is checked as stated, in the currency it was
       // stated in, then carried into the trip currency at the reference rate
       // for the expense's date. No rate ⇒ the chat flow's one question.
-      ledger.computeShares(draft, splitCtx);
-      const converted = await convertToTrip(ctx, trip, draft);
-      if (converted === undefined) {
+      const asSaid = ledger.computeShares(draft, splitCtx);
+      // People sharing it: everyone in an equal-style split (¥1 three ways is
+      // 3 even though yen rounding left two at ¥0), else those with money.
+      const m = draft.split.method;
+      const ways =
+        m === 'equal' || m === 'exclude' || m === 'weighted'
+          ? asSaid.length
+          : asSaid.filter((s) => s.amount.amountMinor !== 0).length;
+      const converted = await convertToTrip(ctx, trip, draft, ways);
+      if (converted.kind !== 'ok') {
+        const desc = sanitizeInline(input.description, 40).toLowerCase();
         return {
           kind: 'clarify',
           question: noRateQuestion(
-            sanitizeInline(input.description, 40).toLowerCase(),
+            desc,
             formatMoney(said),
             trip.currency,
+            converted.kind === 'too_small'
+              ? `${formatMoney(said)} comes to under ${formatMoney(money(1, trip.currency))} each split ${String(ways)} ways`
+              : undefined,
           ),
         };
       }
-      expense = converted;
+      expense = converted.expense;
     }
     expense = { ...expense, expenseId: ctx.ids.next('exp') };
     const amount = expense.amount;

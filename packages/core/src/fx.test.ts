@@ -115,6 +115,94 @@ describe('convertSplit (T-156)', () => {
     ).toEqual(money(4613, 'EUR'));
   });
 
+  describe('discount lines (T-156 r2)', () => {
+    const signedTotal = (lines: readonly { amount: { amountMinor: number }; kind: string }[]) =>
+      lines.reduce(
+        (a, l) =>
+          a + (l.kind === 'discount' ? -Math.abs(l.amount.amountMinor) : l.amount.amountMinor),
+        0,
+      );
+    const tapas = (discountMinor: number) =>
+      ({
+        method: 'itemized',
+        participants: ['a', 'b'],
+        lineItems: [
+          { lineId: 'l1', label: 'a', amount: money(3000, 'USD'), claimedBy: ['a'], kind: 'item' },
+          { lineId: 'l2', label: 'b', amount: money(2500, 'USD'), claimedBy: ['b'], kind: 'item' },
+          {
+            lineId: 'l3',
+            label: 'off',
+            amount: money(discountMinor, 'USD'),
+            claimedBy: [],
+            kind: 'discount',
+          },
+        ],
+      }) as const;
+
+    for (const [label, stored] of [
+      ['stored positive', 500],
+      ['stored negative', -500],
+    ] as const) {
+      it(`$50 = $30 + $25 − $5 (${label}) carries to €46.13 with the signed total exact and signs kept`, () => {
+        const out = convertSplit(tapas(stored), money(4613, 'EUR'));
+        if (out.method !== 'itemized') throw new Error('method');
+        expect(out.lineItems.every((l) => l.amount.currency === 'EUR')).toBe(true);
+        expect(signedTotal(out.lineItems)).toBe(4613);
+        expect(Math.sign(out.lineItems[2]!.amount.amountMinor)).toBe(Math.sign(stored));
+        // 55 / 50 × 4613 = 5074.3 ⇒ 5074 for the items, 461 for the discount
+        expect(out.lineItems.map((l) => Math.abs(l.amount.amountMinor))).toEqual([2768, 2306, 461]);
+      });
+    }
+
+    it('a zero discount stays zero; lines that total nothing are rejected', () => {
+      const out = convertSplit(tapas(0), money(5074, 'EUR'));
+      if (out.method !== 'itemized') throw new Error('method');
+      expect(out.lineItems[2]!.amount.amountMinor).toBe(0);
+      expect(signedTotal(out.lineItems)).toBe(5074);
+      expect(() => convertSplit(tapas(5500), money(1, 'EUR'))).toThrow(/more than zero/);
+    });
+
+    it('holds for many random receipts: signed total always equals the converted total', () => {
+      let seed = 7;
+      const rnd = (n: number) => {
+        seed = (seed * 1103515245 + 12345) % 2 ** 31;
+        return seed % n;
+      };
+      for (let k = 0; k < 300; k++) {
+        const items = Array.from({ length: 1 + rnd(4) }, (_, i) => ({
+          lineId: `i${String(i)}`,
+          label: 'x',
+          amount: money(1 + rnd(9000), 'USD'),
+          claimedBy: [],
+          kind: (['item', 'tax', 'tip'] as const)[rnd(3)]!,
+        }));
+        const pos = items.reduce((a, l) => a + l.amount.amountMinor, 0);
+        const d = rnd(pos);
+        const lines = [
+          ...items,
+          {
+            lineId: 'd',
+            label: 'off',
+            amount: money(rnd(2) === 0 ? d : -d, 'USD'),
+            claimedBy: [],
+            kind: 'discount' as const,
+          },
+        ];
+        const target = money(1 + rnd(20000), 'EUR');
+        const out = convertSplit(
+          { method: 'itemized', participants: [], lineItems: lines },
+          target,
+        );
+        if (out.method !== 'itemized') throw new Error('method');
+        expect(signedTotal(out.lineItems)).toBe(target.amountMinor);
+        out.lineItems.forEach((l, i) => {
+          if (lines[i]!.amount.amountMinor < 0) expect(l.amount.amountMinor).toBeLessThanOrEqual(0);
+          else expect(l.amount.amountMinor).toBeGreaterThanOrEqual(0);
+        });
+      }
+    });
+  });
+
   it('equal, exclude and weighted splits carry no money and come back unchanged', () => {
     const equal = { method: 'equal', participants: ['a', 'b'] } as const;
     const exclude = { method: 'exclude', excluded: ['c'] } as const;

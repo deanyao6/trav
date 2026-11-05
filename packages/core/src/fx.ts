@@ -15,7 +15,7 @@ import { TravError } from './errors.js';
 import { allocate, currencyExponent, money } from './money.js';
 import type { Money } from './money.js';
 import type { CurrencyCode } from './primitives.js';
-import type { SplitSpec } from './domain/expense.js';
+import type { LineItem, SplitSpec } from './domain/expense.js';
 
 const RATE_RE = /^\d+(?:\.\d+)?$/;
 
@@ -107,11 +107,56 @@ export function convertSplit(split: SplitSpec, convertedTotal: Money): SplitSpec
     };
   }
   if (split.method === 'itemized') {
-    const parts = convertParts(
-      split.lineItems.map((l) => l.amount),
-      convertedTotal,
-    );
-    return { ...split, lineItems: split.lineItems.map((l, i) => ({ ...l, amount: parts[i]! })) };
+    return { ...split, lineItems: convertLineItems(split.lineItems, convertedTotal) };
   }
   return split;
+}
+
+/**
+ * Line items carried over so their SIGNED total (discounts subtract, whatever
+ * sign is stored; see `ledger/splits.ts` `lineContribution`) equals
+ * `convertedTotal` exactly. The positive lines' sum P is scaled by
+ * converted / original total (half away from zero) to P'; the discounts get
+ * D' = P' − converted. Each group is then spread over its own lines in
+ * proportion (largest remainder), and every line keeps the sign it was stored
+ * with. Throws `invalid_argument` when the original signed total is not
+ * positive (nothing to scale from).
+ */
+function convertLineItems(lines: readonly LineItem[], convertedTotal: Money): LineItem[] {
+  const isDiscount = (l: LineItem): boolean => l.kind === 'discount';
+  const mag = (l: LineItem): bigint => BigInt(Math.abs(l.amount.amountMinor));
+  const pos = lines.filter((l) => !isDiscount(l)).reduce((a, l) => a + mag(l), 0n);
+  const disc = lines.filter(isDiscount).reduce((a, l) => a + mag(l), 0n);
+  const original = pos - disc;
+  if (original <= 0n) {
+    throw new TravError('invalid_argument', 'convertSplit: line items must total more than zero');
+  }
+  const target = BigInt(convertedTotal.amountMinor);
+  // P' = round(P × converted / original), half away from zero (all terms ≥ 0 here)
+  const num = pos * target;
+  const q = num / original;
+  const posNew = (num % original) * 2n >= original ? q + 1n : q;
+  const discNew = posNew - target; // ≥ 0: P ≥ original ⇒ P' ≥ converted
+  const spread = (group: readonly LineItem[], total: bigint): Money[] => {
+    if (group.length === 0) return [];
+    if (total === 0n || group.every((l) => mag(l) === 0n)) {
+      return group.map(() => money(0, convertedTotal.currency));
+    }
+    return allocate(
+      money(Number(total), convertedTotal.currency),
+      group.map((l) => Number(mag(l))),
+    );
+  };
+  const posParts = spread(
+    lines.filter((l) => !isDiscount(l)),
+    posNew,
+  );
+  const discParts = spread(lines.filter(isDiscount), discNew);
+  let pi = 0;
+  let di = 0;
+  return lines.map((l) => {
+    const part = isDiscount(l) ? discParts[di++]! : posParts[pi++]!;
+    const signed = l.amount.amountMinor < 0 ? -part.amountMinor : part.amountMinor;
+    return { ...l, amount: money(signed, convertedTotal.currency) };
+  });
 }

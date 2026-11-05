@@ -483,6 +483,142 @@ describe('ledger tools', () => {
       expect(spec?.description).toContain('converted by the tool');
       expect(spec?.description).toContain('never convert it yourself');
       expect(spec?.description).not.toContain('will ask');
+      // r2 #3: zero-decimal currencies are spelled out
+      expect(spec?.description).toContain('¥4000 = 4000 with JPY');
+      const schema = spec?.inputSchema as { properties: Record<string, { description?: string }> };
+      expect(schema.properties['occurredAt']?.description).toContain('YYYY-MM-DD');
+    });
+
+    it('r2 #1: itemized in dollars with a discount line logs, the signed lines summing exactly', async () => {
+      for (const [i, off] of [500, -500].entries()) {
+        const h = harness();
+        const res = await run(
+          h,
+          {
+            ...museum,
+            description: 'tapas',
+            amountMinor: 5000,
+            split: {
+              method: 'itemized',
+              participants: ['Dean', 'Maya'],
+              lineItems: [
+                { label: 'a', amountMinor: 3000, claimedBy: ['Dean'] },
+                { label: 'b', amountMinor: 2500, claimedBy: ['Maya'] },
+                { label: 'off', amountMinor: off, claimedBy: [], kind: 'discount' },
+              ],
+            },
+          },
+          withFx(h, { messageId: `msg_disc_${String(i)}` }),
+        );
+        expect(res.kind).toBe('logged');
+        if (res.kind !== 'logged') return;
+        expect(res.amount).toEqual({ amountMinor: 4613, currency: 'EUR' });
+        expect(res.text.split('\n')[0]).toMatch(/^logged: \$50 tapas \(≈€46\.13\) on Dean/);
+        expect(res.shares.reduce((a, s) => a + s.amountMinor, 0)).toBe(4613);
+        const stored = h.runtime.stores.group.expenses.get(res.expenseId);
+        if (stored?.split.method !== 'itemized') throw new Error('itemized');
+        const lines = stored.split.lineItems;
+        expect(Math.sign(lines[2]!.amount.amountMinor)).toBe(Math.sign(off));
+        const signed = lines.reduce(
+          (a, l) =>
+            a + (l.kind === 'discount' ? -Math.abs(l.amount.amountMinor) : l.amount.amountMinor),
+          0,
+        );
+        expect(signed).toBe(4613);
+      }
+    });
+
+    it('r2 #2: a bare date or an offset-less time is read in the trip time zone, never "no rate"', async () => {
+      const h = harness();
+      const today = await run(h, { ...museum, occurredAt: '2026-03-14' }, withFx(h));
+      expect(today.kind).toBe('logged');
+      if (today.kind !== 'logged') return;
+      const t = h.runtime.stores.group.expenses.get(today.expenseId);
+      expect(t?.occurredAt).toBe(h.clock.now());
+      expect(t?.original?.rateDate).toBe('2026-03-13'); // saturday ⇒ friday's table
+
+      const thu = await run(
+        h,
+        { ...museum, occurredAt: '2026-03-12' },
+        withFx(h, { messageId: 'msg_thu' }),
+      );
+      if (thu.kind !== 'logged') throw new Error(thu.kind);
+      const th = h.runtime.stores.group.expenses.get(thu.expenseId);
+      expect(th?.occurredAt).toBe('2026-03-12T12:00:00+01:00');
+      expect(th?.original).toMatchObject({ rate: '1.0851', rateDate: '2026-03-12' });
+
+      const local = await run(
+        h,
+        { ...museum, occurredAt: '2026-03-11T23:30' },
+        withFx(h, { messageId: 'msg_wed' }),
+      );
+      if (local.kind !== 'logged') throw new Error(local.kind);
+      const w = h.runtime.stores.group.expenses.get(local.expenseId);
+      expect(w?.occurredAt).toBe('2026-03-11T23:30:00+01:00');
+      expect(w?.original?.rateDate).toBe('2026-03-11');
+
+      // An explicit offset is kept: 23:30Z on the 11th is 00:30 on the 12th in Barcelona.
+      const z = await run(
+        h,
+        { ...museum, occurredAt: '2026-03-11T23:30:00Z' },
+        withFx(h, { messageId: 'msg_z' }),
+      );
+      if (z.kind !== 'logged') throw new Error(z.kind);
+      expect(h.runtime.stores.group.expenses.get(z.expenseId)?.original?.rateDate).toBe(
+        '2026-03-12',
+      );
+
+      for (const [n, bad] of [
+        'yesterday',
+        '2026-02-30',
+        '2026-03-12T25:00',
+        '14/03/2026',
+      ].entries()) {
+        await expect(
+          run(h, { ...museum, occurredAt: bad }, withFx(h, { messageId: `msg_bad_${String(n)}` })),
+        ).rejects.toMatchObject({ code: 'invalid_argument' });
+      }
+      expect(h.runtime.stores.group.expenses.listByTrip(T)).toHaveLength(4);
+    });
+
+    it('r2 #3: ¥4000 is 4000 minor units and logs as €24.49', async () => {
+      const h = harness();
+      const res = await run(h, { ...museum, amountMinor: 4000, currency: 'JPY' }, withFx(h));
+      if (res.kind !== 'logged') throw new Error(res.kind);
+      expect(res.amount).toEqual({ amountMinor: 2449, currency: 'EUR' });
+      expect(res.text.split('\n')[0]).toBe(
+        'logged: ¥4,000 museum (≈€24.49) on Dean, 3 ways (not Henry, Jordan, Priya) → €8.16 each',
+      );
+    });
+
+    it('r2 #4: a converted total under a cent each is asked about, never "1 ways"', async () => {
+      const h = harness();
+      const res = await run(h, { ...museum, amountMinor: 1, currency: 'JPY' }, withFx(h));
+      expect(res).toEqual({
+        kind: 'clarify',
+        question: 'what was the museum in euros? ¥1 comes to under €0.01 each split 3 ways',
+      });
+      expect(h.runtime.stores.group.expenses.listByTrip(T)).toHaveLength(0);
+      // just one person on it: €0.01 is fine
+      const solo = await run(
+        h,
+        {
+          ...museum,
+          amountMinor: 1,
+          currency: 'JPY',
+          split: { method: 'equal', participants: ['Dean'] },
+        },
+        withFx(h, { messageId: 'msg_solo' }),
+      );
+      expect(solo.kind).toBe('logged');
+    });
+
+    it('r2 #4: a trip-currency equal split that rounds someone to zero lists shares, not "2 ways"', async () => {
+      const h = harness();
+      const res = await run(h, { ...museum, amountMinor: 2, currency: 'EUR' }, ctx(h));
+      if (res.kind !== 'logged') throw new Error(res.kind);
+      expect(res.text).not.toMatch(/ways/);
+      expect(res.text.split('\n')[0]).toMatch(/^logged: €0\.02 museum on Dean · /);
     });
   });
 
