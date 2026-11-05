@@ -155,4 +155,4 @@ When all P0 tasks are done (or time/budget is running out): run `qa-tester` on e
 - Open questions for Dean, ranked by importance.
 
 ## 8. Reference scenarios
-Use the three trips in `MOTIVATION.md` (Lisbon, Turks and Caicos, Barcelona) as fixtures, evals, and demo scripts. **Barcelona is the flagship.** The Razzmatazz moment must work flawlessly: "@trav get the 5 of us Razzmatazz tickets, Henry's sick" → approval → mock purchase → receipt in chat → per-person QR codes → ledger split among only those 5.
+Use the three trips in `MOTIVATION.md` (Lisbon, Turks and Caicos, Barcelona) as fixtures, evals, and demo scripts. **Barcelona is the flagship.** The Razzmatazz moment must work flawlessly: "@trav get the 5 of us Razzmatazz tickets, Henry's sick" → ApprovalPolicy auto-approves (explicit ask, general-purpose, under the group's cap; see T-168) → mock purchase → receipt in chat → per-person QR codes → ledger split among only those 5.

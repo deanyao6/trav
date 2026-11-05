@@ -16,7 +16,7 @@ Run the full protocol in `CLAUDE.md` §5, autonomously, without asking me anythi
 6. **Phase 5:** when P0 is done, run `qa-tester` on every journey, fix what it finds, verify `pnpm demo:barcelona` runs end to end, write `MORNING_REPORT.md`, then continue on P1.
 
 **Usage budget (this run is limited by Dean's Claude plan usage, not by time). These rules override §5 of CLAUDE.md where they conflict:**
-- Never have more than **2 subagents in flight at once**, counting every agent type. Prefer finishing one task through review and commit over starting new ones.
+- Never have more than **4 subagents in flight at once**, counting every agent type. Run parallel builders only on tasks that touch disjoint packages (see the tags in the backlog), and use git worktrees when two builders would share a package. Prefer finishing a task through review and commit over starting new ones.
 - Never pass a `model` override when spawning agents; every agent uses the model in its frontmatter (Opus).
 - **Max 2 builder↔reviewer rounds per task** (not 3). After round 2, if only minor flaws remain, fix them yourself or log them and move on.
 - Tell each reviewer to review only the task's diff (`git diff` against the last commit before the task) plus the files it touches, not the whole repo, and not to leave probe files behind.
