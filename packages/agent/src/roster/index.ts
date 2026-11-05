@@ -436,10 +436,10 @@ const TICKET_WORD = String.raw`(?:one|a ticket|a tix|a spot|1)`;
  * ("can i get one too", "grab me a ticket for razz too pls"). An "in case …"
  * / "if …" tail is matched only to recognize the sentence: it often carries
  * a health reason ("in case i feel better later") and is never returned.
- * The tail is one clause (no "," or ";" inside it).
+ * The tail is one clause (no "," ";" "." "?" "!" or line break inside it, T-137 r2 #3).
  */
 const ME_TICKET = new RegExp(
-  String.raw`^(?:(?:ok|okay|wait|hey|actually|pls|please)\s+)*${TICKET_ASK}\s+${TICKET_WORD}(?:\s+(?:for|to)\s+${HINT})?${WHEN}\s+(?:too|as well)(?:\s+(?:pls|plz|please))?(?:,?\s+(?:just\s+)?(?:in case|if|for later|for when)\b(?<tail>[^,;]{0,60}))?$`,
+  String.raw`^(?:(?:ok|okay|wait|hey|actually|pls|please)\s+)*${TICKET_ASK}\s+${TICKET_WORD}(?:\s+(?:for|to)\s+${HINT})?${WHEN}\s+(?:too|as well)(?:\s+(?:pls|plz|please))?(?:,?\s+(?:just\s+)?(?:in case|if|for later|for when)\b(?<tail>[^,;.?!\n]{0,60}))?[.!?]*$`,
   'iu',
 );
 /**

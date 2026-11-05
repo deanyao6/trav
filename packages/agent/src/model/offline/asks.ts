@@ -12,6 +12,8 @@
  *  - a place to stay ⇒ `search_lodging` (round 2 is a script when one
  *    matches, else a line from the results; stays aren't bookable yet).
  *  - "remember …" ⇒ `remember` (never health details).
+ *  - a personal budget in a DM ⇒ `remember` (scope me, the figure only,
+ *    never the reason; T-134).
  *  - asks Trav can't do yet (restaurants, tables, a numbered option, a
  *    personal cap) ⇒ one honest line that says so (VOICE §1 "honest about
  *    what it can't do"), with no made-up numbers.
@@ -20,7 +22,7 @@
  * tool result from anything else is never theirs to answer. Each returns
  * `undefined` to pass.
  */
-import { formatMoney, money } from '@trav/core';
+import { formatMoney, money, parseDecimal } from '@trav/core';
 import type { CurrencyCode } from '@trav/core';
 import { loadAllTicketInventories } from '@trav/adapters';
 import type {
@@ -1074,6 +1076,122 @@ export const rememberResponder: FallbackResponder = {
   },
 };
 
+// ---------- a personal budget, told in a DM (T-134) ----------
+
+/**
+ * "can you keep my share under 80 a day", "my budget is €60 a day", "i can
+ * only spend 300 for the trip". The intent has to come before the figure.
+ */
+const BUDGET_INTENT_RE =
+  /\b(?:(?:keep|cap|limit|hold)\s+(?:my\s+(?:daily\s+)?(?:share|spend(?:ing)?|budget|part|costs?|total)|me)|my\s+(?:daily\s+)?(?:share|spend(?:ing)?|budget|limit|cap)|i\s+(?:can|could)\s+(?:only\s+)?(?:spend|afford)|i\s+can\s+only\s+do|(?:don'?t|do not|never)\s+let\s+(?:my\s+(?:share|spend(?:ing)?|part|costs?)|me)\s+go)\b/;
+const BUDGET_FIGURE_RE =
+  /(?:\b(?<bound>under|below|less than|no more than|at most|max(?:imum)?|tops|up to|over|above|past|around|about|roughly)\s+)?(?<sym>[€$£])?\s?(?<num>\d{1,6}(?:\.\d{1,2})?)(?![\d:])\s*(?<code>eur|euros?|usd|dollars?|bucks|gbp|pounds?|quid)?\b\s*(?<per>(?:a|per|each|\/)\s*(?:day|night|week)|daily|nightly|weekly|for the (?:whole )?trip|(?:in )?total)?/;
+/** Money already spent belongs to the expense flow, never to a budget note. */
+const SPENT_RE = /\b(?:i paid|paid for|i covered|i bought|i got everyone|split (?:it|this|with))\b/;
+const QUESTION_LEAD_RE = /^(?:what|whats|what's|how|is|am|are|did|does|where|why|when|which)\b/;
+
+const SYMBOL_CURRENCY: Readonly<Record<string, CurrencyCode>> = {
+  '€': 'EUR' as CurrencyCode,
+  $: 'USD' as CurrencyCode,
+  '£': 'GBP' as CurrencyCode,
+};
+const WORD_CURRENCY: Readonly<Record<string, CurrencyCode>> = {
+  eur: 'EUR' as CurrencyCode,
+  euro: 'EUR' as CurrencyCode,
+  euros: 'EUR' as CurrencyCode,
+  usd: 'USD' as CurrencyCode,
+  dollar: 'USD' as CurrencyCode,
+  dollars: 'USD' as CurrencyCode,
+  bucks: 'USD' as CurrencyCode,
+  gbp: 'GBP' as CurrencyCode,
+  pound: 'GBP' as CurrencyCode,
+  pounds: 'GBP' as CurrencyCode,
+  quid: 'GBP' as CurrencyCode,
+};
+
+function boundWord(bound: string | undefined): string {
+  if (bound === undefined) return 'to';
+  if (/^(?:under|below|less than|over|above|past)$/.test(bound)) return 'under';
+  if (/^(?:around|about|roughly)$/.test(bound)) return 'around';
+  return 'at most';
+}
+
+function periodWords(per: string | undefined): string | undefined {
+  if (per === undefined) return undefined;
+  if (/day|daily/.test(per)) return 'a day';
+  if (/night/.test(per)) return 'a night';
+  if (/week/.test(per)) return 'a week';
+  return 'for the trip';
+}
+
+/** The tab's currency named in the system prompt ("tab in EUR", else "currency EUR"). */
+export function promptCurrency(system: string): CurrencyCode | undefined {
+  const code = /\btab in ([A-Z]{3})\b/.exec(system)?.[1] ?? /\bcurrency ([A-Z]{3})\b/.exec(system)?.[1];
+  return code as CurrencyCode | undefined;
+}
+
+/**
+ * A personal budget ask ⇒ the fact to keep, built only from the figure, its
+ * bound and its period (never the member's words), so the reason ("money's
+ * tight this semester") is never stored (SAFETY §2.3, fail closed). An
+ * unmarked figure takes the tab's currency; with none known it stays bare.
+ */
+export function parsePrivateBudgetAsk(
+  text: string,
+  tabCurrency?: CurrencyCode,
+): string | undefined {
+  const t = foldText(text).replace(/\s+/g, ' ').trim();
+  if (SPENT_RE.test(t)) return undefined;
+  if (QUESTION_LEAD_RE.test(t) && !/\b(?:keep|cap|limit|hold)\b/.test(t)) return undefined;
+  const intent = BUDGET_INTENT_RE.exec(t);
+  if (intent === null) return undefined;
+  const clause = t.slice(intent.index + intent[0].length).split(/[?!;]|\.(?!\d)/)[0] ?? '';
+  const fig = BUDGET_FIGURE_RE.exec(clause)?.groups;
+  if (fig?.['num'] === undefined) return undefined;
+  const sym = fig['sym'];
+  const code = fig['code'];
+  const currency =
+    (sym !== undefined ? SYMBOL_CURRENCY[sym] : undefined) ??
+    (code !== undefined ? WORD_CURRENCY[code] : undefined) ??
+    tabCurrency;
+  let amount = fig['num'];
+  if (currency !== undefined) {
+    try {
+      const m = parseDecimal(fig['num'], currency);
+      if (m.amountMinor <= 0) return undefined;
+      amount = formatMoney(m);
+    } catch {
+      amount = `${fig['num']} ${currency}`;
+    }
+  } else if (Number(fig['num']) <= 0) return undefined;
+  const per = periodWords(fig['per']);
+  return `keep my share ${boundWord(fig['bound'])} ${amount}${per === undefined ? '' : ` ${per}`}`;
+}
+
+/**
+ * DM lane only: the budget goes to the sender's private memory (scope `me`,
+ * category `budget`, `sourceLane: 'private'`); the tool's reply confirms what
+ * was kept and that the group won't see it. In the group thread the honest
+ * "can't hold a personal cap" line still answers.
+ */
+export const privateBudgetResponder: FallbackResponder = {
+  id: 'private_budget_v1',
+  complete(req) {
+    if (req.systemPromptId !== 'dm_chat_v1' || !offered(req, 'remember')) return undefined;
+    const ask = freshAsk(req);
+    if (ask === undefined) return undefined;
+    const fact = parsePrivateBudgetAsk(ask.text, promptCurrency(req.system));
+    if (fact === undefined) return undefined;
+    return response(req, '', [
+      call(req, 'toolu_offline_budget_', 1, 'remember', {
+        text: fact,
+        category: 'budget',
+        scope: 'me',
+      }),
+    ]);
+  },
+};
+
 // ---------- what Trav can't do yet ----------
 
 const OPTION_RE =
@@ -1124,6 +1242,7 @@ export function travAskResponders(): readonly FallbackResponder[] {
     createBookingRequestResponder(),
     createVenueQuestionResponder(),
     rememberResponder,
+    privateBudgetResponder,
     honestGapsResponder,
   ];
 }

@@ -52,7 +52,6 @@ export const LINE_PENDING: Readonly<Record<string, LinePending>> = Object.fromEn
   // question on msg_bcn_0163, which offline asks none until T-143.
   ...gap('T-143', 'reply to msg_bcn_0163: no Trav question, so no reply window', ['msg_bcn_0164']),
   ...gap('T-084', 'no FX for chat expenses', ['msg_bcn_0063']),
-  ...gap('T-134', 'private budget DM is not remembered offline', ['msg_bcn_d_0002']),
   ...gap('T-083', 'receipt photo waits for the payer 👍 (SAFETY D5) the fixture lacks', [
     'msg_bcn_0093',
     'msg_bcn_0161',

@@ -32,7 +32,7 @@ export const GROUP_CHAT_PROMPT: PromptTemplate = {
 /** Private DM lane (one member ↔ Trav). */
 export const DM_CHAT_PROMPT: PromptTemplate = {
   systemPromptId: 'dm_chat_v1',
-  persona: `${VOICE_RULES}\nyou are in a private thread with one member. what they tell you here stays here: never repeat it in the group unless they said it there.`,
+  persona: `${VOICE_RULES}\nyou are in a private thread with one member. what they tell you here stays here: never repeat it in the group unless they said it there.\nif they give you a personal budget, remember it (scope me, category budget) as the figure only, e.g. "keep my share under €80 a day". never store or repeat why.`,
 };
 
 /** Fast classifier for ambiguous mentions (VOICE §2). */

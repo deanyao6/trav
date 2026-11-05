@@ -781,6 +781,25 @@ describe('"@trav drop that one"', () => {
     return { w, msg };
   }
 
+  // T-137 r2 #2: the late-joiner cancel intercept never swallows a photo drop on a quoted recap.
+  it.each(['@trav drop that one', 'drop that one'])(
+    '"%s" quoting the recap is still a photo drop, not a cancel',
+    async (text) => {
+      const { w, msg } = await postedRecap();
+      const turn = await w.h.say('h_sam', text, { replyToMessageId: msg.id });
+      expect(turn.note).toMatch(/^drop_photo:/);
+    },
+  );
+
+  it.each(['drop this', '@trav drop that'])(
+    '"%s" quoting the recap is never the cancel line (it was never a photo drop either)',
+    async (text) => {
+      const { w, msg } = await postedRecap();
+      const turn = await w.h.say('h_sam', text, { replyToMessageId: msg.id });
+      expect(turn.note).not.toBe('cancel:quoted_not_a_proposal');
+    },
+  );
+
   it('with several photos it asks which, then "photo 2" drops exactly that one, audited, for good', async () => {
     const { w, msg } = await postedRecap();
     const which = await w.h.say('h_jordan', '@trav drop that one');

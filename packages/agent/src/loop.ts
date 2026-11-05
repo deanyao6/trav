@@ -1703,14 +1703,29 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       // handed to the model's cancel either. One line, nothing changes. A
       // still-open expense card (a receipt read, a looks-shared ask) keeps
       // its own flow below.
+      // A quoted proposal card that is no longer pending (booked, expired,
+      // dropped): same, one line; the model's cancel tool would otherwise drop
+      // some other card of the sender's (T-137 r2 #1).
+      const quotedProposal =
+        boundRef?.proposalId === undefined
+          ? undefined
+          : stores.group.bookings.getProposal(boundRef.proposalId);
+      const quotedDone =
+        quotedProposal !== undefined &&
+        quotedProposal.status !== 'pending' &&
+        // a superseded card follows its replacement, as on a 👎
+        quotedProposal.status !== 'superseded';
       if (
         boundRef !== undefined &&
-        boundRef.proposalId === undefined &&
-        !(boundRef.card.type === 'expense_confirm' && boundRef.card.status !== 'logged')
+        (quotedDone ||
+          (boundRef.proposalId === undefined &&
+            !(boundRef.card.type === 'expense_confirm' && boundRef.card.status !== 'logged') &&
+            // "drop that one" on a recap is a photo drop (T-015), never a cancel (r2 #2).
+            !(boundRef.card.type === 'recap' && /\bdrop\b/i.test(rawText))))
       ) {
         recordInbound();
         const line =
-          boundRef.card.type === 'receipt'
+          boundRef.card.type === 'receipt' || quotedProposal?.status === 'completed'
             ? QUOTED_RECEIPT_CANCEL_TEXT
             : isLoggedExpenseCard(boundRef)
               ? QUOTED_EXPENSE_CANCEL_TEXT

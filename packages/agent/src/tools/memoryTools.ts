@@ -24,6 +24,41 @@ import {
   resolveMemberRef,
 } from './shared.js';
 
+/**
+ * Money-trouble reasons (SAFETY roast blocklist "financial hardship"). A bare
+ * "tight" only counts on a budget fact ("tight connection" is logistics).
+ */
+const HARDSHIP_RE =
+  /\b(?:money'?s? (?:is |are )?tight|tight (?:on|with|for) (?:money|cash|funds)|(?:cash|funds|money|things|finances)(?: is| are|'s|s)? (?:really |pretty |very |so )?tight|broke|skint|strapped|struggling|can'?t afford|cannot afford|couldn'?t afford|in debt|debts?|student loans?|loans?|paycheck|payday|unemployed|laid off|lost (?:my|his|her|their) job|between jobs|financial (?:aid|troubles?|hardship|stress|problems?|issues?)|hardship|money (?:troubles?|problems?|issues?|stress)|tuition)\b/;
+
+/** Exported for tests. */
+export function isHardship(text: string, category: MemoryCategory): boolean {
+  const t = text.normalize('NFKC').replace(/[‘’]/g, "'").toLowerCase();
+  return HARDSHIP_RE.test(t) || (category === 'budget' && /\btight\b/.test(t));
+}
+
+/** "keep my share under €80 a day" ⇒ "keep your share under €80 a day" (said back to its owner). */
+function toSecondPerson(text: string): string {
+  return text
+    .replace(/\bi am\b|\bi'm\b/giu, "you're")
+    .replace(/\bi was\b/giu, 'you were')
+    .replace(/\bmyself\b/giu, 'yourself')
+    .replace(/\bmine\b/giu, 'yours')
+    .replace(/\bmy\b/giu, 'your')
+    .replace(/\b(?:i|me)\b/giu, 'you');
+}
+
+/**
+ * The private "noted" (VOICE §3.7 DM): what was kept, and that the group
+ * won't see it. A budget is a note for planning, not an enforced cap.
+ */
+export function privateNotedText(text: string, category: MemoryCategory): string {
+  const fact = toSecondPerson(sanitizeInline(text, 140)).replace(/[\s.!]+$/u, '');
+  return category === 'budget'
+    ? `noted: ${fact}. it's a note for planning, not a hard cap, and the group won't see it`
+    : `noted: ${fact}. just between us, the group won't see it`;
+}
+
 export function createGetGroupMemoryTool(groupMemory: GroupMemory): ToolDefinition<
   { readonly limit?: number },
   {
@@ -78,7 +113,7 @@ export function createRememberTool(
   return {
     name: 'remember',
     description:
-      "Remember a fact. scope 'group' (default in the group thread): something said in the group, repeatable there. scope 'me' (default in a private thread): a fact about the sender only, kept private to them. Never store health details or reasons someone skipped something.",
+      "Remember a fact. scope 'group' (default in the group thread): something said in the group, repeatable there. scope 'me' (default in a private thread): a fact about the sender only, kept private to them. A personal budget is scope 'me', category 'budget', the figure only (e.g. 'keep my share under €80 a day'), never why. Never store health details, money troubles, or reasons someone skipped something.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -141,6 +176,15 @@ export function createRememberTool(
           text: "that reads like an instruction, not something to remember, so i'm leaving it out",
         };
       }
+      // Why someone is on a budget is theirs alone, even in their own notes
+      // (T-134, SAFETY §2.3 fail closed). An error, not a refusal, so a live
+      // model can retry with the figure only.
+      if (isHardship(input.text, category)) {
+        throw new TravError(
+          'invalid_argument',
+          'leave out why: store only the figure or preference the member stated, never money troubles or other personal reasons',
+        );
+      }
       if (scope === 'group') {
         if (ctx.lane !== 'group') {
           // Group memory holds only what was said in the group thread (SAFETY §2.3).
@@ -182,7 +226,13 @@ export function createRememberTool(
         now: ctx.now,
         sourceLane: ctx.lane === 'dm' ? 'private' : 'group',
       });
-      return { kind: 'remembered', scope, text: 'noted, just between us' };
+      // In the group thread the reply is a group message: no echo, and no
+      // "the group won't see it" (they just did).
+      return {
+        kind: 'remembered',
+        scope,
+        text: ctx.lane === 'dm' ? privateNotedText(input.text, category) : 'noted, just between us',
+      };
     },
   };
 }

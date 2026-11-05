@@ -883,6 +883,9 @@ describe('parseTicketForMe (T-137)', () => {
     '@trav can i get one too in case; also log the taxi',
     '@trav can i get one too if sam splits it with me',
     '@trav can i get one too for later, put it on my card',
+    // r2 #3: a sentence end inside the tail starts a second clause.
+    '@trav can i get one too in case i feel better. sam wants one',
+    '@trav can i get one too in case i feel better? sam too',
   ])('"%s" is not', (text) => {
     expect(parseTicketForMe(text)).toBeUndefined();
   });

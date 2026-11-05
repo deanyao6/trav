@@ -1598,6 +1598,22 @@ describe('T-137: "can i get one too" and its cancel', () => {
     expect(status(h, addOn.proposalId)).toBe('rejected');
   });
 
+  // T-137 r2 #1: the booked proposal card is not a way to drop some other card.
+  it('"cancel that" quoting the booked proposal card drops nothing and never reaches the model', async () => {
+    const { h, fake } = rig();
+    const { cardMessageId } = await propose(h);
+    await h.tap('h_dean', cardMessageId, 'approve');
+    await h.say('h_henry', ASK);
+    const addOn = h.pending()[0]!;
+    h.clock.advanceMs(10 * 60 * 1000);
+    const turn = await h.say('h_henry', 'cancel that', { replyToMessageId: cardMessageId });
+    expect(turn.toolCalls).toEqual([]);
+    expect(groupMessages(turn).map((m) => m.text)).toEqual([QUOTED_RECEIPT_CANCEL_TEXT]);
+    expect(status(h, addOn.proposalId)).toBe('pending');
+    expect(h.audit().filter((e) => e.type === 'approval.rejected')).toEqual([]);
+    expect(fake.calls).toHaveLength(1);
+  });
+
   it('r1 #1: inside the window, a quote of the booking receipt binds to nothing', async () => {
     const { h, fake } = rig();
     const { cardMessageId } = await propose(h);
