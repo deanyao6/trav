@@ -284,7 +284,7 @@
       "maxPerOrder": 10,
       "refundPolicy": {
         "refundable": true,
-        "refundableUntil": "2026-04-18T18:00:00+01:00",
+        "refundableUntil": "2026-04-19T15:00:00+01:00",
         "summary": "full refund before the deadline"
       },
       "deliveryMethod": "per_person_qr",
@@ -329,7 +329,7 @@
       "maxPerOrder": 10,
       "refundPolicy": {
         "refundable": true,
-        "refundableUntil": "2026-04-16T12:00:00+01:00",
+        "refundableUntil": "2026-04-16T18:30:00+01:00",
         "summary": "full refund before the deadline"
       },
       "deliveryMethod": "per_person_qr",
@@ -397,7 +397,7 @@
       "maxPerOrder": 10,
       "refundPolicy": {
         "refundable": true,
-        "refundableUntil": "2026-04-15T18:00:00+01:00",
+        "refundableUntil": "2026-04-16T08:30:00+01:00",
         "summary": "full refund before the deadline"
       },
       "deliveryMethod": "per_person_qr",

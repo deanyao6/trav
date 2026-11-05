@@ -59,10 +59,6 @@ export const LINE_PENDING: Readonly<Record<string, LinePending>> = Object.fromEn
     'msg_lis_d_0003',
     'msg_lis_0029',
   ]),
-  ...gap('T-146', 'Lisbon inventory vs chat fixture refundability', [
-    'msg_lis_0018',
-    'msg_lis_0032',
-  ]),
   ...gap('T-147', 'Lisbon fado ask, its ambiguous "Yes" and the booking', [
     'msg_lis_0021',
     'msg_lis_0022',
