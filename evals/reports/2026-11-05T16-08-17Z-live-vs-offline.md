@@ -3,16 +3,25 @@
 - **offline:** report `2026-11-05T15-40-28Z`, mode `offline` (TRAV_OFFLINE is set); split all: 160 of 160 scenarios; no live spend; safety failures 0
 - **live:** report `2026-11-05T16-08-17Z`, mode `live` (--live, key present, spend guard allows (budget $45)); split all: 160 of 160 scenarios; total $9.60, this run $8.03, run cap $8.00, budget $45.00; models main=claude-sonnet-5-5, fast=claude-haiku-5-5, grader=claude-opus-5-5; safety failures 17
 
+## Read this first
+
+- **live (`2026-11-05T16-08-17Z`): 600 rubric grader calls failed, in 150 of 160 scenarios**: grader call failed: live model call failed: Error (status 400). Those results are skipped, never passes, so the rubric part of those scenarios' scores is missing.
+- **Every rubric grader call in the live run 16-08-17Z failed with HTTP 400** (600 failed rubric results in 150 of 160 scenarios; the other 10 had nothing to grade): same schema bug as 15-50-43Z, fixed after this run. .trav/spend.json recorded no claude-opus-5-5 call after this run. So no live score here contains any rubric signal.
+- Live Trav calls were not recorded per scenario (this summary predates modelCalls). The run added $8.03 to .trav/spend.json, all on claude-sonnet-5-5 and claude-haiku-5-5. The paraphrase exclusion and expense areas take the same deterministic parser path as in 15-50-43Z, where they made no live calls; this run did not observe that separately.
+- The 17 live safety failures are real findings, not artifacts of the failed rubric (rubric is not a safety grader): see the 16-08-17Z report's safety section.
+
 ## By area
 
-| area | scenarios | offline score | offline passed | live score | live passed | Δ (pts) |
-|---|---|---|---|---|---|---|
-| exclusion | 21 | 95.2% | 17/21 | 95.2% | 17/21 | +0.0 |
-| expense | 21 | 95.5% | 18/21 | 95.5% | 18/21 | +0.0 |
-| razz | 22 | 88.6% | 13/22 | 96.7% | 20/22 | +8.1 |
-| settle | 21 | 93.2% | 3/21 | 93.1% | 3/21 | -0.2 |
-| other | 75 | 99.5% | 64/75 | 95.8% | 44/75 | -3.7 |
-| all | 160 | 96.1% | 115/160 | 95.5% | 102/160 | -0.6 |
+Live Trav calls: model calls Trav made (from the summary's `modelCalls`); `0: no live calls (deterministic path)` means the score measures code, not the model. Grader calls: results skipped because the grader call itself failed / all other skipped results.
+
+| area | scenarios | offline score | offline passed | live score | live passed | Δ (pts) | offline live Trav calls | live live Trav calls | offline grader calls failed / skipped | live grader calls failed / skipped |
+|---|---|---|---|---|---|---|---|---|---|---|
+| exclusion | 21 | 95.2% | 17/21 | 95.2% | 17/21 | +0.0 | offline | not recorded | 0 / 401 | 84 / 380 |
+| expense | 21 | 95.5% | 18/21 | 95.5% | 18/21 | +0.0 | offline | not recorded | 0 / 401 | 84 / 380 |
+| razz | 22 | 88.6% | 13/22 | 96.7% | 20/22 | +8.1 | offline | not recorded | 0 / 402 | 88 / 353 |
+| settle | 21 | 93.2% | 3/21 | 93.1% | 3/21 | -0.2 | offline | not recorded | 0 / 381 | 84 / 360 |
+| other | 75 | 99.5% | 64/75 | 95.8% | 44/75 | -3.7 | offline | not recorded | 0 / 1299 | 260 / 1258 |
+| all | 160 | 96.1% | 115/160 | 95.5% | 102/160 | -0.6 | offline | not recorded | 0 / 2884 | 600 / 2731 |
 
 ## By scenario
 

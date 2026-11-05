@@ -23,6 +23,7 @@ import {
 } from './cli.js';
 import { rubric } from './graders/quality.js';
 import { selectionKey } from './reports.js';
+import { offlineModelFactory } from './runner/run.js';
 import { loadScenarios } from './scenarios.js';
 import { episode, scenario } from './testing.js';
 import type { Scenario } from './types.js';
@@ -401,6 +402,83 @@ describe('runAll / main', () => {
     expect(errs.join('\n')).toMatch(
       /unknown argument --bogus[\s\S]*no scenarios match[\s\S]*tags\[0\]: must be one of[\s\S]*"nope"/,
     );
+  });
+
+  it('--max-spend: a live run stops starting scenarios at the cap and says so (stubbed, no network)', async () => {
+    const four = ['a', 'b', 'c', 'd'].map((x) => ({ ...CLEAN, id: `cap_${x}` }));
+    const w = workspace(four);
+    // A "live" decision: key present, TRAV_OFFLINE unset, the fake guard has headroom.
+    const env = {
+      TRAV_ANTHROPIC_API_KEY: 'sk-ant-test-not-a-real-key-000',
+      TRAV_STATE_DIR: w.env.TRAV_STATE_DIR,
+    };
+    let total = 10; // the guard's running total before this run
+    let factoryCalls = 0;
+    const offline = offlineModelFactory(w.env.TRAV_STATE_DIR);
+    const lines: string[] = [];
+    const r = await runAll(
+      {
+        ...parseArgs(['--no-static', '--live', '--max-spend', '2.5']),
+        scenariosDir: w.dir,
+        out: w.out,
+      },
+      env,
+      (l) => lines.push(l),
+      {
+        spend: { canSpend: () => true, totalUsd: () => total },
+        // Each scenario's model client "costs" $1 (scripted responses underneath).
+        modelFactory: (clock) => {
+          factoryCalls += 1;
+          total += 1;
+          return offline(clock);
+        },
+        rubricJudge: { judge: () => Promise.resolve({ score: 1, rationale: 'stub' }) },
+      },
+    );
+    // $1, $2 (< $2.50) → keep going; after the third the run has added $3 ≥ $2.50 → stop before d.
+    expect(r.outcomes.map((o) => o.scenario.id)).toEqual(['cap_a', 'cap_b', 'cap_c']);
+    expect(factoryCalls).toBe(3);
+    expect(lines[0]).toMatch(/mode LIVE/);
+    const stopped =
+      'run spend cap $2.50 reached ($3.00 this run) after 3 of 4 scenarios; next was cap_d';
+    expect(lines).toContain(`  stopped: ${stopped}`);
+    const json = JSON.parse(readFileSync(r.reportPath!.replace(/\.md$/, '.json'), 'utf8')) as {
+      mode: string;
+      selection: string;
+      stoppedEarly?: string;
+      spend?: { totalUsd: number; runUsd?: number; maxRunUsd?: number; budgetUsd?: number };
+      scenarios: unknown[];
+    };
+    expect(json.mode).toBe('live');
+    expect(json.stoppedEarly).toBe(stopped);
+    expect(json.spend).toEqual({ totalUsd: 13, runUsd: 3, maxRunUsd: 2.5, budgetUsd: 45 });
+    expect(json.scenarios).toHaveLength(3);
+    // Relabelled selection: a cut-short run is never the baseline of a full run with the same flags.
+    expect(json.selection).toMatch(/ \(stopped early: 3 run\)$/);
+    const full = json.selection.replace(/ \(stopped early: 3 run\)$/, '');
+    expect(selectionKey(json.selection)).not.toBe(selectionKey(full));
+    const md = readFileSync(r.reportPath!, 'utf8');
+    expect(md).toContain(
+      '- **Live spend so far:** $13.00 of the $45.00 budget; this run $3.00 (run cap $2.50)',
+    );
+    expect(md).toContain(`- **Stopped early:** ${stopped}`);
+  });
+
+  it('--max-spend is ignored offline (no cap, every scenario runs)', async () => {
+    const w = workspace(['a', 'b'].map((x) => ({ ...CLEAN, id: `off_${x}` })));
+    const r = await runAll(
+      { ...parseArgs(['--no-static', '--max-spend', '0.01']), scenariosDir: w.dir, out: w.out },
+      w.env,
+      () => {},
+      { spend: { canSpend: () => true, totalUsd: () => 99 } },
+    );
+    expect(r.outcomes).toHaveLength(2);
+    const json = JSON.parse(readFileSync(r.reportPath!.replace(/\.md$/, '.json'), 'utf8')) as {
+      stoppedEarly?: string;
+      spend?: unknown;
+    };
+    expect(json.stoppedEarly).toBeUndefined();
+    expect(json.spend).toBeUndefined();
   });
 
   it('--no-report writes nothing', async () => {

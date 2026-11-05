@@ -273,7 +273,8 @@ export function createRubricJudge(model: ModelClient): RubricJudge {
           },
         ],
         tools: [],
-        maxTokens: 300,
+        // 300 cut off the grader model's JSON in 10 of 189 live calls (16-21-05Z: "non-JSON"); output is billed as used.
+        maxTokens: 1024,
         jsonSchema: {
           type: 'object',
           properties: { score: { type: 'number' }, rationale: { type: 'string' } },
@@ -346,27 +347,45 @@ export interface RunAllResult {
   readonly reportPath?: string;
 }
 
+/**
+ * Test seams for `runAll` (T-184). Production passes none: the spend view is
+ * the file guard on `<stateDir>/spend.json`, models and the rubric judge come
+ * from the environment. Tests stub them so a "live" run makes no network call.
+ */
+export interface RunAllDeps {
+  readonly spend?: { canSpend(): boolean; totalUsd(): number };
+  readonly modelFactory?: (clock: SimulatedClock) => ModelClient;
+  readonly rubricJudge?: RubricJudge;
+}
+
 export async function runAll(
   args: CliArgs,
   env: Readonly<Record<string, string | undefined>>,
   log: (line: string) => void = (l) => console.log(l),
+  deps: RunAllDeps = {},
 ): Promise<RunAllResult> {
   const modelEnv = readModelEnv(env);
   const systemClock: Clock = createSystemClock();
   const spendFile = join(modelEnv.stateDir, 'spend.json');
-  const guard = () =>
+  const fileGuard = () =>
     createFileSpendGuard({
       filePath: spendFile,
       budgetUsd: modelEnv.liveBudgetUsd,
       pricing: DEFAULT_MODEL_PRICING,
       clock: systemClock,
     });
-  const decision = decideMode(env, () => guard().canSpend(), args.live);
+  const spend = deps.spend ?? {
+    canSpend: () => fileGuard().canSpend(),
+    totalUsd: () => fileGuard().current().estimatedUsd,
+  };
+  const decision = decideMode(env, () => spend.canSpend(), args.live);
   const modelFactory: (clock: SimulatedClock) => ModelClient =
-    decision.mode === 'live' ? liveModelFactory(env) : offlineModelFactory(modelEnv.stateDir);
+    deps.modelFactory ??
+    (decision.mode === 'live' ? liveModelFactory(env) : offlineModelFactory(modelEnv.stateDir));
   const rubricJudge =
     decision.mode === 'live'
-      ? createRubricJudge(createModelClient({ env: modelEnv, clock: systemClock }))
+      ? (deps.rubricJudge ??
+        createRubricJudge(createModelClient({ env: modelEnv, clock: systemClock })))
       : undefined;
 
   const { scenarios, selection } = selectScenarios(
@@ -377,7 +396,7 @@ export async function runAll(
   log(`trav eval: ${selection}, mode ${decision.mode.toUpperCase()} (${decision.note})`);
   const cap =
     decision.mode === 'live' && args.maxSpendUsd !== undefined
-      ? createRunSpendCap(() => guard().current().estimatedUsd, args.maxSpendUsd)
+      ? createRunSpendCap(() => spend.totalUsd(), args.maxSpendUsd)
       : undefined;
   let stoppedEarly: string | undefined;
   const outcomes: ScenarioOutcome[] = [];
@@ -436,7 +455,7 @@ export async function runAll(
     ...(decision.mode === 'live'
       ? {
           models: { ...modelEnv.models },
-          spendUsd: guard().current().estimatedUsd,
+          spendUsd: spend.totalUsd(),
           budgetUsd: modelEnv.liveBudgetUsd,
           ...(cap !== undefined ? { runSpendUsd: cap.runUsd(), maxSpendUsd: cap.maxUsd } : {}),
         }

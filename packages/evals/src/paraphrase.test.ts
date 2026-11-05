@@ -9,10 +9,13 @@
  *   within one cent, odd cents on the payer first (core `splits.ts`); every
  *   settle-up's expected transfers net to exactly what its logged expenses
  *   imply, within the n−1 transfer bound;
- * - contamination: no line under test repeats, contains, or nearly matches
- *   (word Jaccard ≥ 0.8) any string in another scenario file, a fixture, or a
- *   test in packages/ or apps/ (the T-081 lesson: a held-out line copied from
- *   a test is no longer held out).
+ * - contamination: no line equals, exactly or once normalized, any string in
+ *   another scenario file, a fixture, or a test in packages/ or apps/ (short
+ *   strings included); no line under test contains or nearly matches (word
+ *   Jaccard ≥ 0.8) one of those strings of 4+ words (the T-081 lesson: a
+ *   held-out line copied from a test is no longer held out). Settle-up seed
+ *   lines are setup, not under test: they use one fixed template (`SEED`)
+ *   and are exempt from the near-match check only.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -62,6 +65,16 @@ describe('paraphrase set: size and shape', () => {
   it('is the only file carrying the paraphrase tag', () => {
     const tagged = loadScenarios().filter((s) => s.tags.includes('paraphrase'));
     expect(tagged.map((s) => s.id).sort()).toEqual(all.map((s) => s.id).sort());
+  });
+
+  it('mustNotContain lists only the health detail the asker gave (never chatter like "wiped")', () => {
+    const HEALTH = ['fever', 'a cold', 'threw up', 'food poisoning', 'migraine'];
+    for (const s of all)
+      for (const st of says(s))
+        for (const m of st.expect?.mustNotContain ?? []) {
+          expect(HEALTH).toContain(m);
+          expect(st.text.toLowerCase()).toContain(m);
+        }
   });
 
   it('razz scenarios: one five-person €90 card, never a purchase', () => {
@@ -196,7 +209,7 @@ function jsonStrings(v: unknown, out: string[]): void {
     for (const x of Object.values(v as Record<string, unknown>)) jsonStrings(x, out);
 }
 
-/** Strings a paraphrase must not be copied from: other scenarios, fixtures, and test sources. */
+/** Strings a paraphrase must not be copied from: other scenarios, fixtures, and test sources (raw). */
 function corpus(): string[] {
   const out: string[] = [];
   const root = repoRoot();
@@ -219,7 +232,7 @@ function corpus(): string[] {
       out.push(...literalsOf(f.content));
     }
   }
-  return out.map(normalize).filter((s) => s.split(' ').length >= 4);
+  return out;
 }
 
 /** String literals in a test source ('…' and "…" within a line, `…` across lines). */
@@ -229,15 +242,40 @@ function literalsOf(source: string): string[] {
   );
 }
 
+/**
+ * Settle-up seed lines: ledger setup the scenario does not grade as
+ * paraphrase, so they deliberately use the plainest form the chat parser
+ * reads ("I paid €N for X, split with everyone / me and …"). That form is
+ * common in tests, so seeds are exempt from the near-match check (and only
+ * from that one); the ask after them is checked like every other line.
+ */
+const SEED =
+  /^@trav I paid €\d+(\.\d\d)? for [a-z' ]+, split with (everyone|me and [A-Z][a-z]+( and [A-Z][a-z]+)*)$/;
+
+function linesOf(s: Scenario): { id: string; text: string; seed: boolean }[] {
+  const st = says(s);
+  return st.map((x, i) => ({
+    id: s.id,
+    text: x.text,
+    seed: areaOf(s.id) === 'settle' && i < st.length - 1,
+  }));
+}
+
 describe('paraphrase set: written fresh', () => {
-  const lines = paraphrases().flatMap((s) => says(s).map((st) => ({ id: s.id, text: st.text })));
-  const seen = corpus();
+  const lines = paraphrases().flatMap(linesOf);
+  const raw = corpus();
+  const rawSet = new Set(raw.map((x) => x.trim()));
+  const normSet = new Set(raw.map(normalize));
+  const seen = [...normSet].filter((x) => x.split(' ').length >= 4);
   const seenWords = seen.map(words);
 
   it('the corpus really holds test, scenario and fixture strings (the guard is not vacuous)', () => {
     // The flagship ask lives in tests, scenarios and the Barcelona chat fixture.
     expect(seen).toContain(normalize("@trav get the 5 of us Razzmatazz tickets, Henry's sick"));
     expect(seen.length).toBeGreaterThan(2000);
+    // Short strings stay in the corpus for the equality checks.
+    expect(normSet.has(normalize('yes'))).toBe(true);
+    expect(raw.length).toBeGreaterThan(seen.length);
     const src = `say('@trav it\\'s on me, 3 ways'); t("@trav dinner was 40"); x(\`@trav a\nb\`);`;
     expect(literalsOf(src)).toEqual([
       "@trav it\\'s on me, 3 ways",
@@ -255,9 +293,25 @@ describe('paraphrase set: written fresh', () => {
     expect(new Set(texts).size).toBe(texts.length);
   });
 
-  it('no line repeats, contains, or nearly matches an existing test, scenario or fixture string', () => {
+  it('no line equals any test, scenario or fixture string, exactly or normalized (short ones too)', () => {
+    const hits = lines
+      .filter(({ text }) => rawSet.has(text.trim()) || normSet.has(normalize(text)))
+      .map(({ id, text }) => `${id}: "${text}"`);
+    expect(hits).toEqual([]);
+  });
+
+  it('settle seeds are exactly the setup template, and only settle seeds are exempt', () => {
+    const seeds = lines.filter((l) => l.seed);
+    expect(seeds.length).toBeGreaterThanOrEqual(21);
+    expect(seeds.filter((l) => !SEED.test(l.text)).map((l) => `${l.id}: ${l.text}`)).toEqual([]);
+    // The exemption is by position (setup before the ask), never by content.
+    for (const s of paraphrases().filter((x) => areaOf(x.id) !== 'settle'))
+      expect(linesOf(s).some((l) => l.seed)).toBe(false);
+  });
+
+  it('no line under test contains or nearly matches an existing test, scenario or fixture string', () => {
     const hits: string[] = [];
-    for (const { id, text } of lines) {
+    for (const { id, text } of lines.filter((l) => !l.seed)) {
       const n = normalize(text);
       const w = words(text);
       seen.forEach((c, i) => {

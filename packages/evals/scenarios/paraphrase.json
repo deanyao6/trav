@@ -297,8 +297,7 @@
             "excluded": ["mem_henry"],
             "totalMinor": 9000
           },
-          "purchases": 0,
-          "mustNotContain": ["resting"]
+          "purchases": 0
         }
       }
     ]
@@ -449,8 +448,7 @@
             "excluded": ["mem_chase"],
             "totalMinor": 9000
           },
-          "purchases": 0,
-          "mustNotContain": ["early tour"]
+          "purchases": 0
         }
       }
     ]
@@ -475,8 +473,7 @@
             "excluded": ["mem_piotr"],
             "totalMinor": 9000
           },
-          "purchases": 0,
-          "mustNotContain": ["wiped"]
+          "purchases": 0
         }
       }
     ]

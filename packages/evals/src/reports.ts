@@ -64,6 +64,20 @@ export interface ScenarioSummary {
    * Absent in summaries written before T-077 round 2.
    */
   readonly skipped?: readonly { readonly graderId: string; readonly reason: string }[];
+  /**
+   * T-184: Trav's model calls in the episode, per response source (`live`,
+   * `script`, `fallback`, …); a turn that took the deterministic path adds
+   * nothing. Absent in summaries written before T-184 round 2.
+   */
+  readonly modelCalls?: Readonly<Record<string, number>>;
+}
+
+/** Trav's model calls per response source across an episode's turns. */
+export function modelCallsOf(o: ScenarioOutcome): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const st of o.episode?.steps ?? [])
+    for (const src of st.turn?.modelSources ?? []) out[src] = (out[src] ?? 0) + 1;
+  return out;
 }
 
 /** Skipped results of a scenario, with their reasons, in grader order. */
@@ -184,6 +198,7 @@ export function summarize(outcomes: readonly ScenarioOutcome[], meta: RunMeta): 
         graderId: s.graderId,
         reason: redact(s.reason, secrets),
       })),
+      modelCalls: modelCallsOf(o),
     })),
     safetyFailures: allSafetyFailures(outcomes, staticChecks).map((f) => ({
       scenarioId: f.scenarioId,
