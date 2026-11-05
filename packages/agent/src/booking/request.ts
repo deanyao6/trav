@@ -365,6 +365,17 @@ const NEGATION_CUE =
 /** "never been (here)": about the venue, not the booking (T-148 #3). A whole clause only. */
 const NEVER_BEEN = /(?:^|[,.;!?]\s*)never been(?:\s+(?:here|there|before))?\s*(?=[,.;!?]|$)/g;
 /**
+ * Negated phrases that never take the ask back (T-148 r2 #1, #3): "don't count
+ * me out" (an inclusion), "we've never been", "don't care which tier",
+ * "doesn't matter which night", "no need for vip", "don't wait (on henry)".
+ */
+const HARMLESS_NEGATIONS =
+  /\b(?:(?:don'?t|dont|do not)\s+(?:count|leave)\s+(?:[a-z][a-z'-]*\s+(?:and|or|&)\s+)?[a-z][a-z'-]*\s+out|(?:(?:we'?ve|i'?ve|we have|i have|weve|ive)\s+)?never been(?:\s+(?:here|there|before))?|(?:don'?t|dont|do not)\s+care(?:\s+(?:about|which|what))?|(?:doesn'?t|does not|don'?t|dont)\s+matter|no need for|(?:don'?t|dont|do not)\s+wait(?:\s+(?:on|for)\s+[a-z][a-z'-]*)?)\b/g;
+/** `folded` without the negated phrases that never take an ask back. */
+function withoutHarmlessNegations(folded: string): string {
+  return folded.replace(HARMLESS_NEGATIONS, ' ');
+}
+/**
  * A question about tickets, not an ask for them: "how much are razz tickets",
  * "did anyone get razz tickets". Checked on the booking's own sentence
  * (T-148 #3), so "anyone else want in? get razz tickets for all of us" and
@@ -455,6 +466,18 @@ const NOT_NAME_FILLER = new Set([
   'evening',
   'weekend',
   'week',
+  'yesterday',
+  // Tier and add-on words (T-148 r2 #4): "but not vip", "dont add tax".
+  'vip',
+  'general',
+  'premium',
+  'tax',
+  'taxes',
+  'drinks',
+  'fees',
+  'fee',
+  'extras',
+  'tip',
 ]);
 
 const NAME = String.raw`([a-z][a-z'-]{1,29})`;
@@ -469,6 +492,8 @@ function exclusionName(word: string | undefined, sender: string | undefined): st
   if (w === undefined || w.length < 2) return undefined;
   if (w === 'me' || w === 'myself') return sender;
   if (NOT_NAME.has(w) || LIST_STOP.has(w) || NOT_NAME_FILLER.has(w)) return undefined;
+  // "dont count henry and don't buy yet": a negation is never a name (T-148 r2 #2).
+  if (/^(?:don'?t|dont|not|no|never|doesn'?t|won'?t|can'?t)$/.test(w)) return undefined;
   if (
     parseDayWord(w) !== undefined ||
     /^(?:sun|mon|tue|tues|wed|thu|thur|thurs|fri|sat)$/.test(w)
@@ -492,7 +517,7 @@ const NAME_NEGATIONS: readonly string[] = [
  * it" stays, so it still reads as a no.
  */
 function withoutNameNegations(folded: string, sender: string | undefined): string {
-  let out = folded.replace(NEVER_BEEN, ' ');
+  let out = withoutHarmlessNegations(folded).replace(NEVER_BEEN, ' ');
   for (const re of NAME_NEGATIONS) {
     out = out.replace(new RegExp(re, 'g'), (span: string, ...args: unknown[]) => {
       // The capture groups come before the numeric offset.
@@ -545,7 +570,9 @@ function headcount(t: string): number | undefined {
   return undefined;
 }
 
-function exclusions(original: string, folded: string, sender: string | undefined): string[] {
+function exclusions(original: string, rawFolded: string, sender: string | undefined): string[] {
+  // "don't count me out" includes the sender (T-148 r2 #1).
+  const folded = withoutHarmlessNegations(rawFolded);
   const out: string[] = [];
   const add = (name: string | undefined): void => {
     const n = name?.trim();

@@ -185,6 +185,25 @@ describe('a later "not yet" takes the ask back, even under raised caps (T-148 r1
     await say("@trav get the 5 of us razz tickets, henry's sick");
     expect(purchases()).toBe(1);
   });
+
+  it('"don\'t count me out" keeps the sender in the booking (T-148 r2 #1)', async () => {
+    const { b, purchases } = await countingBackend();
+    const say = (text: string) => b.inject({ type: 'message', from: 'h_dean', text, groupId: BCN });
+    await say('@trav set the auto-approve cap to €200');
+    await say('yes');
+    await say('@trav set the per-person cap to €100');
+    await say('yes');
+    const before = bcnTrav(b).length;
+    await say("@trav get razz tickets for all of us, don't count me out");
+    const text = bcnTrav(b)
+      .slice(before)
+      .map((e) => (e.kind === 'message' ? e.text : ''))
+      .join('\n');
+    // Never a 5-ticket booking that charges Dean and leaves him without one.
+    expect(text).not.toMatch(/5 tickets/);
+    expect(purchases()).toBe(1);
+    expect(text).toMatch(/6 tickets/);
+  });
 });
 
 describe('a price question in a family group always gets a delivered line (T-148 r1 #3)', () => {

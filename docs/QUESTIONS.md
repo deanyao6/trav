@@ -39,3 +39,4 @@ Things the overnight run could not decide or was blocked on. Ranked by importanc
 - **T-017 family-mode notice wording (low).** The notice now says "all-ages plans only" rather than VOICE §8's "no nightlife", because the outbound screen suppresses any "nightlife" line in a family group. `docs/VOICE.md` should be updated to match.
 
 - (2026-11-04, T-077 r2) The C5 grader misses unusual amount forms in group text ("23 euros" for €23.00, "23.4" for €23.40). Low risk, since Trav formats amounts with `formatMoney`. Worth closing if a live-model run shows other forms.
+- **T-148 family price line (decide, low).** In a family group, a price question about an adults-only venue ("@trav how much is the casino night") gets "that one's not all-ages, so i won't price it in this chat", even when an adult asks. VOICE §8 allows adult content "unless asked directly". Keep the refusal in the shared family chat (current), or answer adults directly?

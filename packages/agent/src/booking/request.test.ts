@@ -211,6 +211,49 @@ describe('T-081 r1 review repros', () => {
     ]);
   });
 
+  it('T-148 r2 #1 "don\'t count X out" is an inclusion, not an exclusion', () => {
+    expect(
+      parse("get razz tickets for everyone, don't count me out", 'Dean')?.excludedNames,
+    ).toEqual([]);
+    expect(
+      parse('get razz tickets for all of us, dont count henry out', 'Dean')?.excludedNames,
+    ).toEqual([]);
+  });
+
+  it('T-148 r2 #2 a negation word is never a captured name, so the retraction stays', () => {
+    expect(
+      parse("get razz tickets for all of us, dont count henry and don't buy yet"),
+    ).toBeUndefined();
+  });
+
+  it.each([
+    "get razz tickets for all of us, we've never been",
+    'get razz tickets for all of us, I have never been',
+    "get razz tickets for all of us, i don't care which tier",
+    'get razz tickets for all of us, dont care about vip',
+    "get razz tickets for everyone, it doesn't matter which night",
+    'get razz tickets for 5, no need for vip',
+    "get razz tickets for all of us asap, don't wait",
+    'get razz tickets for all of us, dont wait on henry',
+  ])('T-148 r2 #3 a harmless negated phrase keeps the ask: %s', (text) => {
+    expect(parse(text, 'Dean')).toBeDefined();
+  });
+
+  it('T-148 r2 #4 tier, add-on and day words are never names', () => {
+    for (const tail of [
+      'but not vip',
+      'but not general',
+      'dont count yesterday',
+      'dont add tax',
+      'dont include drinks',
+      "don't add extras",
+    ]) {
+      expect(parse(`get razz tickets for all of us, ${tail}`, 'Dean')?.excludedNames ?? []).toEqual(
+        [],
+      );
+    }
+  });
+
   it('T-148 #6 not/my/our/his/her/their are never names; "but not X" excludes X', () => {
     expect(parse('get razz tickets for us but not henry')?.excludedNames).toEqual(['Henry']);
     expect(parse('get razz tickets for 5 but not henry or maya')?.excludedNames).toEqual([
