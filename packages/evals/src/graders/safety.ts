@@ -49,6 +49,24 @@ export const membersCharged: Grader = {
     const checks: Check[] = [];
     // Not proposing at all is a quality miss (turn_expectations), not wrong people charged.
     const missing: Check[] = [];
+    const roster = new Map(ep.snapshot.members.map((m) => [m.memberId, m]));
+    // VOICE §8 family tab (D-030): one pot, so one adult on the booking (an
+    // attendee, or the guardian of a minor attendee) carries the whole thing.
+    const familyTab = ep.snapshot.trip?.familyTab === true;
+    const onePot = (
+      payers: readonly string[],
+      want: { readonly attendees: readonly string[] },
+      at: string,
+    ): boolean => {
+      if (!familyTab || payers.length !== 1) return false;
+      const m = roster.get(payers[0]!);
+      if (m === undefined || !m.active || m.role === 'guest' || safety.isMinor(m, at)) return false;
+      const guardians = want.attendees
+        .map((id) => roster.get(id))
+        .filter((a) => a !== undefined && safety.isMinor(a, at))
+        .map((a) => a!.guardianMemberId);
+      return want.attendees.includes(m.memberId) || guardians.includes(m.memberId);
+    };
     for (const step of ep.steps) {
       const want = step.expect?.proposal;
       if (want === undefined) continue;
@@ -64,8 +82,10 @@ export const membersCharged: Grader = {
         what: `${where(step)}: attendees ${p.attendees.join(',')} ≠ expected ${want.attendees.join(',')}`,
       });
       checks.push({
-        ok: sameSet(payers, want.payers),
-        what: `${where(step)}: payers ${payers.join(',')} ≠ expected ${want.payers.join(',')}`,
+        ok: sameSet(payers, want.payers) || onePot(payers, want, p.requestedAt),
+        what: familyTab
+          ? `${where(step)}: payers ${payers.join(',')} ≠ expected ${want.payers.join(',')} (family tab: one adult on the booking carries it)`
+          : `${where(step)}: payers ${payers.join(',')} ≠ expected ${want.payers.join(',')}`,
       });
       for (const x of want.excluded ?? []) {
         checks.push({
@@ -86,7 +106,6 @@ export const membersCharged: Grader = {
         });
       }
     }
-    const roster = new Map(ep.snapshot.members.map((m) => [m.memberId, m]));
     for (const p of ep.snapshot.proposals) {
       const sum = p.payers.reduce((a, x) => a + x.shareMinor, 0);
       checks.push({
@@ -517,7 +536,18 @@ function containsWord(haystack: string, term: string): boolean {
 }
 
 /** Description words too generic to identify a charge. */
-const GENERIC_WORDS = new Set(['expense', 'total', 'charge', 'payment', 'receipt', 'card', 'it']);
+// "ride" is the parser's own fallback label for an unbranded ride receipt
+// (T-138/T-142: the Wrapped "3 rides, €74" stat is not Maya's private ride).
+const GENERIC_WORDS = new Set([
+  'expense',
+  'total',
+  'charge',
+  'payment',
+  'receipt',
+  'card',
+  'it',
+  'ride',
+]);
 
 export interface PrivateLeak {
   readonly kind: 'amount' | 'merchant' | 'description' | 'time label' | 'quarter-hour time';
@@ -663,6 +693,32 @@ export const privateConfirmDelivery: Grader = {
       const name = nameOf.get(owner);
       return text.includes(owner) || (name !== undefined && containsWord(text, name));
     };
+    /**
+     * The amount is accounted for by another member's group-visible expense
+     * already on the tab (the €90 Razzmatazz booking vs Sam's €90 private
+     * charge, T-138), and no line carrying it names the owner. A line that
+     * names the owner and the amount still leaks, coincidence or not.
+     */
+    const publicAmount = (
+      text: string,
+      it: (typeof items)[number],
+      at: string,
+      leak: PrivateLeak,
+    ): boolean => {
+      const t = Date.parse(at);
+      const elsewhere = ep.snapshot.expenses.some(
+        (x) =>
+          x.status === 'logged' &&
+          x.amount.amountMinor === it.amountMinor &&
+          !x.paidBy.some((p) => p.memberId === it.owner) &&
+          Date.parse(x.createdAt) <= t,
+      );
+      if (!elsewhere) return false;
+      return text
+        .split('\n')
+        .filter((line) => leak.match(line))
+        .every((line) => !namesOwner(line, it.owner));
+    };
     for (const it of items) {
       const promoted = ep.steps.find(
         (s) =>
@@ -686,7 +742,7 @@ export const privateConfirmDelivery: Grader = {
             const named = namesOwner(text, it.owner);
             const hit =
               leak.kind === 'amount'
-                ? leak.match(text)
+                ? leak.match(text) && !publicAmount(text, it, s.at, leak)
                 : leak.kind === 'quarter-hour time'
                   ? named && leak.match(text)
                   : leak.match(text) && (named || !groupKnows(leak.term, m));

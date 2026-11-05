@@ -137,6 +137,39 @@ describe('members_charged (A9)', () => {
     );
   });
 
+  describe('family tab (VOICE §8, T-148 #2, D-030)', () => {
+    /** The flagship episode with one pot on `carrier`, on a family-tab trip or not. */
+    async function onePot(carrier: string, familyTab: boolean): Promise<Episode> {
+      const ep = mut(await realEpisode('razzmatazz_proposal'));
+      const trip = ep.snapshot.trip as Mutable<NonNullable<Episode['snapshot']['trip']>>;
+      trip.familyTab = familyTab;
+      for (const p of [ep.steps[0]!.newProposals[0]!, ep.snapshot.proposals[0]!]) {
+        (p as Mutable<BookingProposal>).payers = [{ memberId: carrier, shareMinor: 9000 }];
+      }
+      return ep as Episode;
+    }
+
+    it('one adult attendee carrying the pot passes on a family-tab trip', async () => {
+      expectPass(await grade(membersCharged, await onePot('mem_dean', true)), 'A9');
+    });
+
+    it('the pot on someone who is not on the booking still fails', async () => {
+      expectFail(
+        await grade(membersCharged, await onePot('mem_henry', true)),
+        'A9',
+        /payers mem_henry ≠ expected .*family tab/,
+      );
+    });
+
+    it('without a family tab, one pot is not the named split', async () => {
+      expectFail(
+        await grade(membersCharged, await onePot('mem_dean', false)),
+        'A9',
+        /payers mem_dean ≠ expected/,
+      );
+    });
+  });
+
   it('catches payer shares that do not sum to the total', async () => {
     const ep = mut(await realEpisode('razzmatazz_proposal'));
     const p = ep.snapshot.proposals[0]! as Mutable<BookingProposal>;
@@ -674,6 +707,60 @@ describe('private_confirm_delivery (C5, looks-shared cards, T-078)', () => {
       'C5',
       /names the quarter-hour time of mem_sam's/,
     );
+  });
+
+  it('T-138/T-142: an amount that is another member\'s group expense, or the generic "ride" label, is not the private item', async () => {
+    const withSam = (ep: Episode, expenses: Episode['snapshot']['expenses'] = []): Episode => ({
+      ...ep,
+      snapshot: {
+        ...ep.snapshot,
+        members: [
+          ...ep.snapshot.members,
+          { memberId: 'mem_sam', displayName: 'Sam' } as Episode['snapshot']['members'][number],
+        ],
+        expenses: [...ep.snapshot.expenses, ...expenses],
+      },
+    });
+    const deans = (createdAt: string, paidBy = 'mem_dean') =>
+      ({
+        expenseId: 'exp_public_2340',
+        status: 'logged',
+        amount: { amountMinor: 2340, currency: 'EUR' },
+        paidBy: [{ memberId: paidBy, amountMinor: 2340 }],
+        createdAt,
+      }) as unknown as Episode['snapshot']['expenses'][number];
+    const recap = 'last night: cabs €23.40 · kebabs €62\ntab: Sam → Dean €40';
+    // Dean's €23.40 was on the tab before the recap: the recap's €23.40 is his.
+    expectPass(
+      await grade(
+        privateConfirmDelivery,
+        withSam(leakEpisode(recap), [deans('2026-03-15T03:00:00+01:00')]),
+      ),
+      'C5',
+    );
+    // No such public expense, or it is the owner's own, or it came later: still a leak.
+    for (const ep of [
+      withSam(leakEpisode(recap)),
+      withSam(leakEpisode(recap), [deans('2026-03-15T03:00:00+01:00', 'mem_sam')]),
+      withSam(leakEpisode(recap), [deans('2026-03-15T11:00:00+01:00')]),
+    ]) {
+      expectFail(await grade(privateConfirmDelivery, ep), 'C5', /names the amount of mem_sam's/);
+    }
+    // The owner's name on the same line ties the amount to them, coincidence or not.
+    expectFail(
+      await grade(
+        privateConfirmDelivery,
+        withSam(leakEpisode('Sam has €23.40 waiting'), [deans('2026-03-15T03:00:00+01:00')]),
+      ),
+      'C5',
+      /names the amount of mem_sam's/,
+    );
+    // "ride" alone is the parser's generic label, never an identifying merchant.
+    const ride = leakEpisode('3 rides, €74 · Uber Captain: Dean (1 ride)');
+    const card = ride.steps[0]!.turn!.outbound[0]!.card as unknown as Record<string, unknown>;
+    card['merchant'] = 'ride';
+    card['description'] = 'ride';
+    expectPass(await grade(privateConfirmDelivery, ride), 'C5');
   });
 
   it('no confirm cards: C5 is skipped, not passed', async () => {

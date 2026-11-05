@@ -116,6 +116,8 @@ export type ReasonCode =
   | 'kind_requires_each_payer'
   | 'minor_is_payer'
   | 'payer_not_requester'
+  | 'card_not_requester'
+  | 'minor_requester'
   // auto
   | 'within_all_caps';
 
@@ -124,7 +126,7 @@ export type ApprovalMode = 'none' | 'any_one' | 'each_payer';
 export interface PolicyDecision {
   readonly proposalId: ProposalId;
   readonly outcome: Outcome;
-  /** Every rule that fired, in evaluation order (D1..D10 then C1..C8). */
+  /** Every rule that fired, in evaluation order (D1..D10 then C1..C10). */
   readonly reasons: readonly ReasonCode[];
   /** Rule ids that fired, e.g. ['C1','C5']; the receipt card names the deciding one. */
   readonly ruleIds: readonly string[];

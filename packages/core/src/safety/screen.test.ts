@@ -251,6 +251,25 @@ describe('screenOutbound: roast lines', () => {
     expect(r.suppressed.map((s) => s.cause)).toEqual(['roast_line_limit']);
   });
 
+  it('T-138: the recap\'s "looks shared" line is not roast material; the recap keeps its roast lines', () => {
+    const line = 'Sam paid for a round at 2:14am. the tab remembers';
+    const text = [
+      'morning after, day 4 ☀️',
+      'last night: Razzmatazz (5 of you, not Henry) €100',
+      line,
+      '1 charge that looks shared is waiting on a tap in dms',
+    ].join('\n');
+    const draft = recapDraft(text, [line]);
+    const r = screenOutbound(draft, bcnCtx());
+    expect(r.suppressed).toEqual([]);
+    expect(r.outbound).toBe(draft);
+    // A real body topic outside the declared lines still fails the roast-marked message closed.
+    const dirty = recapDraft(`${text}\nJordan looks rough today`, [line]);
+    const d = screenOutbound(dirty, bcnCtx());
+    expect(d.outbound).toBeNull();
+    expect(d.suppressed.map((s) => s.cause)).toEqual(['roast_topic_blocked', 'roast_unlocatable']);
+  });
+
   it('fails closed when a blocked roast line cannot be found in the text', () => {
     const r = screenOutbound(
       recapDraft('morning after ☀️\nHenry is sick lol', ["Henry's sick"]),

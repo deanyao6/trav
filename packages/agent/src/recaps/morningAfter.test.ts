@@ -1119,3 +1119,99 @@ describe('T-015 review round 1', () => {
     expect(causes).not.toContain('member_opted_out');
   });
 });
+
+describe('T-138: a blocked or unseparable roast line never drops the whole Morning After', () => {
+  const AT = '2026-03-15T10:00:00+01:00';
+  const pendingItem = (owner: MemberId): PendingPrivateItem =>
+    markPrivate({
+      id: `priv_${owner}`,
+      ownerMemberId: owner,
+      groupId: BARCELONA.groupId,
+      tripId: BARCELONA.tripId,
+      createdAt: AT,
+      source: 'card' as const,
+      sourceItemId: `src_${owner}`,
+      status: 'pending' as const,
+      amount: { amountMinor: 980, currency: 'EUR' },
+      occurredAt: '2026-03-15T03:10:00+01:00',
+      merchantDisplay: 'Farmacia Central',
+      category: 'other' as const,
+      lowConfidence: false,
+    }) as PendingPrivateItem;
+  const groupRecaps = (w: World) =>
+    w.h.channel
+      .transcript()
+      .filter((e) => e.type === 'message' && e.lane === 'group' && e.card?.type === 'recap');
+  const suppressedCauses = (w: World, ids: readonly string[]) =>
+    w.h
+      .audit()
+      .filter((e) => e.type === 'roast.suppressed' && ids.includes(e.id))
+      .map((e) => (e.payload as { cause: string }).cause);
+  const roastPayloads = (w: World) =>
+    JSON.stringify(
+      w.h
+        .audit()
+        .filter((e) => e.type === 'roast.suppressed')
+        .map((e) => e.payload),
+    );
+
+  it('the "looks shared" pending line and the roast lines go out together (clk_bcn_2026031510)', async () => {
+    const w = barcelonaAt(AT, { roast: true });
+    w.stores.private.putPendingItem('mem_sam', pendingItem('mem_sam'));
+    const job = morningAfterJobFor(w.stores.group.trips.get(BARCELONA.tripId)!, '2026-03-15');
+    const turn = await w.h.runtime.agent.runScheduled(job);
+    expect(turn.note).toBe('scheduled:morning_after:full');
+    expect(turn.silent).toBe(false);
+    expect(groupRecaps(w)).toHaveLength(1);
+    const sent = turn.outbound[0] as { roast?: boolean; text: string; card?: unknown };
+    expect(sent.roast).toBe(true);
+    expect(sent.text).toContain('1 charge that looks shared is waiting on a tap in dms');
+    const roastLines = asRecap(sent.card).roastLines ?? [];
+    expect(roastLines.length).toBeGreaterThan(0);
+    for (const l of roastLines) {
+      expect(sent.text.split('\n')).toContain(l);
+      expect(safety.roastTopicBlocked(l)).toBeNull();
+    }
+    for (const bad of ['sick', 'Farmacia', '9.80', 'Henry was', "Henry's"]) {
+      expect(sent.text).not.toContain(bad);
+    }
+    expect(suppressedCauses(w, turn.auditEventIds)).not.toContain('unlocatable');
+  });
+
+  it('a blocklisted word the screen cannot separate (a booked plan label): the recap posts without its roast lines, audited', async () => {
+    const w = barcelonaAt(AT, { roast: true });
+    w.stores.group.trips.upsertActivity({
+      activityId: 'act_bcn_t138_brunch',
+      tripId: BARCELONA.tripId,
+      groupId: BARCELONA.groupId,
+      kind: 'dinner',
+      name: 'hangover brunch',
+      startsAt: '2026-03-15T12:30:00+01:00',
+      contentTags: [],
+      ageRestriction: null,
+      bookingId: 'bk_t138_brunch',
+      createdAt: '2026-03-14T12:00:00+01:00',
+    });
+    // The composer falls back: no roast lines, not marked, candidates audited as unlocatable.
+    const r = await recapOn('2026-03-15', w);
+    if (r.kind !== 'ok') throw new Error(r.kind);
+    expect(r.mode).toBe('full');
+    expect(r.roastLines).toEqual([]);
+    expect(r.message.roast).not.toBe(true);
+    expect(r.message.text).toContain('hangover brunch');
+    expect(r.suppressedRoast.length).toBeGreaterThan(0);
+    expect(r.suppressedRoast.every((s) => s.cause === 'unlocatable')).toBe(true);
+
+    const job = morningAfterJobFor(w.stores.group.trips.get(BARCELONA.tripId)!, '2026-03-15');
+    const turn = await w.h.runtime.agent.runScheduled(job);
+    expect(turn.silent).toBe(false);
+    expect(groupRecaps(w)).toHaveLength(1);
+    const sent = turn.outbound[0] as { roast?: boolean; text: string };
+    expect(sent.roast).not.toBe(true);
+    expect(sent.text).not.toContain('the tab remembers');
+    expect(suppressedCauses(w, turn.auditEventIds)).toContain('unlocatable');
+    // The roast line text is never audited.
+    expect(roastPayloads(w)).not.toContain('tab remembers');
+    expect(roastPayloads(w)).not.toContain('metro');
+  });
+});

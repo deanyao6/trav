@@ -24,6 +24,7 @@ import type {
   Member,
   MemberId,
   Outbound,
+  ScheduledJob,
   Scheduler,
   Stores,
   Trip,
@@ -169,23 +170,12 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
     payments: options.providers?.payments ?? createMockBookingPayments({ clock }),
   };
   const scheduler = options.scheduler ?? createInMemoryScheduler();
-  // Every planned or active trip's Morning Afters still ahead (T-015, 10am each
-  // morning after a trip night), whoever seeded the stores; idempotent by jobId.
-  {
-    const now = parseIso(clock.now());
-    for (const g of stores.group.groups.list()) {
-      for (const trip of stores.group.trips.listByGroup(g.groupId)) {
-        if (trip.status !== 'planning' && trip.status !== 'active') continue;
-        for (const job of morningAfterJobsFor(trip))
-          if (parseIso(job.runAt) > now) scheduler.schedule(job);
-      }
-    }
-  }
-  if (seeded) {
-    // The seeded trip's end-of-trip Wrapped (T-016, 10am the day after).
-    const trip = stores.group.trips.get(BARCELONA.tripId);
-    if (trip !== undefined) scheduler.schedule(wrappedJobFor(trip));
-  }
+  // Every planned or active trip's Morning Afters (T-015, 10am each morning
+  // after a trip night) and end-of-trip Wrapped (T-016/T-142, 10am the day
+  // after) still ahead, whoever seeded the stores (the demo seed, the evals,
+  // a fixture loader). One pass per trip and jobs are idempotent by jobId, so
+  // the seeded demo trip is scheduled exactly once.
+  for (const job of recapJobsFor(stores, clock.now())) scheduler.schedule(job);
   const groupMemory = createGroupMemory({ repo: stores.group.groupMemory, ids });
   const memberMemory = createMemberMemory({ store: stores.private, ids });
   const proposals = createProposalService({ stores, tickets: providers.tickets, clock, ids });
@@ -275,6 +265,26 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
       stores.close();
     },
   };
+}
+
+// ---------- recap scheduling ----------
+
+/**
+ * The recap jobs still ahead of `now` for every planning or active trip in the
+ * stores: each Morning After, then the trip's Wrapped. Pure over the stores;
+ * one entry per jobId.
+ */
+export function recapJobsFor(stores: Stores, now: IsoDateTime): ScheduledJob[] {
+  const t = parseIso(now);
+  const out = new Map<string, ScheduledJob>();
+  for (const g of stores.group.groups.list()) {
+    for (const trip of stores.group.trips.listByGroup(g.groupId)) {
+      if (trip.status !== 'planning' && trip.status !== 'active') continue;
+      for (const job of [...morningAfterJobsFor(trip), wrappedJobFor(trip)])
+        if (parseIso(job.runAt) > t) out.set(job.jobId, job);
+    }
+  }
+  return [...out.values()];
 }
 
 // ---------- executor ----------

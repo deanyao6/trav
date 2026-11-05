@@ -303,6 +303,11 @@ export function evaluatePolicy(p, policy, members, { prefs = {}, spentTodayMinor
   if (policy.tripGroupCapMinor !== null && spentTripMinor + p.totalMinor > policy.tripGroupCapMinor) fire('C7', 'over_trip_cap', 'any_one');
   if (payerIds.some(isMinor)) fire('C8', 'minor_is_payer', 'any_one');
   if (p.paidBy.kind === 'per_person_cards' && payerIds.some((id) => id !== p.requestedBy)) fire('C9', 'payer_not_requester', 'each_payer');
+  // C10 (T-148, D-030): someone else's card, or a minor asking, needs the card owner's 👍.
+  const cardNotRequester = p.paidBy.kind === 'member_card' && p.paidBy.memberId !== p.requestedBy;
+  const minorRequester = requester?.isMinor === true;
+  if (cardNotRequester) fire('C10', 'card_not_requester', 'any_one');
+  if (minorRequester) fire('C10', 'minor_requester', p.paidBy.kind === 'per_person_cards' ? 'each_payer' : 'any_one');
   const canApprove = (m) => m && !m.guest && !m.isMinor;
   if (denied) return { outcome: 'deny', reasons, ruleIds, approvalMode: 'none', requiredApprovers: [] };
   if (mode === 'none') {
@@ -345,6 +350,17 @@ export function evaluatePolicy(p, policy, members, { prefs = {}, spentTodayMinor
       else if (m?.isMinor) req.push(canApprove(byId.get(m.guardianMemberId)) ? m.guardianMemberId : p.requestedBy);
     }
     requiredApprovers = [...new Set(req)];
+  }
+  if (cardNotRequester || minorRequester) {
+    // C10: the card owner (a minor owner's guardian stands in) is the any_one approver, or added under each_payer.
+    const ownerFor = (id) => {
+      const m = byId.get(id);
+      if (!m) return undefined;
+      if (!m.isMinor) return canApprove(m) ? id : undefined;
+      return canApprove(byId.get(m.guardianMemberId)) ? m.guardianMemberId : undefined;
+    };
+    const owners = [...new Set((p.paidBy.kind === 'member_card' ? [p.paidBy.memberId] : payerIds).map(ownerFor).filter((id) => id !== undefined))];
+    if (owners.length > 0) requiredApprovers = mode === 'any_one' ? owners : [...new Set([...requiredApprovers, ...owners])];
   }
   return { outcome: 'needs_confirmation', reasons, ruleIds, approvalMode: mode, requiredApprovers };
 }

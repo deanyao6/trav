@@ -8,12 +8,12 @@
  *    (`guardianMemberId`, an active adult). A minor with no valid guardian
  *    stays listed, and `ApprovalPolicy` C8 (`minor_is_payer`) then needs an
  *    adult's 👍 while the ledger refuses to fold them (never guessed).
- *  - Family tab (`Trip.familyTab`) on a booking a minor attends: one pot, so
- *    one adult carries it all (an adults-only booking keeps payers =
- *    attendees, SAFETY A9): the
+ *  - Family tab (`Trip.familyTab`): one pot, adults-only bookings included
+ *    (VOICE §8, D-030), so one adult carries it all: the
  *    requester if they are an adult attendee or the guardian of a minor
  *    attendee, else the requester's guardian under the same condition, else
- *    the per-guardian rule above.
+ *    the first adult attendee (or minor attendee's guardian) in attendee
+ *    order; only with no adult at all does the per-guardian rule above apply.
  */
 import type { IsoDateTime, Member, MemberId } from '@trav/core';
 import { safety } from '@trav/core';
@@ -56,14 +56,9 @@ export function payersFor(attendees: readonly MemberId[], rule?: PayerRule): Mem
       .map((id) => guardianFor(id, rule, byId))
       .filter((g): g is MemberId => g !== undefined),
   );
-  // The family tab is one pot for a booking a minor is on; an adults-only
-  // booking ("casino night for me and dad") is charged to those adults, so
-  // payers equal attendees (SAFETY A9).
-  const minorAttends = attendees.some((id) => {
-    const m = byId.get(id);
-    return m !== undefined && safety.isMinor(m, rule.now);
-  });
-  if (rule.familyTab && attendees.length > 0 && minorAttends) {
+  // The family tab is one pot (VOICE §8, D-030), adults-only bookings
+  // included ("casino night for me and dad" is all on Dean): no splitting.
+  if (rule.familyTab && attendees.length > 0) {
     // Consistency (core `checkProposalConsistency`): a payer attends or guards a minor attendee.
     const eligible = (id: MemberId | undefined): id is MemberId =>
       id !== undefined &&
@@ -73,6 +68,11 @@ export function payersFor(attendees: readonly MemberId[], rule?: PayerRule): Mem
     if (eligible(rule.requestedBy)) return [rule.requestedBy];
     const theirGuardian = requester?.guardianMemberId;
     if (eligible(theirGuardian)) return [theirGuardian];
+    // Still one pot: the first adult on it (or a minor attendee's guardian), in attendee order.
+    for (const id of attendees) {
+      const carrier = guardianFor(id, rule, byId) ?? id;
+      if (eligible(carrier)) return [carrier];
+    }
   }
   const out: MemberId[] = [];
   for (const id of attendees) {

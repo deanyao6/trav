@@ -32,6 +32,7 @@ import type {
 import {
   foldText,
   parseBookingRequest,
+  parseVenueQuestion,
   splitSender,
   venueIndexFrom,
   type VenueIndex,
@@ -64,6 +65,9 @@ export const CANCEL_NOT_ALLOWED_TEXT =
 export const CANCEL_GONE_TEXT = "that one's not waiting anymore, so there's nothing to drop";
 export const NOTHING_LIKE_THAT_TEXT =
   "nothing like that is waiting on a 👍, so i didn't drop anything";
+export const VENUE_OFFER_TEXT = "want me to grab them? tell me who's in";
+export const VENUE_NOT_BOOKABLE_TEXT =
+  "i can't book that one from the chat on the trip dates, so nothing's booked";
 
 // ---------- request plumbing ----------
 
@@ -228,6 +232,61 @@ export function createBookingRequestResponder(
   };
 }
 
+// ---------- "how much is the snorkel tour" (T-148 #8) ----------
+
+/**
+ * A price or info question about a named venue ⇒ `search_events` ⇒ the real
+ * price, refundability and minimum age from the results, then an offer to
+ * book it. Never a proposal: the member asks for that themselves.
+ */
+export function createVenueQuestionResponder(
+  index: () => VenueIndex = bundledVenueIndex,
+): FallbackResponder {
+  return {
+    id: 'venue_question_v1',
+    complete(req) {
+      const prefix = 'toolu_offline_venueq_';
+      const ask = freshAsk(req);
+      if (ask !== undefined) {
+        if (!offered(req, 'search_events')) return undefined;
+        const q = parseVenueQuestion(ask.text, index());
+        if (q === undefined) return undefined;
+        const input = {
+          query: q.query,
+          ...(q.quantity !== undefined ? { quantity: q.quantity } : {}),
+        };
+        return response(req, '', [call(req, prefix, 1, 'search_events', input)]);
+      }
+      const round = myLatestRound(req, prefix);
+      if (round?.name !== 'search_events') return undefined;
+      const raw =
+        isRecord(round.result) && Array.isArray(round.result['events'])
+          ? round.result['events']
+          : [];
+      const hit = (raw as unknown[]).filter(isRecord).find((e) => {
+        const from = e['from'];
+        return (
+          e['bookable'] === true &&
+          typeof e['name'] === 'string' &&
+          isRecord(from) &&
+          typeof from['amountMinor'] === 'number' &&
+          typeof from['currency'] === 'string'
+        );
+      });
+      if (hit === undefined) return response(req, VENUE_NOT_BOOKABLE_TEXT, []);
+      const from = hit['from'] as { amountMinor: number; currency: string };
+      const age =
+        typeof hit['minimumAge'] === 'number' ? `, ${String(hit['minimumAge'])}+ only` : '';
+      const refund = hit['fromRefundable'] === true ? 'refundable' : 'non-refundable';
+      return response(
+        req,
+        `${shortName(hit['name'] as string)} is ${fmt(from.amountMinor, from.currency)} each, ${refund}${age}\n${VENUE_OFFER_TEXT}`,
+        [],
+      );
+    },
+  };
+}
+
 // ---------- "anything cheaper" ----------
 
 const CHEAPER_RE =
@@ -388,15 +447,78 @@ const CANCEL_FILLER = new Set([
   'actually',
 ]);
 
+/** Day and time words name a night, not a proposal ("cancel the razz tickets for tonight"). */
+const CANCEL_WHEN = new Set([
+  'tonight',
+  'tonite',
+  'today',
+  'tomorrow',
+  'tmrw',
+  'asap',
+  'anymore',
+  'later',
+  'morning',
+  'afternoon',
+  'evening',
+  'sunday',
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sun',
+  'mon',
+  'tue',
+  'tues',
+  'wed',
+  'thu',
+  'thur',
+  'thurs',
+  'fri',
+  'sat',
+]);
+
 /**
  * What "cancel …" names, up to the first clause break: "cancel the vip
- * thing, way too much" ⇒ ["vip"]. Words of 3+ letters that aren't filler.
+ * thing, way too much" ⇒ ["vip"]. Words of 3+ letters that aren't filler or
+ * day/time words (T-148 #4).
  */
 export function cancelTarget(text: string): string[] {
   const t = foldText(text);
   const m = /\b(?:cancel|drop|scrap|kill)\b([^,.;!?]*)/.exec(t);
   if (m === null) return [];
-  return m[1]!.split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !CANCEL_FILLER.has(w));
+  return m[1]!
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length >= 3 && !CANCEL_FILLER.has(w) && !CANCEL_WHEN.has(w));
+}
+
+/**
+ * The pending proposals "cancel …" names (T-148 #4): each scores the named
+ * words its description or tier starts a word with (member names don't
+ * count: "for lily" names a person, not a proposal). The best score wins;
+ * a tie is "which one?"; no word matching anything is "nothing like that".
+ * Nothing named (all filler) ⇒ every pending proposal.
+ */
+export function cancelMatches(
+  named: readonly string[],
+  pending: readonly PendingSummary[],
+): PendingSummary[] {
+  const people = new Set(
+    pending.flatMap((p) =>
+      p.attendees.flatMap((a) =>
+        isRecord(a) && typeof a['name'] === 'string' ? [foldText(a['name'])] : [],
+      ),
+    ),
+  );
+  const words = named.filter((w) => !people.has(w));
+  if (words.length === 0) return [...pending];
+  const scored = pending.map((p) => {
+    const hay = foldText(`${p.description} ${p.tier ?? ''}`).split(/[^a-z0-9]+/);
+    return { p, score: words.filter((w) => hay.some((h) => h.startsWith(w))).length };
+  });
+  const best = Math.max(0, ...scored.map((s) => s.score));
+  return best === 0 ? [] : scored.filter((s) => s.score === best).map((s) => s.p);
 }
 
 export const cancelResponder: FallbackResponder = {
@@ -417,14 +539,7 @@ export const cancelResponder: FallbackResponder = {
       if (pending.length === 0) return response(req, NOTHING_PENDING_TEXT, []);
       // "cancel the vip thing" names something: only a proposal that matches
       // it is dropped, never whichever one happens to be pending (r1 #6).
-      const named = cancelTarget(theAsk(req)?.text ?? '');
-      const hits =
-        named.length === 0
-          ? pending
-          : pending.filter((p) => {
-              const hay = foldText(`${p.description} ${p.tier ?? ''}`);
-              return named.every((w) => hay.includes(w));
-            });
+      const hits = cancelMatches(cancelTarget(theAsk(req)?.text ?? ''), pending);
       if (hits.length === 0) return response(req, NOTHING_LIKE_THAT_TEXT, []);
       const pick = hits.length === 1 ? hits[0] : undefined;
       if (pick === undefined) return response(req, whichOneText(hits, 'drop it'), []);
@@ -634,6 +749,7 @@ export function travAskResponders(): readonly FallbackResponder[] {
     cheaperResponder,
     lodgingResponder,
     createBookingRequestResponder(),
+    createVenueQuestionResponder(),
     rememberResponder,
     honestGapsResponder,
   ];

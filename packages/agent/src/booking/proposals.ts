@@ -1369,6 +1369,7 @@ export function renderProposalText(input: RenderInput): string {
   const payerName =
     p.paidBy.kind === 'member_card' ? names([p.paidBy.memberId], byId) : 'each card';
   const payerIds = p.payers.map((s) => s.memberId);
+  const holder = p.paidBy.kind === 'member_card' ? p.paidBy.memberId : undefined;
   const carried = p.attendees.filter((id) => !payerIds.includes(id));
   if (n > 1 && carried.length > 0 && payerIds.length === 1) {
     // Family tab, or one adult carrying a minor: one person's share, nobody else's.
@@ -1385,9 +1386,13 @@ export function renderProposalText(input: RenderInput): string {
         .join(', ')})`,
     );
   } else if (n > 1) lines.push(`charged to ${payerName}'s card, split ${n} ways on the tab`);
-  else if (p.paidBy.kind === 'member_card' && p.paidBy.memberId === p.attendees[0]) {
+  else if (
+    holder !== undefined &&
+    (holder === p.attendees[0] || payerIds.every((id) => id === holder))
+  ) {
+    // Their own ticket, or a minor's carried by the card holder (it's their tab, not the kid's).
     lines.push(`charged to ${payerName}'s card`);
-  } else lines.push(`charged to ${payerName}'s card, on ${who}'s tab`);
+  } else lines.push(`charged to ${payerName}'s card, on ${names(payerIds, byId)}'s tab`);
 
   const holdEnd = proposalExpiresAt(decision, p) ?? addMinutes(now, 15);
   const held = `price held for ${minutesUntil(holdEnd, now)} min`;
@@ -1405,7 +1410,18 @@ export function renderProposalText(input: RenderInput): string {
   } else {
     // VOICE §4.1 B: name everyone who can approve; under any_one one tap from
     // any of them is enough, so say so instead of implying they all must.
-    const so = !p.refundable ? "it's non-refundable, so " : '';
+    // C10 (T-148): someone else's card, or a minor asking: the card owner signs off.
+    const onCard =
+      p.paidBy.kind === 'member_card' &&
+      (decision.reasons.includes('card_not_requester') ||
+        decision.reasons.includes('minor_requester')) &&
+      approvers.length === 1 &&
+      approvers[0] === p.paidBy.memberId;
+    const so = !p.refundable
+      ? "it's non-refundable, so "
+      : onCard
+        ? `it's on ${payerName}'s card, so `
+        : '';
     const list = approvers.map((id) => names([id], byId));
     if (list.length <= 1) {
       const okBy = list[0] ?? 'a trip adult';

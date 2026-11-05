@@ -5,10 +5,92 @@
  * all-ages line says nothing was booked, and Dad's next bare "yes" buys nothing.
  */
 import { describe, expect, it } from 'vitest';
-import { UNDELIVERED_PROPOSAL_TEXT } from '@trav/agent';
+import { UNDELIVERED_PROPOSAL_TEXT, createTravRuntime } from '@trav/agent';
+import type { MockTickets } from '@trav/adapters';
+import { createMockTickets, loadAllTicketInventories } from '@trav/adapters';
+import { createDeterministicIdGenerator } from '@trav/core';
+import type { SimulatorBackend } from './backend.js';
+import { loadAgentBackend } from './runtime.js';
 import { bookingCount, demoBackend } from './testkit.js';
 
 const TCI = 'grp_turks_caicos';
+
+/** The demo backend with a ticket provider we can count purchases on. */
+async function countingBackend(): Promise<{
+  readonly b: SimulatorBackend;
+  readonly purchases: () => number;
+}> {
+  let tickets: MockTickets | undefined;
+  const b = await loadAgentBackend({
+    offline: true,
+    seed: true,
+    createTravRuntime: (input) => {
+      tickets = createMockTickets({
+        clock: input.clock,
+        ids: createDeterministicIdGenerator('tkt148'),
+        inventory: loadAllTicketInventories(),
+      });
+      return createTravRuntime({ ...input, providers: { tickets } });
+    },
+  });
+  return { b, purchases: () => tickets?.purchaseCount() ?? 0 };
+}
+
+const tciThread = (b: SimulatorBackend) =>
+  b
+    .state()
+    .groups.find((g) => g.group.groupId === TCI)!
+    .thread.filter((e) => e.kind === 'message');
+
+describe("a minor's ask on her guardian's card never auto-approves (T-148 #1, SAFETY §2.1 C10)", () => {
+  it('Mom raises the caps, Lily asks for a snorkel tour: a card for Dad, no purchase until he oks it', async () => {
+    const { b, purchases } = await countingBackend();
+    const say = (from: string, text: string) => b.inject({ type: 'message', from, text, groupId: TCI });
+    await say('h_tci_mom', '@trav set the auto-approve cap to $200');
+    await say('h_tci_mom', 'yes');
+    await say('h_tci_mom', '@trav set the per-person cap to $100');
+    await say('h_tci_mom', 'yes');
+    const before = tciThread(b).length;
+    const receipts = bookingCount(b);
+
+    await say('h_tci_lily', '@trav snorkel tour for me on monday');
+    const trav = tciThread(b)
+      .slice(before)
+      .filter((e) => e.kind === 'message' && e.isTrav);
+    expect(purchases()).toBe(0);
+    expect(bookingCount(b)).toBe(receipts);
+    expect(trav.map((e) => e.text).join('\n')).not.toMatch(/couldn't charge|booked/);
+    const card = trav.find((e) => e.kind === 'message' && e.card?.type === 'booking_proposal');
+    expect(card, 'a proposal card').toBeDefined();
+    expect(card!.text).toMatch(/charged to Dad's card/);
+    expect(card!.text).toMatch(/so Dad has to ok it/);
+
+    // Lily's and Mom's yes don't count; nothing is bought.
+    await say('h_tci_lily', 'yes');
+    await b.inject({
+      type: 'reaction',
+      from: 'h_tci_lily',
+      targetMessageId: card!.messageId,
+      reaction: '👍',
+    });
+    await b.inject({
+      type: 'reaction',
+      from: 'h_tci_mom',
+      targetMessageId: card!.messageId,
+      reaction: '👍',
+    });
+    expect(purchases()).toBe(0);
+
+    // Dad, the card owner, approves: now (and only now) the mock purchase runs.
+    await b.inject({
+      type: 'reaction',
+      from: 'h_tci_dad',
+      targetMessageId: card!.messageId,
+      reaction: '👍',
+    });
+    expect(purchases()).toBe(1);
+  });
+});
 
 describe('a proposal card the family screen suppresses (T-081 r1 #1)', () => {
   it('is withdrawn, says so once, and a bare "yes" afterwards buys nothing', async () => {

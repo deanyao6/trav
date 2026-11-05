@@ -124,6 +124,8 @@ function reasonLine(
       case 'minor_is_payer':
         return 'someone on it is under 18';
       case 'payer_not_requester':
+      case 'card_not_requester':
+      case 'minor_requester':
         return proposal.paidBy.kind === 'member_card'
           ? `it's on ${possessive(nameOf(ctx, proposal.paidBy.memberId))} card`
           : "it's on other people's cards";

@@ -177,6 +177,28 @@ function roastSuppression(line: string, ctx: RenderContext, sc: SafetyContext): 
   return { cause: 'line_limit' };
 }
 
+/**
+ * Would the outbound screen keep this roast-marked recap (T-138)? A dry run of
+ * `safety.screenOutbound` with the same inputs the scheduled job's send path
+ * gives it (the declared roast lines; no private terms on this path), so the
+ * composer and the screen can never disagree about what fails closed.
+ */
+function roastSeparable(
+  message: OutboundMessage & { readonly card: RecapCard },
+  ctx: RenderContext,
+  sc: SafetyContext,
+): boolean {
+  const r = safety.screenOutbound(message, {
+    group: sc.group,
+    members: ctx.members,
+    trip: sc.trip,
+    consent: sc.consent,
+    now: ctx.now,
+    roastLines: message.card.roastLines ?? [],
+  });
+  return r.outbound !== null;
+}
+
 function present(m: Member): boolean {
   return m.active && m.leftAt === undefined && m.role !== 'guest';
 }
@@ -601,7 +623,18 @@ export async function composeMorningAfter(
     ...(today.length > 0 ? { today } : {}),
     photos: recapPhotos,
   };
-  const message = renderRecap(input, ctx, sc);
+  let message = renderRecap(input, ctx, sc);
+  let unseparable: readonly string[] = [];
+  if ((message.card.roastLines ?? []).length > 0 && !roastSeparable(message, ctx, sc)) {
+    // T-138: the outbound screen fails a roast-marked message closed when the
+    // rest of it (a fixed line, an event or plan label, alt text) carries a
+    // blocklisted word it cannot tell apart from a roast. Losing the roast
+    // lines must never cost the group its recap: re-render without them (an
+    // unmarked recap gets no roast gate, SAFETY §2.8), audited as unlocatable.
+    unseparable = message.card.roastLines ?? [];
+    const { roastLines: _dropped, ...plain } = input;
+    message = renderRecap(plain, ctx, sc);
+  }
   const kept = message.card.roastLines ?? [];
   return {
     kind: 'ok',
@@ -610,7 +643,9 @@ export async function composeMorningAfter(
     roastLines: kept,
     suppressedRoast: candidates
       .filter((l) => !kept.includes(l))
-      .map((l) => roastSuppression(l, ctx, sc)),
+      .map((l) =>
+        unseparable.includes(l) ? { cause: 'unlocatable' as const } : roastSuppression(l, ctx, sc),
+      ),
     facts: {
       ...facts,
       photoIds: message.card.photos.flatMap((p) => (p.photoId ? [p.photoId] : [])),

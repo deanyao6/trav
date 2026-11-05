@@ -4,6 +4,7 @@ import {
   foldText,
   parseBookingRequest,
   parseDayWord,
+  parseVenueQuestion,
   resolveNight,
   splitSender,
   venueIndexFrom,
@@ -144,6 +145,50 @@ describe('T-081 r1 review repros', () => {
     expect(parse(text)).toBeUndefined();
   });
 
+  it.each([
+    ["get the 5 of us razz tickets, don't count henry", 5, ['Henry']],
+    ["get the 5 of us razz tickets, henry doesn't want to come", 5, ['Henry']],
+    ['get the 5 of us razz tickets, never been', 5, []],
+    ['do it, get razz tickets for all of us', undefined, []],
+    ['anyone else want in? get razz tickets for all of us', undefined, []],
+    ['get razz tickets for all of us, leave henry out', undefined, ['Henry']],
+  ] as const)(
+    'T-148 #3 a negation or question outside the booking clause is still an ask: %s',
+    (text, quantity, excluded) => {
+      const r = parse(text);
+      expect(r, text).toBeDefined();
+      expect(r!.query).toBe('razz tickets');
+      expect(r!.quantity).toBe(quantity);
+      expect(r!.excludedNames).toEqual(excluded);
+    },
+  );
+
+  it.each([
+    "we don't need razz tickets",
+    'no need to book razz',
+    'not getting razz tickets tonight',
+    "get razz tickets for all of us. actually don't",
+    'ok, how much are razz tickets',
+    'should we, like, get razz tickets for all of us',
+    'do we get razz tickets for all of us?',
+  ])('T-148 #3 a negation on the booking verb, a retraction or a question is not: %s', (text) => {
+    expect(parse(text)).toBeUndefined();
+  });
+
+  it('T-148 #6 not/my/our/his/her/their are never names; "but not X" excludes X', () => {
+    expect(parse('get razz tickets for us but not henry')?.excludedNames).toEqual(['Henry']);
+    expect(parse('get razz tickets for 5 but not henry or maya')?.excludedNames).toEqual([
+      'Henry',
+      'Maya',
+    ]);
+    // "my brother" isn't a member name: no guess, so not an ask (like "the kids").
+    expect(parse('get razz tickets for me and my brother')).toBeUndefined();
+    for (const w of ['not', 'my', 'our', 'his', 'her', 'their']) {
+      const r = parse(`get razz tickets for everyone but ${w} henry`);
+      expect(r?.excludedNames ?? []).not.toContain(w.charAt(0).toUpperCase() + w.slice(1));
+    }
+  });
+
   it('#8 a short two-word name finds its venue ("jet ski")', () => {
     expect(parse('get jet ski tickets for the 2 of us', 'Dad')).toMatchObject({
       query: 'jet ski tickets',
@@ -156,6 +201,29 @@ describe('T-081 r1 review repros', () => {
       'Henry',
     ]);
     expect(parse('get razz tickets for all of us but Maya')?.excludedNames).toEqual(['Maya']);
+  });
+});
+
+describe('parseVenueQuestion (T-148 #8)', () => {
+  it.each([
+    ['how much is the snorkel tour', 'snorkel tickets'],
+    ['should we get snorkel tickets for monday?', 'snorkel tickets'],
+    ['how much are razz tickets', 'razz tickets'],
+    ['is razz any good tonight', 'razz tickets'],
+  ])('a price/info question about a named venue: %s', (text, query) => {
+    expect(parseVenueQuestion(text, INDEX)?.query).toBe(query);
+    expect(parse(text)).toBeUndefined(); // and never an ask
+  });
+
+  it.each([
+    'who has the razz tickets',
+    'did anyone get razz tickets',
+    'get razz tickets for all of us',
+    'how much did we spend at razz',
+    'what should we do tonight',
+    'cancel the razz tickets',
+  ])('not a venue question: %s', (text) => {
+    expect(parseVenueQuestion(text, INDEX)).toBeUndefined();
   });
 });
 

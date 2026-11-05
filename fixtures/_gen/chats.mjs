@@ -964,11 +964,11 @@ export function turksCaicosChat() {
     addressed: true,
     action: 'propose_booking',
     cardRef: 'tci_casino_proposal',
-    proposal: { kind: 'ticket', itemRef: 'off_tci_casino_0624', quantity: 2, totalMinor: 10000, currency: 'USD', payers: payers([g.dean, g.dad], 5000), attendees: [g.dean, g.dad], paidBy: { kind: 'member_card', memberId: g.dean }, refundable: false, ageRestriction: 21, contentTags: ['gambling', '21+', 'alcohol', 'late_night'] },
-    notes: '$50 each is exactly at the per-person cap (inside: > not >=). Lily is not an attendee, so D9 does not fire.',
+    proposal: { kind: 'ticket', itemRef: 'off_tci_casino_0624', quantity: 2, totalMinor: 10000, currency: 'USD', payers: payers([g.dean], 10000), attendees: [g.dean, g.dad], paidBy: { kind: 'member_card', memberId: g.dean }, refundable: false, ageRestriction: 21, contentTags: ['gambling', '21+', 'alcohol', 'late_night'] },
+    notes: 'family tab (VOICE §8, D-030): one pot even for an adults-only booking, so Dean (requester, attendee) carries the $100; that is over the $50 per-person cap, so Dean must 👍. Lily is not an attendee, so D9 does not fire.',
   });
   c.say(C(24, '17:01'), g.lily, 'can i come 🥺', silent({ notes: 'plan stays adults-only; Trav does not add her' }));
-  c.react(C(24, '17:02'), g.dad, '👍', 'tci_casino_proposal', { action: 'booking_completed', booking: { purchaseCount: 1, totalMinor: 10000, dmsTo: [g.dean, g.dad], noDmTo: [g.lily, g.mom] }, notes: 'Dean pays on his card (member_card); TCI runs a family tab, so no transfers. Never shown in a family recap or Wrapped.' });
+  c.react(C(24, '17:02'), g.dean, '👍', 'tci_casino_proposal', { action: 'booking_completed', booking: { purchaseCount: 1, totalMinor: 10000, dmsTo: [g.dean, g.dad], noDmTo: [g.lily, g.mom] }, notes: 'Dean pays on his card (member_card); TCI runs a family tab, so no transfers. Never shown in a family recap or Wrapped.' });
   c.clock(C(25, '10:00'), { scheduledJob: 'morning_after', recapMode: 'family', nightOutFraming: false, mustNotContain: ['casino', 'last night out', 'nightcap', 'club'] });
   c.say(C(27, '21:00'), g.lily, 'best trip ever', silent());
   c.clock(C(28, '10:00'), { scheduledJob: 'wrapped', familyMode: true, photosNeverInclude: 'minor', lilyAwards: 'event_neutral_only', allowedLilyAwards: ['The Photographer', 'Early Bird'], mustNotContain: ['casino', 'bar'] });

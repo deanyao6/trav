@@ -44,6 +44,7 @@ export const POLICY_RULES: readonly {
   { id: 'C7', stage: 'confirm', reasons: ['over_trip_cap'] },
   { id: 'C8', stage: 'confirm', reasons: ['minor_is_payer'] },
   { id: 'C9', stage: 'confirm', reasons: ['payer_not_requester'] },
+  { id: 'C10', stage: 'confirm', reasons: ['card_not_requester', 'minor_requester'] },
   { id: 'A1', stage: 'auto', reasons: ['within_all_caps'] },
 ];
 
@@ -74,6 +75,12 @@ function earliest(a: IsoDateTime, b: IsoDateTime | undefined): IsoDateTime {
  *   card other than the requester's needs that card holder's confirmation
  *   (`each_payer`). Under `member_card` the requester's card pays and the others
  *   only owe on the tab, so the requester's one tap suffices.
+ * - C10 (T-148, D-030): a `member_card` that isn't the requester's
+ *   (`card_not_requester`), or any request from a minor (`minor_requester`),
+ *   never auto-approves, whatever the caps. The card owner is a required
+ *   approver (their guardian stands in for a minor owner): under `any_one` the
+ *   card owner is the only approver; under `each_payer` they are added to the
+ *   list. A minor's request on `per_person_cards` is `each_payer`.
  * - D9 also treats the `18+` / `21+` content tags as an age restriction.
  * - D10 also fires once the provider hold (`holdExpiresAt`) has passed.
  * - Guests and non-integer amounts are denied (`payer_not_member`,
@@ -173,6 +180,13 @@ export function evaluate(
   if (p.paidBy.kind === 'per_person_cards' && payerIds.some((id) => id !== p.requestedBy)) {
     fire('C9', 'payer_not_requester', 'each_payer');
   }
+  // C10: someone else's card, or a minor asking, always needs the card owner's 👍.
+  const cardNotRequester = p.paidBy.kind === 'member_card' && p.paidBy.memberId !== p.requestedBy;
+  const minorRequester = requester?.isMinor === true;
+  if (cardNotRequester) fire('C10', 'card_not_requester', 'any_one');
+  if (minorRequester) {
+    fire('C10', 'minor_requester', p.paidBy.kind === 'per_person_cards' ? 'each_payer' : 'any_one');
+  }
 
   const base = {
     proposalId: p.proposalId,
@@ -208,7 +222,14 @@ export function evaluate(
     ...base,
     outcome: 'needs_confirmation',
     approvalMode: mode,
-    requiredApprovers: requiredApproversFor(mode, p, policy, byId, ctx.members),
+    requiredApprovers: requiredApproversFor(
+      mode,
+      p,
+      policy,
+      byId,
+      ctx.members,
+      cardNotRequester || minorRequester,
+    ),
     expiresAt: earliest(ttlExpiry, p.holdExpiresAt),
   };
 }
@@ -280,8 +301,44 @@ export function anyOneApprovers(
  * any_one: `anyOneApprovers` (pool, requester and guardians, booking parties
  * only). each_payer: every adult payer, plus one adult (guardian, else
  * requester, else first eligible approver) per minor payer.
+ * With C10 (`ownerRequired`) the card owner must approve: under `any_one`
+ * they are the only approver (the list above stands in only when nobody can
+ * approve for the owner); under `each_payer` they are added to it.
  */
 function requiredApproversFor(
+  mode: ApprovalMode,
+  p: BookingProposal,
+  policy: GroupSpendingPolicy,
+  byId: ReadonlyMap<MemberId, MemberView>,
+  members: readonly MemberView[],
+  ownerRequired: boolean,
+): readonly MemberId[] {
+  const base = baseApprovers(mode, p, policy, byId, members);
+  if (!ownerRequired) return base;
+  const ownerIds =
+    p.paidBy.kind === 'member_card' ? [p.paidBy.memberId] : p.payers.map((s) => s.memberId);
+  const owners = unique(
+    ownerIds
+      .map((id) => cardOwnerApprover(id, byId))
+      .filter((id): id is MemberId => id !== undefined),
+  );
+  if (owners.length === 0) return base;
+  return mode === 'any_one' ? owners : unique([...base, ...owners]);
+}
+
+/** Who approves for a card owner (C10): the owner, else a minor owner's adult guardian. */
+function cardOwnerApprover(
+  id: MemberId,
+  byId: ReadonlyMap<MemberId, MemberView>,
+): MemberId | undefined {
+  const m: MemberView | undefined = byId.get(id);
+  if (m === undefined) return undefined;
+  if (!m.isMinor) return canApprove(m) ? id : undefined;
+  const g = m.guardianMemberId === undefined ? undefined : byId.get(m.guardianMemberId);
+  return canApprove(g) ? g.memberId : undefined;
+}
+
+function baseApprovers(
   mode: ApprovalMode,
   p: BookingProposal,
   policy: GroupSpendingPolicy,

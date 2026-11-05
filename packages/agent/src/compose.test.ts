@@ -1,6 +1,16 @@
-/** The runtime's default ticket provider covers every bundled trip (T-093). */
+/** The runtime's default ticket provider covers every bundled trip (T-093); recap scheduling (T-142). */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { RAZZMATAZZ_ASK, harness } from './runtime.testkit.js';
+import { createSimulatorChannel } from '@trav/adapters';
+import type { Group, Member, Stores, Trip } from '@trav/core';
+import { createDeterministicIdGenerator, createSimulatedClock } from '@trav/core';
+import { createMemoryStores } from '@trav/core/storage';
+import { BARCELONA, createTravRuntime, recapJobsFor } from './compose.js';
+import { repoRoot } from './model/paths.js';
+import { morningAfterJobsFor } from './recaps/morningAfter.js';
+import { wrappedJobFor } from './recaps/wrapped.js';
+import { RAZZMATAZZ_ASK, harness, tempStateDir } from './runtime.testkit.js';
 
 describe('createTravRuntime default ticket provider', () => {
   // `providers: {}` drops the harness's Barcelona-only mock, so compose's default is used.
@@ -40,5 +50,123 @@ describe('createTravRuntime default ticket provider', () => {
       currency: 'EUR',
     });
     expect(proposal?.attendees).toHaveLength(5);
+  });
+});
+
+describe('recap scheduling: every planning or active trip gets its Morning Afters and its Wrapped (T-142)', () => {
+  interface GroupFixture {
+    readonly group: Group;
+    readonly members: Member[];
+    readonly trip: Trip;
+  }
+  const fixture = (name: string): GroupFixture =>
+    JSON.parse(
+      readFileSync(join(repoRoot(), 'fixtures', 'groups', `${name}.json`), 'utf8'),
+    ) as GroupFixture;
+
+  // A runtime over stores the caller seeded (seed none), as the eval runner builds it.
+  function runtimeOver(at: string, f: GroupFixture, seed: (stores: Stores) => void) {
+    const clock = createSimulatedClock(at);
+    const ids = createDeterministicIdGenerator('t142');
+    const stores = createMemoryStores({ clock, ids });
+    seed(stores);
+    const runtime = createTravRuntime({
+      channel: createSimulatorChannel({
+        clock,
+        conversations: [
+          {
+            conversationId: f.group.conversationId,
+            participants: f.members.map((m) => ({
+              handle: m.senderId,
+              displayName: m.displayName,
+              memberId: m.memberId,
+            })),
+          },
+        ],
+      }),
+      clock,
+      ids,
+      stores,
+      offline: true,
+      env: { TRAV_OFFLINE: '1', TRAV_STATE_DIR: tempStateDir() },
+    });
+    return { runtime, clock };
+  }
+  const put = (stores: Stores, f: GroupFixture, trip: Trip = f.trip): void => {
+    if (stores.group.groups.get(f.group.groupId) === undefined) {
+      stores.group.groups.create(f.group);
+      for (const m of f.members) stores.group.members.upsert(m);
+    }
+    stores.group.trips.create(trip);
+  };
+  const wrappedIds = (rt: { scheduler: { list(): readonly { jobId: string; kind: string }[] } }) =>
+    rt.scheduler
+      .list()
+      .filter((j) => j.kind === 'wrapped')
+      .map((j) => j.jobId);
+
+  it('a trip seeded outside the demo (Turks and Caicos) gets wrapped:<trip> at 10am the day after', () => {
+    const tci = fixture('turks-and-caicos');
+    const { runtime: rt } = runtimeOver('2026-06-20T09:00:00-04:00', tci, (s) => put(s, tci));
+    const wrapped = rt.scheduler.list().filter((j) => j.kind === 'wrapped');
+    expect(wrapped).toEqual([wrappedJobFor(tci.trip)]);
+    expect(wrapped[0]).toMatchObject({
+      jobId: 'wrapped:trip_turks_caicos',
+      runAt: '2026-06-28T10:00:00-04:00',
+      groupId: tci.group.groupId,
+    });
+    // The Morning Afters are unchanged.
+    expect(
+      rt.scheduler
+        .list()
+        .filter((j) => j.kind === 'morning_after')
+        .map((j) => j.jobId),
+    ).toEqual(morningAfterJobsFor(tci.trip).map((j) => j.jobId));
+    rt.close();
+  });
+
+  it('closed trips, and a Wrapped already behind the clock, are not scheduled', () => {
+    const lis = fixture('lisbon');
+    const { runtime: rt } = runtimeOver('2026-04-21T10:30:00+01:00', lis, (s) => {
+      put(s, lis); // its Wrapped was 21 apr 10:00, already behind the clock
+      put(s, lis, {
+        ...lis.trip,
+        tripId: 'trip_lis_closed',
+        status: 'closed',
+        endDate: '2026-05-01',
+      });
+      put(s, lis, {
+        ...lis.trip,
+        tripId: 'trip_lis_next',
+        status: 'planning',
+        startDate: '2026-05-01',
+        endDate: '2026-05-03',
+      });
+    });
+    expect(wrappedIds(rt)).toEqual(['wrapped:trip_lis_next']);
+    rt.close();
+  });
+
+  it('the seeded Barcelona demo has exactly one Wrapped job, at 10am on 18 mar', () => {
+    const h = harness();
+    const wrapped = h.runtime.scheduler.list().filter((j) => j.kind === 'wrapped');
+    expect(wrapped.map((j) => [j.jobId, j.runAt])).toEqual([
+      ['wrapped:trip_barcelona', '2026-03-18T10:00:00+01:00'],
+    ]);
+    const ids = recapJobsFor(h.runtime.stores, h.runtime.clock.now()).map((j) => j.jobId);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids.filter((id) => id === `wrapped:${BARCELONA.tripId}`)).toHaveLength(1);
+  });
+
+  it('draining past the end of a non-demo trip posts its Wrapped once', async () => {
+    const tci = fixture('turks-and-caicos');
+    const { runtime: rt, clock } = runtimeOver('2026-06-27T20:00:00-04:00', tci, (s) =>
+      put(s, tci),
+    );
+    clock.set('2026-06-28T10:00:00-04:00');
+    const notes = (await rt.drain()).map((t) => t.note);
+    expect(notes.filter((n) => n.startsWith('scheduled:wrapped'))).toHaveLength(1);
+    expect((await rt.drain()).filter((t) => t.note.startsWith('scheduled:wrapped'))).toEqual([]);
+    rt.close();
   });
 });

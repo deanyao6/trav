@@ -126,10 +126,31 @@ describe('booking_proposal (VOICE §4.1)', () => {
     expectClean(m);
   });
 
+  it("someone else's card (C10, T-148): the card owner is named as the one who oks it", () => {
+    const members = barcelonaMembers();
+    const proposal = razzmatazzProposal({ requestedBy: 'mem_maya' });
+    const decision = decide(proposal, members, barcelonaGroup().spendingPolicy);
+    expect(decision.reasons).toContain('card_not_requester');
+    const m = renderBookingProposal(
+      { proposal, decision, item: { name: 'Razzmatazz', startsAt: '2026-03-13T00:00:00+01:00' } },
+      renderCtx(members),
+    );
+    const lines = m.text.split('\n');
+    expect(lines[4]).toBe("it's on Dean's card, so @Dean has to ok it");
+    expect(lines[5]).toBe('👍 from Dean to book. price held for 15 min');
+    expect(m.actions?.[0]?.allowedMemberIds).toEqual(['mem_dean']);
+    expectClean(m);
+  });
+
   it('lead-only approvers on a non-refundable booking: the reason and the @tagged approvers', () => {
     const members = barcelonaMembers();
     const policy = { ...barcelonaGroup().spendingPolicy, approvers: ['mem_dean'] as const };
-    const proposal = razzmatazzProposal({ refundable: false, requestedBy: 'mem_maya' });
+    // Maya asks on her own card (on Dean's, C10 makes Dean the only approver).
+    const proposal = razzmatazzProposal({
+      refundable: false,
+      requestedBy: 'mem_maya',
+      paidBy: { kind: 'member_card', memberId: 'mem_maya' },
+    });
     const decision = decide(proposal, members, { ...policy, approvers: ['mem_dean'] });
     const m = renderBookingProposal(
       { proposal, decision, item: { name: 'Razzmatazz', startsAt: '2026-03-13T00:00:00+01:00' } },
@@ -974,7 +995,12 @@ describe('T-026 review round 2 (renderers)', () => {
       approvers: ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya'],
     };
     // T-104: the requester must be on the booking to approve, so Sam (attending) asks.
-    const proposal = razzmatazzProposal({ refundable: false, requestedBy: 'mem_sam' });
+    // On Sam's own card: on Dean's, C10 would make Dean the only approver.
+    const proposal = razzmatazzProposal({
+      refundable: false,
+      requestedBy: 'mem_sam',
+      paidBy: { kind: 'member_card', memberId: 'mem_sam' },
+    });
     const decision = decide(proposal, members, policy);
     expect(decision.approvalMode).toBe('any_one');
     expect(decision.requiredApprovers).toHaveLength(5);

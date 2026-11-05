@@ -93,8 +93,18 @@ describe('renderProposalText: who approves (T-104 round 2, VOICE §4.1)', () => 
     expect(lines.at(-1)).toBe('👍 to book. price held for 15 min');
   });
 
-  it("Henry asks on Dean's card: every attendee is named, and one tap from any of them is enough", () => {
+  it("Henry asks on Dean's card: Dean, the card owner, is the one who oks it (C10, T-148)", () => {
     const lines = render(proposal());
+    expect(lines.at(-2)).toBe("it's on Dean's card, so Dean has to ok it");
+    expect(lines.at(-1)).toBe(
+      '👍 from Dean to book, or anyone can say "not me" first. price held for 15 min',
+    );
+    expect(lines.join('\n')).not.toContain('Henry has');
+  });
+
+  it('any_one with several approvers (the pool standing in): everyone is named, one tap is enough', () => {
+    // A card owner nobody can approve for (not a member): the any_one parties stand in.
+    const lines = render(proposal({ paidBy: { kind: 'member_card', memberId: 'mem_nobody' } }));
     expect(lines.at(-2)).toBe('any one of Dean, Sam, Ava, Maya or Leo can ok it');
     expect(lines.at(-1)).toBe(
       'one 👍 from any of them books it, or anyone can say "not me" first. price held for 15 min',

@@ -64,9 +64,6 @@ export const LINE_PENDING: Readonly<Record<string, LinePending>> = Object.fromEn
     'msg_bcn_0135',
     'msg_bcn_0136',
   ]),
-  ...gap('T-138', 'a blocked roast line drops the whole day-4 Morning After', [
-    'clk_bcn_2026031510',
-  ]),
   ...gap('T-139', "a guest's second message: fixture expects a refusal, agent stays silent", [
     'msg_bcn_0147',
   ]),
@@ -80,9 +77,6 @@ export const LINE_PENDING: Readonly<Record<string, LinePending>> = Object.fromEn
     'msg_bcn_d_0012',
   ]),
   ...gap('T-141', '👍 on the final settle card does not mark a transfer paid', ['msg_bcn_0173']),
-  ...gap('T-142', 'Wrapped is scheduled only for the seeded Barcelona trip', [
-    'clk_bcn_2026031810',
-  ]),
   // ---- Lisbon (fixtures/chats/lisbon.jsonl; held out: these name the gap, nothing is tuned on them) ----
   ...gap('T-145', 'Lisbon match asks: sold-out derby, Benfica vs Porto proposal and its ledger', [
     'msg_lis_0001',
@@ -106,9 +100,6 @@ export const LINE_PENDING: Readonly<Record<string, LinePending>> = Object.fromEn
     'msg_lis_0022',
     'msg_lis_0023',
   ]),
-  ...gap('T-142', 'Wrapped is scheduled only for the seeded Barcelona trip', [
-    'clk_lis_2026042110',
-  ]),
   // ---- Turks and Caicos (fixtures/chats/turks-and-caicos.jsonl) ----
   ...gap('T-023', 'family mode replies, family recap, minor age-restricted denial', [
     'msg_tci_0001',
@@ -124,9 +115,6 @@ export const LINE_PENDING: Readonly<Record<string, LinePending>> = Object.fromEn
   ...gap('T-113', 'adult-only casino card is withdrawn in a group with a minor', [
     'msg_tci_0023',
     'msg_tci_0025',
-  ]),
-  ...gap('T-142', 'Wrapped is scheduled only for the seeded Barcelona trip', [
-    'clk_tci_2026062810',
   ]),
 ]);
 

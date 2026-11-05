@@ -217,6 +217,19 @@ describe('roastTopicBlocked (gate 2 blocklist)', () => {
     expect(roastTopicBlocked('asleep at the wheel again, and Sam was asleep by 10')).toBe('body');
   });
 
+  it('T-138: Trav\'s "looks shared" wording is not a body topic; looks themselves still are', () => {
+    for (const fine of [
+      '1 charge that looks shared is waiting on a tap in dms',
+      '2 charges that look shared are waiting on a tap in dms',
+      'looks shared?',
+    ]) {
+      expect(roastTopicBlocked(fine), fine).toBeNull();
+    }
+    expect(roastTopicBlocked("Sam's looks cost him €40 at the door")).toBe('body');
+    expect(roastTopicBlocked('looks shared, and so does his ugly shirt')).toBe('body');
+    expect(roastTopicBlocked('Jordan looks rough after €90 of rounds')).toBe('body');
+  });
+
   it('extra caller-supplied terms are honored', () => {
     expect(
       roastTopicBlocked('Sam and the karaoke machine', [{ term: 'karaoke', category: 'body' }]),

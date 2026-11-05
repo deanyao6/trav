@@ -19,9 +19,13 @@ import {
   OPTION_NUMBER_TEXT,
   RESTAURANT_TEXT,
   cancelResponder as rawCancel,
+  VENUE_NOT_BOOKABLE_TEXT,
+  VENUE_OFFER_TEXT,
+  cancelMatches,
   cancelTarget,
   cheaperResponder as rawCheaper,
   createBookingRequestResponder,
+  createVenueQuestionResponder,
   honestGapsResponder as rawGaps,
   lodgingResponder as rawLodging,
   parseRememberAsk,
@@ -360,6 +364,106 @@ describe('T-081 r1 review repros (agent)', () => {
     );
     // No adult payer at all: the requester stays, and ApprovalPolicy C8 holds it.
     expect(cardHolderFor('mem_lily', ['mem_lily'], rule)).toBe('mem_lily');
+  });
+});
+
+describe('T-148 (T-081 r2 review repros, agent)', () => {
+  const ga = {
+    proposalId: 'prop_ga',
+    description: 'Razzmatazz: Saturday club night',
+    tier: 'General admission',
+    totalMinor: 9000,
+    currency: 'EUR',
+    total: '€90',
+    attendees: FIVE.map((memberId) => ({ memberId, name: memberId.replace(/^mem_/, '') })),
+  };
+  const vip = { ...ga, proposalId: 'prop_vip', tier: 'VIP mezzanine', total: '€570' };
+  const snorkel = {
+    proposalId: 'prop_snorkel',
+    description: 'Reef snorkel tour',
+    tier: '',
+    totalMinor: 6500,
+    currency: 'USD',
+    total: '$65',
+    attendees: [{ memberId: 'mem_tci_lily', name: 'Lily' }],
+  };
+  const cancelWith = (text: string, proposals: readonly unknown[]) => {
+    const first = ask(`Dad: @trav ${text}`);
+    const c1 = cancelResponder.complete(first)!.toolCalls[0]!;
+    return cancelResponder.complete(after(first, c1, { proposals }))!;
+  };
+
+  it.each([
+    ['cancel the razz tickets for tonight', [ga], 'prop_ga'],
+    ['cancel razz we are not going anymore', [ga], 'prop_ga'],
+    ['cancel the razz thing asap', [ga], 'prop_ga'],
+    ['cancel the snorkel booking for lily', [ga, snorkel], 'prop_snorkel'],
+    ['cancel the vip razz ones', [ga, vip], 'prop_vip'],
+  ] as const)('#4 any named word finds the card: %s', (text, proposals, id) => {
+    const res = cancelWith(text, proposals);
+    expect(res.toolCalls[0]).toMatchObject({ name: 'cancel_proposal', input: { proposalId: id } });
+  });
+
+  it('#4 several equally good matches ⇒ "which one?", never a guess; no match ⇒ nothing dropped', () => {
+    const tie = cancelWith('cancel the razz tickets for tonight', [ga, vip]);
+    expect(tie.toolCalls).toEqual([]);
+    expect(tie.text).toMatch(/^which one\?/);
+    const none = cancelWith('cancel the barça tickets for tonight', [ga]);
+    expect(none.toolCalls).toEqual([]);
+    expect(none.text).toBe(NOTHING_LIKE_THAT_TEXT);
+    // "for lily" is a person, not a proposal: the snorkel word still decides.
+    expect(cancelMatches(['lily'], [ga, snorkel])).toEqual([ga, snorkel]);
+  });
+
+  it('#3 "get the 5 of us razz tickets, don\'t count henry" proposes the 5, Henry out', async () => {
+    const h = harness();
+    const turn = await h.say('h_dean', "@trav get the 5 of us razz tickets, don't count henry");
+    expect(turn.toolCalls).toEqual(['propose_booking']);
+    expect(h.pending()[0]!.attendees).toEqual([...FIVE]);
+    expect(h.tickets.purchaseCount()).toBe(0);
+  });
+
+  it.each(['how much are razz tickets', 'should we get razz tickets for tonight?'])(
+    '#8 a matched-venue question gets the real price and an offer, no proposal: %s',
+    async (text) => {
+      const h = harness();
+      const turn = await h.say('h_dean', `@trav ${text}`);
+      expect(turn.toolCalls).toEqual(['search_events']);
+      const out = turn.outbound.map((o) => ('text' in o ? o.text : '')).join('\n');
+      expect(out).toMatch(/^razzmatazz is €\d+ each, (?:non-)?refundable/);
+      expect(out).toContain(VENUE_OFFER_TEXT);
+      expect(h.pending()).toEqual([]);
+      expect(h.tickets.purchaseCount()).toBe(0);
+    },
+  );
+
+  it('#8 the venue responder answers only its own search round', () => {
+    const r = chat(createVenueQuestionResponder());
+    expect(r.complete(ask('Dean: @trav get razz tickets for 5'))).toBeUndefined();
+    expect(
+      r.complete(ask('Dean: @trav how much are razz tickets', ['get_roster'])),
+    ).toBeUndefined();
+    const first = ask('Dean: @trav how much is razz');
+    const c1 = r.complete(first)!.toolCalls[0]!;
+    expect(c1).toMatchObject({ name: 'search_events', input: { query: 'razz tickets' } });
+    const none = r.complete(after(first, c1, { events: [] }))!;
+    expect(none.text).toBe(VENUE_NOT_BOOKABLE_TEXT);
+    const aged = r.complete(
+      after(first, c1, {
+        events: [
+          {
+            name: 'Jet ski rental, 1 hour',
+            bookable: true,
+            minimumAge: 16,
+            fromRefundable: false,
+            from: { amountMinor: 12000, currency: 'USD' },
+          },
+        ],
+      }),
+    )!;
+    expect(aged.text).toBe(
+      `jet ski rental, 1 hour is $120 each, non-refundable, 16+ only\n${VENUE_OFFER_TEXT}`,
+    );
   });
 });
 
