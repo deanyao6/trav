@@ -178,7 +178,11 @@ export function createFlightPlanStore(): FlightPlanStore {
       byId.set(plan.planId, plan);
       const ids = (order.get(plan.groupId) ?? []).filter((id) => id !== plan.planId);
       ids.push(plan.planId);
-      while (ids.length > PLANS_KEPT_PER_GROUP) byId.delete(ids.shift()!);
+      while (ids.length > PLANS_KEPT_PER_GROUP) {
+        const evicted = ids.shift()!;
+        byId.delete(evicted);
+        for (const [ref, from] of proposed) if (from.planId === evicted) proposed.delete(ref);
+      }
       order.set(plan.groupId, ids);
     },
     latest: (groupId) => byGroup.get(groupId),
@@ -683,7 +687,7 @@ function chosenOption(
     // each traveler on the offer they were proposed (never another option's),
     // under the option number it was proposed as.
     const from = plans.proposedFrom(input.itemRef!);
-    if (from !== undefined && from.planId !== plan.planId) return { text: NO_FLIGHT_OPTIONS_TEXT };
+    if (from !== undefined && from.planId !== plan.planId) return { text: REPLACED_OPTIONS_TEXT };
     const all = plan.options.flatMap((o) => o.picks);
     const picks = set.map((part) =>
       all.find((p) => p.memberId === part.memberId && p.offerId === part.offerId),

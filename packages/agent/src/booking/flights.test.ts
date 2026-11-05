@@ -599,6 +599,15 @@ describe('flights in chat (T-074): ask → options → "book option 1" → every
     expect(group(ok).some((m) => m.card?.type === 'booking_proposal')).toBe(true);
   });
 
+  it('"not me" on a set whose options a newer search replaced points at the newer card (review r2 #1)', async () => {
+    const { h } = planning();
+    await options(h);
+    const { msg } = await bookOption(h, 2);
+    await options(h);
+    const out = await h.tap('h_sam', msg.id, 'not_me');
+    expect(group(out).map((m) => m.text)).toEqual([REPLACED_OPTIONS_TEXT]);
+  });
+
   it('the expiry line keeps the airport code: "flights to BCN proposal expired" (review r1 #3)', async () => {
     const { h, flights } = planning();
     await options(h);

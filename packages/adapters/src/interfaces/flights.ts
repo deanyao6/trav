@@ -171,6 +171,9 @@ export interface FlightsAdapter {
    * as `provider_unavailable` (outcome unknown), and the adapter must support
    * finding the order by `idempotencyKey` so the executor can compensate (keep
    * it, or cancel it through the approval path) before telling the group.
+   * The same holds when the *first* order fails as `provider_unavailable`:
+   * the executor's no-landed path still says "no charge went through", which
+   * is only true for the in-process mock.
    */
   createOrder(request: CreateFlightOrderRequest): Promise<Result<FlightOrder>>;
 
