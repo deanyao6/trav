@@ -211,7 +211,10 @@ function refMatcher(cardRef: string | undefined): ((card: RichCard) => boolean) 
       types.includes(card.type);
   if (/proposal$/.test(cardRef)) return ofType('booking_proposal');
   if (/receipt$/.test(cardRef))
-    return (card) => card.type === 'expense_confirm' && card.source === 'receipt_photo';
+    return (card) =>
+      card.type === 'expense_confirm' &&
+      card.source === 'receipt_photo' &&
+      card.status === 'pending';
   if (/(prompt|digest)$/.test(cardRef)) return ofType('expense_confirm');
   if (/settle/.test(cardRef)) return ofType('settle_up');
   if (/options$/.test(cardRef)) return ofType('options');

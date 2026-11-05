@@ -187,12 +187,12 @@ describe('findTargetCard', () => {
   });
 
   it('a `_receipt` ref lands only on a receipt read-it card, never redirected to another card (T-083)', () => {
-    const expense = (seq: number, source: string): ThreadMessage => ({
+    const expense = (seq: number, source: string, status = 'pending'): ThreadMessage => ({
       ...base,
       seq,
       messageId: `m${seq}`,
       text: 'e',
-      card: { type: 'expense_confirm', source } as unknown as RichCard,
+      card: { type: 'expense_confirm', source, status } as unknown as RichCard,
       actions: [],
     });
     // Maya's cava chat expense and the settle card are on screen, but no read-it card.
@@ -212,6 +212,13 @@ describe('findTargetCard', () => {
     expect(
       findTargetCard(withReceipt, { kind: 'reaction', cardRef: 'sam_uber_prompt' })?.messageId,
     ).toBe('m6');
+    // An already-logged receipt card is no target for the next receipt's 👍.
+    expect(
+      findTargetCard([expense(5, 'receipt_photo', 'logged')], {
+        kind: 'reaction',
+        cardRef: 'lunch_receipt',
+      }),
+    ).toBeUndefined();
   });
 });
 
