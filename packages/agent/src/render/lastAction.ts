@@ -29,6 +29,7 @@ import {
   whenShort,
 } from './common.js';
 import { approverIds, completedFacts, policyFactsBefore, ruleExplanation } from './audit.js';
+import { paidPhrase } from './expenseConfirm.js';
 
 export interface LastActionLookups {
   readonly booking?: (bookingId: string) => Booking | undefined;
@@ -135,8 +136,10 @@ function expenseLines(
   const e = lookups?.expense?.(expenseId);
   if (e === undefined || e.paidBy[0] === undefined) return undefined;
   const payer = nameOf(ctx, e.paidBy[0].memberId);
+  // VOICE §3.4: another currency shows what was paid, then the trip amount (T-156).
+  const { said, approx } = paidPhrase(e);
   return [
-    `logged ${formatMoney(e.amount)} ${e.description} on ${payer} at ${whenShort(e.createdAt, ctx.timeZone, ctx.now)}`,
+    `logged ${said} ${e.description}${approx} on ${payer} at ${whenShort(e.createdAt, ctx.timeZone, ctx.now)}`,
     e.status === 'undone' ? "it's been undone since, so it's off the tab" : "it's on the tab",
   ];
 }

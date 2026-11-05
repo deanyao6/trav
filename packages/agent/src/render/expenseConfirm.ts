@@ -106,6 +106,19 @@ export function foreignOriginal(expense: Expense): Money | undefined {
   return o !== undefined && o.amount.currency !== expense.amount.currency ? o.amount : undefined;
 }
 
+/**
+ * VOICE §3.4: what was paid, then the trip amount. `said` goes before the
+ * description and `approx` right after it: "$40" + " museum" + " (≈€36.90)".
+ * A trip-currency expense is just its amount and an empty `approx`.
+ */
+export function paidPhrase(expense: Expense): { readonly said: string; readonly approx: string } {
+  const amount = formatMoney(expense.amount);
+  const original = foreignOriginal(expense);
+  return original === undefined
+    ? { said: amount, approx: '' }
+    : { said: formatMoney(original), approx: ` (≈${amount})` };
+}
+
 export function renderExpenseLogged(
   input: ExpenseLoggedRenderInput,
   ctx: RenderContext,
@@ -160,8 +173,7 @@ export function renderExpenseLogged(
   const amount = formatMoney(expense.amount);
   // VOICE §3.4: another currency shows what was paid, then the trip amount ("$36 eSIMs (≈€32.94)").
   const original = foreignOriginal(expense);
-  const said = original === undefined ? amount : formatMoney(original);
-  const approx = original === undefined ? '' : ` (≈${amount})`;
+  const { said, approx } = paidPhrase(expense);
   const merchant = expense.merchantDisplay;
   const fromPhoto = expense.source === 'receipt_photo';
   const head = fromPhoto

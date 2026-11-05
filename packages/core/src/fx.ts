@@ -15,6 +15,7 @@ import { TravError } from './errors.js';
 import { allocate, currencyExponent, money } from './money.js';
 import type { Money } from './money.js';
 import type { CurrencyCode } from './primitives.js';
+import type { SplitSpec } from './domain/expense.js';
 
 const RATE_RE = /^\d+(?:\.\d+)?$/;
 
@@ -86,4 +87,31 @@ export function convertParts(parts: readonly Money[], convertedTotal: Money): Mo
     convertedTotal,
     parts.map((p) => p.amountMinor),
   );
+}
+
+/**
+ * A split stated in the original currency carried over to the converted total
+ * (T-084, T-156): fixed shares and line items by `convertParts`, so they sum
+ * exactly to `convertedTotal`; equal, exclude and weighted splits carry no
+ * money and come back unchanged.
+ */
+export function convertSplit(split: SplitSpec, convertedTotal: Money): SplitSpec {
+  if (split.method === 'exact') {
+    const parts = convertParts(
+      split.amounts.map((a) => a.amount),
+      convertedTotal,
+    );
+    return {
+      method: 'exact',
+      amounts: split.amounts.map((a, i) => ({ memberId: a.memberId, amount: parts[i]! })),
+    };
+  }
+  if (split.method === 'itemized') {
+    const parts = convertParts(
+      split.lineItems.map((l) => l.amount),
+      convertedTotal,
+    );
+    return { ...split, lineItems: split.lineItems.map((l, i) => ({ ...l, amount: parts[i]! })) };
+  }
+  return split;
 }

@@ -15,8 +15,20 @@ import type {
   SplitSpec,
   Trip,
 } from '@trav/core';
-import { formatMoney, formatShares, formatTransfer, ledger, money, TravError } from '@trav/core';
+import {
+  convertMoney,
+  convertSplit,
+  formatMoney,
+  formatShares,
+  formatTransfer,
+  ledger,
+  money,
+  TravError,
+} from '@trav/core';
 import { sanitizeInline } from '../context/groupContext.js';
+import { alreadyLoggedText, fxAuditFields, fxQuoteFor } from '../ingest/chatExpense.js';
+import { noRateQuestion } from '../ingest/expenseText.js';
+import { foreignOriginal, paidPhrase } from '../render/expenseConfirm.js';
 import type { TripLedgerView, TripMoney } from '../context/tripMoney.js';
 import { tripMoney } from '../context/tripMoney.js';
 import type { RenderContext } from '../render/common.js';
@@ -234,12 +246,49 @@ function toSplit(raw: RawSplit, members: readonly Member[], currency: string): S
   }
 }
 
+/**
+ * `draft` (amount, payer and split in the currency the member said) carried
+ * into the trip currency at the reference rate for its date (T-156; same rate
+ * lookup, conversion and split carry-over as the chat flow, D-036).
+ * `undefined` ⇒ no usable rate (none on file, a malformed one, a split that
+ * cannot be carried over, or a total that converts to nothing): ask, never guess.
+ */
+async function convertToTrip(
+  ctx: ToolContext,
+  trip: Trip,
+  draft: Expense,
+): Promise<Expense | undefined> {
+  const quote = await fxQuoteFor(ctx.fx, trip, draft.amount.currency, draft.occurredAt);
+  if (quote === undefined) return undefined;
+  try {
+    const amount = convertMoney(draft.amount, trip.currency, quote.rate);
+    if (amount.amountMinor <= 0) return undefined;
+    return {
+      ...draft,
+      amount,
+      original: {
+        amount: draft.amount,
+        rate: quote.rate,
+        rateDate: quote.rateDate,
+        source: quote.source,
+      },
+      paidBy: draft.paidBy.map((p) => ({ memberId: p.memberId, amount })),
+      split: convertSplit(draft.split, amount),
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 export type LogExpenseResult =
   | {
       readonly kind: 'logged';
       readonly expenseId: string;
       readonly description: string;
+      /** Trip currency (converted when the member said another; T-156). */
       readonly amount: Money;
+      /** What was said, when it was another currency than the trip's. */
+      readonly original?: Money;
       readonly paidBy: { readonly memberId: MemberId; readonly name: string };
       readonly shares: readonly {
         readonly memberId: MemberId;
@@ -261,7 +310,9 @@ export function renderExpenseLoggedText(
   excluded: readonly MemberId[],
 ): string {
   const payer = expense.paidBy[0]!;
-  const head = `logged: ${formatMoney(expense.amount)} ${sanitizeInline(expense.description, 40).toLowerCase()} on ${nameOf(members, payer.memberId)}`;
+  // VOICE §3.4: another currency shows what was paid, then the trip amount (T-156).
+  const { said, approx } = paidPhrase(expense);
+  const head = `logged: ${said} ${sanitizeInline(expense.description, 40).toLowerCase()}${approx} on ${nameOf(members, payer.memberId)}`;
   const nonZero = shares.filter((s) => s.amount.amountMinor !== 0);
   const allEqualish =
     nonZero.length > 0 &&
@@ -285,7 +336,7 @@ export function renderExpenseLoggedText(
 export const logExpenseTool: ToolDefinition<LogExpenseInput, LogExpenseResult> = {
   name: 'log_expense',
   description:
-    'Log a shared expense a member paid and split it on the tab: equal, everyone except some people (exclude), weighted, exact amounts, or itemized line items. Amounts are integer minor units (€84 = 8400) in the trip currency; if the member said a different currency, call anyway and the tool will ask. Only members may log; the payer defaults to the sender.',
+    'Log a shared expense a member paid and split it on the tab: equal, everyone except some people (exclude), weighted, exact amounts, or itemized line items. Pass the amount in the currency the member said, as integer minor units of that currency ($40 = 4000 with currency USD; €84 = 8400 with EUR); exact amounts and line items use that same currency. Another currency than the trip\'s is converted by the tool at the day\'s reference rate (the result shows both, e.g. "$40 museum (≈€36.90)"); never convert it yourself. If there is no rate the tool returns a question to ask instead. Only members may log; the payer defaults to the sender.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -317,14 +368,6 @@ export const logExpenseTool: ToolDefinition<LogExpenseInput, LogExpenseResult> =
     const me = requireMember(ctx);
     const trip = requireTrip(ctx);
     const members = activeMembers(ctx);
-    if (input.currency !== trip.currency) {
-      const said = formatMoney(money(input.amountMinor, input.currency));
-      const tab = formatMoney(money(input.amountMinor, trip.currency));
-      return {
-        kind: 'clarify',
-        question: `was that ${said} or ${tab}? the tab is in ${trip.currency}, so i can only log ${trip.currency} for now`,
-      };
-    }
     const payerId =
       input.paidBy === undefined ? me.memberId : resolveMemberRef(members, input.paidBy);
     if (payerId === undefined)
@@ -334,15 +377,9 @@ export const logExpenseTool: ToolDefinition<LogExpenseInput, LogExpenseResult> =
     const expenses = ctx.stores.group.expenses;
     const prior = expenses.getBySourceRef({ kind: 'message', id: messageId });
     if (prior !== undefined) {
-      return {
-        kind: 'already_logged',
-        expenseId: prior.expenseId,
-        text: `already got that one: ${formatMoney(prior.amount)} ${sanitizeInline(prior.description, 40).toLowerCase()}`,
-      };
+      return { kind: 'already_logged', expenseId: prior.expenseId, text: alreadyLoggedText(prior) };
     }
 
-    const amount = money(input.amountMinor, trip.currency);
-    const split = toSplit(input.split, members, trip.currency);
     const order = members.map((m) => m.memberId);
     let universe = order;
     if (input.activityId !== undefined) {
@@ -350,24 +387,49 @@ export const logExpenseTool: ToolDefinition<LogExpenseInput, LogExpenseResult> =
       const inIds = rows.filter((r) => r.status === 'in').map((r) => r.memberId);
       if (inIds.length > 0) universe = order.filter((id) => inIds.includes(id));
     }
-    const expense: Expense = {
-      expenseId: ctx.ids.next('exp'),
+    const splitCtx = { memberOrder: order, participantsUniverse: universe };
+    const occurredAt = isoOrNow(input.occurredAt, ctx.now);
+    const said = money(input.amountMinor, input.currency);
+    // The id is drawn once the expense will be written (a question writes nothing).
+    const draft: Expense = {
+      expenseId: '',
       groupId: ctx.groupId,
       tripId: trip.tripId,
       description: input.description,
       category: input.category ?? 'other',
-      amount,
-      paidBy: [{ memberId: payerId, amount }],
-      split,
+      amount: said,
+      paidBy: [{ memberId: payerId, amount: said }],
+      split: toSplit(input.split, members, input.currency),
       source: 'chat',
       sourceRef: { kind: 'message', id: messageId },
       ...(input.activityId !== undefined ? { activityId: input.activityId } : {}),
-      occurredAt: isoOrNow(input.occurredAt, ctx.now),
+      occurredAt,
       createdAt: ctx.now,
       createdBy: me.memberId,
       status: 'logged',
     };
-    const splitCtx = { memberOrder: order, participantsUniverse: universe };
+    let expense = draft;
+    if (input.currency !== trip.currency) {
+      // T-156 (D-036): the split is checked as stated, in the currency it was
+      // stated in, then carried into the trip currency at the reference rate
+      // for the expense's date. No rate ⇒ the chat flow's one question.
+      ledger.computeShares(draft, splitCtx);
+      const converted = await convertToTrip(ctx, trip, draft);
+      if (converted === undefined) {
+        return {
+          kind: 'clarify',
+          question: noRateQuestion(
+            sanitizeInline(input.description, 40).toLowerCase(),
+            formatMoney(said),
+            trip.currency,
+          ),
+        };
+      }
+      expense = converted;
+    }
+    expense = { ...expense, expenseId: ctx.ids.next('exp') };
+    const amount = expense.amount;
+    const split = expense.split;
     const shares = ledger.computeShares(expense, splitCtx);
     const entries = ledger.buildLedgerEntries(expense, splitCtx);
     expenses.create(expense, entries);
@@ -384,10 +446,12 @@ export const logExpenseTool: ToolDefinition<LogExpenseInput, LogExpenseResult> =
         participants,
         amounts: shares.map((s) => ({ memberId: s.memberId, amountMinor: s.amount.amountMinor })),
         sourceMessageId: messageId,
+        ...fxAuditFields(expense),
       },
     });
     const excluded = universe.filter((id) => !participants.includes(id));
     const text = renderExpenseLoggedText(expense, shares, members, excluded);
+    const original = foreignOriginal(expense);
     const card: ExpenseConfirmCard = {
       cardId: ctx.ids.next('card'),
       type: 'expense_confirm',
@@ -400,6 +464,7 @@ export const logExpenseTool: ToolDefinition<LogExpenseInput, LogExpenseResult> =
       description: expense.description,
       occurredAt: expense.occurredAt,
       amount,
+      ...(original !== undefined ? { original } : {}),
       paidBy: payerId,
       split: {
         method: split.method,
@@ -416,6 +481,7 @@ export const logExpenseTool: ToolDefinition<LogExpenseInput, LogExpenseResult> =
       expenseId: expense.expenseId,
       description: expense.description,
       amount,
+      ...(original !== undefined ? { original } : {}),
       paidBy: { memberId: payerId, name: nameOf(members, payerId) },
       shares: shares.map((s) => ({
         memberId: s.memberId,

@@ -1302,6 +1302,7 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       clock,
       ids,
       stores,
+      ...(deps.fx !== undefined ? { fx: deps.fx } : {}),
       messageId: event.messageId,
       settings: {
         run(cmd) {

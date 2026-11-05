@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { createMockFxRates } from '@trav/adapters';
 import { TravError, markPrivate, type PendingPrivateItem } from '@trav/core';
 import { BARCELONA } from '../compose.js';
+import { renderLastAction } from '../render/lastAction.js';
 import { FIVE, harness, type Harness } from '../runtime.testkit.js';
 import type { ProposeResult } from '../booking/proposals.js';
 import type { BalancesResult, LogExpenseResult } from './ledger.js';
@@ -233,15 +235,255 @@ describe('ledger tools', () => {
     ).toBeLessThanOrEqual(1);
   });
 
-  it('a different currency is a clarifying question, not a guess', async () => {
-    const h = harness();
-    const res = (await h.runtime.tools.run(
-      'log_expense',
-      { ...dinner, currency: 'USD' },
-      ctx(h),
-    )) as LogExpenseResult;
-    expect(res.kind).toBe('clarify');
-    expect(h.runtime.stores.group.expenses.listByTrip(T)).toHaveLength(0);
+  describe('another currency converts at the mock reference rate (T-156, D-036)', () => {
+    // Saturday 14 March ⇒ Friday's table: 1.0840 USD per EUR; $40 / 1.0840 = €36.90.
+    const museum = {
+      description: 'museum',
+      amountMinor: 4000,
+      currency: 'USD',
+      split: { method: 'equal', participants: ['Dean', 'Maya', 'Sam'] },
+    };
+    const withFx = (h: Harness, over: Partial<TurnToolContext> = {}) =>
+      ctx(h, { fx: createMockFxRates({ clock: h.clock }), ...over });
+    const run = (h: Harness, input: unknown, c: TurnToolContext) =>
+      h.runtime.tools.run('log_expense', input, c) as Promise<LogExpenseResult>;
+
+    it('logs $40 as €36.90, records original, shows both on the confirm line and the card', async () => {
+      const h = harness();
+      const res = await run(h, museum, withFx(h));
+      expect(res.kind).toBe('logged');
+      if (res.kind !== 'logged') return;
+      expect(res.amount).toEqual({ amountMinor: 3690, currency: 'EUR' });
+      expect(res.original).toEqual({ amountMinor: 4000, currency: 'USD' });
+      expect(res.shares.map((s) => s.amountMinor)).toEqual([1230, 1230, 1230]);
+      expect(res.text).toBe(
+        'logged: $40 museum (≈€36.90) on Dean, 3 ways (not Henry, Jordan, Priya) → €12.30 each\n👎 to undo or tell me what to change',
+      );
+      expect(res.card.amount).toEqual({ amountMinor: 3690, currency: 'EUR' });
+      expect(res.card.original).toEqual({ amountMinor: 4000, currency: 'USD' });
+
+      const [stored] = h.runtime.stores.group.expenses.listByTrip(T);
+      expect(stored?.amount).toEqual({ amountMinor: 3690, currency: 'EUR' });
+      expect(stored?.paidBy).toEqual([
+        { memberId: 'mem_dean', amount: { amountMinor: 3690, currency: 'EUR' } },
+      ]);
+      expect(stored?.original).toEqual({
+        amount: { amountMinor: 4000, currency: 'USD' },
+        rate: '1.0840',
+        rateDate: '2026-03-13',
+        source: 'mock-fx',
+      });
+      const entries = h.runtime.stores.group.expenses.listEntries(T);
+      expect(entries.every((e) => e.amount.currency === 'EUR')).toBe(true);
+      const total = (kind: 'paid' | 'owes') =>
+        entries.filter((e) => e.kind === kind).reduce((a, e) => a + e.amount.amountMinor, 0);
+      expect(total('paid')).toBe(3690);
+      expect(total('owes')).toBe(3690);
+
+      const created = h.audit().find((e) => e.type === 'ledger.entry_created');
+      expect(created?.payload['fx']).toEqual({
+        originalMinor: 4000,
+        originalCurrency: 'USD',
+        rate: '1.0840',
+        rateDate: '2026-03-13',
+        rateSource: 'mock-fx',
+      });
+    });
+
+    it('the last-action line keeps the original amount', async () => {
+      const h = harness();
+      const res = await run(h, museum, withFx(h));
+      expect(res.kind).toBe('logged');
+      const stores = h.runtime.stores;
+      const m = renderLastAction(
+        {
+          events: stores.group.audit.listGroupVisible(G),
+          lookups: { expense: (id) => stores.group.expenses.get(id) },
+        },
+        {
+          groupId: G,
+          members: stores.group.members.listByGroup(G),
+          timeZone: 'Europe/Madrid',
+          now: h.clock.now(),
+          ids: h.ids,
+        },
+      );
+      expect(m.text.split('\n')[0]).toBe('logged $40 museum (≈€36.90) on Dean at 9:40pm');
+    });
+
+    it('a converted total that does not divide evenly still splits to the cent', async () => {
+      const h = harness();
+      // $41 / 1.0840 = 37.8228 ⇒ €37.82, 3 ways
+      const res = await run(h, { ...museum, amountMinor: 4100 }, withFx(h));
+      expect(res.kind).toBe('logged');
+      if (res.kind !== 'logged') return;
+      expect(res.amount.amountMinor).toBe(3782);
+      expect(res.shares.reduce((a, s) => a + s.amountMinor, 0)).toBe(3782);
+      expect(
+        Math.max(...res.shares.map((s) => s.amountMinor)) -
+          Math.min(...res.shares.map((s) => s.amountMinor)),
+      ).toBeLessThanOrEqual(1);
+    });
+
+    it('exact amounts and line items said in dollars are carried over and sum exactly', async () => {
+      const h = harness();
+      const exact = await run(
+        h,
+        {
+          ...museum,
+          amountMinor: 10001,
+          split: {
+            method: 'exact',
+            amounts: [
+              { member: 'Dean', amountMinor: 3333 },
+              { member: 'Maya', amountMinor: 3334 },
+              { member: 'Sam', amountMinor: 3334 },
+            ],
+          },
+        },
+        withFx(h),
+      );
+      expect(exact.kind).toBe('logged');
+      if (exact.kind !== 'logged') return;
+      expect(exact.amount.amountMinor).toBe(9226); // 100.01 / 1.0840 = 92.2601
+      expect(exact.shares.reduce((a, s) => a + s.amountMinor, 0)).toBe(9226);
+      expect(exact.shares.every((s) => s.amountMinor > 0)).toBe(true);
+
+      const itemized = await run(
+        h,
+        {
+          ...museum,
+          description: 'tapas',
+          amountMinor: 5000,
+          split: {
+            method: 'itemized',
+            participants: ['Dean', 'Maya'],
+            lineItems: [
+              { label: 'patatas', amountMinor: 1700, claimedBy: ['Dean'] },
+              { label: 'croquetas', amountMinor: 3300, claimedBy: ['Maya'] },
+            ],
+          },
+        },
+        withFx(h, { messageId: 'msg_test_2' }),
+      );
+      expect(itemized.kind).toBe('logged');
+      if (itemized.kind !== 'logged') return;
+      expect(itemized.amount.amountMinor).toBe(4613); // 50 / 1.0840 = 46.1255
+      const stored = h.runtime.stores.group.expenses.get(itemized.expenseId);
+      expect(stored?.split.method).toBe('itemized');
+      if (stored?.split.method !== 'itemized') return;
+      expect(stored.split.lineItems.map((l) => l.amount.currency)).toEqual(['EUR', 'EUR']);
+      expect(stored.split.lineItems.reduce((a, l) => a + l.amount.amountMinor, 0)).toBe(4613);
+      expect(itemized.shares.reduce((a, s) => a + s.amountMinor, 0)).toBe(4613);
+    });
+
+    it('a split that is wrong in the currency it was said in is rejected, not smoothed over', async () => {
+      const h = harness();
+      await expect(
+        run(
+          h,
+          {
+            ...museum,
+            split: {
+              method: 'exact',
+              amounts: [
+                { member: 'Dean', amountMinor: 1000 },
+                { member: 'Maya', amountMinor: 1000 },
+              ],
+            },
+          },
+          withFx(h),
+        ),
+      ).rejects.toMatchObject({ code: 'invalid_argument' });
+      expect(h.runtime.stores.group.expenses.listByTrip(T)).toHaveLength(0);
+    });
+
+    it('a replay of the same message is "already got that one" with both amounts', async () => {
+      const h = harness();
+      await run(h, museum, withFx(h));
+      const again = await run(h, museum, withFx(h));
+      expect(again).toMatchObject({
+        kind: 'already_logged',
+        text: 'already got that one: $40 museum (≈€36.90)',
+      });
+      expect(h.runtime.stores.group.expenses.listByTrip(T)).toHaveLength(1);
+    });
+
+    const noRate = "what was the museum in euros? the tab's in EUR and i can't convert $40 yet";
+
+    it("no FX adapter ⇒ the chat flow's one question, nothing written", async () => {
+      const h = harness();
+      const res = await run(h, museum, ctx(h));
+      expect(res).toEqual({ kind: 'clarify', question: noRate });
+      expect(h.runtime.stores.group.expenses.listByTrip(T)).toHaveLength(0);
+      expect(h.auditTypes()).not.toContain('ledger.entry_created');
+    });
+
+    it('no rate for that date or currency, or a failing lookup ⇒ the same question, never a guess', async () => {
+      const h = harness();
+      // far before the table: nothing within the stale window
+      const old = await run(h, { ...museum, occurredAt: '2025-01-04T12:00:00+01:00' }, withFx(h));
+      expect(old).toEqual({ kind: 'clarify', question: noRate });
+      // a currency the table does not carry
+      const thb = await run(h, { ...museum, currency: 'THB' }, withFx(h));
+      expect(thb.kind).toBe('clarify');
+      if (thb.kind === 'clarify') expect(thb.question).toContain("i can't convert");
+      // an adapter that throws, and one with a malformed rate
+      const throwing = {
+        ...createMockFxRates({ clock: h.clock }),
+        getRate: () => Promise.reject(new Error('down')),
+      };
+      expect(await run(h, museum, ctx(h, { fx: throwing }))).toEqual({
+        kind: 'clarify',
+        question: noRate,
+      });
+      const malformed = {
+        ...createMockFxRates({ clock: h.clock }),
+        getRate: () =>
+          Promise.resolve({
+            ok: true as const,
+            value: {
+              base: 'EUR',
+              quote: 'USD',
+              rate: 'abc',
+              asOf: '2026-03-13',
+              source: 'mock-fx',
+            },
+          }),
+      };
+      expect(await run(h, museum, ctx(h, { fx: malformed }))).toEqual({
+        kind: 'clarify',
+        question: noRate,
+      });
+      expect(h.runtime.stores.group.expenses.listByTrip(T)).toHaveLength(0);
+    });
+
+    it('the trip currency is untouched: no lookup, no original', async () => {
+      const h = harness();
+      let lookups = 0;
+      const counting = {
+        ...createMockFxRates({ clock: h.clock }),
+        getRate: () => {
+          lookups += 1;
+          return Promise.reject(new Error('should not be called'));
+        },
+      };
+      const res = await run(h, dinner, ctx(h, { fx: counting }));
+      expect(res.kind).toBe('logged');
+      expect(lookups).toBe(0);
+      expect(h.runtime.stores.group.expenses.listByTrip(T)[0]?.original).toBeUndefined();
+      expect(h.audit().find((e) => e.type === 'ledger.entry_created')?.payload['fx']).toBe(
+        undefined,
+      );
+    });
+
+    it('the tool description tells the model the tool converts', () => {
+      const h = harness();
+      const spec = h.runtime.tools.specs('group').find((t) => t.name === 'log_expense');
+      expect(spec?.description).toContain('converted by the tool');
+      expect(spec?.description).toContain('never convert it yourself');
+      expect(spec?.description).not.toContain('will ask');
+    });
   });
 
   it('rejects bad input', async () => {

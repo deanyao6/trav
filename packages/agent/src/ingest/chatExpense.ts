@@ -55,7 +55,7 @@ import type {
   Stores,
   Trip,
 } from '@trav/core';
-import { formatMoney, isReaction, ledger, localDate, parseIso } from '@trav/core';
+import { isReaction, ledger, localDate, parseIso } from '@trav/core';
 import { buildGroupContext, sanitizeInline } from '../context/groupContext.js';
 import type { ModelClient, ResponseSource } from '../model/client.js';
 import {
@@ -63,7 +63,7 @@ import {
   EXPENSE_TEXT_SCHEMA,
   expenseTextSystemPrompt,
 } from '../prompts/expenseText.js';
-import { foreignOriginal, renderExpenseLogged } from '../render/expenseConfirm.js';
+import { paidPhrase, renderExpenseLogged } from '../render/expenseConfirm.js';
 import type { RenderContext } from '../render/common.js';
 import {
   askedFacts,
@@ -123,26 +123,63 @@ export async function ratesFor(
     ),
   ];
   if (others.length === 0) return ctx;
+  const quotes = new Map<string, FxQuote>(ctx.fx ?? []);
+  for (const cur of others) {
+    if (quotes.has(cur)) continue;
+    const quote = await fxQuoteFor(fx, trip, cur, at);
+    if (quote !== undefined) quotes.set(cur, quote);
+  }
+  return quotes.size === 0 ? ctx : { ...ctx, fx: quotes };
+}
+
+/**
+ * The reference rate from `currency` into the trip currency on `at`'s date in
+ * the trip's time zone (T-084; also the `log_expense` tool, T-156). Any
+ * failure (no adapter, a bad time, a thrown or failed lookup, nothing within
+ * the stale window) is `undefined`: no rate, so the amount is asked about.
+ */
+export async function fxQuoteFor(
+  fx: FxRatesAdapter | undefined,
+  trip: Pick<Trip, 'currency' | 'timeZone'>,
+  currency: string,
+  at: IsoDateTime,
+): Promise<FxQuote | undefined> {
+  if (fx === undefined || currency === trip.currency) return undefined;
   let on: string;
   try {
     on = localDate(at, trip.timeZone);
   } catch {
-    return ctx;
+    return undefined;
   }
-  const quotes = new Map<string, FxQuote>(ctx.fx ?? []);
-  for (const cur of others) {
-    if (quotes.has(cur)) continue;
-    // base = trip currency: the table's own "units of `cur` per 1 trip unit" (no inverse rounding)
-    let res: Awaited<ReturnType<FxRatesAdapter['getRate']>>;
-    try {
-      res = await fx.getRate(tripCurrency, cur, on);
-    } catch {
-      continue; // a failed lookup is no rate: the amount is asked about
-    }
-    if (!res.ok) continue;
-    quotes.set(cur, { rate: res.value.rate, rateDate: res.value.asOf, source: res.value.source });
+  // base = trip currency: the table's own "units of `currency` per 1 trip unit" (no inverse rounding)
+  try {
+    const res = await fx.getRate(trip.currency, currency, on);
+    if (!res.ok) return undefined;
+    return { rate: res.value.rate, rateDate: res.value.asOf, source: res.value.source };
+  } catch {
+    return undefined;
   }
-  return quotes.size === 0 ? ctx : { ...ctx, fx: quotes };
+}
+
+/** "already got that one: $40 museum (≈€36.90)" for a replayed statement or tool call. */
+export function alreadyLoggedText(expense: Expense): string {
+  const { said, approx } = paidPhrase(expense);
+  return `already got that one: ${said} ${sanitizeInline(expense.description, 40).toLowerCase()}${approx}`;
+}
+
+/** The `fx` fields of a `ledger.entry_created` payload for a converted expense (D-036). */
+export function fxAuditFields(expense: Expense): Record<string, unknown> {
+  const o = expense.original;
+  if (o === undefined) return {};
+  return {
+    fx: {
+      originalMinor: o.amount.amountMinor,
+      originalCurrency: o.amount.currency,
+      rate: o.rate,
+      rateDate: o.rateDate,
+      rateSource: o.source ?? null,
+    },
+  };
 }
 
 export interface ChatExpenseInput {
@@ -311,35 +348,15 @@ export function createChatExpenseFlow(deps: ChatExpenseDeps): ChatExpenseFlow {
           amounts: shares.map((s) => ({ memberId: s.memberId, amountMinor: s.amount.amountMinor })),
           sourceMessageId: source.messageId,
           sourceRef: sourceRef.id,
-          ...(expense.original !== undefined
-            ? {
-                fx: {
-                  originalMinor: expense.original.amount.amountMinor,
-                  originalCurrency: expense.original.amount.currency,
-                  rate: expense.original.rate,
-                  rateDate: expense.original.rateDate,
-                  rateSource: expense.original.source ?? null,
-                },
-              }
-            : {}),
+          ...fxAuditFields(expense),
         },
       });
       logged.push(expense);
     });
 
     if (logged.length === 0) {
-      const first = already[0]!;
-      const paid = foreignOriginal(first);
-      const desc = sanitizeInline(first.description, 40).toLowerCase();
       return {
-        drafts: [
-          question(
-            input,
-            paid === undefined
-              ? `already got that one: ${formatMoney(first.amount)} ${desc}`
-              : `already got that one: ${formatMoney(paid)} ${desc} (≈${formatMoney(first.amount)})`,
-          ),
-        ],
+        drafts: [question(input, alreadyLoggedText(already[0]!))],
         note: 'expense:already_logged',
       };
     }

@@ -557,6 +557,51 @@ describe('the tool loop', () => {
     expect(msg.text).not.toContain('!');
   });
 
+  it("log_expense in dollars converts through the runtime's FX, as the chat flow does (T-156)", async () => {
+    const model: ModelClient = {
+      mode: 'offline',
+      complete(req) {
+        return Promise.resolve({
+          text: '',
+          toolCalls: [
+            {
+              id: 'c1',
+              name: 'log_expense',
+              input: {
+                description: 'museum',
+                amountMinor: 4000,
+                currency: 'USD',
+                split: { method: 'exclude', excluded: ['Henry'] },
+              },
+            },
+          ],
+          usage: { inputTokens: 0, outputTokens: 0 },
+          source: 'script',
+          scriptKey: deriveScriptKey(req),
+        });
+      },
+      classify: () => Promise.reject(new Error('not used')),
+    };
+    const h = harness({ model });
+    const turn = await h.say('h_dean', '@trav log the museum from earlier, everyone but Henry');
+    expect(turn.toolCalls).toEqual(['log_expense']);
+    expect(turn.note).toBe('tool:log_expense:logged');
+    expect(firstMessage(turn).text.split('\n')[0]).toBe(
+      'logged: $40 museum (≈€36.90) on Dean, 5 ways (not Henry) → €7.38 each',
+    );
+    const [e] = h.runtime.stores.group.expenses.listByTrip(BARCELONA.tripId);
+    expect(e?.amount).toEqual({ amountMinor: 3690, currency: 'EUR' });
+    expect(e?.original?.source).toBe('mock-fx');
+
+    // With FX off, the same call is the chat flow's one question and writes nothing.
+    const off = harness({ model, runtime: { fx: false } });
+    const asked = await off.say('h_dean', '@trav log the museum from earlier, everyone but Henry');
+    expect(firstMessage(asked).text).toBe(
+      "what was the museum in euros? the tab's in EUR and i can't convert $40 yet",
+    );
+    expect(off.runtime.stores.group.expenses.listByTrip(BARCELONA.tripId)).toHaveLength(0);
+  });
+
   it('the DM lane is always addressed, answers privately, and offers the DM-only tool', async () => {
     const h = harness();
     // (balance asks are answered by the T-091 intercept; this one reaches the model)

@@ -8,6 +8,7 @@
  * input and throw `TravError('invalid_argument')`; builders may hand-write
  * guards or add `zod@4.6.7` (pinned) to this package if schemas get large.
  */
+import type { FxRatesAdapter } from '@trav/adapters';
 import type {
   Clock,
   GroupId,
@@ -32,6 +33,12 @@ export interface ToolContext {
   readonly clock: Clock;
   readonly ids: IdGenerator;
   readonly stores: Stores;
+  /**
+   * T-156: reference rates for `log_expense` in another currency (the
+   * runtime's mock table, never a live API; D-036). Absent ⇒ no conversion:
+   * the tool asks for the amount in the trip currency.
+   */
+  readonly fx?: FxRatesAdapter;
 }
 
 export interface ToolDefinition<I = unknown, O = unknown> {

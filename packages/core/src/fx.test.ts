@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { convertMoney, convertParts } from './fx.js';
+import { convertMoney, convertParts, convertSplit } from './fx.js';
 import { money, sum } from './money.js';
 
 describe('convertMoney (T-084)', () => {
@@ -58,5 +58,69 @@ describe('convertParts (T-084)', () => {
 
   it('rejects negative parts', () => {
     expect(() => convertParts([money(-1, 'USD')], money(1, 'EUR'))).toThrow(/>= 0/);
+  });
+});
+
+describe('convertSplit (T-156)', () => {
+  const total = money(9226, 'EUR'); // $100.01 at 1.0840
+
+  it('exact shares carry over in proportion and sum exactly to the converted total', () => {
+    const out = convertSplit(
+      {
+        method: 'exact',
+        amounts: [
+          { memberId: 'a', amount: money(3333, 'USD') },
+          { memberId: 'b', amount: money(3334, 'USD') },
+          { memberId: 'c', amount: money(3334, 'USD') },
+        ],
+      },
+      total,
+    );
+    expect(out.method).toBe('exact');
+    if (out.method !== 'exact') return;
+    expect(out.amounts.map((a) => a.memberId)).toEqual(['a', 'b', 'c']);
+    expect(out.amounts.every((a) => a.amount.currency === 'EUR')).toBe(true);
+    expect(
+      sum(
+        out.amounts.map((a) => a.amount),
+        'EUR',
+      ),
+    ).toEqual(total);
+  });
+
+  it('line items keep their labels, claimants and kinds; amounts sum exactly', () => {
+    const out = convertSplit(
+      {
+        method: 'itemized',
+        participants: ['a', 'b'],
+        lineItems: [
+          { lineId: 'l1', label: 'x', amount: money(1700, 'USD'), claimedBy: ['a'], kind: 'item' },
+          { lineId: 'l2', label: 'tip', amount: money(3300, 'USD'), claimedBy: [], kind: 'tip' },
+        ],
+      },
+      money(4613, 'EUR'),
+    );
+    expect(out.method).toBe('itemized');
+    if (out.method !== 'itemized') return;
+    expect(out.participants).toEqual(['a', 'b']);
+    expect(out.lineItems.map((l) => [l.lineId, l.label, l.kind, l.claimedBy])).toEqual([
+      ['l1', 'x', 'item', ['a']],
+      ['l2', 'tip', 'tip', []],
+    ]);
+    expect(
+      sum(
+        out.lineItems.map((l) => l.amount),
+        'EUR',
+      ),
+    ).toEqual(money(4613, 'EUR'));
+  });
+
+  it('equal, exclude and weighted splits carry no money and come back unchanged', () => {
+    const equal = { method: 'equal', participants: ['a', 'b'] } as const;
+    const exclude = { method: 'exclude', excluded: ['c'] } as const;
+    const weighted = { method: 'weighted', weights: [{ memberId: 'a', weight: 2 }] } as const;
+    expect(convertSplit(equal, total)).toBe(equal);
+    expect(convertSplit(exclude, total)).toBe(exclude);
+    expect(convertSplit(weighted, total)).toBe(weighted);
   });
 });

@@ -108,7 +108,7 @@ import type {
   FxQuote,
   SplitSpec,
 } from '@trav/core';
-import { convertMoney, convertParts, formatMoney, ledger, money, parseDecimal } from '@trav/core';
+import { convertMoney, convertSplit, formatMoney, ledger, money, parseDecimal } from '@trav/core';
 import { stripInvisible } from '../untrusted.js';
 
 // ---------- inputs and outputs ----------
@@ -1700,24 +1700,7 @@ function settle(d: ExpenseDraft, ctx: ExpenseTextContext): ParsedExpense | { uns
     rateDate: quote.rateDate,
     source: quote.source,
   };
-  const split = s.split;
-  if (split.method === 'exact') {
-    const parts = convertParts(
-      split.amounts.map((a) => a.amount),
-      amount,
-    );
-    const amounts = split.amounts.map((a, i) => ({ memberId: a.memberId, amount: parts[i]! }));
-    return { ...s, amount, original, split: { method: 'exact', amounts } };
-  }
-  if (split.method === 'itemized') {
-    const parts = convertParts(
-      split.lineItems.map((l) => l.amount),
-      amount,
-    );
-    const lineItems = split.lineItems.map((l, i) => ({ ...l, amount: parts[i]! }));
-    return { ...s, amount, original, split: { ...split, lineItems } };
-  }
-  return { ...s, amount, original };
+  return { ...s, amount, original, split: convertSplit(s.split, amount) };
 }
 
 /** `settle` in the currency the sender used. */
@@ -1915,6 +1898,22 @@ const CURRENCY_NAMES: Readonly<Record<string, string>> = {
   GBP: 'pounds',
 };
 
+/**
+ * The one question when an amount is in another currency and there is no
+ * reference rate for it (T-084; the `log_expense` tool asks the same, T-156):
+ * "what was the museum in euros? the tab's in EUR and i can't convert $40 yet".
+ * `description` is already display-safe; "expense" (nothing named) reads "it".
+ */
+export function noRateQuestion(
+  description: string,
+  said: string,
+  tripCurrency: CurrencyCode,
+): string {
+  const word = CURRENCY_NAMES[tripCurrency] ?? tripCurrency;
+  const thing = description === 'expense' ? 'it' : `the ${description}`;
+  return `what was ${thing} in ${word}? the tab's in ${tripCurrency} and i can't convert ${said} yet`;
+}
+
 function questionFor(
   drafts: readonly ExpenseDraft[],
   missing: readonly (readonly MissingFact[])[],
@@ -1949,11 +1948,7 @@ function questionFor(
   }
   if (all.has('trip_currency') && d.amount !== undefined && ctx.tripCurrency !== null) {
     const said = shown(d, ctx) ?? d.amount.decimal;
-    const word = CURRENCY_NAMES[ctx.tripCurrency] ?? ctx.tripCurrency;
-    const thing = d.description === 'expense' ? 'it' : `the ${d.description}`;
-    parts.push(
-      `what was ${thing} in ${word}? the tab's in ${ctx.tripCurrency} and i can't convert ${said} yet`,
-    );
+    parts.push(noRateQuestion(d.description, said, ctx.tripCurrency));
     // That line is a question followed by the reason; keep it the only part when alone.
     if (!all.has('amount') && !all.has('participants')) return parts[0]!;
   }
