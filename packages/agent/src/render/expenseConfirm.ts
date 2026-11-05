@@ -63,7 +63,7 @@ function excludedFromEqual(
 }
 
 /** Most common amount among `shares` (ties: the first seen). */
-function modeShare(shares: readonly Money[]): Money | undefined {
+export function modeShare(shares: readonly Money[]): Money | undefined {
   const counts = new Map<number, number>();
   for (const s of shares) counts.set(s.amountMinor, (counts.get(s.amountMinor) ?? 0) + 1);
   let best: Money | undefined;

@@ -34,7 +34,7 @@ import {
 import { sanitizeInline } from '../context/groupContext.js';
 import { alreadyLoggedText, fxAuditFields, fxQuoteFor } from '../ingest/chatExpense.js';
 import { noRateQuestion } from '../ingest/expenseText.js';
-import { foreignOriginal, paidPhrase } from '../render/expenseConfirm.js';
+import { foreignOriginal, modeShare, paidPhrase } from '../render/expenseConfirm.js';
 import type { TripLedgerView, TripMoney } from '../context/tripMoney.js';
 import { tripMoney } from '../context/tripMoney.js';
 import type { RenderContext } from '../render/common.js';
@@ -330,6 +330,10 @@ export function tripOccurredAt(
       if (hour > 23 || minute > 59 || second > 59) bad('occurredAt: no such time');
       return at(date!, hour, minute, second);
     }
+    // A strict ISO date-time with Z or an offset only (T-156 r2 review #3).
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$/.test(value)) {
+      bad('occurredAt: not an ISO-8601 date-time');
+    }
     parseIso(value);
     return value;
   } catch {
@@ -391,8 +395,9 @@ export function renderExpenseLoggedText(
   } else if (allEqualish) {
     const not =
       excluded.length > 0 ? ` (not ${excluded.map((id) => nameOf(members, id)).join(', ')})` : '';
-    // what the others owe; a leftover cent stays with the payer (VOICE §4.4)
-    const each = (nonZero.find((s) => s.memberId !== payer.memberId) ?? nonZero[0]!).amount;
+    // what most of the others owe, as the chat flow's card says (VOICE §4.4; T-156 r2 review #1)
+    const others = nonZero.filter((s) => s.memberId !== payer.memberId).map((s) => s.amount);
+    const each = modeShare(others) ?? nonZero[0]!.amount;
     line1 = `${head}, ${nonZero.length} ways${not} → ${formatMoney(each)} each`;
   } else {
     line1 = `${head} · ${formatShares(nonZero.map((s) => ({ name: nameOf(members, s.memberId), amount: s.amount })))}`;

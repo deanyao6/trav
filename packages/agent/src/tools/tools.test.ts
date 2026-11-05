@@ -573,12 +573,32 @@ describe('ledger tools', () => {
         '2026-02-30',
         '2026-03-12T25:00',
         '14/03/2026',
+        // T-156 r2 review #3: never a non-ISO string with an offset
+        'Sat, 14 Mar 2026 20:30:00 +0100',
+        '2026-03-14 20:30:00+01:00',
       ].entries()) {
         await expect(
           run(h, { ...museum, occurredAt: bad }, withFx(h, { messageId: `msg_bad_${String(n)}` })),
         ).rejects.toMatchObject({ code: 'invalid_argument' });
       }
       expect(h.runtime.stores.group.expenses.listByTrip(T)).toHaveLength(4);
+    });
+
+    // T-156 r2 review #1: "each" is what most of the others owe, as on the chat card.
+    it('€10.02 four ways: "each" is the €2.50 most of the others owe', async () => {
+      const h = harness();
+      const res = await run(
+        h,
+        {
+          description: 'snacks',
+          amountMinor: 1002,
+          currency: 'EUR',
+          split: { method: 'equal', participants: ['Dean', 'Maya', 'Sam', 'Priya'] },
+        },
+        ctx(h),
+      );
+      if (res.kind !== 'logged') throw new Error(res.kind);
+      expect(res.text.split('\n')[0]).toMatch(/4 ways(?: \(not [^)]*\))? → €2\.50 each$/);
     });
 
     it('r2 #3: ¥4000 is 4000 minor units and logs as €24.49', async () => {
