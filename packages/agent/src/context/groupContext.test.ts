@@ -9,6 +9,7 @@ import {
 } from '../model/client.js';
 import {
   buildGroupContext,
+  pendingCountLeaks,
   PRIVATE_PROMPT_MARKERS,
   renderGroupPrompt,
   sanitizeInline,
@@ -25,7 +26,7 @@ import {
 
 const VOICE = { systemPromptId: 'group_chat_v1', persona: "you're trav, the group's trip friend." };
 
-/** Wraps the private store so the test can prove buildGroupContext only calls countPendingByOwner. */
+/** Wraps the private store so the test can prove buildGroupContext never touches it (T-112). */
 function spyPrivate(store: PrivateStore): { store: PrivateStore; calls: string[] } {
   const calls: string[] = [];
   const proxy = new Proxy(store, {
@@ -43,12 +44,14 @@ function spyPrivate(store: PrivateStore): { store: PrivateStore; calls: string[]
 
 function build(seed: TripSeed) {
   const priv = spyPrivate(createFakePrivateStore(seed.priv));
+  // Even handed a private store (the old `privateCounts` dep), the builder reads nothing from it.
+  const deps = {
+    group: createFakeGroupStore(seed.group),
+    privateCounts: priv.store,
+    clock: testClock(seed.now),
+  };
   const ctx = buildGroupContext(
-    {
-      group: createFakeGroupStore(seed.group),
-      privateCounts: priv.store,
-      clock: testClock(seed.now),
-    },
+    deps,
     seed.groupId,
     seed.tripId,
     { recentMessages: seed.recentMessages },
@@ -81,12 +84,26 @@ describe('withExtra (type-level, SAFETY C1)', () => {
 });
 
 describe('buildGroupContext', () => {
-  it('reads only counts from the private store', () => {
+  it('T-112: reads nothing from the private store, not even pending counts', () => {
     for (const name of TRIP_FIXTURE_NAMES) {
-      const { ctx, privateCalls } = build(seedTrip(name));
-      expect(privateCalls).toEqual(['countPendingByOwner']);
-      expect(Object.values(ctx.privatePendingCounts)).toEqual([1]);
+      const seed = seedTrip(name);
+      expect(seed.priv.pending.length).toBeGreaterThan(0);
+      const { ctx, privateCalls } = build(seed);
+      expect(privateCalls).toEqual([]);
+      expect(ctx).not.toHaveProperty('privatePendingCounts');
     }
+    // The deps type has no private store slot at all.
+    const seed = seedTrip('barcelona');
+    buildGroupContext(
+      {
+        group: createFakeGroupStore(seed.group),
+        // @ts-expect-error GroupContextDeps takes no private store (T-112)
+        privateCounts: createFakePrivateStore(seed.priv),
+        clock: testClock(seed.now),
+      },
+      seed.groupId,
+      seed.tripId,
+    );
   });
 
   it('Barcelona: Razzmatazz roster is the 5, Henry out; balances sum to zero; roast allowed', () => {
@@ -118,7 +135,6 @@ describe('buildGroupContext', () => {
     const seed = seedTrip('lisbon');
     const deps = {
       group: createFakeGroupStore(seed.group),
-      privateCounts: createFakePrivateStore(seed.priv),
       clock: testClock(seed.now),
     };
     expect(() => buildGroupContext(deps, 'grp_nope', null)).toThrow(
@@ -142,7 +158,6 @@ describe('buildGroupContext', () => {
     const ctx = buildGroupContext(
       {
         group: createFakeGroupStore(seed.group),
-        privateCounts: createFakePrivateStore(seed.priv),
         clock: testClock(seed.now),
       },
       seed.groupId,
@@ -173,10 +188,41 @@ describe('renderGroupPrompt privacy scan (SAFETY C2) across the three trip fixtu
       for (const secret of seed.privateSecrets) expect(all).not.toContain(secret);
       // the promoted expense shows only its owner-chosen display name
       expect(context).toContain(seed.group.expenses[1]?.merchantDisplay ?? '∅');
-      // private activity appears only as a count
-      expect(context).toMatch(/private items waiting .*\(counts only/);
+      // T-112: not even a count of anyone's pending private items
+      expect(seed.priv.pending.length).toBeGreaterThan(0);
+      const names = ctx.members.map((m) => m.displayName);
+      expect(pendingCountLeaks(all, names)).toEqual([]);
+      expect(all).not.toMatch(/private items waiting|counts only/);
     },
   );
+
+  it('T-112: the C2 pending-count scan catches every shape it guards', () => {
+    const names = ['Sam', 'Maya', 'Mary Jo'];
+    for (const leak of [
+      "private items waiting in members' own threads (counts only, details are private): Sam 2 · Maya 1",
+      '2 charges that look shared are waiting on a tap in dms',
+      '1 charge that looks shared is waiting on a tap in dms',
+      'pending private items: Sam 2',
+      'unconfirmed: Mary Jo (3)',
+      '3 receipts pending',
+    ]) {
+      expect(pendingCountLeaks(leak, names), leak).toEqual([leak]);
+    }
+    // Group facts and the sender's own words are not leaks.
+    for (const fine of [
+      'balances (positive = is owed): Sam +€12.00 · Maya −€12.00',
+      'waiting for approval:',
+      '- Razzmatazz tickets (prop_1) · €100.00 · for Sam, Maya · requested by Sam 2:14am · refundable',
+      "you can't see what anyone has waiting for their 👍 in their own thread with you, not even how many. never guess it in the group; if someone asks about their own, point them to their thread with you.",
+      'Lily (mem_tci_lily) · member · under 18',
+    ]) {
+      expect(pendingCountLeaks(fine, names), fine).toEqual([]);
+    }
+    // Members' chat lines are not Trav's structure: the scan stops at the transcript.
+    expect(
+      pendingCountLeaks('rules\nrecent messages in the group:\n- Sam: i have 2 charges pending', names),
+    ).toEqual([]);
+  });
 
   it('member chat cannot forge prompt structure or trip the untrusted guard', async () => {
     const seed = seedTrip('barcelona');

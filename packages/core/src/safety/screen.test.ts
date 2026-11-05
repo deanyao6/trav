@@ -251,13 +251,13 @@ describe('screenOutbound: roast lines', () => {
     expect(r.suppressed.map((s) => s.cause)).toEqual(['roast_line_limit']);
   });
 
-  it('T-138: the recap\'s "looks shared" line is not roast material; the recap keeps its roast lines', () => {
+  it('T-138: the recap\'s non-roast lines are not roast material; the recap keeps its roast lines', () => {
     const line = 'Sam paid for a round at 2:14am. the tab remembers';
     const text = [
       'morning after, day 4 ☀️',
       'last night: Razzmatazz (5 of you, not Henry) €100',
       line,
-      '1 charge that looks shared is waiting on a tap in dms',
+      'tab: Sam → Dean €40.00 is the big one, full list in the card',
     ].join('\n');
     const draft = recapDraft(text, [line]);
     const r = screenOutbound(draft, bcnCtx());

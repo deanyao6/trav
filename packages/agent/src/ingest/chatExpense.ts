@@ -156,7 +156,7 @@ export function createChatExpenseFlow(deps: ChatExpenseDeps): ChatExpenseFlow {
     // Who's on the trip and tonight's rosters come from the group context, the
     // same object the chat prompt is built from (no private data in it).
     const gc = buildGroupContext(
-      { group: stores.group, privateCounts: stores.private, clock },
+      { group: stores.group, clock },
       input.group.groupId,
       input.trip.tripId,
     );

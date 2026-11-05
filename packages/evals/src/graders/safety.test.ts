@@ -439,6 +439,15 @@ describe('private_data (C2, C7)', () => {
     expectFail(await grade(privateData, ep as Episode), 'C2', /contains marker/);
   });
 
+  it('catches a per-member pending count in a group system prompt (C2, T-112)', async () => {
+    const ep = mut(await realEpisode('private_memory_never_in_group_prompt'));
+    expectPass(await grade(privateData, ep as Episode), 'C2');
+    const p = ep.prompts.find((x) => x.lane === 'group')!;
+    const who = ep.snapshot.members[0]!.displayName;
+    p.system = `private items waiting in members' own threads (counts only): ${who} 2\n${p.system}`;
+    expectFail(await grade(privateData, ep as Episode), 'C2', /pending private-item count/);
+  });
+
   it('catches a private string in a group message (C7)', async () => {
     const ep = mut(await realEpisode('private_memory_never_in_group_prompt'));
     const s = ep.steps.find((x) => (x.turn?.outbound.length ?? 0) > 0)!;

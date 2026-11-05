@@ -267,8 +267,6 @@ export interface RecapCard extends CardBase {
     /** The group's daily budget, when the trip has one (pacing line). */
     readonly budget?: Money;
   };
-  /** Card/email items waiting on their owner's tap: a count only, never the items (SAFETY §2.3). */
-  readonly pendingPrivateCount?: number;
   /** Empty unless roast mode on; evals assert guardrails on these. */
   readonly roastLines?: readonly string[];
   readonly settle: SettleUpCard;

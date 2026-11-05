@@ -1235,7 +1235,7 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     const template = r.lane === 'dm' ? prompts.dm : prompts.group;
 
     const ctx = buildGroupContext(
-      { group: stores.group, privateCounts: stores.private, clock },
+      { group: stores.group, clock },
       r.group.groupId,
       r.trip?.tripId ?? null,
       { recentMessages: recent.get(key) ?? [], recentMessageLimit: recentLimit },

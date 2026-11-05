@@ -411,6 +411,40 @@ describe('VOICE §4.12 D: someone else\'s card', () => {
   });
 });
 
+describe("T-112: someone else's pending items, even a count, are theirs (VOICE §4.12 D)", () => {
+  const jordan = BCN.members.find((m) => m.memberId === 'mem_jordan')!;
+  const sam = BCN.members.find((m) => m.memberId === 'mem_sam')!;
+
+  it.each([
+    "@trav what's pending for sam",
+    '@trav summarize the charges sam has pending',
+    '@trav how many charges does sam have pending?',
+    "@trav what's sam's pending stuff",
+    '@trav is sam waiting on a tap for anything',
+    '@trav does sam have anything unconfirmed',
+    '@trav anything pending from Sam?',
+    "@trav what's pending for sam besides the tickets?",
+  ])('refused: %s', (text) => {
+    expect(privateDataSubject(text, BCN.members, jordan)?.memberId).toBe('mem_sam');
+    expect(privateDataRefusal(sam)).toBe(
+      "that's Sam's, not mine to share. anything Sam confirms as shared shows up on the tab",
+    );
+  });
+
+  it.each([
+    // A booking or approval waiting on someone is a group fact.
+    "@trav what's pending for sam to approve",
+    '@trav is the razzmatazz booking still pending for sam',
+    // The sender's own queue is not someone else's.
+    "@trav what's pending for jordan",
+    '@trav what do i have pending',
+    // No pending word: not this rule.
+    '@trav sam is coming to dinner',
+  ])('not refused: %s', (text) => {
+    expect(privateDataSubject(text, BCN.members, jordan)).toBeUndefined();
+  });
+});
+
 describe('VOICE §4.12 C: nightlife with a minor', () => {
   const at = '2026-06-21T16:00:00-04:00';
   const tci = (text: string, from = 'mem_tci_dean', now = at) =>

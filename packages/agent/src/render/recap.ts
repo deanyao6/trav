@@ -63,8 +63,6 @@ export interface RecapRenderInput {
     /** The group's daily budget: "€264 total, €36 over the €228 day budget". */
     readonly budget?: Money;
   };
-  /** Card/email items still waiting on their owner (a count, never the items; SAFETY §2.3). */
-  readonly pendingPrivateCount?: number;
   /** Pre-generated roast lines (max 2). Dropped unless every gate passes. */
   readonly roastLines?: readonly string[];
   readonly settle: SettleUpRenderInput;
@@ -218,14 +216,8 @@ export function renderRecap(
     );
   }
 
-  const pending = Math.max(0, Math.floor(input.pendingPrivateCount ?? 0));
-  if (pending > 0) {
-    lines.push(
-      pending === 1
-        ? '1 charge that looks shared is waiting on a tap in dms'
-        : `${String(pending)} charges that look shared are waiting on a tap in dms`,
-    );
-  }
+  // No pending-private-items line (T-099, SAFETY §2.3 "even a count is the
+  // owner's"): each owner already has the "looks shared?" card in their DM.
 
   const today = input.today ?? [];
   if (today.length > 0) {
@@ -263,7 +255,6 @@ export function renderRecap(
           : {}),
         ...(input.lastNight.budget !== undefined ? { budget: input.lastNight.budget } : {}),
       },
-      ...(pending > 0 ? { pendingPrivateCount: pending } : {}),
       roastLines,
       settle: settle.card,
       ...(today.length > 0 ? { today: today.map((t) => ({ ...t })) } : {}),

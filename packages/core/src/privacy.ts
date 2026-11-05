@@ -530,8 +530,8 @@ export interface GroupContext {
   readonly pendingProposals: readonly BookingProposal[];
   readonly bookings: readonly Booking[];
   readonly groupMemory: readonly GroupMemoryFact[];
-  /** "Dean, 2 charges look shared" — counts only, never amounts or merchants. */
-  readonly privatePendingCounts: Readonly<Record<MemberId, number>>;
+  // No per-member pending-item counts (T-112, SAFETY §2.3 "even a count is the
+  // owner's"): only the owner's own DM-lane prompt carries their count.
   readonly recentMessages: readonly GroupMessageSummary[];
   readonly now: IsoDateTime;
   readonly dayNumber: number;

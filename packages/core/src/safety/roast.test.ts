@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_ROAST_BLOCKLIST,
+  ROAST_IDIOMS,
   roastAllowed,
   roastTopicBlocked,
   tripAllowsRoast,
@@ -217,14 +218,9 @@ describe('roastTopicBlocked (gate 2 blocklist)', () => {
     expect(roastTopicBlocked('asleep at the wheel again, and Sam was asleep by 10')).toBe('body');
   });
 
-  it('T-138: Trav\'s "looks shared" wording is not a body topic; looks themselves still are', () => {
-    for (const fine of [
-      '1 charge that looks shared is waiting on a tap in dms',
-      '2 charges that look shared are waiting on a tap in dms',
-    ]) {
-      expect(roastTopicBlocked(fine), fine).toBeNull();
-    }
-    // The carve-out is the recap's exact wording, never a bare "looks shared".
+  it('T-099: no "looks shared" carve-out (the recap line is gone); looks are a body topic', () => {
+    expect(ROAST_IDIOMS.some((i) => i.includes('look'))).toBe(false);
+    expect(roastTopicBlocked('1 charge that looks shared is waiting on a tap in dms')).toBe('body');
     expect(roastTopicBlocked("Sam's looks shared the spotlight with his €90 tab")).toBe('body');
     expect(roastTopicBlocked('her looks shared?')).toBe('body');
     expect(roastTopicBlocked("Sam's looks cost him €40 at the door")).toBe('body');

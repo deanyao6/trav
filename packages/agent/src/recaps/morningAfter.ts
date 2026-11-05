@@ -7,8 +7,8 @@
  *   full    ≥2 night-out signals (core `recaps.nightSignals`): the `recap`
  *           card, kind `morning_after` ("morning after, day 4 ☀️"), with last
  *           night's events, the total (and the day budget), up to 2 gated
- *           roast lines, the running tab, the count of private items waiting
- *           on their owners, today's plans and up to 3 opt-in photos
+ *           roast lines, the running tab, today's plans and up to 3 opt-in
+ *           photos
  *   quiet   the ledger changed since the last recap: the running `settle_up`
  *           (VOICE §4.6 A); in family mode the `daily` recap instead
  *           ("morning, day 2 ☀️ / yesterday: …", VOICE §4.7 C, §8)
@@ -16,9 +16,10 @@
  *
  * What it reads: group-visible expenses and their ledger rows, bookings,
  * activities and attendance, the album (consent-filtered by the adapter at
- * query time), members' group-chat timestamps (never their text) and the
- * COUNT of pending private items (`countPendingByOwner`). Never a member's
- * card, email or receipt contents.
+ * query time) and members' group-chat timestamps (never their text). Never a
+ * member's card, email or receipt contents, and not even a count of pending
+ * private items (T-099, SAFETY §2.3 "even a count is the owner's": each owner
+ * already has the "looks shared?" card in their own DM).
  *
  * Family mode (any minor, or forced): never `full`, never "last night", no
  * drinks or adults-only activity in the list, no roast line, photos through
@@ -567,10 +568,6 @@ export async function composeMorningAfter(
   const familyTab = settle.input.familyTab === true || trip.familyTab;
   const perPerson = familyTab ? undefined : perPersonOf(events, sharesOf, total);
   const budget = dayBudget(trip);
-  const pending = Object.values(stores.private.countPendingByOwner(groupId)).reduce(
-    (s, n) => s + n,
-    0,
-  );
 
   const todays = activities
     .filter((a) => a.startsAt !== undefined && localDate(a.startsAt, tz) === date)
@@ -620,7 +617,6 @@ export async function composeMorningAfter(
       ...(budget !== undefined ? { budget } : {}),
     },
     ...(candidates.length > 0 ? { roastLines: candidates } : {}),
-    ...(pending > 0 ? { pendingPrivateCount: pending } : {}),
     settle: { ...settle.input, dayNumber },
     ...(today.length > 0 ? { today } : {}),
     photos: recapPhotos,

@@ -346,7 +346,7 @@ describe('the Razzmatazz morning (sun 15 mar, day 4)', () => {
     );
   });
 
-  it('pending private items: the group sees a count, never the merchant, amount or owner', async () => {
+  it('T-099: pending private items never reach the group recap, not even as a count', async () => {
     const w = barcelonaAt(TRUTH.recapAt);
     const item = (owner: MemberId, id: string, amountMinor: number, merchant: string) =>
       markPrivate({
@@ -368,11 +368,17 @@ describe('the Razzmatazz morning (sun 15 mar, day 4)', () => {
     w.stores.private.putPendingItem('mem_maya', item('mem_maya', 'priv_b', 4321, 'FreeNow'));
     const r = await recapOn('2026-03-15', w);
     if (r.kind !== 'ok') throw new Error(r.kind);
-    expect(r.message.text).toContain('2 charges that look shared are waiting on a tap in dms');
-    expect(asRecap(r.message.card).pendingPrivateCount).toBe(2);
+    expect(r.message.text).not.toMatch(/looks? shared|waiting on a tap|in dms|pending/i);
+    expect(asRecap(r.message.card)).not.toHaveProperty('pendingPrivateCount');
     const json = JSON.stringify(r.message);
-    expect(json).not.toMatch(/Cabify|FreeNow|19\.77|43\.21|priv_a|priv_b/);
+    expect(json).not.toMatch(/Cabify|FreeNow|19\.77|43\.21|priv_a|priv_b|looks? shared|pending/i);
     checkClean(w, r.message);
+    // Byte-identical to the same morning with nothing pending: the group
+    // cannot tell from the recap that anyone has an unconfirmed charge.
+    const bare = await recapOn('2026-03-15', barcelonaAt(TRUTH.recapAt));
+    if (bare.kind !== 'ok') throw new Error(bare.kind);
+    expect(r.message.text).toBe(bare.message.text);
+    expect(r.message.card).toEqual(bare.message.card);
   });
 
   it('roast mode on (all consenting adults): lines from the tab only, gated, declared, marked', async () => {
@@ -1155,7 +1161,7 @@ describe('T-138: a blocked or unseparable roast line never drops the whole Morni
         .map((e) => e.payload),
     );
 
-  it('the "looks shared" pending line and the roast lines go out together (clk_bcn_2026031510)', async () => {
+  it('a pending private item leaves the roast-marked recap untouched: no count, no DM nudge (clk_bcn_2026031510, T-099)', async () => {
     const w = barcelonaAt(AT, { roast: true });
     w.stores.private.putPendingItem('mem_sam', pendingItem('mem_sam'));
     const job = morningAfterJobFor(w.stores.group.trips.get(BARCELONA.tripId)!, '2026-03-15');
@@ -1163,9 +1169,13 @@ describe('T-138: a blocked or unseparable roast line never drops the whole Morni
     expect(turn.note).toBe('scheduled:morning_after:full');
     expect(turn.silent).toBe(false);
     expect(groupRecaps(w)).toHaveLength(1);
+    expect(turn.outbound).toHaveLength(1);
+    expect(
+      w.h.channel.transcript().filter((e) => e.type === 'message' && e.lane !== 'group'),
+    ).toEqual([]);
     const sent = turn.outbound[0] as { roast?: boolean; text: string; card?: unknown };
     expect(sent.roast).toBe(true);
-    expect(sent.text).toContain('1 charge that looks shared is waiting on a tap in dms');
+    expect(sent.text).not.toMatch(/looks? shared|waiting on a tap|in dms/i);
     const roastLines = asRecap(sent.card).roastLines ?? [];
     expect(roastLines.length).toBeGreaterThan(0);
     for (const l of roastLines) {

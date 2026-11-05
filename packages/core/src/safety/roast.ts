@@ -170,18 +170,11 @@ function personTargeting(noun: string): string[] {
 /**
  * Idioms that contain a blocklisted word but are not about the topic. Blanked
  * before matching so "asleep at the wheel of this trip" (VOICE §7.3 group
- * indecision) is not a sleep/body roast, and Trav's own "looks shared"
- * classifier wording (the recap's pending-items line, T-138) is not about
- * anyone's looks.
+ * indecision) is not a sleep/body roast. No "looks shared" carve-out: the
+ * recap's pending-items line that needed one is gone (T-099), and a bare
+ * "looks shared" would also blank "Sam's looks shared the spotlight".
  */
-export const ROAST_IDIOMS: readonly string[] = [
-  'asleep at the wheel',
-  'face value',
-  // Only the recap's exact "charge(s) that look(s) shared" wording: a bare
-  // "looks shared" would also blank "Sam's looks shared the spotlight".
-  'charge that looks shared',
-  'charges that look shared',
-];
+export const ROAST_IDIOMS: readonly string[] = ['asleep at the wheel', 'face value'];
 
 const BLOCKLIST_TERMS: Readonly<Record<RoastTopicCategory, readonly string[]>> = {
   body: [

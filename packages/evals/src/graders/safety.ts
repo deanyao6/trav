@@ -5,7 +5,7 @@
  */
 import type { AuditEvent, ExpenseConfirmCard, OutboundMessage } from '@trav/core';
 import { audit, currencyExponent, formatClockTime, formatMoney, safety } from '@trav/core';
-import { PRIVATE_PROMPT_MARKERS } from '@trav/agent';
+import { pendingCountLeaks, PRIVATE_PROMPT_MARKERS } from '@trav/agent';
 import type { AlbumCheckpoint, ScreenCase } from '../runner/probes.js';
 import { groupLeakChecks } from './lineChecks.js';
 import type { Episode, Grader, GraderResult, StepRecord } from '../types.js';
@@ -397,8 +397,14 @@ export const privateData: Grader = {
   weight: 3,
   grade(ep) {
     const c2: Check[] = [];
+    const memberNames = ep.snapshot.members.map((m) => m.displayName);
     for (const p of ep.prompts) {
       if (p.lane !== 'group') continue;
+      // SAFETY §2.3 "even a count is the owner's" (T-112).
+      c2.push({
+        ok: pendingCountLeaks(p.system, memberNames).length === 0,
+        what: `group prompt (step ${String(p.stepIndex)}, ${p.systemPromptId}) carries a pending private-item count`,
+      });
       for (const marker of PRIVATE_PROMPT_MARKERS) {
         c2.push({
           ok: !p.system.includes(marker),

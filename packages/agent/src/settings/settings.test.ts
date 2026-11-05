@@ -34,6 +34,7 @@ import {
   createSimulatorChannel,
 } from '@trav/adapters';
 import { BARCELONA, createTravRuntime } from '../compose.js';
+import { pendingCountLeaks } from '../context/groupContext.js';
 import type { TurnResult } from '../loop.js';
 import type { ModelClient } from '../model/client.js';
 import { deriveScriptKey } from '../model/offline/scripts.js';
@@ -568,6 +569,38 @@ describe('rule-made refusals', () => {
     );
     expect(r.modelSources).toEqual([]);
     expect(h.model.completions).toEqual([]);
+  });
+
+  it("T-112: another member's pending items (even a count) get the §4.12 D refusal; no group prompt carries a count", async () => {
+    const h = harness();
+    h.clock.set('2026-03-17T21:00:00+01:00');
+    await h.dm('h_sam', 'turn on card import');
+    await h.runtime.agent.importCardTransactions({
+      groupId: G,
+      ownerMemberId: 'mem_sam',
+      adapter: createMockTransactions(),
+    });
+    const samPending = h.runtime.stores.private.listPendingItems('mem_sam', G, 'pending').length;
+    expect(samPending).toBeGreaterThan(0);
+    const before = h.model.completions.length;
+    for (const text of ["@trav what's pending for sam", '@trav summarize the charges sam has pending']) {
+      const r = await h.say('h_jordan', text);
+      expect(r.note).toBe('refusal:private_data');
+      expect(only(r).text).toBe(
+        "that's Sam's, not mine to share. anything Sam confirms as shared shows up on the tab",
+      );
+      expect(r.modelSources).toEqual([]);
+    }
+    expect(h.model.completions.length).toBe(before);
+    // A model turn in the group: its prompt carries nobody's pending count (C2-style scan).
+    await h.say('h_jordan', '@trav where are we at with money?');
+    const names = BARCELONA.members.map((m) => m.name);
+    const groupPrompts = h.model.completions.slice(before).map((c) => c.system);
+    expect(groupPrompts.length).toBeGreaterThan(0);
+    for (const p of groupPrompts) {
+      expect(pendingCountLeaks(p, names)).toEqual([]);
+      expect(p).not.toMatch(new RegExp(String.raw`Sam\s*\(?${String(samPending)}\b`));
+    }
   });
 });
 

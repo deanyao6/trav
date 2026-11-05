@@ -63,6 +63,26 @@ const WENT_THROUGH =
 const EXCLUSION =
   /\b(?:besides|except|apart from|other than|aside from|else|anything|everything|all|outside of)\b/u;
 
+/** A booking proposal or approval waiting on someone: a group fact ("what's pending for sam to approve"). */
+const GROUP_PENDING = /\b(?:approv\w*|proposals?|votes?|rsvps?)\b/u;
+
+const PENDING_WORD = String.raw`(?:pending|unconfirmed|unshared|waiting (?:on|for) (?:a |their |his |her )?(?:tap|👍|confirm\w*|thumbs? up))`;
+
+/**
+ * Someone else's pending private items, asked any way (T-112, SAFETY §2.3
+ * "even a count is the owner's"): "what's pending for sam", "summarize the
+ * charges sam has pending", "sam's pending stuff", "how many charges is sam
+ * waiting on a tap for", "does sam have anything unconfirmed".
+ */
+function pendingAbout(t: string, name: string): boolean {
+  const n = String.raw`(?<![\p{L}])${name}(?![\p{L}])`;
+  const p = PENDING_WORD;
+  return [
+    String.raw`\b${p}\b[^.?!;]{0,40}?\b(?:for|of|from|by|on)\s+${n}`,
+    String.raw`${n}(?:'s)?\s+(?:\p{L}+\s+){0,6}?${p}`,
+  ].some((re) => new RegExp(re, 'u').test(t));
+}
+
 /** "...for the late-night kebabs": the message names something already on the tab. */
 function mentionsTabItem(t: string, tabItems: readonly string[]): boolean {
   return tabItems.some((d) => {
@@ -120,6 +140,12 @@ export function privateDataSubject(
       'u',
     );
     if (possessive.test(t) || spent.test(t)) return m;
+    // A booking or approval waiting on them is a group fact; anything else
+    // pending for another member is theirs (and "besides the tickets" never exempts).
+    const groupFact =
+      (BOOKING.test(t) || GROUP_PENDING.test(t) || mentionsTabItem(t, tabItems)) &&
+      !EXCLUSION.test(t);
+    if (!groupFact && pendingAbout(t, name)) return m;
   }
   return undefined;
 }

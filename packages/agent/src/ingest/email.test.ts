@@ -915,8 +915,10 @@ describe('privacy: another member and the group never see an unconfirmed receipt
 
     await h.say('h_dean', '@trav where are we at with money?');
     const groupPrompts = JSON.stringify(h.model.completions);
-    expect(groupPrompts).toContain('private items waiting');
-    expect(groupPrompts).toMatch(/Priya 1/);
+    // T-112: the group prompt carries no pending count, not even Priya's.
+    expect(groupPrompts).toContain('where are we at with money');
+    expect(groupPrompts).not.toContain('private items waiting');
+    expect(groupPrompts).not.toMatch(/Priya \(?1\b/);
     // Another member asks Trav privately: still nothing of Priya's.
     await h.dm('h_dean', 'trav what do i have pending?');
     const prompts = JSON.stringify(h.model.completions);

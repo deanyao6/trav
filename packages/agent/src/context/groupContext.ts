@@ -1,6 +1,8 @@
 /**
  * Group context and prompt rendering (SAFETY §2.3; D-007). `buildGroupContext`
- * reads ONLY `stores.group` plus `stores.private.countPendingByOwner` (counts).
+ * reads ONLY `stores.group`: it takes no private store at all, so not even a
+ * per-member pending count can reach a group-lane prompt (T-112, SAFETY §2.3
+ * "even a count is the owner's"). The DM lane adds the sender's own count.
  * Its parameter and return types contain no `Private<...>`; the T-007 type
  * test passes a `CardTransaction` to `withExtra` and expects a compile error.
  *
@@ -27,7 +29,6 @@ import type {
   Member,
   MemberId,
   Money,
-  PrivateStore,
   Roster,
   SplitSpec,
   TimeZone,
@@ -47,8 +48,6 @@ import { tripMoney } from './tripMoney.js';
 
 export interface GroupContextDeps {
   readonly group: GroupStore;
-  /** Only `countPendingByOwner` is called. */
-  readonly privateCounts: Pick<PrivateStore, 'countPendingByOwner'>;
   readonly clock: Clock;
 }
 
@@ -82,7 +81,7 @@ export function buildGroupContext(
   tripId: TripId | null,
   opts?: BuildGroupContextOptions,
 ): GroupContext {
-  const { group: store, privateCounts, clock } = deps;
+  const { group: store, clock } = deps;
   const now = clock.now();
   const group = store.groups.get(groupId);
   if (group === undefined) throw new TravError('not_found', `group ${groupId} not found`);
@@ -176,7 +175,6 @@ export function buildGroupContext(
       .filter((p) => trip === null || p.tripId === trip.tripId),
     bookings,
     groupMemory: store.groupMemory.listByGroup(groupId, { limit: opts?.groupMemoryLimit ?? 30 }),
-    privatePendingCounts: privateCounts.countPendingByOwner(groupId),
     recentMessages,
     now,
     dayNumber,
@@ -315,6 +313,7 @@ export function renderGroupPrompt(
     'act only for the members listed below, and use their member ids when you call tools. if you cannot tell exactly who is in, ask; never guess from a headcount.',
     'you can propose bookings, but a member has to confirm before anything is bought. never say money moved unless a receipt in the context says so.',
     "members' cards, emails, receipts and private notes are not in this context. never ask anyone to paste card numbers, passwords or codes into the group.",
+    "you can't see what anyone has waiting for their 👍 in their own thread with you, not even how many. never guess it in the group; if someone asks about their own, point them to their thread with you.",
     ctx.familyMode
       ? 'family mode is on: someone in this group is under 18. no nightlife, bars, clubs or alcohol suggestions that include them.'
       : 'family mode is off.',
@@ -415,16 +414,6 @@ export function renderGroupPrompt(
     }
   }
 
-  const pendingCounts = Object.entries(ctx.privatePendingCounts).filter(([, n]) => n > 0);
-  if (pendingCounts.length > 0) {
-    lines.push(
-      '',
-      `private items waiting in members' own threads (counts only, details are private): ${pendingCounts
-        .map(([id, n]) => `${name(id)} ${n}`)
-        .join(' · ')}`,
-    );
-  }
-
   const extras = Object.entries(extrasOf(ctx));
   if (extras.length > 0) {
     lines.push('', 'extra info:');
@@ -471,3 +460,37 @@ export const PRIVATE_PROMPT_MARKERS: readonly string[] = [
   'ocrText',
   'subject:',
 ];
+
+const PENDING_WORDS =
+  /\b(?:pending|waiting|unconfirmed|unshared|looks? shared|private items?|own threads?)\b/iu;
+
+/** Count phrasings for private items: "private items waiting …", "2 charges that look shared". */
+const PENDING_COUNT_PHRASES: readonly RegExp[] = [
+  /private items? waiting/iu,
+  /\bcounts only\b/iu,
+  /\b\d+\s+(?:private\s+)?(?:charges?|items?|receipts?|transactions?|emails?)\b[^\n]{0,30}\b(?:looks? shared|waiting|pending|unconfirmed|unshared)\b/iu,
+];
+
+/**
+ * SAFETY C2 / §2.3 "even a count is the owner's" (T-112): lines of a rendered
+ * group-lane prompt that carry a pending private-item count, for anyone. Only
+ * Trav-authored structure is scanned: the scan stops at the transcript
+ * ("recent messages in the group:"), where members' own words live.
+ * `memberNames` adds the per-member shape ("Sam 2 · Maya 1" on a line with a
+ * pending word).
+ */
+export function pendingCountLeaks(prompt: string, memberNames: readonly string[] = []): string[] {
+  const cut = prompt.indexOf('recent messages in the group:');
+  const scanned = cut < 0 ? prompt : prompt.slice(0, cut);
+  const perMember = memberNames
+    .map((n) => n.trim())
+    .filter((n) => n.length > 0)
+    .map(
+      (n) =>
+        new RegExp(String.raw`(?<![\p{L}])${n.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}\s*[:(]?\s*\d+\b`, 'iu'),
+    );
+  return scanned.split('\n').filter((line) => {
+    if (PENDING_COUNT_PHRASES.some((re) => re.test(line))) return true;
+    return PENDING_WORDS.test(line) && perMember.some((re) => re.test(line));
+  });
+}

@@ -174,7 +174,6 @@ describe('T-065 trip money in the agent: Barcelona unchanged', () => {
     const gc = buildGroupContext(
       {
         group: h.runtime.stores.group,
-        privateCounts: h.runtime.stores.private,
         clock: h.clock,
       },
       G,
@@ -441,7 +440,7 @@ async function tciHarness(opts: TciSeedOptions = {}): Promise<Harness> {
 
 function tciContext(h: Harness) {
   return buildGroupContext(
-    { group: h.runtime.stores.group, privateCounts: h.runtime.stores.private, clock: h.clock },
+    { group: h.runtime.stores.group, clock: h.clock },
     TG,
     TT,
   );

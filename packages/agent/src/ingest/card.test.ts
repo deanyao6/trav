@@ -1153,11 +1153,12 @@ describe('privacy: the group only ever sees a count of unconfirmed items', () =>
       UBER_POSTED.rawName,
     ].filter((s) => s !== 'Razzmatazz'); // the club is also a group plan; its name is group data
 
-    // Trav answers in the group: the model's group prompt has the count only.
+    // Trav answers in the group: the model's group prompt has no count either (T-112).
     await h.say('h_dean', '@trav where are we at with money?');
     const prompts = JSON.stringify(h.model.completions);
-    expect(prompts).toContain('private items waiting');
-    expect(prompts).toMatch(/Sam 3/);
+    expect(prompts).toContain('where are we at with money');
+    expect(prompts).not.toContain('private items waiting');
+    expect(prompts).not.toMatch(/Sam \(?3\b/);
     const group = groupTranscriptText(h);
     const audit = groupAudit(h);
     for (const s of secrets) {
