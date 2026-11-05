@@ -173,6 +173,16 @@ export function venueIndexFrom(inventories: readonly InventoryLike[]): VenueInde
       for (const w of [...nameWords(key), ...nameWords(head)]) {
         if (!cities.has(w)) entry.terms.add(w);
       }
+      // The two-word lead of the name, so short words still find it: "jet ski
+      // rental, 1 hour" ⇒ "jet ski" (T-081 r1 #8).
+      const lead = head.split(/[^a-z0-9]+/).filter((w) => w.length > 0);
+      if (
+        lead.length >= 2 &&
+        lead.slice(0, 2).every((w) => w.length >= 3 && !/\d/.test(w) && !NAME_NOISE.has(w)) &&
+        !cities.has(`${lead[0]!} ${lead[1]!}`)
+      ) {
+        entry.terms.add(`${lead[0]!} ${lead[1]!}`);
+      }
       for (const k of e.keywords) entry.terms.add(foldText(k).trim());
       for (const o of e.offers) {
         for (const w of foldText(o.offer.tierName).split(/[^a-z0-9]+/)) {
@@ -342,6 +352,27 @@ const BUDGET_RE =
 const APPROVAL_CLAIM =
   /\b(?:approv\w*|ok'?d|okay(?:ed|ing)?|sign(?:ed|ing)? off|on (?:his|her|their) behalf|said (?:it'?s )?(?:fine|ok|yes)|vouch\w*)\b|\bthe \S+(?: \S+)? ones\b/;
 const CANCEL_CUE = /\b(?:cancel|drop|nvm|never ?mind|don'?t book|scrap|forget)\b/;
+/** Not asking for anything (T-081 r1 #3): "don't get razz tickets", "hold off on razz". */
+const NEGATION_CUE =
+  /\b(?:don'?t|dont|do not|doesn'?t|no need|not (?:yet|now|getting|buying|booking)|hold off|wait on|no (?:tickets|tix)|never)\b/;
+/** A question about tickets, not an ask for them: "how much are razz tickets", "did anyone get razz tickets". */
+const QUESTION_LEAD =
+  /^(?:(?:ok|okay|so|hey|yo|wait|hmm|and|but|also|btw)\s+)*(?:how|what|whats|which|who|whos|whose|when|where|why|did|does|do|is|are|was|were|has|have|had|should|shall|anyone|anybody|any)\b/;
+const QUESTION_ANYWHERE =
+  /\b(?:should we|do we|did (?:you|we|anyone|anybody)|has (?:anyone|anybody)|how much|how many|who has|who got|anyone (?:got|have|has|get))\b/;
+/** Words that end a "for me and …" list without being a name ("for me, tonight"). */
+const LIST_STOP = new Set([
+  'tonight',
+  'tonite',
+  'today',
+  'tomorrow',
+  'tmrw',
+  'pls',
+  'please',
+  'thanks',
+  'thx',
+  'too',
+]);
 const TIME_RE = /\b\d{1,2}(?::\d{2})?\s?(?:am|pm)\b|\bat \d{1,2}(?::\d{2})?\b/g;
 const NOT_NAME = new Set([
   // Pronouns ("everyone but Henry, he's sick" names Henry once, not "He").
@@ -393,6 +424,10 @@ function headcount(t: string): number | undefined {
     new RegExp(String.raw`\b${NUM}\s+of\s+us\b`),
     new RegExp(String.raw`\ball\s+${NUM}\b`),
     new RegExp(String.raw`\b${NUM}\s+(?:tickets?|tix|passes|spots|people|ppl|of them)\b`),
+    // "2 razz tickets", "6 vip mezzanine tix" (never a date: "mar 15 barça tickets").
+    new RegExp(
+      String.raw`(?<!\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s)\b${NUM}\s+(?:[a-z][a-z'-]*\s+){1,3}(?:tickets?|tix|passes|spots)\b`,
+    ),
     new RegExp(
       String.raw`\bfor\s+(?:the\s+)?${NUM}\b(?!\s*(?:nights?|days?|hours?|h\b|euros?|eur\b))`,
     ),
@@ -428,7 +463,9 @@ function exclusions(original: string, folded: string, sender: string | undefined
   const NAME = String.raw`([a-z][a-z'-]{1,29})`;
   for (const m of folded.matchAll(
     new RegExp(
-      String.raw`\b(?:but|except|minus|without)\s+${NAME}(?:\s+(?:and|or|&)\s+${NAME})?`,
+      // "but" excludes only after a whole-group word ("everyone but Henry");
+      // "Henry's out but Maya might join" names no one else out (T-081 r1 #9).
+      String.raw`(?:\b(?:everyone|everybody|all(?: of us)?|all \d{1,2}|us|the group|whole group)\s+but|\b(?:except|minus|without))\s+${NAME}(?:\s+(?:and|or|&)\s+${NAME})?`,
       'g',
     ),
   )) {
@@ -448,6 +485,51 @@ function exclusions(original: string, folded: string, sender: string | undefined
     const typed = hit?.[1] ?? n;
     return typed.charAt(0).toUpperCase() + typed.slice(1);
   });
+}
+
+/**
+ * "for me and Maya", "for just me and Sam", "for me, maya and sam", "get me
+ * and mom …" ⇒ the sender plus those names (T-081 r1 #2). A plain "for me" ⇒
+ * just the sender. Something after "and" that isn't a name ("for me and the
+ * kids") ⇒ `ambiguous`: no guess, so the ask isn't taken. A comma followed by
+ * a new clause ("for me, henry's out") ends the list.
+ */
+function attendeeList(
+  t: string,
+  sender: string | undefined,
+): { readonly names: readonly string[] } | 'ambiguous' | undefined {
+  const head =
+    /\b(?:for\s+(?:just\s+|only\s+)?me|(?:get|grab|book|buy|reserve|snag)\s+(?:just\s+)?me)(?![a-z'])/.exec(
+      t,
+    );
+  const single = /\b(?:me one|one for me|get me (?:a |one\b|in\b)|for myself|just me)\b/.test(t);
+  if (head === null) {
+    return single && sender !== undefined ? { names: [sender] } : undefined;
+  }
+  let rest = t.slice(head.index + head[0].length);
+  const names: string[] = [];
+  for (;;) {
+    const m = /^(\s*,\s*(?:and\s+)?|\s+and\s+|\s*&\s*|\s*\+\s*)([a-z][a-z'’-]*)/.exec(rest);
+    if (m === null) break;
+    const andSep = !/^\s*,\s*$/.test(m[1]!);
+    const word = m[2]!;
+    const isName = /^[a-z][a-z-]{1,29}$/.test(word) && !NOT_NAME.has(word) && !LIST_STOP.has(word);
+    if (!isName) {
+      if (andSep && !LIST_STOP.has(word)) return 'ambiguous';
+      break;
+    }
+    if (!names.includes(word)) names.push(word);
+    rest = rest.slice(m[0].length);
+  }
+  if (sender === undefined) return names.length > 0 ? 'ambiguous' : undefined;
+  return {
+    names: [
+      sender,
+      ...names
+        .filter((n) => n !== sender.toLowerCase())
+        .map((n) => n.charAt(0).toUpperCase() + n.slice(1)),
+    ],
+  };
 }
 
 function tierWords(folded: string, venue: VenueEntry | undefined): string[] {
@@ -484,6 +566,10 @@ export function parseBookingRequest(
   // "just book the barça ones, i'm approving for everyone" is an approval
   // claim about a card, never a fresh ask (SAFETY E3: the loop audits it).
   if (APPROVAL_CLAIM.test(folded)) return undefined;
+  // Questions and negations are about tickets, never an ask for them (r1 #3).
+  if (NEGATION_CUE.test(folded) || QUESTION_LEAD.test(folded) || QUESTION_ANYWHERE.test(folded)) {
+    return undefined;
+  }
   const t = folded.replace(TIME_RE, ' ');
 
   // ---- the venue ----
@@ -516,12 +602,15 @@ export function parseBookingRequest(
     .sort((a, b) => t.search(termRe(a)) - t.search(termRe(b)));
 
   // ---- a booking signal ----
+  // A booking verb, a headcount, "for all of us" or "for me (and X)": a
+  // ticket word alone ("who has the razz tickets") is never an ask (r1 #3).
   const quantity = headcount(t);
-  const forMe = /\b(?:for me|me one|one for me|get me (?:a |one|in)|for myself|just me)\b/.test(t);
+  const list = attendeeList(t, sender);
+  if (list === 'ambiguous') return undefined;
   const everyone =
     /\b(?:all of us|everyone|everybody|us all|the group|whole group|all of you)\b/.test(t) ||
     /\b(?:get|grab|book|buy|reserve|snag)\s+us\b/.test(t);
-  if (!BOOK_VERB.test(t) && !hasTicketWord && quantity === undefined && !everyone && !forMe) {
+  if (!BOOK_VERB.test(t) && quantity === undefined && !everyone && list === undefined) {
     return undefined;
   }
 
@@ -533,7 +622,9 @@ export function parseBookingRequest(
     query: `${terms.join(' ')} tickets`,
     ...(quantity !== undefined ? { quantity } : {}),
     excludedNames,
-    ...(forMe && quantity === undefined && sender !== undefined ? { attendeeNames: [sender] } : {}),
+    // Named attendees go to the service, which resolves every name before any
+    // roster write and asks when one doesn't match (never a guess).
+    ...(list !== undefined ? { attendeeNames: list.names } : {}),
     ...(day !== undefined ? { day } : {}),
     ...(tier.length > 0 ? { tier } : {}),
     requestText: original,

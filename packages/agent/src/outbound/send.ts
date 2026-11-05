@@ -397,9 +397,18 @@ export async function sendOutbound(
     });
   }
 
-  // 4. audit
+  // 4. audit. A proposal card's send carries its proposal id, so approvals can
+  // tell a delivered card from one the screen held back (T-081 r1 #1).
+  const sentEvent = auditInput(
+    deps,
+    message,
+    'message.sent',
+    sentPayload(message, result.value, violations),
+  );
   deps.audit.append(
-    auditInput(deps, message, 'message.sent', sentPayload(message, result.value, violations)),
+    message.card?.type === 'booking_proposal'
+      ? { ...sentEvent, proposalId: message.card.proposalId }
+      : sentEvent,
   );
   return outcome(message, {
     sent: result.value,

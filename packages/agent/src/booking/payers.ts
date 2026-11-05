@@ -8,7 +8,9 @@
  *    (`guardianMemberId`, an active adult). A minor with no valid guardian
  *    stays listed, and `ApprovalPolicy` C8 (`minor_is_payer`) then needs an
  *    adult's 👍 while the ledger refuses to fold them (never guessed).
- *  - Family tab (`Trip.familyTab`): one pot, so one adult carries it all: the
+ *  - Family tab (`Trip.familyTab`) on a booking a minor attends: one pot, so
+ *    one adult carries it all (an adults-only booking keeps payers =
+ *    attendees, SAFETY A9): the
  *    requester if they are an adult attendee or the guardian of a minor
  *    attendee, else the requester's guardian under the same condition, else
  *    the per-guardian rule above.
@@ -54,7 +56,14 @@ export function payersFor(attendees: readonly MemberId[], rule?: PayerRule): Mem
       .map((id) => guardianFor(id, rule, byId))
       .filter((g): g is MemberId => g !== undefined),
   );
-  if (rule.familyTab && attendees.length > 0) {
+  // The family tab is one pot for a booking a minor is on; an adults-only
+  // booking ("casino night for me and dad") is charged to those adults, so
+  // payers equal attendees (SAFETY A9).
+  const minorAttends = attendees.some((id) => {
+    const m = byId.get(id);
+    return m !== undefined && safety.isMinor(m, rule.now);
+  });
+  if (rule.familyTab && attendees.length > 0 && minorAttends) {
     // Consistency (core `checkProposalConsistency`): a payer attends or guards a minor attendee.
     const eligible = (id: MemberId | undefined): id is MemberId =>
       id !== undefined &&
@@ -81,6 +90,25 @@ export function payerRuleFor(
   now: IsoDateTime,
 ): PayerRule {
   return { members, now, familyTab: trip.familyTab === true, requestedBy: proposal.requestedBy };
+}
+
+/**
+ * Whose card is charged (T-081 r1 #4). An adult requester pays with their own
+ * card. A minor never does: their guardian when the guardian is a payer, else
+ * the first adult payer. No adult payer at all ⇒ the requester, and
+ * `ApprovalPolicy` C8 (`minor_is_payer`) then holds it for an adult.
+ */
+export function cardHolderFor(
+  requestedBy: MemberId,
+  payers: readonly MemberId[],
+  rule: PayerRule,
+): MemberId {
+  const byId = new Map(rule.members.map((m) => [m.memberId, m] as const));
+  const requester = byId.get(requestedBy);
+  if (requester === undefined || !safety.isMinor(requester, rule.now)) return requestedBy;
+  const g = guardianFor(requestedBy, rule, byId);
+  if (g !== undefined && payers.includes(g)) return g;
+  return payers.find((id) => adult(byId.get(id), rule.now)) ?? requestedBy;
 }
 
 /** Whose share an attendee's ticket lands on, given the payer list from `payersFor`. */

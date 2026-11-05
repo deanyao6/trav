@@ -56,6 +56,8 @@ export interface BookingProposal {
   readonly provider: string;
   /** Provider inventory id (eventId / offerId / rateId). */
   readonly itemRef: string;
+  /** The offer's seat tier as the provider names it ("VIP mezzanine"), when it has one (T-081: "cancel the vip thing"). */
+  readonly tierName?: string;
   /** Human text for the chat card. Provider text passes through `wrapUntrusted` before any model sees it. */
   readonly description: string;
   /** City from provider metadata; `checkProposalConsistency` compares it with the trip city (G-02). */

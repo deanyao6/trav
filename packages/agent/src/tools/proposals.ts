@@ -19,6 +19,8 @@ import {
 export interface PendingProposalSummary {
   readonly proposalId: string;
   readonly description: string;
+  /** Seat tier ("VIP mezzanine"), '' when the offer has none. */
+  readonly tier: string;
   readonly totalMinor: number;
   readonly currency: string;
   readonly total: string;
@@ -41,6 +43,7 @@ export function summarizeProposal(
   return {
     proposalId: p.proposalId,
     description: p.description,
+    tier: p.tierName ?? '',
     totalMinor: p.totalMinor,
     currency: p.currency,
     total: formatMoney(money(p.totalMinor, p.currency)),

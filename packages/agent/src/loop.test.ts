@@ -319,6 +319,16 @@ describe('identity gate (SAFETY §2.5)', () => {
         quotedAt: h.clock.now(),
       }),
     );
+    // Its card went out too (approvals only resolve against delivered cards).
+    h.runtime.stores.group.audit.append({
+      groupId: G,
+      tripId: T,
+      type: 'message.sent',
+      actor: { kind: 'trav', id: 'trav' },
+      visibility: 'group',
+      proposalId: 'prop_apolo',
+      payload: { messageId: 'msg_apolo_card', kind: 'message', cardType: 'booking_proposal' },
+    });
     expect(h.pending()).toHaveLength(2);
     const turn = await h.say('h_dean', 'yes');
     expect(turn.note).toBe('approval:ambiguous');

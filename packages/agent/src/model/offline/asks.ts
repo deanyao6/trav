@@ -62,6 +62,8 @@ export const NOTHING_PENDING_CHEAPER_TEXT =
 export const CANCEL_NOT_ALLOWED_TEXT =
   'only whoever asked for it, or a trip lead, can drop that one. a 👎 on the card from someone going works too';
 export const CANCEL_GONE_TEXT = "that one's not waiting anymore, so there's nothing to drop";
+export const NOTHING_LIKE_THAT_TEXT =
+  "nothing like that is waiting on a 👍, so i didn't drop anything";
 
 // ---------- request plumbing ----------
 
@@ -239,6 +241,7 @@ interface PendingSummary {
   readonly total: string;
   readonly attendees: readonly unknown[];
   readonly eventDate?: string;
+  readonly tier?: string;
 }
 
 function pendingFrom(result: unknown): PendingSummary[] | undefined {
@@ -257,7 +260,10 @@ function pendingFrom(result: unknown): PendingSummary[] | undefined {
 function whichOneText(list: readonly PendingSummary[], verb: string): string {
   const shown = list
     .slice(0, 2)
-    .map((p, i) => `${i + 1}. ${shortName(p.description)} · ${p.total}`);
+    .map(
+      (p, i) =>
+        `${i + 1}. ${shortName(p.description)}${p.tier !== undefined && p.tier.length > 0 ? ` ${p.tier.toLowerCase()}` : ''} · ${p.total}`,
+    );
   return ['which one?', ...shown, `say the name and i'll ${verb}`].join('\n');
 }
 
@@ -350,6 +356,49 @@ export const cheaperResponder: FallbackResponder = {
 
 const CANCEL_ASK = /^(?:(?:ok|actually|yeah|nah|pls|please)\s+)*(?:cancel|drop|scrap|kill)\b/;
 
+/** Words that name no proposal ("cancel the thing", "drop it pls"). */
+const CANCEL_FILLER = new Set([
+  'the',
+  'that',
+  'this',
+  'those',
+  'these',
+  'our',
+  'my',
+  'thing',
+  'things',
+  'one',
+  'ones',
+  'it',
+  'booking',
+  'proposal',
+  'request',
+  'order',
+  'card',
+  'ticket',
+  'tickets',
+  'tix',
+  'please',
+  'pls',
+  'plz',
+  'for',
+  'now',
+  'all',
+  'just',
+  'actually',
+]);
+
+/**
+ * What "cancel …" names, up to the first clause break: "cancel the vip
+ * thing, way too much" ⇒ ["vip"]. Words of 3+ letters that aren't filler.
+ */
+export function cancelTarget(text: string): string[] {
+  const t = foldText(text);
+  const m = /\b(?:cancel|drop|scrap|kill)\b([^,.;!?]*)/.exec(t);
+  if (m === null) return [];
+  return m[1]!.split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !CANCEL_FILLER.has(w));
+}
+
 export const cancelResponder: FallbackResponder = {
   id: 'cancel_proposal_v1',
   complete(req) {
@@ -366,15 +415,19 @@ export const cancelResponder: FallbackResponder = {
     if (round.name === 'get_pending_proposals') {
       const pending = pendingFrom(round.result) ?? [];
       if (pending.length === 0) return response(req, NOTHING_PENDING_TEXT, []);
-      let pick = pending.length === 1 ? pending[0] : undefined;
-      if (pick === undefined) {
-        const words = foldText(theAsk(req)?.text ?? '')
-          .split(/[^a-z0-9]+/)
-          .filter((w) => w.length >= 4);
-        const hits = pending.filter((p) => words.some((w) => foldText(p.description).includes(w)));
-        pick = hits.length === 1 ? hits[0] : undefined;
-      }
-      if (pick === undefined) return response(req, whichOneText(pending, 'drop it'), []);
+      // "cancel the vip thing" names something: only a proposal that matches
+      // it is dropped, never whichever one happens to be pending (r1 #6).
+      const named = cancelTarget(theAsk(req)?.text ?? '');
+      const hits =
+        named.length === 0
+          ? pending
+          : pending.filter((p) => {
+              const hay = foldText(`${p.description} ${p.tier ?? ''}`);
+              return named.every((w) => hay.includes(w));
+            });
+      if (hits.length === 0) return response(req, NOTHING_LIKE_THAT_TEXT, []);
+      const pick = hits.length === 1 ? hits[0] : undefined;
+      if (pick === undefined) return response(req, whichOneText(hits, 'drop it'), []);
       return response(req, '', [
         call(req, prefix, 2, 'cancel_proposal', { proposalId: pick.proposalId }),
       ]);
@@ -501,8 +554,9 @@ export const lodgingResponder: FallbackResponder = {
 
 // ---------- "remember …" ----------
 
+/** Health details are never remembered (SAFETY privacy; T-081 r1 #7 widened the list). */
 const HEALTH_RE =
-  /\b(?:sick|ill|illness|hospital|meds?|medication|pregnan\w*|therapy|therapist|depress\w*|anxiety|allerg\w*|diabet\w*|injur\w*|hungover|surgery|doctor|diagnos\w*)\b/;
+  /\b(?:sick|sickness|ill|illness|unwell|hospital\w*|meds?|medicin\w*|medication|prescription|pills?|pregnan\w*|therapy|therapist|psychiatr\w*|depress\w*|anxiety|panic attacks?|adhd|autis\w*|bipolar|allerg\w*|epipen|inhaler|asthma\w*|diabet\w*|insulin|injur\w*|hungover|hangover|surgery|doctor|dr|clinic|er|urgent care|diagnos\w*|migraines?|headaches?|covid\w*|flu|fever\w*|a cold|cough\w*|nause\w*|vomit\w*|puk\w*|threw up|throw(?:ing)? up|food poisoning|stomach\w*|concuss\w*|seizures?|epilep\w*|sprain\w*|fractur\w*|broken (?:arm|leg|wrist|ankle|foot|hand|rib)|stitches|infection|antibiotics?|rash|blood pressure|heart condition|cancer|chemo|cramps?|disab\w*|wheelchair|sober|rehab)\b/;
 
 /** "remember jordan always picks …", "fyi i'm vegetarian, keep that in mind" ⇒ the fact, or undefined. */
 export function parseRememberAsk(text: string): string | undefined {

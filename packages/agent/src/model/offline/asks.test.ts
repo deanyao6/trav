@@ -14,10 +14,12 @@ import type {
 import {
   CANCEL_NOT_ALLOWED_TEXT,
   HEALTH_MEMORY_TEXT,
+  NOTHING_LIKE_THAT_TEXT,
   NOTHING_PENDING_TEXT,
   OPTION_NUMBER_TEXT,
   RESTAURANT_TEXT,
   cancelResponder as rawCancel,
+  cancelTarget,
   cheaperResponder as rawCheaper,
   createBookingRequestResponder,
   honestGapsResponder as rawGaps,
@@ -26,8 +28,10 @@ import {
   parseStayAsk,
   rememberResponder as rawRemember,
 } from './asks.js';
+import type { Member } from '@trav/core';
 import { FIVE, RAZZMATAZZ_ASK, harness } from '../../runtime.testkit.js';
 import { BARCELONA } from '../../compose.js';
+import { cardHolderFor } from '../../booking/payers.js';
 
 /** Every responder here implements `complete`; this keeps the calls typed. */
 function chat(r: FallbackResponder): {
@@ -272,3 +276,109 @@ describe('end to end: an unscripted ticket ask is still gated by ApprovalPolicy 
     expect(h.runtime.stores.group.bookings.listByTrip(BARCELONA.tripId)).toEqual([]);
   });
 });
+
+describe('T-081 r1 review repros (agent)', () => {
+  const vip = {
+    proposalId: 'prop_vip',
+    description: 'Razzmatazz: Saturday club night',
+    tier: 'VIP mezzanine',
+    totalMinor: 57000,
+    currency: 'EUR',
+    total: '€570',
+    attendees: FIVE,
+  };
+  const ga = {
+    ...vip,
+    proposalId: 'prop_ga',
+    tier: 'General admission',
+    totalMinor: 9000,
+    total: '€90',
+  };
+
+  it('#6 "cancel the vip thing" drops only a matching proposal', () => {
+    expect(cancelTarget('cancel the vip thing, way too much')).toEqual(['vip']);
+    expect(cancelTarget('cancel it pls')).toEqual([]);
+    const first = ask('Dean: @trav cancel the vip thing, way too much');
+    const c1 = cancelResponder.complete(first)!.toolCalls[0]!;
+    // Only the GA card is pending: nothing like "vip", so nothing is dropped.
+    const onlyGa = cancelResponder.complete(after(first, c1, { proposals: [ga] }))!;
+    expect(onlyGa.toolCalls).toEqual([]);
+    expect(onlyGa.text).toBe(NOTHING_LIKE_THAT_TEXT);
+    // Both pending: the VIP one, never the GA one.
+    const both = cancelResponder.complete(after(first, c1, { proposals: [ga, vip] }))!;
+    expect(both.toolCalls[0]).toMatchObject({
+      name: 'cancel_proposal',
+      input: { proposalId: 'prop_vip' },
+    });
+    // Naming nothing still drops the one pending card.
+    const it1 = ask('Dean: @trav cancel it');
+    const k1 = cancelResponder.complete(it1)!.toolCalls[0]!;
+    expect(
+      cancelResponder.complete(after(it1, k1, { proposals: [ga] }))!.toolCalls[0]?.input,
+    ).toEqual({ proposalId: 'prop_ga' });
+  });
+
+  it.each([
+    'remember henry gets migraines',
+    'remember sam has asthma',
+    'remember maya had covid last month',
+    'remember jordan has the flu',
+    'remember priya threw up last night',
+    'remember henry had a concussion',
+    'remember dean is running a fever',
+  ])('#7 never stores a health detail: %s', (text) => {
+    const res = rememberResponder.complete(ask(`Sam: @trav ${text}`))!;
+    expect(res.toolCalls).toEqual([]);
+    expect(res.text).toBe(HEALTH_MEMORY_TEXT);
+  });
+
+  it('#5 the closest-night alternative is one Trav can book (the sold-out Sunday party is skipped)', async () => {
+    const h = harness();
+    // Monday has no Razzmatazz night; Sunday's closing party (the nearest) has 0 left.
+    const turn = await h.say('h_dean', '@trav get razzmatazz tickets for the 5 of us monday');
+    const text = turn.outbound.map((o) => ('text' in o ? o.text : '')).join('\n');
+    expect(text).toMatch(/^nothing for razzmatazz on /);
+    expect(text).toMatch(/closest is .*€18 each · refundable/);
+    expect(text).not.toMatch(/closing/i);
+    expect(h.pending()).toEqual([]);
+    expect(h.tickets.purchaseCount()).toBe(0);
+  });
+
+  it('#4 a minor never pays: the card holder is their guardian', () => {
+    const rule = {
+      members: [
+        tciMember('mem_dad', 'Dad', '1968-07-11'),
+        tciMember('mem_lily', 'Lily', '2011-09-08', 'mem_dad'),
+      ],
+      now: '2026-06-24T17:00:00-04:00',
+      familyTab: true,
+      requestedBy: 'mem_lily',
+    };
+    expect(cardHolderFor('mem_lily', ['mem_dad'], rule)).toBe('mem_dad');
+    expect(cardHolderFor('mem_dad', ['mem_dad'], { ...rule, requestedBy: 'mem_dad' })).toBe(
+      'mem_dad',
+    );
+    // No adult payer at all: the requester stays, and ApprovalPolicy C8 holds it.
+    expect(cardHolderFor('mem_lily', ['mem_lily'], rule)).toBe('mem_lily');
+  });
+});
+
+function tciMember(
+  memberId: string,
+  displayName: string,
+  birthDate: string,
+  guardian?: string,
+): Member {
+  return {
+    memberId,
+    groupId: 'grp_tci',
+    displayName,
+    role: 'member',
+    active: true,
+    senderId: `h_${displayName.toLowerCase()}`,
+    birthDate,
+    ageBand: guardian === undefined ? 'adult' : 'under18',
+    joinedAt: '2026-01-01T00:00:00Z',
+    ...(guardian !== undefined ? { guardianMemberId: guardian } : {}),
+  };
+}

@@ -59,7 +59,7 @@ import {
 } from '@trav/core';
 import type { TicketEvent, TicketHold, TicketOffer, TicketsAdapter } from '@trav/adapters';
 import { sanitizeInline } from '../context/groupContext.js';
-import { carrierOf, payersFor, type PayerRule } from './payers.js';
+import { cardHolderFor, carrierOf, payersFor, type PayerRule } from './payers.js';
 import { CATEGORY_WORDS, foldText, resolveNight, weekdayName } from './request.js';
 
 export interface ProposalDeps {
@@ -383,29 +383,10 @@ export function nightLabel(night: IsoDate, tonight: IsoDate): string {
   return `${weekdayName(night).slice(0, 3)} ${mon ?? ''} ${String(d)}`;
 }
 
-/** "€26 each · refundable", from the best bookable offer for one ticket; undefined when none. */
-async function priceLine(
-  tickets: TicketsAdapter,
-  event: TicketEvent,
-  now: IsoDateTime,
-): Promise<string | undefined> {
-  const res = await tickets.getOffers(event.eventId, 1);
-  if (!res.ok) return undefined;
-  const best = rankOffers(res.value, 1, now)[0];
-  if (best === undefined) {
-    return res.value.some((o) => o.purchaseMode === 'redirect_only')
-      ? 'sold on its own site'
-      : undefined;
-  }
-  const each = formatMoney(
-    money(best.unitPrice.amountMinor + best.unitFees.amountMinor, best.unitPrice.currency),
-  );
-  return `${each} each · ${refundableNow(best, now) ? 'refundable' : 'non-refundable'}`;
-}
-
 /**
  * VOICE §4.10 B for a night with nothing on: says so, names the closest night
- * the same thing is on, with its price, and what happens next. No hold.
+ * the same thing is on that Trav can book for `quantity`, with its price, and
+ * what happens next. No hold.
  */
 async function otherNightText(
   tickets: TicketsAdapter,
@@ -413,20 +394,33 @@ async function otherNightText(
   night: IsoDate,
   now: IsoDateTime,
   tz: string,
+  quantity: number,
 ): Promise<string> {
   const tonight = nightOf(now, tz);
   const label = nightLabel(night, tonight);
   const on = label === 'tonight' || label === 'tomorrow' ? label : `on ${label}`;
-  const alt = [...upcoming].sort(
+  const sorted = [...upcoming].sort(
     (a, b) =>
       Math.abs(daysBetween(night, nightOf(a.startsAt, tz))) -
         Math.abs(daysBetween(night, nightOf(b.startsAt, tz))) ||
       parseIso(a.startsAt) - parseIso(b.startsAt),
-  )[0]!;
-  const what = shortEventName(alt.name);
-  const price = await priceLine(tickets, alt, now);
-  const when = formatTime(alt.startsAt, tz, now);
-  return `nothing for ${what} ${on} that i can book. no charge\nclosest is ${when}${price === undefined ? '' : `, ${price}`}. @ me if you want those instead`;
+  );
+  // The closest night Trav could actually book for this many (T-081 r1 #5):
+  // a sold-out or site-only night is never offered as the alternative.
+  for (const alt of sorted) {
+    const res = await tickets.getOffers(alt.eventId, quantity);
+    if (!res.ok) continue;
+    const best = rankOffers(res.value, quantity, now)[0];
+    if (best === undefined) continue;
+    const each = formatMoney(
+      money(best.unitPrice.amountMinor + best.unitFees.amountMinor, best.unitPrice.currency),
+    );
+    const price = `${each} each · ${refundableNow(best, now) ? 'refundable' : 'non-refundable'}`;
+    const when = formatTime(alt.startsAt, tz, now);
+    return `nothing for ${shortEventName(alt.name)} ${on} that i can book. no charge\nclosest is ${when}, ${price}. @ me if you want those instead`;
+  }
+  const what = shortEventName(sorted[0]!.name);
+  return `nothing for ${what} ${on} that i can book, and no other night has ${quantity === 1 ? 'a ticket' : `${quantity} tickets`} i can book either. no charge`;
 }
 
 /** A bare https URL safe to post on its own line (VOICE §3.8); anything else ⇒ undefined. */
@@ -552,7 +546,18 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
         return {
           kind: 'unavailable',
           reason: 'not_found',
-          text: await otherNightText(tickets, upcoming, namedNight, now, tz),
+          text: await otherNightText(
+            tickets,
+            upcoming,
+            namedNight,
+            now,
+            tz,
+            // Enough for the party as asked; unsaid ⇒ everyone active, never just 1.
+            input.quantity ??
+              input.attendeeNames?.length ??
+              input.attendeeMemberIds?.length ??
+              Math.max(1, active.length - (input.excludedNames?.length ?? 0)),
+          ),
         };
       }
     }
@@ -806,6 +811,7 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
       kind: 'ticket',
       provider: tickets.info.provider,
       itemRef: offer.offerId,
+      tierName: sanitizeInline(offer.tierName, 40),
       description: sanitizeInline(`${event.name}`, 80),
       city: event.venue.city,
       totalMinor,
@@ -815,7 +821,15 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
       holdExpiresAt: hold.expiresAt,
       payers,
       attendees,
-      paidBy: { kind: 'member_card', memberId: ctx.requestedBy },
+      // A minor's own ask goes on the adult who carries it, never their card.
+      paidBy: {
+        kind: 'member_card',
+        memberId: cardHolderFor(
+          ctx.requestedBy,
+          payers.map((s) => s.memberId),
+          payerRule,
+        ),
+      },
       refundable,
       ...(refundable && offer.refundPolicy.refundableUntil !== undefined
         ? { refundDeadline: offer.refundPolicy.refundableUntil }

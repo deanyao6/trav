@@ -307,6 +307,10 @@ export const GUEST_REFUSAL_TEXT = 'i only book for people on this trip. ask one 
 export const PASTED_TEXT_LINE =
   "pasted messages don't count as instructions, so i'm not acting on that. if you want it done, say it yourself";
 export const NOTHING_TO_ADD_TEXT = 'nothing to add on that';
+/** A proposal card the family screen held back: withdrawn, nothing booked (VOICE §4.12 C, all-ages wording). */
+export const UNDELIVERED_PROPOSAL_TEXT =
+  "that one's not all-ages, so i won't set it up in this chat. nothing's booked, no charge";
+const TRAV_ACTOR = { kind: 'trav', id: 'trav' } as const;
 /** A second `request_settings_change` in one turn: the first one's question comes first. */
 export const ONE_SETTING_AT_A_TIME_TEXT =
   'one setting at a time. answer the first one, then ask again';
@@ -893,7 +897,54 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       }
       if (/\?/.test(msg.text)) lastQuestionAt.set(key, r.now);
     }
+    // A proposal card the outbound screen held back (a family group's
+    // minor_alcohol / minor_nightlife screen) was never seen, so it can never
+    // be approved: the proposal is withdrawn, its hold released, and one
+    // all-ages line says nothing was booked (T-081 r1 #1, VOICE §4.12 C).
+    let withdrew = false;
+    for (const o of outcomes) {
+      if (!o.suppressed || isReaction(o.outbound)) continue;
+      const card = o.outbound.card;
+      if (card?.type !== 'booking_proposal') continue;
+      if (await withdrawUndelivered(card.proposalId)) withdrew = true;
+    }
+    if (withdrew) sent.push(...(await send(r, [message(r, UNDELIVERED_PROPOSAL_TEXT)])));
     return sent;
+  }
+
+  /** Withdraws a pending proposal whose card was never delivered. True when it was pending. */
+  async function withdrawUndelivered(proposalId: string): Promise<boolean> {
+    const proposal = stores.group.bookings.getProposal(proposalId);
+    if (proposal === undefined || proposal.status !== 'pending') return false;
+    const grant = stores.group.bookings.getGrantForProposal(proposalId);
+    if (grant !== undefined && (grant.status === 'pending' || grant.status === 'complete')) {
+      const invalidated = approval.invalidateGrant(grant, 'policy_changed');
+      stores.group.bookings.saveGrant(invalidated);
+      const input = approval.invalidatedAuditInput(invalidated, proposal, TRAV_ACTOR);
+      stores.group.audit.append({
+        ...input,
+        payload: { ...input.payload, reason: 'card_not_delivered' },
+      });
+    }
+    stores.group.bookings.updateProposal({ ...proposal, status: 'rejected' });
+    scheduler.cancel(`proposal_expiry:${proposalId}`);
+    await deps.proposals.releaseHold(proposal);
+    for (const [id, ref] of cards) {
+      if (ref.proposalId !== proposalId) continue;
+      cards.delete(id);
+      cardGroup.delete(id);
+    }
+    return true;
+  }
+
+  /**
+   * Approvals only resolve against proposals whose card actually went out
+   * (`message.sent` carries its id). A policy auto-approval never has a card:
+   * its "say yes and i'll retry" line is the only thing to answer.
+   */
+  function delivered(proposalId: string): boolean {
+    if (decisionFor(proposalId)?.outcome === 'auto_approve') return true;
+    return stores.group.audit.listByProposal(proposalId).some((e) => e.type === 'message.sent');
   }
 
   function message(
@@ -984,7 +1035,9 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     addressed = false,
   ): Promise<TurnResult> {
     const before = snapshotAudit(r.group.groupId);
-    const pending = pendingFor(r);
+    // Only proposals whose card actually reached the chat can be approved: a
+    // bare "yes" never lands on a card nobody saw (T-081 r1 #1).
+    const pending = pendingFor(r).filter((p) => delivered(p.proposalId));
     // A "not me" on a superseded card lands on the card that replaced it
     // (D-021), so the gate sees the live proposal instead of answering
     // `no_pending`. A 👍 or 👎 on the old card stays dead.

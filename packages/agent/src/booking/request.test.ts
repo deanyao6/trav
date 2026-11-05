@@ -104,6 +104,61 @@ describe('parseBookingRequest: the Barcelona asks', () => {
   });
 });
 
+describe('T-081 r1 review repros', () => {
+  it('#2 "for me and Maya" and friends name the sender plus those names; a headcount with words between', () => {
+    expect(parse('get razz tickets for me and Maya')?.attendeeNames).toEqual(['Dean', 'Maya']);
+    expect(parse('get razz tickets for just me and sam')?.attendeeNames).toEqual(['Dean', 'Sam']);
+    expect(parse('get razz tickets for me, maya and sam')?.attendeeNames).toEqual([
+      'Dean',
+      'Maya',
+      'Sam',
+    ]);
+    expect(parse('get me and maya razz tickets')?.attendeeNames).toEqual(['Dean', 'Maya']);
+    expect(parse("casino night tonight for me and dad? we're both 21+")).toMatchObject({
+      attendeeNames: ['Dean', 'Dad'],
+      day: 'tonight',
+    });
+    expect(parse('snorkel tour for me and Mom', 'Dad')?.attendeeNames).toEqual(['Dad', 'Mom']);
+    // A clause after a comma ends the list; a non-name after "and" is not guessed at.
+    expect(parse("get razz tickets for me, henry's out")).toMatchObject({
+      attendeeNames: ['Dean'],
+      excludedNames: ['Henry'],
+    });
+    expect(parse('get razz tickets for me and the kids')).toBeUndefined();
+    expect(parse('get 2 razz tickets')?.quantity).toBe(2);
+    expect(parse('book 6 vip mezzanine tix at razz')?.quantity).toBe(6);
+    // A date is never a headcount.
+    expect(parse('get barça tickets for sunday mar 15')?.quantity).toBeUndefined();
+  });
+
+  it.each([
+    'how much are razz tickets',
+    'should we get razz tickets?',
+    "don't get razz tickets",
+    'did anyone get razz tickets',
+    'who has the razz tickets',
+    'razz tickets',
+    'is razz any good tonight',
+    'hold off on razz tickets for now',
+  ])('#3 a question or negation is not an ask: %s', (text) => {
+    expect(parse(text)).toBeUndefined();
+  });
+
+  it('#8 a short two-word name finds its venue ("jet ski")', () => {
+    expect(parse('get jet ski tickets for the 2 of us', 'Dad')).toMatchObject({
+      query: 'jet ski tickets',
+      quantity: 2,
+    });
+  });
+
+  it('#9 "but" excludes only after a whole-group word', () => {
+    expect(parse("get razz tickets, Henry's out but Maya might join")?.excludedNames).toEqual([
+      'Henry',
+    ]);
+    expect(parse('get razz tickets for all of us but Maya')?.excludedNames).toEqual(['Maya']);
+  });
+});
+
 describe('parseBookingRequest: what is not a ticket ask', () => {
   it.each([
     'bought 6 for sat 3pm on the official site, €156. everyone',
