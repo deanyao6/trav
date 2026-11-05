@@ -121,10 +121,24 @@ export function parseLegacyTapbackText(text: string): LegacyTapbackText | undefi
   return { tapback, removed, quoted: body, truncated };
 }
 
+/**
+ * A truncated quote must be at least this many characters before it can match
+ * by prefix. iOS quotes far more (about 128) before it cuts, so a short
+ * truncated quote (`Liked “R…”`) is typed text, not a tapback, and must never
+ * become a 👍 on a booking card.
+ */
+export const MIN_TRUNCATED_QUOTE_CHARS = 20;
+
 /** Whitespace-insensitive comparison of what iOS quoted against what Trav sent. */
 export function quoteMatches(legacy: LegacyTapbackText, sentText: string): boolean {
   const norm = (s: string): string => s.replace(/\s+/gu, ' ').trim();
   const quoted = norm(legacy.quoted);
   const sent = norm(sentText);
-  return legacy.truncated ? sent.startsWith(quoted) : sent === quoted;
+  if (!legacy.truncated) return sent === quoted;
+  return [...quoted].length >= MIN_TRUNCATED_QUOTE_CHARS && sent.startsWith(quoted);
+}
+
+/** iOS writes tapbacks as text only in SMS/MMS threads. */
+export function isSmsService(service: string | undefined): boolean {
+  return service !== undefined && /^(sms|mms)$/iu.test(service.trim());
 }

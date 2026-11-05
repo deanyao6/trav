@@ -175,7 +175,11 @@ describe('tapbacks (T-169)', () => {
     const exact = parseLegacyTapbackText('Liked “booked ✅ razzmatazz”')!;
     expect(quoteMatches(exact, 'booked ✅  razzmatazz')).toBe(true);
     expect(quoteMatches(exact, 'booked ✅ razzmatazz, 5 tickets')).toBe(false);
-    const cut = parseLegacyTapbackText('Liked “booked ✅ razz…”')!;
+    const cut = parseLegacyTapbackText('Liked “booked ✅ razzmatazz, 5 t…”')!;
     expect(quoteMatches(cut, 'booked ✅ razzmatazz, 5 tickets')).toBe(true);
+    // Review round 2, flaw 4: a short truncated quote never matches by prefix.
+    const short = parseLegacyTapbackText('Liked “booked ✅ razz…”')!;
+    expect(quoteMatches(short, 'booked ✅ razzmatazz, 5 tickets')).toBe(false);
+    expect(quoteMatches(parseLegacyTapbackText('Liked “R…”')!, 'Razzmatazz tonight')).toBe(false);
   });
 });

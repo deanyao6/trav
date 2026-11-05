@@ -2,8 +2,8 @@
  * Relay configuration from the environment, and the live-call guard (T-169).
  *
  * The relay is off unless `TRAV_CHANNEL=imessage_relay`. Even then every
- * call goes to the in-process mock relay unless BOTH `TRAV_RELAY_LIVE=1`
- * and the vendor's key (Sendblue: key id and secret) are set. Only then is
+ * call goes to the in-process mock relay unless `TRAV_RELAY_LIVE=1`, the
+ * vendor's key (Sendblue: key id and secret) and `TRAV_RELAY_LINE` are all set. Only then is
  * `fetch` touched at all: `createLiveRelayTransport` is the single place in
  * the codebase that sends a request to a relay vendor, and it refuses any URL
  * outside that vendor's API origin.
@@ -55,21 +55,25 @@ export function resolveRelayConfig(env: RelayEnv): RelayEnvConfig {
   const vendor: RelayVendorId = rawVendor === '' ? 'photon' : (rawVendor as RelayVendorId);
   const wantsLive = env['TRAV_RELAY_LIVE'] === '1';
   const keys = relayKeysPresent(vendor, env);
-  const live = enabled && wantsLive && keys;
+  // The line's own address is a live gate too: without it Trav can't tell its
+  // own echoes from members, and must never send as the fictional mock line.
+  const lineSet = nonEmpty(env['TRAV_RELAY_LINE']);
+  const live = enabled && wantsLive && keys && lineSet;
   const reason = !enabled
     ? 'relay off (TRAV_CHANNEL is not imessage_relay)'
     : live
-      ? `live ${vendor} (TRAV_RELAY_LIVE=1 and key set)`
+      ? `live ${vendor} (TRAV_RELAY_LIVE=1, key and line set)`
       : wantsLive
-        ? `mock relay: TRAV_RELAY_LIVE=1 but the ${vendor} key is not set`
+        ? !keys
+          ? `mock relay: TRAV_RELAY_LIVE=1 but the ${vendor} key is not set`
+          : 'mock relay: TRAV_RELAY_LIVE=1 but TRAV_RELAY_LINE is not set'
         : keys
           ? 'mock relay: key set but TRAV_RELAY_LIVE is not 1'
           : 'mock relay (no key, TRAV_RELAY_LIVE unset)';
   const portRaw = env['TRAV_RELAY_PORT'];
   const port =
     portRaw !== undefined && /^\d{2,5}$/.test(portRaw) ? Number(portRaw) : DEFAULT_RELAY_PORT;
-  const line =
-    live && nonEmpty(env['TRAV_RELAY_LINE']) ? env['TRAV_RELAY_LINE']!.trim() : MOCK_RELAY_LINE;
+  const line = live ? env['TRAV_RELAY_LINE']!.trim() : MOCK_RELAY_LINE;
   return { enabled, vendor, live, reason, line, port };
 }
 
@@ -81,6 +85,7 @@ export function describeRelayConfig(config: RelayEnvConfig, env: RelayEnv): stri
     set('TRAV_RELAY_API_KEY'),
     ...(config.vendor === 'sendblue' ? [set('TRAV_RELAY_API_SECRET')] : []),
     set('TRAV_RELAY_WEBHOOK_SECRET'),
+    set('TRAV_RELAY_LINE'),
   ].join(' · ');
 }
 

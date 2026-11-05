@@ -83,6 +83,8 @@ export interface MockMemberMessage {
   readonly replyToVendorId?: string;
   /** Default: a fresh vendor id. */
   readonly vendorMessageId?: string;
+  /** The service the vendor reports (default `iMessage`; `SMS` for an MMS-fallback thread). */
+  readonly service?: string;
 }
 
 export interface MockRelay {
@@ -493,7 +495,7 @@ export function createMockRelay(options: MockRelayOptions): MockRelay {
               chat_guid: photonChatGuid(input.chat),
               is_group: input.chat.kind === 'group',
               is_from_me: false,
-              from: { address: input.from, service: 'iMessage' },
+              from: { address: input.from, service: input.service ?? 'iMessage' },
               text: input.text,
               attachments: uploaded.map((m, i) => ({
                 guid: `${id}-att-${String(i + 1)}`,
@@ -534,7 +536,7 @@ export function createMockRelay(options: MockRelayOptions): MockRelay {
           group && input.chat.kind === 'group' ? [...rosterList(input.chat.chatId), line] : [],
         send_style: '',
         opted_out: false,
-        service: 'iMessage',
+        service: input.service ?? 'iMessage',
       });
     },
 

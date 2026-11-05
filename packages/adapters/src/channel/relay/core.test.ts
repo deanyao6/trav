@@ -24,7 +24,7 @@ import type { RelayChannel, RelayChannelOptions, RelayDiagnostic } from './core.
 import { MAX_WEBHOOK_BYTES, createRelayChannel } from './core.js';
 import { MOCK_RELAY_KEY, MOCK_RELAY_LINE, MOCK_RELAY_SECRET } from './config.js';
 import { createMemoryMediaHost } from './media.js';
-import type { RelayVendorId } from './types.js';
+import type { RelayTransport, RelayVendorId } from './types.js';
 import { relayVendor } from './vendors/index.js';
 
 const NOW = '2026-03-14T21:40:00+01:00';
@@ -533,5 +533,146 @@ describe('vendor-specific behaviour', () => {
     expect(spy).not.toHaveBeenCalled();
     expect(t.events[0]!.receivedAt).toBe(NOW);
     spy.mockRestore();
+  });
+});
+
+describe('review round 2', () => {
+  it('flaw 1: a Sendblue 500 that was delivered is final above the core: a pacing queue never posts it twice', async () => {
+    // The vendor processed the send, then answered 500 (Sendblue has no
+    // idempotency keys, so a retry would be a second text).
+    const wire: { inner?: RelayTransport } = {};
+    let fiveHundredNext = false;
+    const t = setup('sendblue', {
+      transport: async (request) => {
+        const res = await wire.inner!(request);
+        if (!fiveHundredNext) return res;
+        fiveHundredNext = false;
+        return { status: 500, headers: {}, body: { status: 'ERROR' } };
+      },
+    });
+    wire.inner = t.mock.transport;
+    const paced = withOutboundPacing(t.relay, {
+      clock: t.clock,
+      maxSendsPerDay: 1,
+      criticalReserve: 0,
+      retryBackoffMs: 1_000,
+    });
+    expect((await paced.sendGroup(CHAT, groupMsg('one'))).ok).toBe(true);
+    const two = groupMsg('two');
+    expect(await paced.sendGroup(CHAT, two)).toMatchObject({ ok: true, value: { queued: true } });
+    fiveHundredNext = true;
+    t.clock.advanceHours(25);
+    await paced.tick();
+    t.clock.advanceHours(1);
+    await paced.tick();
+    t.clock.advanceHours(25);
+    await paced.tick();
+    expect(t.mock.sends().filter((s) => s.text === 'two')).toHaveLength(1);
+    expect(paced.queue()).toEqual([]);
+    expect(paced.failures()).toEqual([
+      expect.objectContaining({ messageId: two.id, reason: 'send_failed' }),
+    ]);
+  });
+
+  it('flaw 1: the core reports retryable only for retry-safe statuses', async () => {
+    const sb = setup('sendblue');
+    sb.mock.failNext({ kind: 'status', status: 500 });
+    expect(await sb.relay.sendGroup(CHAT, groupMsg('a'))).toMatchObject({
+      ok: false,
+      error: { retryable: false },
+    });
+    sb.mock.failNext({ kind: 'network' });
+    expect(await sb.relay.sendGroup(CHAT, groupMsg('b'))).toMatchObject({
+      ok: false,
+      error: { retryable: false },
+    });
+    sb.mock.failNext({ kind: 'lost_reply' });
+    expect(await sb.relay.sendGroup(CHAT, groupMsg('c'))).toMatchObject({
+      ok: false,
+      error: { retryable: false },
+    });
+    // Photon carries idempotency keys, so a 500 stays safe to retry later.
+    const ph = setup('photon', { retry: { maxAttempts: 1 } });
+    ph.mock.failNext({ kind: 'status', status: 500 });
+    expect(await ph.relay.sendGroup(CHAT, groupMsg('d'))).toMatchObject({
+      ok: false,
+      error: { retryable: true },
+    });
+  });
+
+  for (const vendorId of ['photon', 'sendblue'] as const) {
+    it(`flaw 2 (${vendorId}): a DM goes only to a known contact bound to that member`, async () => {
+      const t = setup(vendorId, {
+        contacts: [...CONTACTS, { handle: 'h_sam', address: SAM, displayName: 'Sam' }],
+      });
+      const ticket = (): ReturnType<typeof dmMsg> =>
+        dmMsg('mem_dean', 'your razzmatazz ticket for tonight 🎟️', {
+          card: ticketCard('mem_dean'),
+        });
+      // A phone-number-shaped handle with no contact entry.
+      expect(await t.relay.sendDirect('+16175550199', ticket())).toMatchObject({
+        ok: false,
+        error: { code: 'not_found', message: 'unknown handle +16175550199' },
+      });
+      // Dean's raw address is not his handle either.
+      expect(await t.relay.sendDirect(DEAN, ticket())).toMatchObject({
+        ok: false,
+        error: { code: 'not_found' },
+      });
+      expect(await t.relay.sendDirect('dean@example.test', dmMsg('mem_dean', 'hi'))).toMatchObject({
+        ok: false,
+        error: { code: 'not_found' },
+      });
+      // A contact with no member binding can't prove ownership.
+      expect(await t.relay.sendDirect('h_sam', dmMsg('mem_sam', 'hi'))).toMatchObject({
+        ok: false,
+        error: { code: 'invalid_request' },
+      });
+      expect(t.mock.requests()).toEqual([]);
+      // The bound contact still gets it.
+      expect((await t.relay.sendDirect('h_dean', ticket())).ok).toBe(true);
+      expect(t.mock.sends()).toHaveLength(1);
+    });
+  }
+
+  it('flaw 4: a short truncated quote is never a tapback on a booking card (sendblue)', async () => {
+    const t = setup('sendblue');
+    const card = groupMsg(PROPOSAL_TEXT, { card: proposalCard(), actions: PROPOSAL_ACTIONS });
+    await t.relay.sendGroup(CHAT, card);
+    const wire = t.mock.sends()[0]!.text;
+    // "razzmatazz tonight, 5 tickets…": 1 and 19 characters are too short.
+    expect(wire.slice(0, 19)).toBe('razzmatazz tonight,');
+    for (const text of [`Liked “${wire.slice(0, 1)}…”`, `Liked “${wire.slice(0, 19)}…”`]) {
+      await t.deliver(await t.mock.memberMessage({ chat: group, from: DEAN, text }));
+    }
+    expect(t.events.map((e) => e.type)).toEqual(['message', 'message']);
+    // 20 characters or more still matches by prefix.
+    await t.deliver(
+      await t.mock.memberMessage({
+        chat: group,
+        from: DEAN,
+        text: `Liked “${wire.slice(0, 21)}…”`,
+      }),
+    );
+    expect(t.events[2]).toMatchObject({
+      type: 'reaction',
+      targetMessageId: card.id,
+      reaction: '👍',
+    });
+  });
+
+  it('flaw 4: photon has structured tapbacks, so `Liked “…”` text is a tapback only on SMS/MMS', async () => {
+    const t = setup('photon');
+    const card = groupMsg(PROPOSAL_TEXT, { card: proposalCard(), actions: PROPOSAL_ACTIONS });
+    await t.relay.sendGroup(CHAT, card);
+    const text = `Liked “${t.mock.sends()[0]!.text}”`;
+    await t.deliver(await t.mock.memberMessage({ chat: group, from: DEAN, text }));
+    expect(t.events[0]).toMatchObject({ type: 'message', text });
+    await t.deliver(await t.mock.memberMessage({ chat: group, from: DEAN, text, service: 'SMS' }));
+    expect(t.events[1]).toMatchObject({
+      type: 'reaction',
+      targetMessageId: card.id,
+      reaction: '👍',
+    });
   });
 });

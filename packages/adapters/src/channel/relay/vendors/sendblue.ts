@@ -75,6 +75,7 @@ export const sendblueVendor: RelayVendor = {
     mediaPerMessage: 1,
     idempotencyKeys: false,
     membershipEvents: false,
+    structuredTapbacksIn: false,
   },
 
   verifyWebhook({ headers, secret }) {

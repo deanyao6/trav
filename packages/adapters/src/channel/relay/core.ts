@@ -69,6 +69,7 @@ import {
 } from './media.js';
 import {
   emojiToTapback,
+  isSmsService,
   parseLegacyTapbackText,
   quoteMatches,
   tapbackToEmoji,
@@ -488,8 +489,11 @@ export function createRelayChannel(options: RelayChannelOptions): RelayChannel {
           rosters.set(chatId, roster);
         }
         remember(inboundConversation, item.vendorMessageId, conversationId, RELAY_MEMORY_CAP);
+        // `Liked “…”` text is a tapback only where tapbacks arrive as text: an
+        // SMS/MMS thread, or a vendor with no structured reaction events.
+        const legacyAllowed = !vendor.support.structuredTapbacksIn || isSmsService(item.service);
         const tapback =
-          item.media.length === 0
+          item.media.length === 0 && legacyAllowed
             ? legacyTapback(conversationId, lane, sender, item.vendorMessageId, item.text)
             : undefined;
         if (tapback) {
@@ -577,8 +581,14 @@ export function createRelayChannel(options: RelayChannelOptions): RelayChannel {
       if (!canRetry) {
         stats.sendFailures += 1;
         diag('send_failed', outcome.message);
-        // Retryable for a later try (the pacing queue requeues these), unless the vendor said no.
-        return fail(errorCodeFor(outcome.status), outcome.message, outcome.retryable);
+        // Retryable above the core (the pacing queue requeues these) only when a later
+        // try can't double-send: the same retry-safe statuses as here. A Sendblue 500
+        // or lost reply may already be on the wire, so it is final.
+        return fail(
+          errorCodeFor(outcome.status),
+          outcome.message,
+          outcome.retryable && retrySafe(outcome.status),
+        );
       }
       const backoff = baseDelayMs * 2 ** (attempt - 1);
       const wait = Math.min(
@@ -755,13 +765,17 @@ export function createRelayChannel(options: RelayChannelOptions): RelayChannel {
       }
       if (!capabilities.privateDm)
         return fail('not_supported', 'this line cannot send private messages');
-      const address = addressOf(to);
-      if (address === undefined) return fail('not_found', `no address for handle ${to}`);
+      // Only a known contact bound to this member gets a DM, as on the simulator
+      // ("unknown handle"): a raw number or email, or a contact with no member,
+      // would skip the ownership check that keeps tickets and private cards with
+      // their owner.
       const memberId: MemberId = message.to.memberId;
       const contact = contactByHandle.get(to);
-      if (contact?.memberId !== undefined && contact.memberId !== memberId) {
+      if (contact === undefined) return fail('not_found', `unknown handle ${to}`);
+      if (contact.memberId !== memberId) {
         return fail('invalid_request', `handle ${to} does not belong to member ${memberId}`);
       }
+      const address = contact.address;
       const card = message.card;
       if (card?.type === 'ticket' && card.deliveredTo !== memberId) {
         return fail('invalid_request', `ticket ${card.cardId} is not addressed to ${memberId}`);

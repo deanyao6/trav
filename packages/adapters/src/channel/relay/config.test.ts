@@ -1,7 +1,7 @@
 /**
  * T-169 acceptance: nothing calls a real relay vendor unless
- * `TRAV_CHANNEL=imessage_relay`, `TRAV_RELAY_LIVE=1` and the key are all
- * set. `globalThis.fetch` is replaced by a spy for the whole file, so a
+ * `TRAV_CHANNEL=imessage_relay`, `TRAV_RELAY_LIVE=1`, the key and
+ * `TRAV_RELAY_LINE` are all set. `globalThis.fetch` is replaced by a spy for the whole file, so a
  * network call anywhere in these paths would be caught (and never leave the
  * machine).
  */
@@ -102,7 +102,34 @@ describe('no live relay call unless TRAV_RELAY_LIVE=1 and a key are both set', (
         TRAV_RELAY_API_KEY: FAKE_KEY,
       },
     ],
+    // Round 2, flaw 3: the line is a live gate too (never send as the mock line).
+    [
+      'live=1 and a key but no TRAV_RELAY_LINE',
+      { TRAV_CHANNEL: 'imessage_relay', TRAV_RELAY_LIVE: '1', TRAV_RELAY_API_KEY: FAKE_KEY },
+    ],
+    [
+      'sendblue live=1 with key and secret but a blank TRAV_RELAY_LINE',
+      {
+        TRAV_CHANNEL: 'imessage_relay',
+        TRAV_RELAY_VENDOR: 'sendblue',
+        TRAV_RELAY_LIVE: '1',
+        TRAV_RELAY_API_KEY: FAKE_KEY,
+        TRAV_RELAY_API_SECRET: FAKE_SECRET,
+        TRAV_RELAY_LINE: ' ',
+      },
+    ],
   ];
+  it('says why live is off when only the line is missing', () => {
+    const env = {
+      TRAV_CHANNEL: 'imessage_relay',
+      TRAV_RELAY_LIVE: '1',
+      TRAV_RELAY_API_KEY: FAKE_KEY,
+    };
+    const config = resolveRelayConfig(env);
+    expect(config).toMatchObject({ live: false, line: MOCK_RELAY_LINE });
+    expect(config.reason).toBe('mock relay: TRAV_RELAY_LIVE=1 but TRAV_RELAY_LINE is not set');
+    expect(describeRelayConfig(config, env)).toContain('TRAV_RELAY_LINE=unset');
+  });
   for (const [name, env] of mockCases) {
     it(`mock relay: ${name}`, async () => {
       const { built, mock, sent, status } = await roundTrip(env);
@@ -118,7 +145,7 @@ describe('no live relay call unless TRAV_RELAY_LIVE=1 and a key are both set', (
     });
   }
 
-  it('live only with all three: then (and only then) fetch is called, on the vendor origin', async () => {
+  it('live only with relay on, live=1, the key and the line: then (and only then) fetch is called, on the vendor origin', async () => {
     const env = {
       TRAV_CHANNEL: 'imessage_relay',
       TRAV_RELAY_LIVE: '1',

@@ -178,6 +178,12 @@ export interface RelayVendorSupport {
   readonly idempotencyKeys: boolean;
   /** Sends explicit participant-added / removed webhooks (else rosters are diffed). */
   readonly membershipEvents: boolean;
+  /**
+   * Delivers member tapbacks as structured reaction events. When true, the
+   * core reads `Liked “…”` text as a tapback only on SMS/MMS messages; when
+   * false (Sendblue), on every message.
+   */
+  readonly structuredTapbacksIn: boolean;
 }
 
 export interface RelayVendor {
