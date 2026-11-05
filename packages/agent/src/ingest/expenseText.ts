@@ -283,7 +283,7 @@ const CATEGORY_WORDS: readonly (readonly [ExpenseCategory, RegExp])[] = [
     'food',
     // Dishes, meals, and the kinds of place you eat at (T-181: "the restaurant",
     // "the tasca" read as food, not other).
-    /\b(dinner|lunch|breakfast|brunch|food|kebabs?|tapas|paella|pizza|ice cream|gelato|coffees?|snacks?|burgers?|churros|meal|smoothies?|sushi|tacos?|bakery|pastries|croissants?|restaurants?|tascas?|tabernas?|bistros?|trattorias?|osterias?|brasseries?|cafes?|diners?|marisqueiras?|churrasqueiras?|pastelarias?|takeaway|takeout)\b/,
+    /\b(dinner|lunch|breakfast|brunch|food|kebabs?|tapas|paella|pizza|ice cream|gelato|coffees?|snacks?|burgers?|churros|meal|smoothies?|sushi|tacos?|bakery|pastries|croissants?|restaurants?|tascas?|tabernas?|bistros?|trattorias?|osterias?|brasseries?|cafes?|marisqueiras?|churrasqueiras?|pastelarias?|takeaway|takeout)\b|\bcafé/,
   ],
 ];
 

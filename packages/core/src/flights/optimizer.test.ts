@@ -986,6 +986,9 @@ describe('larger inputs', () => {
     // 40^6 combinations is far over the exact limit: one budgeted branch-and-
     // bound run that hits its budget exactly, then one seeded beam run.
     expect(PER_MEMBER ** MEMBERS).toBeGreaterThan(EXACT_COMBINATION_LIMIT);
+    // Absolute caps, so raising a budget constant can't quietly pass (T-181 review).
+    expect(EXACT_NODE_BUDGET).toBeLessThanOrEqual(500_000);
+    expect(BEAM_WIDTH).toBeLessThanOrEqual(2_000);
     expect(work.exactRuns).toBe(1);
     expect(work.exactNodes).toBe(EXACT_NODE_BUDGET);
     expect(work.beamRuns).toBe(1);

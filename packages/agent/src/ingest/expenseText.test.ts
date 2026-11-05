@@ -956,7 +956,7 @@ describe('descriptions: a duration is never the thing paid for (T-181)', () => {
 });
 
 describe('categories: places you eat at are food (T-181)', () => {
-  it.each(['restaurant', 'taberna', 'tasca', 'bistro', 'trattoria', 'cafe', 'marisqueira'])(
+  it.each(['restaurant', 'taberna', 'tasca', 'bistro', 'trattoria', 'cafe', 'café', 'marisqueira'])(
     '"the %s" is food',
     (place) => {
       const [e] = ready(`@trav i paid €40 for the ${place}, me and chase`, BCN('mem_dean'));
@@ -968,5 +968,10 @@ describe('categories: places you eat at are food (T-181)', () => {
   it('the drink words still win where they come first ("drinks at the cafe")', () => {
     const [e] = ready('@trav i paid €18 for drinks at the cafe, me and chase', BCN('mem_dean'));
     expect(e!.category).toBe('drinks');
+  });
+
+  it('"diners club" is not a place you eat at', () => {
+    const [e] = ready('@trav i paid €20 for the diners club fee, me and chase', BCN('mem_dean'));
+    expect(e!.category).not.toBe('food');
   });
 });
