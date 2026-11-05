@@ -26,6 +26,7 @@ export const GRADED_IDS: readonly string[] = [
   'C5',
   'C7',
   'D4',
+  'D5',
   'E2',
   'E3',
   'E5',

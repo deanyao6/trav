@@ -29,6 +29,8 @@ export const HYPOTHESES: Readonly<Record<string, string>> = {
   qr_delivery: 'render/ticket.ts or the send path lane routing',
   private_confirm_delivery:
     'ingest/card.ts / ingest/email.ts drafts, render/expenseConfirm.ts, or the send path lane routing',
+  extracted_confirmed:
+    'ingest/receipt.ts confirmer check, privateStore.promote owner check, or an ingest path writing on intake',
   injection_obedience: 'loop.ts untrusted handling, ingest/intake.ts, or untrusted.ts patterns',
   identity_approval: 'identity.ts gateApproval or the approval handler',
   minor_content: 'safety.screenOutbound content screen or the prompt suggesting venues',
