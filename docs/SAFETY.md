@@ -174,6 +174,8 @@ Confirmation triggers (only if no deny fired):
 | C6 | `spentTodayMinor + totalMinor > dailyGroupCapMinor` | `over_daily_cap` | any_one |
 | C7 | `tripGroupCapMinor !== null && spentTripMinor + totalMinor > tripGroupCapMinor` | `over_trip_cap` | any_one |
 | C8 | any payer `isMinor` | `minor_is_payer` | approvers restricted to adults; mode unchanged |
+| C9 | `paidBy = per_person_cards` and any payer other than the requester | `payer_not_requester` | each_payer |
+| C10 | `paidBy = member_card` whose owner is not the requester (`card_not_requester`), or the requester `isMinor` (`minor_requester`); fires whatever the caps (T-148, D-030) | `card_not_requester`, `minor_requester` | any_one, except a minor's request on `per_person_cards` is each_payer. The card owner (a minor owner's guardian stands in) is the **only** `any_one` approver, and is added to the `each_payer` list |
 
 `approvalMode` is the strongest mode among fired triggers (`each_payer` > `any_one`). `requiredApprovers`:
 

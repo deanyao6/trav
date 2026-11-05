@@ -19,6 +19,7 @@ import {
   TURN_FAILED_AFTER_PURCHASE_TEXT,
   TURN_FAILED_TEXT,
   UNDO_WHICH_TEXT,
+  UNSENT_PROPOSAL_TEXT,
   type TurnResult,
   type TurnSender,
 } from './loop.js';
@@ -2034,5 +2035,44 @@ describe('T-066: agent loop hardening (T-007-b round-3 review)', () => {
         .find((x) => x.memberId === 'mem_henry');
       expect(row?.status, a.activityId).not.toBe('out');
     }
+  });
+});
+
+describe('T-148 #7: a proposal card that failed to send is withdrawn', () => {
+  it.each([
+    ['a channel error', { failure: { code: 'rate_limited', message: 'slow down' } }],
+    ['no DM lane', { dropped: 'no_dm_lane' as const }],
+  ])('%s: the proposal is rejected, one line says so, a later yes buys nothing', async (_, why) => {
+    const sender: TurnSender = (outbounds) =>
+      Promise.resolve(
+        outbounds.map((o: Outbound) => {
+          const lost = !isReaction(o) && o.card?.type === 'booking_proposal';
+          const sent = { messageId: o.id, sentAt: '2026-03-14T21:40:00+01:00', degraded: false };
+          return {
+            outbound: o,
+            sent: lost ? null : sent,
+            suppressed: false,
+            degraded: false,
+            suppressions: [],
+            violations: [],
+            ...(lost ? why : {}),
+          };
+        }),
+      );
+    const h = harness({ runtime: { sendTurn: sender } });
+    const turn = await h.say('h_dean', RAZZMATAZZ_ASK);
+    expect(turn.toolCalls).toEqual(['propose_booking']);
+    expect(messages(turn).map((m) => m.text)).toEqual([UNSENT_PROPOSAL_TEXT]);
+    expect(h.pending()).toEqual([]);
+    const proposalId = h.audit().find((e) => e.type === 'approval.requested')?.proposalId;
+    expect(proposalId).toBeDefined();
+    expect(h.runtime.stores.group.bookings.getProposal(proposalId!)?.status).toBe('rejected');
+    const invalidated = h.audit().filter((e) => e.type === 'approval.invalidated');
+    expect(invalidated.at(-1)?.payload).toMatchObject({ reason: 'card_not_delivered' });
+
+    const yes = await h.say('h_dean', 'yes');
+    expect(h.tickets.purchaseCount()).toBe(0);
+    expect(h.auditTypes()).not.toContain('booking.completed');
+    expect(messages(yes).some((m) => /^booked/.test(m.text))).toBe(false);
   });
 });

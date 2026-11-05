@@ -856,7 +856,7 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
       await tickets.releaseHold(hold.holdId);
       return {
         kind: 'clarify',
-        question: clarifyFor(consistency.problems, attendees, byId, trip),
+        question: clarifyFor(consistency.problems, attendees, byId, trip, proposal.ageRestriction),
         problems: consistency.problems,
       };
     }
@@ -1269,15 +1269,30 @@ function soldOutText(
   return `${first}\n${sanitizeInline(alt.venue.name, 40)} has tickets the same night. @ me for ${quantity} of those instead`;
 }
 
+/**
+ * An age-limited booking with someone under 18 on it (consistency
+ * `minor_on_restricted`, policy D9), T-148 #5. It must be delivered in a
+ * family group, so: all-ages wording, never "18+"/"21+" (the outbound
+ * screen's backstop drops those, VOICE §8); the event's real minimum age
+ * when it is under 18 ("jet ski" is 16 and up); who's on it, not who's
+ * charged; the minor isn't named.
+ */
+export function ageLimitText(ageRestriction: number | null): string {
+  const what =
+    ageRestriction !== null && ageRestriction < 18
+      ? `that one's ${String(ageRestriction)} and up, and i don't book anything with an age limit for someone under 18`
+      : "that one's not all-ages and someone on it is under 18";
+  return `${what}, so nothing's booked, no charge\ntell me who's actually going`;
+}
+
 function clarifyFor(
   problems: readonly string[],
   attendees: readonly MemberId[],
   byId: ReadonlyMap<MemberId, Member>,
   trip: Trip,
+  ageRestriction: number | null,
 ): string {
-  if (problems.includes('minor_on_restricted')) {
-    return "that one's 18+ and someone on the list is under 18. tell me who's actually going";
-  }
+  if (problems.includes('minor_on_restricted')) return ageLimitText(ageRestriction);
   if (problems.includes('date_outside_trip')) {
     return `that's outside the trip dates (${trip.startDate} to ${trip.endDate}). which night did you mean`;
   }
@@ -1296,9 +1311,7 @@ function denyText(
   if (r.includes('over_hard_max')) {
     return `${formatMoney(money(proposal.totalMinor, proposal.currency))} is over this group's ${formatMoney(money(hardMaxMinor, proposal.currency))} per-booking limit, so i won't propose it\na lead can raise the limit if that's really the plan`;
   }
-  if (r.includes('minor_age_restricted')) {
-    return "that one's 18+ and someone charged is under 18, so no\ntell me who's actually going";
-  }
+  if (r.includes('minor_age_restricted')) return ageLimitText(proposal.ageRestriction);
   if (r.includes('quote_expired')) {
     return "the price i had expired before i could post it. @ me again and i'll re-quote";
   }
@@ -1399,9 +1412,11 @@ export function renderProposalText(input: RenderInput): string {
   const approvers = decision.requiredApprovers;
   const requesterCan = approvers.includes(p.requestedBy);
   if (decision.approvalMode === 'each_payer') {
+    // One approver (a family tab, one adult carrying it): name them (VOICE §4.1 B).
+    const who = approvers.length === 1 ? names([approvers[0]!], byId) : 'everyone charged';
     const why = decision.reasons.includes('over_per_person_cap')
-      ? `that's over the ${formatMoney(money(input.capPerPersonMinor, p.currency))}/person cap, so everyone charged has to 👍`
-      : 'everyone charged has to 👍 this one';
+      ? `that's over the ${formatMoney(money(input.capPerPersonMinor, p.currency))}/person cap, so ${who} has to 👍`
+      : `${who} has to 👍 this one`;
     lines.push(why);
     lines.push(`👍 to book, or say "not me" first. ${held}`);
   } else if (requesterCan) {

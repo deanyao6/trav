@@ -310,6 +310,9 @@ export const NOTHING_TO_ADD_TEXT = 'nothing to add on that';
 /** A proposal card the family screen held back: withdrawn, nothing booked (VOICE §4.12 C, all-ages wording). */
 export const UNDELIVERED_PROPOSAL_TEXT =
   "that one's not all-ages, so i won't set it up in this chat. nothing's booked, no charge";
+/** A proposal card that failed to send (channel error, no DM lane): withdrawn, nothing booked (T-148 #7). */
+export const UNSENT_PROPOSAL_TEXT =
+  "that card didn't go through, so i dropped it. nothing's booked, no charge. @ me to try again";
 const TRAV_ACTOR = { kind: 'trav', id: 'trav' } as const;
 /** A second `request_settings_change` in one turn: the first one's question comes first. */
 export const ONE_SETTING_AT_A_TIME_TEXT =
@@ -901,14 +904,23 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     // minor_alcohol / minor_nightlife screen) was never seen, so it can never
     // be approved: the proposal is withdrawn, its hold released, and one
     // all-ages line says nothing was booked (T-081 r1 #1, VOICE §4.12 C).
-    let withdrew = false;
+    // A card that never went out for any other reason (a channel error, a
+    // DM with no lane) is withdrawn the same way, with its own line (T-148 #7).
+    let screened = false;
+    let failed = false;
     for (const o of outcomes) {
-      if (!o.suppressed || isReaction(o.outbound)) continue;
+      if (o.sent !== null || isReaction(o.outbound)) continue;
       const card = o.outbound.card;
       if (card?.type !== 'booking_proposal') continue;
-      if (await withdrawUndelivered(card.proposalId)) withdrew = true;
+      if (!(await withdrawUndelivered(card.proposalId))) continue;
+      if (o.suppressed) screened = true;
+      else failed = true;
     }
-    if (withdrew) sent.push(...(await send(r, [message(r, UNDELIVERED_PROPOSAL_TEXT)])));
+    const notes = [
+      ...(screened ? [UNDELIVERED_PROPOSAL_TEXT] : []),
+      ...(failed ? [UNSENT_PROPOSAL_TEXT] : []),
+    ];
+    if (notes.length > 0) sent.push(...(await send(r, [message(r, notes.join('\n'))])));
     return sent;
   }
 
