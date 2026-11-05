@@ -59,3 +59,6 @@ These are decisions. Build to them; tasks T-164..T-166 are at the top of the bac
 5. **General stance:** Dean thinks the risk inside a friend group is low and doesn't want many extra guardrails. Prefer fewer confirmation prompts between friends. The hard rules in CLAUDE.md §2 still apply (no real money moved, approval before any booking, minors, roast limits, card and email data private until the owner confirms) unless Dean changes CLAUDE.md.
 6. **Group notices:** every added expense (dinner, Uber, any source) should notify the group, as a short message or as an iMessage-style subscript line. See T-165.
 7. **Sim names:** friend trips use Dean, Chase, Piotr, Arjun, Henry, Crowley from now on. See T-164.
+
+## T-165: does a chat-logged expense need a grey notice too? (2026-11-05)
+In T-165, the grey "Chase added Uber €18.60 · 4 ways" line appears only for expenses that have no group card yet (shared email and card items). Chat text, receipt photos and bookings already post a "logged:" or receipt card in the group, so that card counts as the announcement, per VOICE §2 ("never a second message to say the first one is done"). If you want the grey line on every expense regardless, it's a small change: remove the skip in `packages/agent/src/notices/expenseNotices.ts` and update the tests that count group messages.

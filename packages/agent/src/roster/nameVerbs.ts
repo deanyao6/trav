@@ -47,9 +47,30 @@ export function isVerbUse(low: string, start: number, end: number, typed?: strin
     const first = typed.charAt(start);
     if (first !== first.toLowerCase() && !sentenceStart) return false;
   }
-  if (VERB_BEFORE.test(low.slice(0, start))) return true;
-  return VERB_AFTER.test(low.slice(end));
+  const before = low.slice(0, start);
+  if (VERB_BEFORE.test(before)) return true;
+  // A name marker right before the hit ("with chase after the club", "split
+  // between dean and chase", "dean, chase") makes it the member, whatever
+  // follows (T-173 r1 #1). Only "<someone> for/about <the money>" after it
+  // still reads as the verb there ("… and chase henry for his share").
+  const after = low.slice(end);
+  if (NAME_MARKER_BEFORE.test(before)) return VERB_DEBT_AFTER.test(after);
+  // A comma is a list comma ("dean, chase and me") unless an object follows
+  // ("…, chase me up if I forget"): then it starts a new clause with the verb.
+  if (/,\s*$/.test(before)) return VERB_DEBT_AFTER.test(after) || VERB_OBJECT_AFTER.test(after);
+  return VERB_AFTER.test(after);
 }
+
+/** Words right before a hit that mark it as a person: "with", "w/", "and", "for", "&", "+", "/". */
+const NAME_MARKER_BEFORE =
+  /(?:(?:^|[^a-z'])(?:with|w\/|and|n|for|to|from|between|among|plus|including|incl|except|but|minus|without|thanks|thx|ty|cc|by|via|of)|[+&/])\s*$/;
+
+/** An object pronoun or particle right after the hit: the verb's own frame. */
+const VERB_OBJECT_AFTER = /^\s+(?:me|you|u|him|her|them|us|everyone|everybody|people)(?![a-z'])/;
+
+/** "chase henry for his share": the verb's debt frame, which wins even after a name marker. */
+const VERB_DEBT_AFTER =
+  /^\s+[a-z][a-z'-]*\s+(?:for|about)\s+(?:it|that|this|his|her|their|the money|the cash|money|cash|payment)(?![a-z'])/;
 
 /** `isVerbUse` for a word found by itself: `before` and `after` are the text around it. */
 export function isVerbWord(word: string, before: string, after: string): boolean {

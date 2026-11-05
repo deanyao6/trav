@@ -148,13 +148,17 @@ describe('the three minors', () => {
 
 describe('the verb "chase" is never member Chase in an ask', () => {
   it('verb uses', () => {
-    for (const r of both("get razz tickets for everyone, i'll chase henry for it")) {
-      expect(r?.excludedNames).toEqual([]);
-      expect(r?.attendeeNames).toBeUndefined();
-    }
-    for (const r of both('book razz for me and piotr and chase henry for his share')) {
-      expect(r?.attendeeNames).toEqual(['Dean', 'Piotr']);
-    }
+    // Without the roster, the verb is skipped and the ask stands.
+    expect(parse("get razz tickets for everyone, i'll chase henry for it")).toMatchObject({
+      excludedNames: [],
+    });
+    expect(
+      parse('book razz for me and piotr and chase henry for his share')?.attendeeNames,
+    ).toEqual(['Dean', 'Piotr']);
+    // With it, Henry is named for a reason the reader can't place (the roster
+    // net, T-173 r1 #2): no ask, never a guess at whether he's in.
+    expect(withRoster("get razz tickets for everyone, i'll chase henry for it")).toBeUndefined();
+    expect(withRoster('book razz for me and piotr and chase henry for his share')).toBeUndefined();
   });
 
   it('the member still reads as the member', () => {

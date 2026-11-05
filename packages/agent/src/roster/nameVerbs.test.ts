@@ -109,6 +109,28 @@ describe('the readers agree: parseExpenseText, parseRiderNames, parseBookingRequ
     expect(expenseIn(text)).toEqual(ids);
   });
 
+  it.each([
+    // T-173 r1 #1: a name marker before "chase" wins over what follows.
+    '€25 uber with chase after the club',
+    '€30 drinks with chase that night',
+    'paid €30 for drinks with chase this time',
+    'paid €18 for the cab with chase up to park guell',
+    'paid €12 for the taxi with chase down to the beach',
+    'paid €30 for drinks with chase payment pending',
+    'paid €30 for drinks with chase it was fun',
+    'paid €30 for drinks w/ chase after the club',
+    'paid €40 for the cab, split between dean and chase up the hill',
+  ])('expense, a name marker before "chase": Dean and Chase: %s', (text) => {
+    expect(expenseIn(text)).toEqual(['mem_dean', 'mem_chase']);
+  });
+
+  it('a name marker does not override the debt frame or a verb before it', () => {
+    expect(verbAt('book razz for me and piotr and chase henry for his share')).toBe(true);
+    expect(verbAt("with dean, i'll chase him for it")).toBe(true);
+    expect(verbAt('with chase after the club')).toBe(false);
+    expect(verbAt('dean, chase and me')).toBe(false);
+  });
+
   it('"chase paid" still makes Chase the payer', () => {
     const r = parseExpenseText('chase paid €30 for drinks, everyone', CTX);
     expect(r.kind === 'drafts' ? r.drafts[0]!.payer : undefined).toEqual({
@@ -133,9 +155,12 @@ describe('the readers agree: parseExpenseText, parseRiderNames, parseBookingRequ
 
   it('booking: the verb is never the member; the member is', () => {
     const ask = (t: string) => parseBookingRequest(t, INDEX, 'Dean', { roster: NAMES });
-    expect(ask("get razz tickets for everyone, i'll chase henry for it")).toMatchObject({
-      excludedNames: [],
-    });
+    // The verb is never Chase; Henry, named for a reason the reader can't
+    // place, makes it no ask at all (the roster net, T-173 r1 #2).
+    expect(ask("get razz tickets for everyone, i'll chase henry for it")).toBeUndefined();
+    expect(
+      parseBookingRequest("get razz tickets for everyone, i'll chase henry for it", INDEX, 'Dean'),
+    ).toMatchObject({ excludedNames: [] });
     expect(ask('get razz tickets for me and chase')?.attendeeNames).toEqual(['Dean', 'Chase']);
     expect(ask('get razz tickets for everyone but chase')?.excludedNames).toEqual(['Chase']);
   });

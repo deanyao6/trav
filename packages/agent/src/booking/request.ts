@@ -666,7 +666,7 @@ const GROUP_WORD_RE = new RegExp(
 );
 /** A word that, right before "for", makes the "for …" an exclusion, never the party ("save for henry"). */
 const CONNECTIVE_BEFORE_FOR =
-  /\b(?:except|save|bar|but|aside|apart|besides|other than|minus|without|excluding|sans|not|leaving|leave|skip|skipping|ignoring|barring)\s+$/;
+  /\b(?:except|excepting|excl|save|bar|but|aside|apart|besides|other than|minus|without|excluding|sans|not|no|none|nothing|no tickets?|leaving|leave|skip|skipping|ignoring|barring)\s+$/;
 
 /**
  * Could `word` (folded) be a member's name in an exclusion (T-148 r1 #2)?
@@ -680,6 +680,8 @@ function exclusionName(word: string | undefined, sender: string | undefined): st
   if (NOT_NAME.has(w) || LIST_STOP.has(w) || NOT_NAME_FILLER.has(w)) return undefined;
   // "dont count henry and don't buy yet": a negation is never a name (T-148 r2 #2).
   if (/^(?:don'?t|dont|not|no|never|doesn'?t|won'?t|can'?t)$/.test(w)) return undefined;
+  // "everyone but leave out henry": a verb or connective is never a name (T-173 r1 #9).
+  if (EXCLUSION_NOT_NAME.has(w)) return undefined;
   if (
     parseDayWord(w) !== undefined ||
     /^(?:sun|mon|tue|tues|wed|thu|thur|thurs|fri|sat)$/.test(w)
@@ -688,6 +690,46 @@ function exclusionName(word: string | undefined, sender: string | undefined): st
   }
   return w;
 }
+
+/** Verbs and connectives an exclusion pattern can catch where a name should be. */
+const EXCLUSION_NOT_NAME: ReadonlySet<string> = new Set([
+  'leave',
+  'leaving',
+  'skip',
+  'skipping',
+  'count',
+  'counting',
+  'include',
+  'including',
+  'add',
+  'just',
+  'only',
+  'well',
+  'also',
+  'get',
+  'book',
+  'buy',
+  'grab',
+  'make',
+  'keep',
+  'tell',
+  'ask',
+  'let',
+  'except',
+  'excepting',
+  'excl',
+  'excluding',
+  'without',
+  'minus',
+  'save',
+  'bar',
+  'besides',
+  'none',
+  'nothing',
+  'him',
+  'her',
+  'them',
+]);
 
 /** Negations that govern a name: "don't count henry (or chase)", "henry doesn't want to come". */
 const NAME_NEGATIONS: readonly string[] = [
@@ -769,14 +811,14 @@ function headcount(t: string): number | undefined {
 }
 
 /** Ways a member is out for the night (T-158). Matched only to recognize the clause, never kept. */
-const OUT_REASON = String.raw`(?:sick|ill|unwell|poorly|rough|under the weather|hungover|wrecked|wiped(?: out)?|knackered|exhausted|out|out tonight|staying (?:in|home|back)|sitting (?:this one|it|tonight) out|bailing|bailed|skipping(?: it| tonight| this one)?|passing|not (?:coming|going|joining|in|up for it|feeling (?:it|well|great|good|100))|can'?t (?:come|make it|go)|cannot (?:come|make it|go)|isn'?t (?:coming|going)|won'?t (?:come|make it|be there))`;
+const OUT_REASON = String.raw`(?:sick|ill|unwell|poorly|rough|under the weather|hungover|wrecked|wiped(?: out)?|knackered|exhausted|out|out tonight|staying (?:in|home|back)|sitting (?:this one|it|tonight) out|bailing|bailed|skipping(?: it| tonight| this one)?|passing|not (?:coming|going|joining|in|up for it|feeling (?:it|well|great|good|100))|can'?t (?:come|make it|go)|cannot (?:come|make it|go)|isn'?t (?:coming|going)|won'?t (?:come|make it|be there)|excluded|left out|not included|stays? (?:in|home|back)|sits? (?:this one |it |tonight )?out|home sick|(?:at )?home|(?:got|getting|gotten) (?:sick|ill|food poisoning|covid|the flu|a cold|a fever)|(?:has|got) (?:covid|the flu|flu|a fever|a cold|food poisoning|a migraine|a headache|a stomach bug|the runs)|been (?:sick|ill|unwell|throwing up))`;
 /**
  * A clause that only says a member (or two) is out: "henry's feeling rough",
  * "henry is under the weather", "and henry's not coming", "since henry is
  * sick", "chase and henry are sick". The names are groups 1 and 2.
  */
 const OUT_CLAUSE = new RegExp(
-  String.raw`^(?:(?:and|but|also|plus|oh|btw|since|because|cause|cuz|as)\s+)*(i'?m|i am|i'?ve been|[a-z][a-z-]{1,29})(?:\s+(?:and|&)\s+([a-z][a-z-]{1,29}))?(?:'s|\s+is|\s+are|\s+were|\s+has been|\s+have been|'s been)?\s+(?:(?:feeling|looking|a bit|a little|kinda|kind of|so|too|pretty|really|super|still|very|totally|completely)\s+)*${OUT_REASON}(?:\s+(?:and\s+)?${OUT_REASON})*(?:\s+(?:tonight|today|rn|right now|again|lol|tho|though))*$`,
+  String.raw`^(?:(?:and|but|also|plus|oh|btw|since|because|cause|cuz|as)\s+)*(i'?m|i am|i'?ve been|[a-z][a-z-]{1,29})(?:\s+(?:and|&)\s+([a-z][a-z-]{1,29}))?(?:'s|\s+is|\s+are|\s+were|\s+has been|\s+have been|'s been)?\s+(?:(?:feeling|looking|a bit|a little|kinda|kind of|so|too|pretty|really|super|still|very|totally|completely)\s+)*${OUT_REASON}(?:\s+(?:and\s+)?${OUT_REASON})*(?:\s+(?:tonight|today|rn|right now|again|lol|tho|though|all day|all night|since (?:this morning|yesterday|last night)|until tomorrow|till tomorrow|for now))*$`,
 );
 
 function exclusions(
@@ -877,21 +919,27 @@ function exclusions(
     }
   }
   // "…, crowley already has one": they don't need one bought (T-173, T-158 r2 #6).
+  // T-173 r1 #7: any word order ("chase has one", "henry has one already",
+  // "chase got tickets already", "chase is sorted").
   for (const m of folded.matchAll(
     new RegExp(
-      String.raw`\b${NAME}(?:'s|\s+has|\s+have)?\s+(?:already\s+(?:has|have|got|bought|booked)|already got|got|has got)\s+(?:one|a ticket|a pass|a spot|theirs|his|hers|their own|his own|her own)\b`,
+      String.raw`\b${NAME}\s+(?:already\s+)?(?:has|have|got|has got|bought|booked)\s+(?:already\s+)?(?:one|a ticket|a pass|a spot|tickets?|passes|tix|theirs|his|hers|their own|his own|her own)(?![a-z'])|\b${NAME}(?:'s|\s+is)\s+(?:already\s+)?(?:sorted|covered|set|all set|taken care of)(?:\s+already)?\s*(?=[,.;!?]|$)`,
       'g',
     ),
   )) {
-    const w = m[1]!.replace(/'s$/, '');
+    const w = (m[1] ?? m[2])!.replace(/'s$/, '');
     if (exclusionName(w, sender) !== undefined && !NOT_IN_LIST.has(w)) add(w);
   }
   // "for chase and crowley henry sick": a member right before why they're
   // out, no verb (T-173, T-158 r2 #5). Only a known member: "tickets sold
   // out" has no name in it.
   if (roster !== undefined) {
+    // T-173 r1: also with a verb mid-sentence ("for chase and crowley henry is sick").
     for (const m of folded.matchAll(
-      /\b([a-z][a-z'-]*)\s+(?:sick|ill|unwell|hungover|out sick)(?=\s*(?:[,.;!?]|$))/g,
+      new RegExp(
+        String.raw`\b([a-z][a-z-]*)(?:'s|\s+is|\s+are|\s+has been|'s been)?\s+(?:(?:feeling|a bit|so|really|still|very)\s+)*${OUT_REASON}(?=\s*(?:[,.;!?]|$|-\s|(?:lol|tho|though|tonight|today|rn|all day)(?![a-z])))`,
+        'g',
+      ),
     )) {
       if (roster.has(m[1]!)) add(roster.get(m[1]!));
     }
@@ -928,17 +976,30 @@ function attendeeList(
   // "everyone except for me": the sender is out, never the party (T-173).
   if (head === null || CONNECTIVE_BEFORE_FOR.test(t.slice(0, head.index))) {
     if (single && sender !== undefined) return { names: [sender] };
-    return namedList(clause, ctx);
+    return namedList(clause, ctx) ?? objectList(clause, ctx);
   }
   let rest = t.slice(head.index + head[0].length);
   const names: string[] = [];
   for (;;) {
-    const m = /^(\s*,\s*(?:and\s+)?|\s+and\s+|\s*&\s*|\s*\+\s*)([a-z][a-z'’-]*)/.exec(rest);
+    // "/" and a bare space separate names too (T-173 r1 #4): "for me/chase", "for me chase piotr".
+    const m = /^(\s*,\s*(?:and\s+)?|\s+and\s+|\s*&\s*|\s*\+\s*|\s*\/\s*|\s+)([a-z][a-z'’-]*)/.exec(
+      rest,
+    );
     if (m === null) break;
     const comma = m[1]!.includes(',');
-    const andSep = /and|&|\+/.test(m[1]!);
+    const andSep = /and|&|\+|\//.test(m[1]!);
     const word = m[2]!;
     const after = rest.slice(m[0].length);
+    // A bare space only between names: with the roster, members; without it,
+    // only a run that reaches a real separator ("me chase piotr and crowley",
+    // never "dean into razzmatazz").
+    if (
+      /^\s+$/.test(m[1]!) &&
+      (!personWord(word, after, ctx) ||
+        (ctx.roster === undefined && !/^(?:\s+[a-z][a-z-]*)*\s*(?:,|&|\+|\/|\band\b)/.test(after)))
+    ) {
+      break;
+    }
     // "for me, henry is sick": a comma into a new clause ends the list (T-158 r1 #1).
     // "for me, zed and chase": a non-member mid-list is kept so the service asks (T-173).
     if (!personWord(word, after, ctx) && !unknownMember(word, after, ctx, comma)) {
@@ -954,6 +1015,89 @@ function attendeeList(
   }
   if (sender === undefined) return names.length > 0 ? 'ambiguous' : undefined;
   return { names: withSender(sender, names, ctx) };
+}
+
+/** Words between a buy verb and the tickets that are never people ("get some more razz tickets"). */
+const OBJECT_FILLER: ReadonlySet<string> = new Set([
+  'the',
+  'a',
+  'an',
+  'some',
+  'more',
+  'few',
+  'couple',
+  'of',
+  'extra',
+  'cheap',
+  'cheaper',
+  'cheapest',
+  'good',
+  'best',
+  'proper',
+  'decent',
+  'our',
+  'my',
+  'those',
+  'these',
+  'them',
+  'any',
+  'another',
+  'us',
+  'me',
+  'all',
+  'everyone',
+  'everybody',
+  'whole',
+  'group',
+  'gang',
+  'crew',
+  'squad',
+  'and',
+  'or',
+  'just',
+  'pls',
+  'please',
+  'tonight',
+  'today',
+  'tomorrow',
+  'real',
+  'actual',
+  'two',
+  'early',
+  'late',
+  'entry',
+  'single',
+  'separate',
+]);
+
+/**
+ * "get chase razz tickets", "book chase and piotr razz": the people right
+ * after the buy verb, before the tickets (T-173 r1 #4). With the roster,
+ * members only (the list); without it, a person-like word there is
+ * `ambiguous` (never the whole group by default).
+ */
+function objectList(
+  clause: string,
+  ctx: Reading,
+): { readonly names: readonly string[] } | 'ambiguous' | undefined {
+  const m = /\b(?:get|grab|book|buy|reserve|snag)\s+(.*)$/.exec(clause);
+  if (m === null) return undefined;
+  const names: string[] = [];
+  let other = false;
+  for (const raw of m[1]!.split(/\s*(?:,|&|\+|\/)\s*|\s+/)) {
+    const w = raw.trim();
+    if (w.length === 0) continue;
+    // The tickets themselves end the people: the venue, a ticket word, a count.
+    if (ctx.skip.has(w) || TICKET_WORD.test(w) || isCountWord(w) || w === 'for') break;
+    if (OBJECT_FILLER.has(w)) continue;
+    const member = ctx.roster !== undefined ? ctx.roster.has(w) : false;
+    if (member) names.push(w);
+    else if (ctx.roster === undefined && personWord(w, '', ctx)) return 'ambiguous';
+    else other = true;
+  }
+  if (names.length === 0) return undefined;
+  if (other) return 'ambiguous';
+  return { names: names.map((n) => displayName(n, ctx)) };
 }
 
 function withSender(sender: string, names: readonly string[], ctx: Reading): string[] {
@@ -1272,13 +1416,20 @@ function namedList(
     for (;;) {
       const m = first
         ? /^()([a-z][a-z'’-]*)/.exec(rest)
-        : /^(\s*,\s*(?:and\s+)?|\s+and\s+|\s*&\s*|\s*\+\s*|\s+)([a-z][a-z'’-]*)/.exec(rest);
+        : /^(\s*,\s*(?:and\s+)?|\s+and\s+|\s*&\s*|\s*\+\s*|\s*\/\s*|\s+)([a-z][a-z'’-]*)/.exec(
+            rest,
+          );
       if (m === null) break;
       const sep = m[1]!;
       const word = m[2]!;
       const after = rest.slice(m[0].length);
       const comma = sep.includes(',');
-      const joined = /and|&|\+/.test(sep);
+      const joined = /and|&|\+|\//.test(sep);
+      // "for henry's friend and me": someone of a member's, not a member (T-173 r1 #4).
+      const owner = /^([a-z][a-z-]+)'s$/.exec(word)?.[1];
+      if (owner !== undefined && (first || joined) && personWord(owner, after, ctx)) {
+        return 'ambiguous';
+      }
       if (comma) kept = { names: [...names], me };
       if ((word === 'me' || word === 'myself') && !startsClause(after)) {
         me = true;
@@ -1541,7 +1692,7 @@ const JOKE_CUE = /\b(?:jk|j\/k|just kidding|just joking|kidding|joking|jokes asi
  * T-168 auto-buys explicit asks under the cap).
  */
 const HEDGE_CUE =
-  /\b(?:maybe|perhaps|idk|dunno|not sure|eventually|at some point|some ?day|thinking (?:about|of)|probably|possibly|might)\b/;
+  /\b(?:maybe|perhaps|idk|dunno|not sure|eventually|at some point|some ?day|thinking|probably|prob|prolly|possibly|might|reckon|i think (?:we|i|you|u)|(?:i|we) guess)\b/;
 /**
  * `t` without hedges about one member coming ("chase might join", "crowley
  * maybe comes later"): that's who's in, not whether to book (T-081 r1 #9).
@@ -1623,7 +1774,74 @@ function notAnAsk(folded: string): boolean {
  */
 const CONDITION_CUE =
   /\b(?:if|unless|once|when|whenever|after|in case|as long as|provided|assuming|later|until|till)\b/;
-const POLITE_IF = /\bif (?:possible|poss|you can|u can|you could|u could)\b/g;
+/**
+ * Manners and a night's own time, never a condition (T-173 r1 #6): "if
+ * possible", "when you get a sec", "for tonight after dinner", "later tonight".
+ */
+const POLITE_IF =
+  /\b(?:if (?:possible|poss|you can|u can|you could|u could)|when(?:ever)? (?:you|u) (?:can|get a (?:sec|second|min|minute|moment|chance)|have a (?:sec|second|min|minute|moment)|get the chance)|after (?:dinner|lunch|brunch|breakfast|drinks|the (?:match|game|show|gig|concert|dinner)|midnight|dark|\d{1,2}(?::\d{2})?(?:\s?(?:am|pm))?)|later (?:tonight|on tonight|this evening)|(?:tonight|tonite) later)\b/g;
+/** A clause that is itself a condition ("…, unless henry objects", "if it's not sold out, …"). */
+const CONDITION_LEAD =
+  /^(?:(?:but|and|so|or|only|just|well|ok)\s+)*(?:if|unless|once|when|whenever|after|in case|as long as|provided|assuming|until|till|later|before)\b|\blater\s*$/;
+
+/**
+ * Does a condition govern the buy (T-173 r1 #6)? In a clause about the
+ * buy (it has the venue, a ticket word or a buy verb) any condition word
+ * does; in another clause only one that opens it ("…, unless henry
+ * objects"), so "henry's sick until tomorrow" is no condition on the ask.
+ */
+function conditionGoverns(t: string, terms: readonly string[]): boolean {
+  for (const raw of t.replace(POLITE_IF, ' ').split(CLAUSE_SPLIT)) {
+    const c = raw.trim();
+    if (c.length === 0 || !CONDITION_CUE.test(c)) continue;
+    if (aboutTheBuy(c, terms) || CONDITION_LEAD.test(c)) return true;
+  }
+  return false;
+}
+
+/** A clause that talks about the buy itself: a buy or soft verb, a ticket word, the venue. */
+function aboutTheBuy(c: string, terms: readonly string[]): boolean {
+  return (
+    BOOK_VERB.test(c) ||
+    TICKET_WORD.test(c) ||
+    new RegExp(String.raw`\b${ANY_SOFT}\b`).test(c) ||
+    terms.some((term) => termRe(term).test(c))
+  );
+}
+
+/**
+ * An auxiliary negation and the word it negates ("can't make it" ⇒ "make").
+ * Phrase negations ("not yet", "hold off", "no need") are never read this
+ * way: they always say no.
+ */
+const NEGATED_WORD =
+  /\b(?:don'?t|dont|do not|doesn'?t|can'?t|cant|cannot|can not|couldn'?t|won'?t|wont|wouldn'?t|didn'?t|isn'?t|aren'?t|wasn'?t|weren'?t|shouldn'?t|haven'?t|hasn'?t|never)(?:\s+(?:even|really|actually|just|totally|quite|ever))*(?:\s+([a-z][a-z'-]*))?/g;
+/**
+ * Negated words that still say no to the buy, in any clause: none ("…,
+ * actually don't"), "do", "bother", a buy verb, "need", "afford", "yet".
+ */
+const BUY_NEGATED =
+  /^(?:do|doing|bother|buy|buying|book|booking|get|getting|grab|grabbing|order|ordering|purchase|reserve|need|want|wanna|afford|pay|spend|go|yet|now|them|those|tickets?|tix|passes|vip|count|happen|happening)$/;
+
+/**
+ * Does a negation take the ask back (T-173 r1 #6)? Any negation in a clause
+ * about the buy does. In another clause it does unless it plainly says no to
+ * something else: "he can't make it", "i can't believe it", "we shouldn't
+ * miss it", "isn't that sad". Fail closed: a bare "…, don't" or "not yet"
+ * still takes it back. `t` has the name negations removed already.
+ */
+function negationGoverns(t: string, terms: readonly string[]): boolean {
+  for (const raw of t.split(CLAUSE_SPLIT)) {
+    const c = raw.trim();
+    if (c.length === 0 || !NEGATION_CUE.test(c)) continue;
+    if (aboutTheBuy(c, terms)) return true;
+    const rest = c.replace(NEGATED_WORD, (span: string, w: string | undefined) =>
+      w === undefined || BUY_NEGATED.test(w) ? span : ' ',
+    );
+    if (NEGATION_CUE.test(rest)) return true;
+  }
+  return false;
+}
 /**
  * Not a real ask (T-173): "imagine if trav could…", "we could get…", "worth
  * getting…?", "the plan was to get…". "we could use razz tickets" is the
@@ -1670,7 +1888,7 @@ const TOLD_TO = new RegExp(
 );
 /** A sentence that opens by addressing someone and goes straight to a buy verb: "crowley, get…", "chase can you book…". */
 const VOCATIVE = new RegExp(
-  String.raw`^(?:(?:hey|hi|yo|oi|ok|okay|so|and|also)[\s,]+)*@?([a-z][a-z'-]+)(\s*[,:]\s*|\s+)((?:can|could|would|will) (?:you|u) |pls |please |just )?(?:${BOOK_VERBS}|${SOFT_VERB})\b`,
+  String.raw`^(?:(?:hey|hi|yo|oi|ok|okay|so|and|also|@?trav)[\s,:]+)*@?([a-z][a-z'-]+)(\s*[,:]\s*|\s+)((?:can|could|would|will) (?:you|u) |pls |please |just )?(?:${BOOK_VERBS}|${SOFT_VERB})\b`,
 );
 /** Words that open a sentence with a comma without addressing anyone ("ok, get…", "guys, get…"). */
 const VOCATIVE_FILLER: ReadonlySet<string> = new Set([
@@ -1743,11 +1961,133 @@ function toldSomeoneElse(t: string, ctx: Reading): boolean {
   return false;
 }
 
+// ---- who the buy verb belongs to (T-173 r1 #5) ----
+// Generic rules, not wordings: a buy verb whose subject is a named member or
+// "someone", or that sits under a modal ("we should get", "i'd get", "crowley
+// will get them"), is talk about a buy, never an instruction to Trav. Only
+// "you"/"trav" ("could you get…") is Trav's.
+
+/** Words that may sit between a subject and its buy verb. Modals are marked by `MODAL`. */
+const SUBJECT_BUY = new RegExp(
+  String.raw`(?:^|[^a-z'])([a-z][a-z'-]*)\s+((?:(?:can|could|will|would|should|must|might|may|shall|gonna|needs? to|has to|have to|had better|better|ought to|going to|is gonna|is going to|prob|probably|prolly|def|definitely|just|pls|please|go|also|then|really)\s+){0,3})(?:${BOOK_VERBS}|pick up|pay for)\b`,
+  'g',
+);
+const MODAL =
+  /\b(?:can|could|will|would|should|must|might|may|shall|gonna|needs? to|has to|have to|had better|better|ought to|going to|prob|probably|prolly|def|definitely)\b/;
+const SOMEONE = new Set([
+  'someone',
+  'somebody',
+  'anyone',
+  'anybody',
+  'nobody',
+  'no one',
+  'whoever',
+]);
+const PRONOUN_SUBJECT = new Set(['i', 'we', 'he', 'she', 'they', 'it']);
+/** Words that open a sentence before a buy verb without being its subject ("now get…", "just book…"). */
+const NOT_A_SUBJECT = new Set([
+  'just',
+  'now',
+  'quick',
+  'then',
+  'also',
+  'and',
+  'so',
+  'but',
+  'or',
+  'pls',
+  'please',
+  'plz',
+  'lets',
+  'go',
+  'can',
+  'could',
+  'would',
+  'will',
+  'to',
+  'def',
+  'definitely',
+  'prob',
+  'probably',
+  'actually',
+  'still',
+  'again',
+  'first',
+  'finally',
+  'quickly',
+  'asap',
+  'tonight',
+  'today',
+  'tomorrow',
+  'yes',
+  'no',
+]);
+
+/** Is some buy verb in `t` someone else's, or under a modal? */
+function buyNotForTrav(t: string, ctx: Reading): boolean {
+  for (const sentence of t.split(SENTENCE_SPLIT)) {
+    const s = sentence.trim();
+    for (const m of s.matchAll(SUBJECT_BUY)) {
+      const word = m[1]!;
+      const base = word.replace(/'(?:d|ll|s|m|re|ve)$/, '');
+      if (['you', 'u', 'ya', 'yall', 'trav'].includes(base)) continue;
+      const gap = m[2] ?? '';
+      const modal = MODAL.test(gap) || /'(?:d|ll)$/.test(word);
+      // "we need to get razz tickets": the group's need, put to Trav (a soft ask).
+      if ((base === 'we' || base === 'i') && /^(?:needs? to|have to)\s+$/.test(gap)) continue;
+      if (SOMEONE.has(base)) return true;
+      if (PRONOUN_SUBJECT.has(base)) {
+        if (modal) return true;
+        continue;
+      }
+      if (NOT_A_SUBJECT.has(base) || VOCATIVE_FILLER.has(base) || /ly$/.test(base)) continue;
+      const atStart =
+        s
+          .slice(0, m.index)
+          .replace(/^(?:@?trav\b)?[\s,:]*/, '')
+          .trim() === '';
+      const member =
+        ctx.roster !== undefined
+          ? ctx.roster.has(base)
+          : personWord(base, '', { ...ctx, roster: undefined }) && !ctx.skip.has(base);
+      if (member && (modal || /\bgo\b/.test(gap) || atStart)) return true;
+    }
+  }
+  return false;
+}
+
+/** "crowley said get…", "henry said trav get…": someone else's words, reported (T-173 r1 #5). */
+const REPORTED_BUY = new RegExp(
+  String.raw`\b(?:said|says|saying|told|tells|suggested|suggests|reckons|reckoned|wants us to|wanted us to)\s+(?:(?:to|that|we|we should|trav|you|u|us|just)[\s,:]+)*(?:${BOOK_VERBS}|${SOFT_VERB})\b`,
+);
+/**
+ * More handoffs (T-173 r1 #5): "crowley will pay", "i'll do it", "crowley
+ * handled it", "leave it to me", "leave it with crowley".
+ */
+const HANDOFF_MORE = new RegExp(
+  [
+    String.raw`\b(?![yu]\b|you\b|ya\b|trav\b)[a-z][a-z-]*(?:'ll|\s+(?:will|can|could|should|would|is gonna|is going to|gonna|'s gonna|has to|needs to|is going to))\s+(?:just\s+)?(?:pay|cover|sort|handle|do|deal|take care|front|organi[sz]e|arrange)\b`,
+    String.raw`\b(?:handled|sorted|covered|dealt with|took care of|taken care of|organi[sz]ed|arranged)\s+(?:it|this|that|them|those|these|already)\b`,
+    String.raw`\bleave (?:it|this|that|them) (?:to|with)\b`,
+  ].join('|'),
+);
+/** A buy that was a habit or is in the past (T-173 r1 #5): "in the past we'd get…", "like last time". */
+const PAST_CONTEXT =
+  /\b(?:in the past|used to|back in the day|back then|last (?:time|year|trip|summer|weekend)|every time we|we always|we usually)\b/;
+/** Bought somewhere else than through Trav (T-173 r1 #5): "at the door", "at the box office". */
+const AT_THE_DOOR =
+  /\b(?:at|on) the (?:door|gate|box office|venue|night)\b|\bat (?:the )?box office\b/;
+/** Put to the group, not to Trav (T-173 r1 #5): "thoughts?", "yes or no", "vote". */
+const POLL_CUE =
+  /\b(?:thoughts|vote|votes|voting|poll|yes or no|y\/n|yay or nay|objections|opinions|any takers|who'?s down|who'?s in|hands up)\b/;
+
 /** The checks above, on the folded text (times removed) and the ask's own clause. */
-function uncommitted(t: string, clause: string, ctx: Reading): boolean {
-  if (CONDITION_CUE.test(t.replace(POLITE_IF, ' '))) return true;
+function uncommitted(t: string, clause: string, ctx: Reading, terms: readonly string[]): boolean {
+  if (conditionGoverns(t, terms)) return true;
   if (HYPOTHETICAL_CUE.test(t) || HANDOFF_CUE.test(t) || RETRACT_CUE.test(t)) return true;
   if (/\bsold out\b/.test(t) || toldSomeoneElse(t, ctx)) return true;
+  if (REPORTED_BUY.test(t) || HANDOFF_MORE.test(t) || PAST_CONTEXT.test(t)) return true;
+  if (AT_THE_DOOR.test(t) || POLL_CUE.test(t) || buyNotForTrav(t, ctx)) return true;
   if (PAST_CUE.test(clause)) return true;
   return verbIndex(clause, ctx) < 0 && DESCRIPTIVE_VERB.test(clause);
 }
@@ -1839,6 +2179,208 @@ function minorityOfGroup(
   return size === undefined ? attendees.length <= 2 : attendees.length * 2 < size;
 }
 
+// ---- exclusion connectives, read to the end of their list (T-173 r1 #2, #3) ----
+
+/** Always an exclusion: what follows must be names the reader can resolve, or there's no ask. */
+const STRONG_CONNECTIVE =
+  /(?:\b|')(?:except(?:ing)?(?:\s+for)?|x?cept|exc|sauf|with the exception of|excl|excluding|besides|aside from|apart from|outside of|other than|none for|nothing for|no tickets? for|leave out|leaving out|not counting|not including|barring)(?![a-z'])/g;
+/** An exclusion only when a person follows ("but henry", "no henry", "skip henry", "not henry"). */
+const WEAK_CONNECTIVE =
+  /\b(?:but(?:\s+not)?|just not|not|no|skip(?:ping)?|save(?:\s+for)?|bar|without|minus|sans)(?![a-z'])/g;
+/** Words before the first name that change nothing ("except, well, henry"). */
+const LIST_FILLER = /^(?:[\s,:;-]|(?:well|um|uh|like|of|for|just|only|obviously|ofc|you know)\b)+/;
+/** Between names: a comma, "and", "or", "&", "+", "/". */
+const LIST_SEP = /^(?:\s*,\s*(?:(?:and|or)\s+|&\s*)?|\s+(?:and|or|n)\s+|\s*[&+/]\s*)/;
+/** Words a plain-mode "no X" / "but X" never excludes ("no worries", "but hurry"). */
+const WEAK_NOT_A_NAME: ReadonlySet<string> = new Set([
+  'worries',
+  'rush',
+  'problem',
+  'problems',
+  'pressure',
+  'biggie',
+  'way',
+  'thanks',
+  'clue',
+  'idea',
+  'hurry',
+  'quick',
+  'fast',
+  'asap',
+  'first',
+  'yeah',
+  'honestly',
+  'seriously',
+  'still',
+  'then',
+  'now',
+  'sure',
+  'need',
+  'stress',
+  'drama',
+]);
+
+type ListItem =
+  | { readonly kind: 'name'; readonly name: string }
+  | { readonly kind: 'pronoun' | 'clause' | 'other' };
+
+/** What one word in an exclusion list is. */
+function listItem(word: string, after: string, ctx: Reading): ListItem {
+  if (/^(?:him|her|them|his|hers|theirs)$/.test(word)) return { kind: 'pronoun' };
+  // "except henry, chase is driving": that name starts a new clause.
+  if (startsClause(after)) return { kind: 'clause' };
+  if (word === 'me' || word === 'myself') {
+    return ctx.sender === undefined ? { kind: 'other' } : { kind: 'name', name: ctx.sender };
+  }
+  if (ctx.roster !== undefined) {
+    const n = ctx.roster.get(word);
+    return n === undefined ? { kind: 'other' } : { kind: 'name', name: n };
+  }
+  if (
+    !ctx.skip.has(word) &&
+    !EXCLUSION_NOT_NAME.has(word) &&
+    personWord(word, after, { ...ctx, roster: undefined })
+  ) {
+    return { kind: 'name', name: word.charAt(0).toUpperCase() + word.slice(1) };
+  }
+  return { kind: 'other' };
+}
+
+/**
+ * Every name after an exclusion connective, the whole list ("except henry,
+ * chase and piotr", "except henry/chase", "but @henry & chase"). Fail closed:
+ * an exclusion the reader can't resolve ("except him", "except the sick one",
+ * "except henry and the kids") is `unresolved`, so there's no ask, never the
+ * whole group with that person still in it.
+ */
+function connectiveExclusions(t: string, ctx: Reading): string[] | 'unresolved' {
+  const hits = [
+    ...[...t.matchAll(STRONG_CONNECTIVE)].map((m) => ({ m, strong: true })),
+    // Right after the whole group ("everyone minus…", "all of us bar…") a weak
+    // connective is an exclusion for sure, so it must resolve too. Not "no" /
+    // "not": "for us, no vip" is a tier.
+    ...[...t.matchAll(WEAK_CONNECTIVE)].map((m) => ({
+      m,
+      strong:
+        !/^(?:no|not|just not|but not)$/.test(m[0]) &&
+        new RegExp(String.raw`\b${GROUP_WORD}\s*,?\s*$`).test(t.slice(0, m.index)),
+    })),
+  ].sort((a, b) => a.m.index - b.m.index || b.m[0].length - a.m[0].length);
+  const out: string[] = [];
+  let consumed = 0;
+  for (const { m, strong } of hits) {
+    if (m.index < consumed) continue;
+    const end = m.index + m[0].length;
+    consumed = end;
+    // "besides, get razz tickets" / "other than that": a discourse word, no list.
+    if (/^\s*,/.test(t.slice(end)) && /^(?:besides|other than)$/.test(m[0])) continue;
+    let rest = t.slice(end).replace(LIST_FILLER, '');
+    if (strong && /^(?:that|this|it)\b/.test(rest)) continue;
+    // "but leave out henry", "but skip henry": the next connective reads the list.
+    if (
+      /^(?:leave|leaving|skip|skipping|not|no|except|excepting|without|minus|excluding|excl|count|counting|don'?t)\b/.test(
+        rest,
+      )
+    ) {
+      continue;
+    }
+    const names: string[] = [];
+    let first = true;
+    for (;;) {
+      let sep = '';
+      if (!first) {
+        const s = LIST_SEP.exec(rest);
+        if (s === null) break;
+        sep = s[0];
+        rest = rest.slice(sep.length);
+      }
+      const w = /^([a-z][a-z'-]*)/.exec(rest)?.[1]?.replace(/'s$/, '');
+      const after = w === undefined ? rest : rest.slice(rest.indexOf(w) + w.length);
+      const item = w === undefined ? ({ kind: 'other' } as const) : listItem(w, after, ctx);
+      if (item.kind === 'name') {
+        // Plain mode: a weak "no X" excludes only a name that ends its clause or list.
+        // Plain mode: also only where the ask names the whole group ("everyone, no henry").
+        if (
+          first &&
+          !strong &&
+          ctx.roster === undefined &&
+          (WEAK_NOT_A_NAME.has(w!) ||
+            !GROUP_WORD_RE.test(t) ||
+            !/^(?:'s)?\s*(?:$|[,.;!?]|(?:and|or|&|\+|\/|n|tonight|though|tho|too|either|pls|please)(?![a-z]))/.test(
+              after,
+            ))
+        ) {
+          break;
+        }
+        names.push(item.name);
+        rest = rest.slice(rest.indexOf(w!) + w!.length).replace(/^'s/, '');
+        first = false;
+        continue;
+      }
+      if (first) {
+        // "except him", "except the sick one": an exclusion with no one readable.
+        if (strong || item.kind === 'pronoun') return 'unresolved';
+        break;
+      }
+      // "except henry, chase is driving": a new clause ends the list at the comma.
+      if (/,/.test(sep) && !/(?:and|or|&)/.test(sep)) break;
+      if (item.kind === 'clause') break;
+      // "except henry and the kids": a list that goes on into no one readable.
+      return 'unresolved';
+    }
+    for (const n of names) if (!out.some((x) => foldText(x) === foldText(n))) out.push(n);
+  }
+  return out;
+}
+
+/** "henry's back", "henry too", "including henry", "don't count henry out": a member said to be in. */
+const INCLUDED_AFTER =
+  /^(?:'s|\s+is|\s+are)?\s+(?:back|in|coming|joining|too|as well|also|included|feeling better|better(?: now)?|ok now|okay now|fine now|good now|in too|coming too)(?![a-z'])/;
+const INCLUDED_BEFORE =
+  /\b(?:including|incl|plus|and also|even|also|with|count|don'?t (?:count|leave)|do not (?:count|leave))\s+$/;
+
+/**
+ * The roster net (T-173 r1 #2, #4): with the roster known, every member the
+ * ask names must be accounted for: in the party, out, or said to be in. A
+ * member named for a reason the reader can't place ("henry gets nothing",
+ * "put it on piotr") leaves the ask unsure, so there's no ask: never the
+ * whole group, or a list, quietly keeping or dropping them.
+ */
+function unaccountedMember(
+  t: string,
+  ctx: Reading,
+  attendees: readonly string[] | undefined,
+  excluded: readonly string[],
+): boolean {
+  if (ctx.roster === undefined) return false;
+  const accounted = new Set([...(attendees ?? []), ...excluded].map((n) => foldText(n)));
+  // The sender is in a whole-group party already ("Dean: get the 5 of us…").
+  if (attendees === undefined && ctx.sender !== undefined) accounted.add(foldText(ctx.sender));
+  for (const [key, display] of ctx.roster) {
+    if (ctx.skip.has(key) || key === 'trav') continue;
+    const re = new RegExp(
+      String.raw`(?<![a-z'])${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![a-z])`,
+      'g',
+    );
+    for (const m of t.matchAll(re)) {
+      const before = t.slice(0, m.index);
+      const after = t.slice(m.index + m[0].length);
+      if (isVerbWord(key, before, after)) continue;
+      if (accounted.has(foldText(display)) || accounted.has(key)) continue;
+      if (
+        attendees === undefined &&
+        (INCLUDED_AFTER.test(after) ||
+          INCLUDED_BEFORE.test(before) ||
+          (/^\s+out\b/.test(after) && /\bdon'?t (?:count|leave)\s+$/.test(before)))
+      ) {
+        continue;
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
 /** First-person soft asks (T-173, T-158 r2 #2): "i need…", "i could use…", "hook me up with…". */
 const FIRST_PERSON_SOFT =
   /\b(?:i\s+(?:really\s+|just\s+|also\s+|still\s+|kinda\s+)?(?:need|could use|want|wanna|would like)|i'?d like|(?:pick|sort|line|set|hook) me\b)/;
@@ -1889,8 +2431,9 @@ export function parseBookingRequest(
     readonly roster?: readonly string[] | undefined;
   } = {},
 ): BookingRequest | undefined {
-  const original = text.replace(/\s+/g, ' ').trim();
-  if (original.length === 0 || original.length > 300) return undefined;
+  const raw = text.replace(/\s+/g, ' ').trim();
+  if (raw.length === 0 || raw.length > 300) return undefined;
+  const original = prepared(raw);
   const folded = foldText(original);
   if (notAnAsk(folded)) return undefined;
   const t = folded.replace(TIME_RE, ' ');
@@ -1920,11 +2463,13 @@ export function parseBookingRequest(
   // an exclusion, not a no. Missing an ask is safe; booking a "not yet" isn't.
   const anchor = anchorOf(t, terms, ctx);
   if (anchor === undefined || isQuestion(anchor.sentence)) return undefined;
-  if (NEGATION_CUE.test(withoutNameNegations(t, sender))) return undefined;
+  // T-173 r1 #6: a negation in a clause about something else ("henry's sick,
+  // he can't make it", "i can't believe it") doesn't take the ask back.
+  if (negationGoverns(withoutNameNegations(t, sender), terms)) return undefined;
   // Not (yet) a decision to buy, or not Trav's to make (T-173): a condition,
   // a hypothetical, a handoff or retraction, an instruction to another
   // member, or a buy that already happened.
-  if (uncommitted(t, anchor.clause, ctx)) return undefined;
+  if (uncommitted(t, anchor.clause, ctx, terms)) return undefined;
 
   // ---- a booking signal ----
   // A booking verb, a headcount, "for all of us" or "for me (and X)": a
@@ -1961,6 +2506,19 @@ export function parseBookingRequest(
   if (!BOOK_VERB.test(t) && !soft && quantity === undefined && !everyone && list === undefined) {
     return undefined;
   }
+  // With no verb, the party is the only signal, so a sentence that names the
+  // party but says they have tickets already is no ask: "your razz ticket for
+  // tonight. … everyone got their own".
+  if (!BOOK_VERB.test(t) && !soft && list === undefined) {
+    for (const sentence of t.split(SENTENCE_SPLIT)) {
+      if (
+        (headcount(sentence) !== undefined || GROUP_WORD_RE.test(sentence)) &&
+        PAST_CUE.test(sentence)
+      ) {
+        return undefined;
+      }
+    }
+  }
 
   // "i need razz tickets", "hook me up with razz tickets": the sender alone,
   // unless they named the party (T-173, T-158 r2 #2). No sender, no ask.
@@ -1979,6 +2537,12 @@ export function parseBookingRequest(
     attendees = [sender];
   }
   const excludedNames = exclusions(original, folded, sender, ctx.skip, ctx.roster);
+  // Every name after an exclusion connective, or no ask when one can't be read (T-173 r1 #2, #3).
+  const listed = connectiveExclusions(t, ctx);
+  if (listed === 'unresolved') return undefined;
+  for (const n of listed) {
+    if (!excludedNames.some((x) => foldText(x) === foldText(n))) excludedNames.push(n);
+  }
   if (connectiveUnread(t, excludedNames, sender, ctx.skip)) return undefined;
   if (
     attendees !== undefined &&
@@ -1986,6 +2550,7 @@ export function parseBookingRequest(
   ) {
     return undefined;
   }
+  if (unaccountedMember(t, ctx, attendees, excludedNames)) return undefined;
   const day = parseDayWord(t);
   const tier = tierWords(t, venue);
   const time = askedTime(folded);
@@ -2000,6 +2565,22 @@ export function parseBookingRequest(
     ...(day !== undefined ? { day } : {}),
     ...(tier.length > 0 ? { tier } : {}),
     ...(time !== undefined ? { time } : {}),
-    requestText: original,
+    requestText: raw,
   };
+}
+
+/**
+ * The text as the readers below expect it (T-173 r1 #2, #4): "@chase" is
+ * "chase" (never "@trav"), brackets are spaces ("except (henry)"), "w/o" is
+ * "without", "excl." doesn't end a sentence, and a dash is a clause break.
+ */
+function prepared(raw: string): string {
+  return raw
+    .replace(/(^|[^\w@])@(?!trav(?![\w-]))(?=[\p{L}])/giu, '$1')
+    .replace(/[()[\]{}]/g, ' ')
+    .replace(/\bw\/o\b/gi, 'without')
+    .replace(/\b(excl|incl)\./gi, '$1')
+    .replace(/\s*[—–]\s*/g, ' - ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
