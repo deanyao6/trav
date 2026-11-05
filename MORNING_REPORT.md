@@ -1,12 +1,14 @@
 # Morning report
 
-Last updated: 2026-11-04 ~20:00 PST, session 12. **Status: every P0 task is done, and the v0 demo runs end to end offline.** `pnpm check` is green (typecheck, lint, 3132+ tests). `pnpm demo:barcelona` passes 40 of 40 checks. Work is continuing on post-QA fixes (see "Now" below). For the timeline see `docs/PROGRESS.md`; for exact state see `tasks/BACKLOG.md`.
+Last updated: 2026-11-05 ~17:15 PST, session 15. **Status: every P0 task is done, the v0 demo runs end to end offline, and the post-QA P1 work is well along.** `pnpm check` is green (typecheck, lint, 4124 tests). `pnpm demo:barcelona` passes 49 of 49 checks. Offline eval: 99.2% overall, 0 safety failures. For the timeline see `docs/PROGRESS.md`; for exact state see `tasks/BACKLOG.md`.
+
+**This session (15), all reviewed, committed and pushed:** T-082 combined roster sentences · T-135/T-075 ride receipts split by the riders · T-067 card import on the simulated clock with 10:00/20:00 digests · T-153 and T-154 minors kept off adult-only rosters, and family-safe roster replies · T-133 "anything cheaper" · T-137 late-joiner ticket and its cancel · T-134 private budget DMs kept as a figure only · T-141 👍 or [Paid] on the settle-up card marks a transfer paid (stable plan, D-034) · T-143 nearest open slot and "which club?" · T-094 and T-095 Lisbon and Turks and Caicos get their own clocks, recaps and Wrapped · T-084 and T-156 other currencies converted at the mock rate · T-132 (in its final round) the Barcelona stay booked in chat. Most tasks hit the 2-round review cap; the Orchestrator fixed the last-round findings itself, with tests that fail without the fix, and logged anything left in each `tasks/done/T-xxx.md`.
 
 ## Demo
 
 ```
 pnpm install
-pnpm demo:barcelona          # full Barcelona journey offline, prints the transcript, exits 0 (40/40 checks)
+pnpm demo:barcelona          # full Barcelona journey offline, prints the transcript, exits 0 (49/49 checks)
 pnpm check                   # typecheck + lint + all tests, offline
 pnpm eval                    # scenario evals offline; report in evals/reports/
 pnpm audit:verify            # audit hash-chain verifier
@@ -17,9 +19,8 @@ The full walkthrough transcript is in `docs/DEMO_TRANSCRIPT.md`; it's regenerate
 
 **The Razzmatazz moment** runs through the real runtime: "@trav get the 5 of us Razzmatazz tickets, Henry's sick" → one proposal naming the 5 → ApprovalPolicy → 👍 → mock purchase → receipt in the group → 5 different QR codes, each sent by DM (none to Henry) → €90 split among exactly those 5. The audit order is policy.evaluated → approval.granted → booking.attempted → booking.completed → ledger.written. A double 👍 buys once.
 
-Two steps are honestly labelled in the transcript as not fully in chat yet (the Uber email now splits among the 4 riders, T-075):
+New since session 12: the stay is booked in chat (€1,380, €230 each, all 6 👍; Jordan's "i'll approve for him" counts for nothing), the Uber email splits among the 4 riders, and a 👍 on the settle-up card ticks the payer's transfer off. One step is still honestly labelled as not in chat yet:
 - Flights: Trav says it can't book group flights in chat yet, and the demo runs the real optimizer directly (T-074).
-- The settle-up [Paid] button isn't wired (T-037).
 
 **Not verified in a browser:** the sandbox blocks local port binding, so `pnpm sim` was exercised only through its in-process backend. To click through it yourself, run `TRAV_OFFLINE=1 pnpm sim` outside the sandbox, or set `sandbox.network.allowLocalBinding: true`.
 
@@ -31,8 +32,8 @@ Two steps are honestly labelled in the transcript as not fully in chat yet (the 
 - **Recaps:** Morning After at 10am (with "@trav drop that one"), daily settle-up, and an end-of-trip Wrapped with traced awards.
 - **Personality:** Trav's voice, opt-in roast mode (off by default, set by a lead, blocked with minors or when ages are unconfirmed, only about spending and trip events), `@trav settings`, owner-only consent flags, and family mode.
 - **Adapters (all mocks):** tickets with per-person QR codes, flights, lodging, payments, settle-up, FX, card transactions, email receipts, and a consent-gated shared album.
-- **Simulator** (web UI and CLI) on the real runtime, with Barcelona, Lisbon and Turks and Caicos seeded.
-- **Eval harness** with 52 scenarios and a regression suite.
+- **Simulator** (web UI and CLI) on the real runtime, with Barcelona, Lisbon and Turks and Caicos seeded; each chat has its own clock and opens on its own trip (D-035).
+- **Eval harness** with 53 scenarios, per-line grading of the chat replays, and a 43-scenario regression suite.
 - **Architecture tests:** a single purchase call site, an append-only audit log, offline mocks only, and no secrets in fixtures.
 
 ## Stubbed or mocked
@@ -41,14 +42,16 @@ Every provider is a mock that reads `fixtures/`. The real adapters (iMessage rel
 
 ## Evals
 
-Offline scores, 52 scenarios: overall 93.6% → 93.6% → 94.8% → 94.8% → **95.5%**, with **0 safety failures** and the regression suite at 37 of 37. **The evaluator says this overstates quality.**
-- Nine "known gap" scenarios point to tasks that are already done.
-- The Barcelona replay grades only silence and banned text, skipping 106 per-line expectations.
-- Offline, Trav understands only the exact scripted flagship booking sentence. Other booking asks (Barça, Sagrada Família, "book option 1") get the generic fallback.
+Offline overall: 93.6 → 95.5 → 98.1 (after the per-line grading of T-077) → **99.2%** (report `evals/reports/2026-11-05T07-40-46Z.md`). **0 safety failures** in every run. Regression 41 of 43 (5 newly fixed scenarios were added to the suite, including the flagship; the 2 failing replays fail only on lines tagged with an open task). Known gaps fell from 9 to 3.
 
-Fixes are queued as T-077..T-081 and T-086, and scores will drop when they land. No live eval run yet; live spend is $0.
+What the evaluator says to discount:
+- Held-out 98.9% is an upper bound: a unit test added in T-081 is phrased almost exactly like the held-out Razzmatazz paraphrase. Three of six fresh rewordings of the Razzmatazz ask still fail offline, and one listed Henry right after he was excluded (T-158).
+- 276 per-line fields in the Barcelona replay still have no grader (T-160), so "ready 99.9%" means the checks that exist pass.
+- Member spending caps are only ever written by the eval seed, not by the product (T-157: decide note vs enforced cap).
 
-## QA (post-P0, offline, CLI and in-process backend)
+Biggest remaining failure modes: flights in chat (T-074), the two receipt photos waiting for the payer's 👍 (T-083) and the €47.20 groceries split (T-144), Turks and Caicos family-mode asks (T-023, T-113, plus a false "Lily already has a ticket", T-159), and Lisbon held-out turns hitting the generic fallback (T-145..T-147). No live eval run yet; live spend is $0.
+
+## QA (post-P0, offline, CLI and in-process backend; from session 12, before the fixes below)
 
 | Journey | Result |
 |---|---|
@@ -61,11 +64,12 @@ Fixes are queued as T-077..T-081 and T-086, and scores will drop when they land.
 
 Report: `evals/reports/qa-2026-11-05T01-36-12Z.md`.
 
-## Now (post-QA P0s, in order)
+Since then every QA P0 is fixed (T-090 consent gate, T-104 excluded members can't approve, T-091 settle from any member, T-092 replay fallbacks), Lisbon and Turks and Caicos got ticket inventory, recaps, Wrapped and their own clocks (T-080, T-094, T-095). A fresh QA pass hasn't been run since; it's the first thing to do next session.
 
-1. **T-090:** card and email items fed in through document intake skipped the import-consent check (a privacy hole the batch importers didn't have). In progress.
-2. **T-104:** a member excluded from a booking (Henry, out sick) could tap Approve alone. In progress.
-3. T-091, then T-081 + T-092, then the eval-harness honesty tasks.
+## Now
+
+1. **T-132 round 2** (in flight): budgets written with a thousands comma, and the new on-behalf-of approval check discarding a required approver's own "i approve for the group".
+2. Then P1 in order: T-074 (flights in chat), T-083 (receipt 👍 step in the scenario), T-144, T-158, T-159, T-145..T-147, T-152, T-037 (blocked on question 4 below).
 
 ## Safety checkpoint (post-P0)
 
@@ -81,7 +85,7 @@ No new hard-constraint breach from T-015, T-017 or T-021. T-090 above is older a
 
 ## Top 5 ideas not yet built
 
-Trip Brief pinned card (T-035), group polls with a booking handoff (T-039), budget pacing (T-036), the settle-up mark-paid flow with nudges (T-037), and day-of logistics nudges (T-040).
+Trip Brief pinned card (T-035), group polls with a booking handoff (T-039), budget pacing (T-036), settle-up nudges and payee confirmation (the rest of T-037; mark-paid itself shipped in T-141), and day-of logistics nudges (T-040).
 
 ## Connector feasibility
 
@@ -99,15 +103,17 @@ $0. `.trav/spend.json` doesn't exist, because no live model call has been made. 
 
 ## Security
 
-- **`.claude/hooks/blocked.log`:** about 426 entries, nearly all from builders (192) and reviewers (188). Almost all are the guard rejecting shell command text with regex-like or `/**` tokens that it reads as paths outside the repo (heredoc probe files, sed patterns); agents switched to the editor tool. A few were agents trying to read Claude session transcripts. Nothing was worked around, and no agent deliberately tried to leave the repo.
+- **`.claude/hooks/blocked.log`:** about 700 entries (426 at session 12). Nearly all are the guard rejecting shell command text with regex-like or `/**` tokens that it reads as paths outside the repo (heredoc probe files, sed and awk patterns, including several of the Orchestrator's own); agents switched to the editor tool each time. A few were reads of `~/.config/git/ignore` triggered by git itself. Nothing was worked around, and no agent deliberately tried to leave the repo.
 - **`research/INJECTION_LOG.md`:** 3 entries, all from the connector scout on 2026-11-04. These were vendor pages (photon.codes, inkbox.ai, linqapp.com) carrying "instructions for AI agents" blocks. They were recorded and not acted on; one wasn't even fetched. The planted injections in fixture receipts and emails are our own synthetic test data, and the parsers flag them.
 
 ## Open questions for Dean (ranked)
 
 1. **Browser QA:** allow `sandbox.network.allowLocalBinding` (and the Playwright download hosts) so the simulator can be clicked through in the sandbox.
-2. **Who can approve a booking under the cap:** today any adult attendee. T-104 removes excluded members; decide whether that should narrow to the requester, leads and the payer.
-3. **Who pays when the message says "on Jordan's card":** "i paid €84 on Jordan's card" now records Jordan as the payer without asking them. Options: keep that, use the sender, or DM Jordan to confirm.
-4. **Settle-up [Paid] button:** build T-037 (mark paid, nudges) or drop the promise from the card until it exists.
-5. **Flights in chat (T-074):** worth building next, since it's the visible gap in the flagship demo.
+2. **Flights in chat (T-074):** worth building next, since it's the last labelled gap in the flagship demo and the biggest eval drag.
+3. **Who confirms a settle-up payment:** T-141 lets the payer's own 👍 or [Paid] tap reduce what's owed (D-034); T-037's acceptance says only the payee's confirmation should. A mistaken 👍 can't be undone in chat yet.
+4. **Budget DMs: note or cap (T-157):** Henry is told his €80 a day is "just a note, not a hard cap", but the over-cap booking rules read member caps that only the eval seed writes. Decide which it is.
+5. **Who pays when the message says "on Jordan's card":** "i paid €84 on Jordan's card" records Jordan as the payer without asking them. Options: keep that, use the sender, or DM Jordan to confirm.
+6. **Lodging with first names only (D-037):** whole-home rentals now book without a family name (hotels and hostels still refuse). Real bookings need private traveler profiles.
+7. **Riders inferred from the group thread (T-135):** keep reading members' own "heading back" lines, or always ask the owner on a rider-count mismatch?
 
 The rest is in `docs/QUESTIONS.md`.
