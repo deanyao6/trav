@@ -55,6 +55,14 @@ export function asRecord(input: unknown): Record<string, unknown> {
   return input;
 }
 
+/**
+ * Refuses any key outside `allowed` (a strict schema's `additionalProperties:
+ * false`, enforced in code: the model's call is never trusted to match it).
+ */
+export function closedKeys(r: Record<string, unknown>, allowed: readonly string[]): void {
+  for (const k of Object.keys(r)) if (!allowed.includes(k)) bad(`unexpected field ${k}`);
+}
+
 export function optString(r: Record<string, unknown>, key: string, max = 200): string | undefined {
   const v = r[key];
   if (v === undefined || v === null || v === '') return undefined;

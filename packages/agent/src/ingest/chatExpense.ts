@@ -63,6 +63,7 @@ import {
   EXPENSE_TEXT_SCHEMA,
   expenseTextSystemPrompt,
 } from '../prompts/expenseText.js';
+import { DOLLAR_CURRENCIES } from '../prompts/interpret.js';
 import { paidPhrase, renderExpenseLogged } from '../render/expenseConfirm.js';
 import type { RenderContext } from '../render/common.js';
 import {
@@ -77,6 +78,8 @@ import {
   type MissingFact,
   type ParsedExpense,
 } from './expenseText.js';
+import { expenseCallOf } from '../interpret/encode.js';
+import { interpretToolCalls, type ValidateCallsInput } from '../interpret/validate.js';
 
 /** How long Trav's one question stays answerable. */
 export const EXPENSE_QUESTION_TTL_MS = 15 * 60 * 1000;
@@ -161,6 +164,26 @@ export async function fxQuoteFor(
   }
 }
 
+/**
+ * SC-17b in code, not only in the prompt: on a trip not in dollars, a "$" in the
+ * sender's text means a model read that left the currency empty (or set the trip's
+ * own) is asked about, never logged in the trip currency. "$40" is never €40.
+ */
+export function bareDollarBackstop(
+  drafts: readonly ExpenseDraft[],
+  text: string,
+  tripCurrency: string | null,
+): readonly ExpenseDraft[] {
+  if (!text.includes('$')) return drafts;
+  if (tripCurrency !== null && DOLLAR_CURRENCIES.includes(tripCurrency)) return drafts;
+  return drafts.map((d) => {
+    if (d.amount === undefined || d.currencyDoubt !== undefined) return d;
+    const cur = d.amount.currency;
+    if (cur !== undefined && cur !== tripCurrency) return d;
+    return { ...d, amount: { decimal: d.amount.decimal }, currencyDoubt: 'dollars' };
+  });
+}
+
 /** "already got that one: $40 museum (≈€36.90)" for a replayed statement or tool call. */
 export function alreadyLoggedText(expense: Expense): string {
   const { said, approx } = paidPhrase(expense);
@@ -211,8 +234,29 @@ export interface ChatExpenseFlow {
    */
   handle(
     input: ChatExpenseInput,
-    opts?: { readonly answerOnly?: boolean },
+    opts?: {
+      readonly answerOnly?: boolean;
+      /**
+       * T-183: `none` takes only the answer to this member's open question (no
+       * fresh read); the model-first loop then interprets the message itself
+       * and hands the validated read to `handleInterpreted`. Default `parser`.
+       */
+      readonly reader?: 'parser' | 'none';
+    },
   ): Promise<ChatExpenseOutcome | undefined>;
+  /**
+   * T-183 (D-047): a message the model read as an expense (or as "don't log
+   * it"), already through `interpret/validate.ts`. Takes the parser's path
+   * from there: the same money checks, the same one question, the same log.
+   * `undefined` ⇒ not settleable here; the chat loop takes it.
+   */
+  handleInterpreted(
+    input: ChatExpenseInput,
+    read: readonly ExpenseDraft[] | 'keep_off_tab',
+    modelSources: readonly ResponseSource[],
+  ): Promise<ChatExpenseOutcome | undefined>;
+  /** The split universe and rosters this flow reads a message against (members, trip currency). */
+  context(input: ChatExpenseInput): ExpenseTextContext;
   /** True while Trav's question to this member is open (≤ `EXPENSE_QUESTION_TTL_MS`). */
   awaiting(groupId: string, memberId: string): boolean;
   /** Drops any pending question (tests, group reset). */
@@ -506,7 +550,7 @@ export function createChatExpenseFlow(deps: ChatExpenseDeps): ChatExpenseFlow {
 
   async function handle(
     input: ChatExpenseInput,
-    opts: { readonly answerOnly?: boolean } = {},
+    opts: { readonly answerOnly?: boolean; readonly reader?: 'parser' | 'none' } = {},
   ): Promise<ChatExpenseOutcome | undefined> {
     const ctx = parseContext(input);
     if (ctx.members.length === 0 || !ctx.members.some((m) => m.memberId === input.me.memberId)) {
@@ -563,19 +607,25 @@ export function createChatExpenseFlow(deps: ChatExpenseDeps): ChatExpenseFlow {
         }
       }
     }
-    if (opts.answerOnly === true) return undefined;
+    if (opts.answerOnly === true || opts.reader === 'none') return undefined;
 
-    // 2. the parser
+    // 2. the parser, as the scripted model (T-183, D-047): its read is written
+    // as the `record_expense` call the model would make and goes through the
+    // same validator a live read does. A read the validator refuses is
+    // treated like one the parser couldn't settle.
     const source = { messageId: input.messageId, at: input.at };
     const parsed = parseExpenseText(input.text, ctx);
     if (parsed.kind === 'none') return undefined;
-    if (parsed.kind === 'no_log') {
+    const call = expenseCallOf(parsed);
+    const read =
+      call === undefined ? undefined : interpretToolCalls([call], validateInput(input, ctx));
+    if (read?.kind === 'keep_off_tab') {
       return { drafts: [reaction(input, '👍')], note: 'expense:no_log', modelSources: [] };
     }
-    if (parsed.kind === 'drafts') {
-      const rctx = await ratesFor(deps.fx, parsed.drafts, ctx, input.trip, input.at);
-      const ev = evaluateDrafts(parsed.drafts, rctx);
-      if (ev.kind !== 'unsure') return act(input, rctx, parsed.drafts, ev, source, sources, '');
+    if (read?.kind === 'expense') {
+      const rctx = await ratesFor(deps.fx, read.drafts, ctx, input.trip, input.at);
+      const ev = evaluateDrafts(read.drafts, rctx);
+      if (ev.kind !== 'unsure') return act(input, rctx, read.drafts, ev, source, sources, '');
     }
 
     // 3. the extraction call, for what the parser could not settle
@@ -585,8 +635,51 @@ export function createChatExpenseFlow(deps: ChatExpenseDeps): ChatExpenseFlow {
     return act(input, mctx, drafts, evaluateDrafts(drafts, mctx), source, sources, ':model');
   }
 
+  function validateInput(input: ChatExpenseInput, ctx: ExpenseTextContext): ValidateCallsInput {
+    return {
+      ctx: {
+        senderMemberId: ctx.senderMemberId,
+        members: ctx.members,
+        tripCurrency: ctx.tripCurrency,
+      },
+      members: input.members,
+    };
+  }
+
+  async function handleInterpreted(
+    input: ChatExpenseInput,
+    read: readonly ExpenseDraft[] | 'keep_off_tab',
+    modelSources: readonly ResponseSource[],
+  ): Promise<ChatExpenseOutcome | undefined> {
+    const ctx = parseContext(input);
+    if (ctx.members.length === 0 || !ctx.members.some((m) => m.memberId === input.me.memberId)) {
+      return undefined;
+    }
+    if (read === 'keep_off_tab') {
+      return {
+        drafts: [reaction(input, '👍')],
+        note: 'expense:no_log:model',
+        modelSources: [...modelSources],
+      };
+    }
+    const source = { messageId: input.messageId, at: input.at };
+    const drafts = bareDollarBackstop(read, input.text, ctx.tripCurrency);
+    const rctx = await ratesFor(deps.fx, drafts, ctx, input.trip, input.at);
+    return act(
+      input,
+      rctx,
+      drafts,
+      evaluateDrafts(drafts, rctx),
+      source,
+      [...modelSources],
+      ':model',
+    );
+  }
+
   return {
     handle,
+    handleInterpreted,
+    context: parseContext,
     awaiting: (groupId, memberId) => {
       const key = `${groupId}:${memberId}`;
       const open = pending.get(key);

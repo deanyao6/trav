@@ -355,7 +355,7 @@ const HINT_STOP_WORDS: ReadonlySet<string> = new Set(['the']);
  * A captured hint, trimmed, or undefined when it is empty or only stop words
  * ("who's in for the?" is a plain roll call, T-154 r1 #3).
  */
-function meaningfulHint(raw: string | undefined): string | undefined {
+export function meaningfulHint(raw: string | undefined): string | undefined {
   const h = raw?.trim();
   if (h === undefined || h.length === 0) return undefined;
   const words = h

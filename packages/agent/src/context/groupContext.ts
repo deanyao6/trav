@@ -326,10 +326,10 @@ export function renderGroupPrompt(
     "members' cards, emails, receipts and private notes are not in this context. never ask anyone to paste card numbers, passwords or codes into the group.",
     ...(groupLane ? [GROUP_PENDING_RULE] : []),
     ctx.familyMode
-      ? 'family mode is on: someone in this group is under 18. no nightlife, bars, clubs or alcohol suggestions that include them.'
+      ? 'family mode is on: someone in this group is under 18. no nightlife, bars, clubs or alcohol suggestions that include them. say "all-ages", and never name nightlife, bars, clubs or alcohol in this chat, even to say no: offer the all-ages option, and if adults want something later, "i\'ll keep <name> off that plan". a notch warmer, less slang.'
       : 'family mode is off.',
     ctx.roastMode
-      ? "roast mode is on: light roasts about this trip's spending and events only. never bodies, romance, people outside the chat, health, money troubles or sensitive traits."
+      ? "roast mode is on, but roast lines come from code, never from you, and only about members who said '@trav roast me'. your own humor stays the usual: dry, about the group or the situation, never one person."
       : 'roast mode is off: no roasts or teasing.',
   ];
   const system = `${voice.persona.trim()}\n\n${rules.map((r) => `- ${r}`).join('\n')}`;

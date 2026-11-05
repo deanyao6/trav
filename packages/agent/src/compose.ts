@@ -126,6 +126,8 @@ export interface TravRuntimeOptions {
   readonly places?: VenuesAdapter | false;
   /** Structured flights and stays per group for the spending tier (T-167); default none. */
   readonly travelFacts?: AgentDeps['travelFacts'];
+  /** T-183 (D-047): default `model_first` with a live client, `parser_first` offline. */
+  readonly interpretation?: AgentDeps['interpretation'];
   readonly scheduler?: Scheduler;
   /** Default: `outbound/send.ts` (screen → voice lint → lane → audit). */
   readonly sendTurn?: TurnSender;
@@ -287,6 +289,7 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
     ...(fx !== undefined ? { fx } : {}),
     ...(places !== undefined ? { places } : {}),
     ...(options.travelFacts !== undefined ? { travelFacts: options.travelFacts } : {}),
+    ...(options.interpretation !== undefined ? { interpretation: options.interpretation } : {}),
   };
   const agent = createTravAgent(deps);
 

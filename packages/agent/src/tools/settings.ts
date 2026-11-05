@@ -16,6 +16,7 @@ import type { Group, Member } from '@trav/core';
 import { currencyExponent, formatMoney, money, safety, TravError } from '@trav/core';
 import type { SettingsCommand } from '../settings/parse.js';
 import {
+  ADULTS_CONFIRM_TYPED_TEXT,
   ROAST_AGE_QUESTION_TEXT,
   ROAST_LEAD_ONLY_TEXT,
   ROAST_MINOR_TEXT,
@@ -157,8 +158,7 @@ function asCommand(input: BooleanChange | CapChange, group: Group): SettingsComm
     kind: 'set',
     change: {
       setting: cap.setting,
-      amount:
-        cap.value === null ? null : minorToDecimal(cap.value, group.spendingPolicy.currency),
+      amount: cap.value === null ? null : minorToDecimal(cap.value, group.spendingPolicy.currency),
     },
   };
 }
@@ -181,7 +181,7 @@ export const requestSettingsChangeTool: ToolDefinition<SettingsChangeInput, Sett
   {
     name: 'request_settings_change',
     description:
-      'Ask to change a group setting on a member\'s request. roastMode on, allAdultsConfirmed and every cap need a lead; roastMode off and quietMode can come from any member. Caps and quietMode never change straight away: trav asks the requester to confirm first. awardsOptOut applies to the requester only ("no awards for me" = true). Roast mode is refused while anyone in the group is under 18 or of unconfirmed age. Returns the line to say.',
+      'Ask to change a group setting on a member\'s request. roastMode on and every cap need a lead. allAdultsConfirmed true is never set here: a lead has to type "@trav everyone\'s 18+" themselves, and this returns the line pointing them to it. roastMode off and quietMode can come from any member. Caps and quietMode never change straight away: trav asks the requester to confirm first. awardsOptOut applies to the requester only ("no awards for me" = true). Roast mode is refused while anyone in the group is under 18 or of unconfirmed age. Returns the line to say.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -227,6 +227,19 @@ export const requestSettingsChangeTool: ToolDefinition<SettingsChangeInput, Sett
       if (isSelfChange(input)) return awardsOptOut(input, ctx, group, me);
 
       const before = currentValue(group, input.setting);
+      // SAFETY SC-13 (F7): "everyone here is 18+" unlocks roast mode, so it is
+      // never set by a model tool call, lead or not, through either path below.
+      // Only a lead typing it (`settings/parse.ts` `adults_confirmed`, or their
+      // "yes" to the age question) sets it. Un-confirming stays open.
+      if (input.setting === 'allAdultsConfirmed' && input.value) {
+        return {
+          kind: 'needs_confirmation',
+          setting: input.setting,
+          before,
+          after: before,
+          text: ADULTS_CONFIRM_TYPED_TEXT,
+        };
+      }
       const gateway = (ctx as Partial<TurnToolContext>).settings;
       const cmd = asCommand(input, group);
       if (gateway !== undefined && cmd !== undefined) {

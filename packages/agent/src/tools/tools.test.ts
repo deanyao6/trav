@@ -3,6 +3,7 @@ import { createMockFxRates } from '@trav/adapters';
 import { TravError, markPrivate, type PendingPrivateItem } from '@trav/core';
 import { BARCELONA } from '../compose.js';
 import { renderLastAction } from '../render/lastAction.js';
+import { ADULTS_CONFIRM_TYPED_TEXT } from '../settings/text.js';
 import { FIVE, harness, type Harness } from '../runtime.testkit.js';
 import type { ProposeResult } from '../booking/proposals.js';
 import type { BalancesResult, LogExpenseResult } from './ledger.js';
@@ -820,6 +821,49 @@ describe('settings tools', () => {
     });
   });
 
+  it("SC-13: no model tool call marks the group 18+, even a lead's; roast mode stays refused after", async () => {
+    const h = harness();
+    const groups = h.runtime.stores.group.groups;
+    const g = groups.get(G)!;
+    groups.update({ ...g, settings: { ...g.settings, allAdultsConfirmed: false } });
+    const crowley = h.runtime.stores.group.members.get('mem_crowley')!;
+    const { birthDate: _b, ...noBirth } = crowley;
+    h.runtime.stores.group.members.upsert({ ...noBirth, ageBand: 'unknown' });
+    const run = (input: unknown) =>
+      h.runtime.tools.run(
+        'request_settings_change',
+        input,
+        as(h, 'mem_dean'),
+      ) as Promise<SettingsChangeResult>;
+
+    const r = await run({ setting: 'allAdultsConfirmed', value: true });
+    expect(r).toMatchObject({ kind: 'needs_confirmation', text: ADULTS_CONFIRM_TYPED_TEXT });
+    expect(groups.get(G)?.settings.allAdultsConfirmed).toBe(false);
+    // The same call inside a chat turn (with the settings gateway) doesn't write either.
+    const viaFlow = (await h.runtime.tools.run(
+      'request_settings_change',
+      { setting: 'allAdultsConfirmed', value: true },
+      {
+        ...as(h, 'mem_dean'),
+        settings: {
+          run: () => {
+            throw new Error('the settings gateway must never get an adults_confirmed from a tool');
+          },
+        },
+      } as never,
+    )) as SettingsChangeResult;
+    expect(viaFlow.kind).toBe('needs_confirmation');
+    expect(groups.get(G)?.settings.allAdultsConfirmed).toBe(false);
+
+    const roast = await run({ setting: 'roastMode', value: true });
+    expect(roast.kind).toBe('refused');
+    expect(groups.get(G)?.settings.roastMode).toBe(false);
+    expect(h.auditTypes()).not.toContain('settings.changed');
+    // Turning it off is still a tool call away.
+    groups.update({ ...groups.get(G)!, settings: { ...g.settings, allAdultsConfirmed: true } });
+    expect((await run({ setting: 'allAdultsConfirmed', value: false })).kind).toBe('changed');
+  });
+
   it('roast mode stays off with a minor in the group', async () => {
     const h = harness();
     const crowley = h.runtime.stores.group.members.get('mem_crowley')!;
@@ -874,6 +918,20 @@ describe('booking tools stop at a proposal', () => {
       'Arjun',
       'Crowley',
     ]);
+  });
+
+  it('propose_booking is strict (T-183): a field outside the schema is refused, nothing is proposed', async () => {
+    const h = harness();
+    for (const extra of [{ approved: true }, { totalMinor: 1 }, { autoBuy: 'eligible' }]) {
+      await expect(
+        h.runtime.tools.run('propose_booking', { ...ask, ...extra }, ctx(h)),
+      ).rejects.toThrow(/unexpected field/);
+    }
+    expect(h.pending()).toEqual([]);
+    expect(h.auditTypes()).not.toContain('policy.evaluated');
+    expect(h.tickets.purchaseCount()).toBe(0);
+    const tool = h.runtime.tools.specs('group').find((t) => t.name === 'propose_booking');
+    expect(tool?.inputSchema['additionalProperties']).toBe(false);
   });
 
   it('a headcount that does not match the roster is a question, never a guess', async () => {

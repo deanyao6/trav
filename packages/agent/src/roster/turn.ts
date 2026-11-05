@@ -70,6 +70,13 @@ export interface RosterTurnInput {
    * they are never searched for or echoed.
    */
   readonly isKnownPlace?: (hint: string) => boolean;
+  /**
+   * T-183 (D-047): the model's read of the message (`update_attendance`,
+   * through `interpret/validate.ts`: a current, non-guest member, a status,
+   * a plan name and night, never a reason). Used instead of the reader;
+   * `text` is then not parsed at all.
+   */
+  readonly interpreted?: RosterUpdate;
 }
 
 export type RosterTurn =
@@ -143,16 +150,27 @@ export interface VenueAsk {
 
 export function handleRosterMessage(input: RosterTurnInput): RosterTurn | undefined {
   const { group, trip, members, me, text, messageId, now } = input;
-  if (input.expectInCount === undefined) {
+  const interpreted = input.interpreted;
+  if (input.expectInCount === undefined && interpreted === undefined) {
     const combined = parseCombinedRoster(text);
     if (combined !== undefined) return handleCombined(input, combined);
   }
-  const roll = detectRollCall(text);
-  const parsed = roll === undefined ? parseRosterUpdate(text) : undefined;
+  // T-183: a model read (already validated) replaces the reader; every rule
+  // below (which plan, minors kept off, the headcount check) still applies.
+  const roll = interpreted === undefined ? detectRollCall(text) : undefined;
+  const parsed =
+    interpreted !== undefined
+      ? interpreted
+      : roll === undefined
+        ? parseRosterUpdate(text)
+        : undefined;
   // "can i get one too" (T-137) is the sender's own "i'm in" for a plan the
   // others already have: the same write, then a separate add-on card.
   const ticket =
-    roll === undefined && parsed === undefined && input.expectInCount === undefined
+    roll === undefined &&
+    parsed === undefined &&
+    input.expectInCount === undefined &&
+    interpreted === undefined
       ? parseTicketForMe(text)
       : undefined;
   const update: RosterUpdate | undefined =

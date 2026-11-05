@@ -18,17 +18,26 @@ export const ROAST_LEAD_ONLY_TEXT = 'roast mode is a lead call. ask one of them'
 export const ROAST_MINOR_TEXT =
   'roast mode stays off for this group, someone here is under 18. the tab stays honest either way';
 /** VOICE §7.2: age unknown and not confirmed. */
-export const ROAST_AGE_QUESTION_TEXT = "to turn roast mode on i need to know everyone's 18+. are they?";
+export const ROAST_AGE_QUESTION_TEXT =
+  "to turn roast mode on i need to know everyone's 18+. are they?";
 export const ROAST_AGE_DECLINED_TEXT = 'roast mode stays off then';
 export const ROAST_TRIP_OVER_TEXT = "the trip's over, so roast mode stays off";
 /** A roast request while someone's age is still unknown (a member joined after roast mode went on). */
 export const ROAST_AGE_UNCONFIRMED_REQUEST_TEXT =
   "roasts wait until everyone's confirmed 18+. a lead can say '@trav everyone's 18+'";
 
+/**
+ * SAFETY SC-13: a model tool call never marks the group 18+; a lead types it.
+ * Same phrasing as the age-unconfirmed line above (VOICE §7.2).
+ */
+export const ADULTS_CONFIRM_TYPED_TEXT =
+  "that one has to come from a lead, typed like this: '@trav everyone's 18+'";
+
 // ---------- roast consent (SAFETY §2.6 `roast`) ----------
 
 export const ROAST_ME_ON_TEXT = "noted. you're fair game, receipts only";
-export const ROAST_ME_ON_MODE_OFF_TEXT = "noted. you're fair game, receipts only, once a lead turns roast mode on";
+export const ROAST_ME_ON_MODE_OFF_TEXT =
+  "noted. you're fair game, receipts only, once a lead turns roast mode on";
 export const ROAST_ME_ALREADY_TEXT = "you're already in";
 /** A minor can never opt in (VOICE §7.5 "Minor. One word."). */
 export const NOPE_TEXT = 'nope';
@@ -49,7 +58,8 @@ export const REFUSE_HARDSHIP_TEXT = 'nah';
 export const REFUSE_OPTED_OUT_TEXT =
   "they asked me to leave them out of it, so i'm leaving them out of it";
 export const REFUSE_LEFT_TEXT = "they're not in the chat anymore, so no";
-export const REFUSE_MODE_OFF_TEXT = "roast mode is off. a lead can turn it on with '@trav roast mode on'";
+export const REFUSE_MODE_OFF_TEXT =
+  "roast mode is off. a lead can turn it on with '@trav roast mode on'";
 export const REFUSE_DAILY_TEXT = "that's today's roast. more tomorrow";
 export const REFUSE_DM_TEXT = 'i only roast in the group chat, and only the tab';
 export const NOTHING_TO_ROAST_TEXT = 'nothing on the tab to work with yet. give it a night';
@@ -92,8 +102,7 @@ export function familyModeOnText(
   // the outbound screen's keyword backstop suppresses any line naming nightlife,
   // its own notice included.
   if (minorNames.length === 0) return 'family mode is on: all-ages plans only, no roasts';
-  const who =
-    minorNames.length === 1 ? `${minorNames[0]!}'s` : `${nameList(minorNames)} are`;
+  const who = minorNames.length === 1 ? `${minorNames[0]!}'s` : `${nameList(minorNames)} are`;
   const tickets =
     guardianNames.length === 1
       ? `, their tickets go to ${guardianNames[0]!}`
@@ -113,10 +122,10 @@ export function keepMinorOffText(minorNames: readonly string[]): string {
 export const PHOTOS_ON_TEXT = 'your photos can show up in recaps now 📸';
 export const PHOTOS_OFF_TEXT = 'your photos are out of recaps from now on';
 export const CARD_IMPORT_ON_TEXT =
-  "card import on. charges that look shared come to you first, nothing reaches the group until you say so";
+  'card import on. charges that look shared come to you first, nothing reaches the group until you say so';
 export const CARD_IMPORT_OFF_TEXT = 'card import off';
 export const EMAIL_IMPORT_ON_TEXT =
-  "email import on. receipts that look shared come to you first, nothing reaches the group until you say so";
+  'email import on. receipts that look shared come to you first, nothing reaches the group until you say so';
 export const EMAIL_IMPORT_OFF_TEXT = 'email import off';
 export const MEMORY_ON_TEXT = "i'll keep what you told me after this trip too";
 export const MEMORY_OFF_TEXT = 'what you told me goes when the trip ends';
@@ -152,10 +161,13 @@ export const MINOR_SETTINGS_TEXT = "that's for the adults on the trip";
 export const CONFIRM_DECLINED_TEXT = 'ok, left it as is';
 export const ALREADY_SET_TEXT = 'already set that way';
 export const NO_TRIP_TEXT = 'no trip running right now, so there is nothing to change that on';
-export const UNREADABLE_CAP_TEXT = "didn't catch the amount. try '@trav set the per-person cap to €80'";
-export const UNREADABLE_CURRENCY_TEXT = "didn't catch the currency. try '@trav set trip currency to USD'";
+export const UNREADABLE_CAP_TEXT =
+  "didn't catch the amount. try '@trav set the per-person cap to €80'";
+export const UNREADABLE_CURRENCY_TEXT =
+  "didn't catch the currency. try '@trav set trip currency to USD'";
 export const UNREADABLE_REPLY_MODE_TEXT = "reply mode is 'quiet' or 'normal'";
-export const ONLY_TRIP_CAP_OFF_TEXT = 'only the trip cap can be turned off. the others need a number';
+export const ONLY_TRIP_CAP_OFF_TEXT =
+  'only the trip cap can be turned off. the others need a number';
 
 export function currencyLockedText(current: string): string {
   return `the tab already has ${current} on it, so the trip currency stays ${current}`;

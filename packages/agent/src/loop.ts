@@ -112,6 +112,7 @@ import { pickTextIndex, planLive } from './booking/choice.js';
 import type { ProposalService, ProposeResult } from './booking/proposals.js';
 import { autoBuyVerdictOnRoster, bookingHeadline, nightOf } from './booking/proposals.js';
 import { optionIndexOf } from './booking/flights.js';
+import { parseBookingRequest } from './booking/request.js';
 import type { BookingExecutor, ProviderRegistry } from './booking/executor.js';
 import { buildGroupContext, renderGroupPrompt, sanitizeInline } from './context/groupContext.js';
 import { createChatExpenseFlow } from './ingest/chatExpense.js';
@@ -178,6 +179,8 @@ import {
 import { bundledVenueIndex } from './model/offline/asks.js';
 import { isKnownPlace, renderVenueCheck, type VenueSearchResult } from './roster/combined.js';
 import { handleRosterMessage, type RosterTurn } from './roster/turn.js';
+import { detectRollCall, upcomingActivities } from './roster/index.js';
+import { createInterpreter } from './interpret/interpreter.js';
 import {
   announceFamilyMode,
   createSettingsFlow,
@@ -275,6 +278,15 @@ export interface AgentDeps {
   readonly places?: VenuesAdapter;
   /** Structured flights and stays per group for the spending tier (T-167); default none. */
   readonly travelFacts?: (groupId: GroupId) => readonly TravelFact[];
+  /**
+   * T-183 (D-047): who reads expenses, attendance changes and answers to a
+   * card. `model_first`: one `interpret_v1` tool call, validated in code
+   * (`interpret/`), with regex fast paths only for read-only asks and the
+   * approval whitelist. `parser_first`: the deterministic readers act as the
+   * scripted model (their reads still go through the same validator).
+   * Default: `model_first` with a live client, `parser_first` offline.
+   */
+  readonly interpretation?: 'model_first' | 'parser_first';
 }
 
 export interface TurnResult {
@@ -729,6 +741,11 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     clock,
     ...(deps.fx !== undefined ? { fx: deps.fx } : {}),
   });
+  /** T-183: model-first reads in live mode; the parsers are the scripted model offline. */
+  const modelFirst =
+    (deps.interpretation ?? (model.mode === 'live' ? 'model_first' : 'parser_first')) ===
+    'model_first';
+  const interpreter = createInterpreter({ model });
   /** Receipt photo → "who had what?" → itemized split on the poster's 👍 (T-011). */
   const receipts = createReceiptFlow({
     stores,
@@ -2345,6 +2362,10 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     ) {
       const wantCount = rosterFollowUpCount(text);
       for (const [i, candidate] of rosterTexts(text).entries()) {
+        // T-183: model-first keeps only the read-only roll call ("who's in
+        // tonight?") as a fast path; a change to the roster is the model's
+        // read (`interpretTurn`), validated before the same write path.
+        if (modelFirst && detectRollCall(candidate) === undefined) continue;
         // "henry's in, make it 7" when the change makes 6: the roster handler
         // declines before writing (`expectInCount`), so the clause alone never
         // drops the 7 and the whole message goes to the model (T-066).
@@ -2429,7 +2450,10 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     // 5b. an expense stated in chat (T-010, `ingest/chatExpense.ts`): logged
     // from the parser (VOICE §4.4) or one question (§4.11); the model only
     // for what the parser cannot settle. Group lane, members, a current trip.
-    const expenseTurn = async (answerOnly: boolean): Promise<TurnResult | undefined> => {
+    const expenseTurn = async (
+      answerOnly: boolean,
+      reader: 'parser' | 'none' = 'parser',
+    ): Promise<TurnResult | undefined> => {
       if (r.lane !== 'group' || r.trip === null || !canRequest(r.identity)) return undefined;
       const before = snapshotAudit(r.group.groupId);
       const res = await chatExpenses.handle(
@@ -2442,7 +2466,7 @@ export function createTravAgent(input: AgentDeps): TravAgent {
           text,
           at: event.receivedAt,
         },
-        { answerOnly },
+        { answerOnly, reader },
       );
       if (res === undefined) return undefined;
       const sent = await send(r, res.drafts);
@@ -2573,6 +2597,18 @@ export function createTravAgent(input: AgentDeps): TravAgent {
       }
     }
 
+    if (modelFirst) {
+      // 5e. T-183 (D-047): the model reads the message (one strict tool call),
+      // code validates every field and the same flows act on it. The open
+      // expense question is answered first (it is a slot fill of exactly what
+      // was asked, never a fresh read).
+      const answered = await expenseTurn(false, 'none');
+      if (answered !== undefined) return withResumed(answered);
+      const read = await interpretTurn(r, event, text, me, boundProposalId);
+      if (read.turn !== undefined) return withResumed(read.turn);
+      const chat = await modelTurn(r, event, text, mention.reason);
+      return withResumed({ ...chat, modelSources: [...read.sources, ...chat.modelSources] });
+    }
     const expense = await expenseTurn(false);
     if (expense !== undefined) return withResumed(expense);
 
@@ -2688,6 +2724,132 @@ export function createTravAgent(input: AgentDeps): TravAgent {
       modelSources: [],
       note,
     };
+  }
+
+  /**
+   * T-183 (D-047): the model-first read. One `interpret_v1` tool call,
+   * validated field by field (`interpret/validate.ts`), then the flow that
+   * owns it: an expense goes to the chat expense flow (the same money checks
+   * and one question as a parsed message), one attendance change goes to the
+   * one roster write path (minors kept off, headcount check), and an answer
+   * to a card that isn't exact goes to `routeApproval` as a near miss, which
+   * never approves (D-042). Anything else, or a read the validator refuses,
+   * returns no turn: the chat loop takes the message, booking asks included
+   * (`propose_booking` ⇒ `ApprovalPolicy`; the auto-buy verdict is code).
+   */
+  async function interpretTurn(
+    r: Resolved,
+    event: InboundMessage,
+    text: string,
+    me: Member,
+    boundProposalId: string | undefined,
+  ): Promise<{
+    readonly turn?: TurnResult;
+    readonly sources: ResponseSource[];
+    readonly note?: string;
+  }> {
+    if (r.trip === null || !canRequest(r.identity)) return { sources: [] };
+    // A whole-message forward is someone else's words, never the forwarder's
+    // expense, attendance or card reply (SAFETY §2.4, SC-12): no read at all.
+    if (event.forwarded === true) return { sources: [], note: 'interpret:forwarded' };
+    // T-183 r2 #1: a booking ask the deterministic reader recognises ("get the
+    // 5 of us Razzmatazz tickets, Henry's sick") is the chat loop's, whatever a
+    // model read would say. A misread can't turn it into a roster line with no
+    // proposal, or into a ledger entry for a purchase that never happened.
+    const rosterNames = r.members
+      .filter((m) => m.active && m.leftAt === undefined && m.role !== 'guest')
+      .map((m) => m.displayName);
+    if (
+      parseBookingRequest(text, bundledVenueIndex(), me.displayName, { roster: rosterNames }) !==
+      undefined
+    ) {
+      return { sources: [], note: 'interpret:booking_ask' };
+    }
+    const trip = r.trip;
+    const input = {
+      group: r.group,
+      members: r.members,
+      trip,
+      me,
+      messageId: event.messageId,
+      text,
+      at: event.receivedAt,
+    };
+    const ectx = chatExpenses.context(input);
+    if (!ectx.members.some((m) => m.memberId === me.memberId)) return { sources: [] };
+    const openCards = pendingFor(r).filter((p) => delivered(p.proposalId));
+    const plans = upcomingActivities(stores.group.trips.listActivities(trip.tripId), r.now).map(
+      (a) => a.name,
+    );
+    const res = await interpreter.interpret({
+      me,
+      members: r.members,
+      ctx: {
+        senderMemberId: ectx.senderMemberId,
+        members: ectx.members,
+        tripCurrency: ectx.tripCurrency,
+      },
+      text,
+      plans,
+      openCard: openCards.length > 0,
+    });
+    const sources: ResponseSource[] = [res.source];
+    const it = res.interpretation;
+    if (it.kind === 'expense' || it.kind === 'keep_off_tab') {
+      if (r.lane !== 'group') return { sources, note: 'interpret:expense_not_group' };
+      const before = snapshotAudit(r.group.groupId);
+      const out = await chatExpenses.handleInterpreted(
+        input,
+        it.kind === 'expense' ? it.drafts : 'keep_off_tab',
+        sources,
+      );
+      if (out === undefined) return { sources, note: 'interpret:expense_unsettled' };
+      const sent = await send(r, out.drafts);
+      return {
+        sources,
+        turn: {
+          outbound: sent,
+          toolCalls: [],
+          auditEventIds: auditIdsSince(r.group.groupId, before),
+          silent: sent.length === 0,
+          modelSources: out.modelSources,
+          note: out.note,
+        },
+      };
+    }
+    if (it.kind === 'attendance') {
+      const roster = handleRosterMessage({
+        group: stores.group,
+        trip,
+        members: r.members,
+        me,
+        text,
+        messageId: event.messageId,
+        now: r.now,
+        interpreted: it.update,
+        ...(it.expectInCount !== undefined ? { expectInCount: it.expectInCount } : {}),
+      });
+      if (roster === undefined) return { sources, note: 'interpret:attendance_unsettled' };
+      const t = await rosterTurn(r, roster, event, me);
+      return { sources, turn: { ...t, modelSources: [...sources, ...t.modelSources] } };
+    }
+    if (it.kind === 'approval_reply') {
+      // Only a card that reached the chat; the near miss asks back, never approves.
+      if (openCards.length === 0) return { sources, note: 'interpret:no_card' };
+      const t = await routeApproval(
+        r,
+        event,
+        'approve',
+        text,
+        'text',
+        boundProposalId,
+        event.messageId,
+        true,
+        it.nearMiss,
+      );
+      return { sources, turn: { ...t, modelSources: [...sources, ...t.modelSources] } };
+    }
+    return { sources, note: `interpret:${it.reason}` };
   }
 
   /**

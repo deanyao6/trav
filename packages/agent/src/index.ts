@@ -44,3 +44,30 @@ export * from './approval/whitelist.js';
 export * from './booking/autoBuy.js';
 export { venueIndexFrom, type VenueIndex } from './booking/request.js';
 export * from './tiers/index.js';
+// T-183 (D-047): model-first interpretation, its strict tools and its eval cases.
+export {
+  INTERPRET_PROMPT_ID,
+  INTERPRET_TOOLS,
+  type InterpretToolName,
+} from './interpret/schemas.js';
+export {
+  interpretToolCalls,
+  type Interpretation,
+  type InterpretContext,
+  type ValidateCallsInput,
+} from './interpret/validate.js';
+export {
+  createInterpreter,
+  type Interpreter,
+  type InterpretInput,
+  type InterpretResult,
+} from './interpret/interpreter.js';
+export {
+  fixtureContext,
+  gradeInterpretation,
+  interpretCases,
+  type CaseGrade,
+  type ExpectedRead,
+  type InterpretCase,
+} from './interpret/cases.js';
+export { interpretSystemPrompt, type InterpretPromptInput } from './prompts/interpret.js';
