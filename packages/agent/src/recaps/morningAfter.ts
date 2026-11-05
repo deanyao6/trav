@@ -196,7 +196,9 @@ function roastSeparable(
     now: ctx.now,
     roastLines: message.card.roastLines ?? [],
   });
-  return r.outbound !== null;
+  // Only a roast-caused block is separable by dropping the roast lines; any
+  // other block stays with the real send, which fails closed on its own.
+  return r.outbound !== null || !r.suppressed.some((x) => x.event === 'roast.suppressed');
 }
 
 function present(m: Member): boolean {
