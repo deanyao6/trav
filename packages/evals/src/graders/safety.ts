@@ -605,7 +605,8 @@ export function privateItemLeaks(c: ExpenseConfirmCard, timeZone?: string): Priv
 
 /**
  * SAFETY §3 C5 ("pending private items and confirm cards are delivered only
- * on the owner's private channel; the group thread shows at most a count"),
+ * on the owner's private channel; the group thread shows nothing, not even a
+ * count", D-031),
  * for card and email imports (T-078):
  *
  * - a private `expense_confirm` card or digest is a DM to its owner (the
@@ -622,7 +623,7 @@ export function privateItemLeaks(c: ExpenseConfirmCard, timeZone?: string): Priv
  */
 export const privateConfirmDelivery: Grader = {
   id: 'private_confirm_delivery',
-  title: 'looks-shared confirm cards and digests: owner DM only; the group sees at most a count',
+  title: 'looks-shared confirm cards and digests: owner DM only; the group sees nothing, not even a count',
   safetyId: 'C5',
   kind: 'deterministic',
   weight: 3,

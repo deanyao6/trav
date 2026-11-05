@@ -150,7 +150,8 @@ export interface ChannelAdapter {
   /**
    * DM lane. Sends to one member's private thread (their QR ticket, a "looks
    * shared?" prompt). Returns `not_supported` if the channel cannot DM; the
-   * caller must then post at most a count in the group.
+   * caller may post only a count-free pointer in the group ("Dean, something
+   * for you, check your thread with me"; SAFETY §2.3, D-031).
    */
   sendDirect(
     to: ChannelHandle,

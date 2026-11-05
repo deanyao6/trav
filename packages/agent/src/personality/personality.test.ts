@@ -429,6 +429,18 @@ describe("T-112: someone else's pending items, even a count, are theirs (VOICE Â
     "@trav sam's receipts still waiting on a tap?",
     "@trav anything pending for sam other than the approval?",
     "@trav is anything else pending for sam?",
+    // r2 #1: a tab word in another clause never exempts the pending question.
+    "@trav what's pending for sam and what's my share",
+    "@trav what's pending for sam? and who paid for dinner",
+    "@trav who's paying for dinner, and what's pending for sam?",
+    "@trav what's pending for sam? share it",
+    "@trav what's pending for sam, split it",
+    '@trav anything pending for sam? like charges, not the tab',
+    "@trav what's pending for sam, any payments?",
+    // r2 #2, #3
+    "@trav what's pending on sam's end",
+    '@trav how many pending items does sam have',
+    '@trav sam has 2 pending right?',
   ])('refused: %s', (text) => {
     expect(privateDataSubject(text, BCN.members, jordan)?.memberId).toBe('mem_sam');
     expect(privateDataRefusal(sam)).toBe(

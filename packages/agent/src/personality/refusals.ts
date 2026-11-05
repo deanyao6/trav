@@ -102,12 +102,16 @@ function pendingAbout(t: string, name: string): boolean {
   return [
     // "pending for sam" (the target directly after the preposition, not "sam's X")
     String.raw`\b${p}\b[^.?!;]{0,40}?\b(?:for|of|from|by|on)\s+${n}`,
+    // "what's pending on sam's end" (T-112 r2 #2)
+    String.raw`\b${p}\b[^.?!;]{0,40}?\b(?:for|of|from|by|on)\s+${ns}\s+(?:end|side|stuff|account|thread|list|queue)\b`,
+    // "how many pending items does sam have" (T-112 r2 #3)
+    String.raw`\b${p}\s+${ITEM_NOUN}\s+(?:do|does|did)\s+${n}\s+(?:still\s+)?have\b`,
     // "sam's pending charges", "sam's unconfirmed stuff"
     String.raw`${ns}\s+(?:\p{L}+\s+){0,1}?${p}(?:\s+${ITEM_NOUN})?(?![\p{L}])`,
     // "sam's charges are pending", "2 of sam's receipts still waiting on a tap"
     String.raw`${ns}\s+(?:\p{L}+\s+){0,1}?${ITEM_NOUN}\s+(?:\p{L}+\s+){0,3}?${p}`,
     // "the charges sam has pending", "does sam have anything unconfirmed"
-    String.raw`${n}\s+(?:still\s+)?(?:has|have|had|got|is holding|keeps?)\s+(?:\p{L}+\s+){0,3}?${p}`,
+    String.raw`${n}\s+(?:still\s+)?(?:has|have|had|got|is holding|keeps?)\s+(?:[\p{L}\d]+\s+){0,3}?${p}`,
     // "is sam waiting on a tap"
     String.raw`${n}\s+(?:is\s+|still\s+)*waiting (?:on|for) (?:a |their |his |her )?(?:taps?|👍|confirm\w*|thumbs? up)`,
   ].some((re) => new RegExp(re, 'u').test(t));
@@ -172,11 +176,17 @@ export function privateDataSubject(
     if (possessive.test(t) || spent.test(t)) return m;
     // A booking, an approval or the tab waiting on them is a group fact;
     // anything else pending for another member is theirs ("besides the
-    // tickets" / "anything else" never exempts).
-    const groupFact =
-      (BOOKING.test(t) || GROUP_PENDING.test(t) || mentionsTabItem(t, tabItems)) &&
+    // tickets" / "anything else" never exempts). The group-fact word must sit
+    // in the same clause as the pending question (T-112 r2 #1): "what's
+    // pending for sam and what's my share" is still about Sam's items.
+    const groupFact = (s: string): boolean =>
+      (BOOKING.test(s) || GROUP_PENDING.test(s) || mentionsTabItem(s, tabItems)) &&
       !SCOPED_EXCLUSION.test(t);
-    if (!groupFact && pendingAbout(t, name)) return m;
+    const clauses = t.split(/[,;.?!]+|\s+(?:and|but|also|plus|like)\s+/u);
+    const hits = clauses.filter((c) => pendingAbout(c, name));
+    if (hits.some((c) => !groupFact(c))) return m;
+    // A pending question that spans clauses: the whole message decides.
+    if (hits.length === 0 && pendingAbout(t, name) && !groupFact(t)) return m;
   }
   return undefined;
 }
