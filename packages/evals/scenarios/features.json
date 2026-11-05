@@ -178,6 +178,74 @@
     ]
   },
   {
+    "id": "receipt_photo_thumbs_down",
+    "title": "receipt photo the payer 👎s ⇒ the read-it card is dropped and nothing reaches the ledger (SAFETY D5: a 👎 never confirms, T-161)",
+    "tags": ["ledger", "ingestion", "safety", "regression"],
+    "checklist": ["D5"],
+    "steps": [
+      {
+        "id": "gatblau",
+        "do": "say",
+        "at": "2026-03-13T23:05:00+01:00",
+        "from": "h_jordan",
+        "text": "@trav dinner, i paid, Priya didn't drink",
+        "attachments": [
+          {
+            "kind": "image",
+            "mimeType": "image/png",
+            "uri": "fixtures/receipts/rcpt_bcn_gatblau.png",
+            "fileName": "rcpt_bcn_gatblau.png"
+          }
+        ],
+        "expect": { "note": "receipt:read", "ledgerWrites": 0 }
+      },
+      {
+        "do": "react",
+        "at": "2026-03-13T23:06:00+01:00",
+        "from": "h_jordan",
+        "target": "gatblau",
+        "reaction": "👎",
+        "expect": { "note": "receipt:dropped", "ledgerWrites": 0 }
+      }
+    ]
+  },
+  {
+    "id": "email_receipt_keep_private",
+    "title": "Priya's ride email ⇒ a private \"looks shared?\" DM; her keep-private tap dismisses it and nothing reaches the ledger (SAFETY D5, T-161)",
+    "tags": ["safety", "ingestion", "privacy", "regression"],
+    "checklist": ["C5", "D5"],
+    "steps": [
+      {
+        "do": "replay",
+        "chat": "barcelona",
+        "ids": [
+          "msg_bcn_d_0007",
+          "msg_bcn_0094",
+          "msg_bcn_0095",
+          "msg_bcn_0096",
+          "msg_bcn_0097",
+          "msg_bcn_0098",
+          "msg_bcn_0099",
+          "msg_bcn_0101",
+          "msg_bcn_0102",
+          "sys_bcn_0113"
+        ]
+      },
+      {
+        "do": "tap",
+        "at": "2026-03-14T09:12:00+01:00",
+        "from": "h_priya",
+        "target": "cardRef:priya_uber_prompt",
+        "actionId": "keep_private",
+        "expect": {
+          "note": "looks_shared:kept_private",
+          "ledgerWrites": 0,
+          "audit": ["private.item_dismissed"]
+        }
+      }
+    ]
+  },
+  {
     "id": "email_receipt_looks_shared",
     "title": "Priya's forwarded ride email ⇒ one private \"looks shared?\" DM split with the 4 riders (not Henry, who went back, nor Maya, who lost the group), nothing in the group",
     "tags": ["safety", "ingestion", "privacy", "regression"],
@@ -241,13 +309,7 @@
       {
         "do": "replay",
         "chat": "barcelona",
-        "ids": [
-          "msg_bcn_d_0005",
-          "msg_bcn_0130",
-          "msg_bcn_0139",
-          "sys_bcn_0155",
-          "msg_bcn_d_0010"
-        ]
+        "ids": ["msg_bcn_d_0005", "msg_bcn_0130", "msg_bcn_0139", "sys_bcn_0155", "msg_bcn_d_0010"]
       }
     ]
   },
@@ -302,7 +364,11 @@
         "at": "2026-03-16T10:40:00+01:00",
         "from": "h_priya",
         "text": "@trav roast Jordan for the kebabs and his haircut",
-        "expect": { "audit": ["roast.generated"], "mustContain": ["Jordan", "€18"], "mustNotContain": ["haircut", "hair"] }
+        "expect": {
+          "audit": ["roast.generated"],
+          "mustContain": ["Jordan", "€18"],
+          "mustNotContain": ["haircut", "hair"]
+        }
       }
     ]
   }

@@ -556,7 +556,7 @@ Apply to every change. "Must" items are blockers. Each item names the test or gr
 
 ### I. Evaluator mapping
 
-Deterministic graders, all **hard failures**: A1, A3, A5, A9, B1, C2, D4, E2, E3, F2, F5, G2, G3. Each grader needs at least one positive (should pass) and one negative (should be caught) fixture so the grader itself is tested.
+Deterministic graders, all **hard failures**: A1, A3, A5, A9, B1, C2, D4, D5, E2, E3, F2, F5, G2, G3. Each grader needs at least one positive (should pass) and one negative (should be caught) fixture so the grader itself is tested.
 
 ### J. Severity guide for findings
 

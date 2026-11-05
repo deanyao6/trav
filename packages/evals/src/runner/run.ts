@@ -62,12 +62,14 @@ import type {
   PromptRecord,
   Scenario,
   Step,
+  StepAction,
   StepExpect,
   StepRecord,
   StepState,
   TurnSummary,
 } from '../types.js';
 import { CARD_REF_PREFIX, expandSteps } from './expand.js';
+import { typedIntent } from './intent.js';
 import { runProbe } from './probes.js';
 import { loadGroupFixture, seedGroup } from './seed.js';
 
@@ -441,6 +443,11 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
     }
     return Object.keys(out).length === 0 ? undefined : out;
   };
+  /** Active, non-guest members who have not left (the product's `activeMembers`, ingest/pending.ts). */
+  const rosterNow = (): Member[] =>
+    stores.group.members
+      .listByGroup(groupId)
+      .filter((m) => m.active && m.leftAt === undefined && m.role !== 'guest');
   /** Outbound DM ids, so a reaction or tap on a DM card is recorded as a DM-lane step. */
   const dmMessageIds = new Set<string>();
 
@@ -527,6 +534,7 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
             .listByGroup(groupId)
             .filter((m) => m.active && safety.isMinor(m, clock.now()))
             .map((m) => m.memberId),
+          activeMembers: rosterNow().map((m) => m.memberId),
           ...(turnPhotos ? { consentAtSend: consentNow() } : {}),
           ...(state !== undefined ? { state } : {}),
           ...extra,
@@ -577,7 +585,19 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
               ...(step.attachments !== undefined ? { attachments: step.attachments } : {}),
             });
             const turn = summarizeTurn(await runtime.agent.handleInbound(event));
-            records.push(finish({ lane: step.lane ?? 'group', from: step.from, turn }));
+            // Only the intent is kept: a DM's text is private (T-161 r2).
+            const intent = typedIntent(
+              step.text,
+              rosterNow().map((m) => m.displayName),
+            );
+            records.push(
+              finish({
+                lane: step.lane ?? 'group',
+                from: step.from,
+                turn,
+                action: { kind: 'text', intent },
+              }),
+            );
             break;
           }
           case 'react':
@@ -609,7 +629,11 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
             const turn = summarizeTurn(await runtime.agent.handleInbound(event));
             // A reaction or tap on a DM card is a DM-lane step (its replies stay private in evidence).
             const lane = dmMessageIds.has(target) ? 'dm' : 'group';
-            records.push(finish({ lane, from: step.from, turn }));
+            const action: StepAction =
+              step.do === 'react'
+                ? { kind: 'reaction', reaction: step.reaction }
+                : { kind: 'tap', actionId: step.actionId };
+            records.push(finish({ lane, from: step.from, turn, action }));
             break;
           }
           case 'advance': {

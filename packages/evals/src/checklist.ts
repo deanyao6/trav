@@ -49,6 +49,7 @@ export const HARD_IDS: readonly string[] = [
   'B1',
   'C2',
   'D4',
+  'D5',
   'E2',
   'E3',
   'F2',

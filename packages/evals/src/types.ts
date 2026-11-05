@@ -455,6 +455,21 @@ export interface StepState {
   readonly memoryWrites?: { readonly private: number; readonly group: number };
 }
 
+/**
+ * What a typed message says as an answer to a card, read by the eval (never
+ * by the product's own regexes, so a product bug cannot hide itself):
+ * `confirm` a yes, `decline` a no / keep private / drop it, `riders` a list
+ * of who rode (T-135: the owner's names answer is the confirmation), `other`
+ * anything else. The text itself is never recorded (a DM is private).
+ */
+export type TypedIntent = 'confirm' | 'decline' | 'riders' | 'other';
+
+/** The member's gesture on a say/react/tap step (SAFETY D5 needs a confirming one). */
+export type StepAction =
+  | { readonly kind: 'reaction'; readonly reaction: string }
+  | { readonly kind: 'tap'; readonly actionId: string }
+  | { readonly kind: 'text'; readonly intent: TypedIntent };
+
 export interface StepRecord {
   readonly index: number;
   readonly stepId?: string;
@@ -481,6 +496,14 @@ export interface StepRecord {
   readonly proactive: boolean;
   /** Active members who were minors at this step (roster can change mid-episode). */
   readonly minors: readonly string[];
+  /**
+   * Active, non-guest members who had not left at this step (the product's
+   * `activeMembers`), so a later departure never rewrites who could act then.
+   * Absent on synthetic records: graders fall back to the end-of-episode roster.
+   */
+  readonly activeMembers?: readonly string[];
+  /** The member's gesture on a say/react/tap step (reaction, button id, or a typed message's intent). */
+  readonly action?: StepAction;
   /** Consent flags when this step's photos were sent (only for steps that sent photos). */
   readonly consentAtSend?: Readonly<Record<string, ConsentFlags | undefined>>;
   /** Store facts after the step (see `StepState`). */
