@@ -83,6 +83,32 @@ export const LINE_PENDING: Readonly<Record<string, LinePending>> = Object.fromEn
   ...gap('T-142', 'Wrapped is scheduled only for the seeded Barcelona trip', [
     'clk_bcn_2026031810',
   ]),
+  // ---- Lisbon (fixtures/chats/lisbon.jsonl; held out: these name the gap, nothing is tuned on them) ----
+  ...gap('T-145', 'Lisbon match asks: sold-out derby, Benfica vs Porto proposal and its ledger', [
+    'msg_lis_0001',
+    'msg_lis_0007',
+    'msg_lis_0008',
+    'msg_lis_0009',
+    'msg_lis_0010',
+    'msg_lis_0035',
+  ]),
+  ...gap('T-096', 'Lisbon journey asks hit the offline fallback', [
+    'msg_lis_0017',
+    'msg_lis_d_0003',
+    'msg_lis_0029',
+  ]),
+  ...gap('T-146', 'Lisbon inventory vs chat fixture refundability', [
+    'msg_lis_0018',
+    'msg_lis_0032',
+  ]),
+  ...gap('T-147', 'Lisbon fado ask, its ambiguous "Yes" and the booking', [
+    'msg_lis_0021',
+    'msg_lis_0022',
+    'msg_lis_0023',
+  ]),
+  ...gap('T-142', 'Wrapped is scheduled only for the seeded Barcelona trip', [
+    'clk_lis_2026042110',
+  ]),
   // ---- Turks and Caicos (fixtures/chats/turks-and-caicos.jsonl) ----
   ...gap('T-023', 'family mode replies, family recap, minor age-restricted denial', [
     'msg_tci_0001',
@@ -91,10 +117,11 @@ export const LINE_PENDING: Readonly<Record<string, LinePending>> = Object.fromEn
     'msg_tci_0021',
     'clk_tci_2026062510',
   ]),
-  ...gap('T-081', 'booking-request responder reads "for me and dad" as "for me"', [
-    'msg_tci_0023',
-    'msg_tci_0025',
-  ]),
+  // msg_tci_0023 now proposes Dean + Dad (T-081 r2), but in a group with a minor
+  // the send path withdraws the casino card the minor/alcohol screen suppresses
+  // (SAFETY §2.7, until T-113 lets an explicit adult-only audience through), so
+  // Dad's 👍 has no card to land on.
+  ...gap('T-113', 'adult-only casino card is withdrawn in a group with a minor', ['msg_tci_0025']),
   ...gap('T-142', 'Wrapped is scheduled only for the seeded Barcelona trip', [
     'clk_tci_2026062810',
   ]),

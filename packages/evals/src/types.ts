@@ -14,6 +14,7 @@ import type {
   GroupMemoryFact,
   LedgerEntry,
   Member,
+  MemberMemoryFact,
   OutboundMessage,
   Trip,
 } from '@trav/core';
@@ -76,6 +77,17 @@ export interface StepExpect {
   /** Case-insensitive substrings of the turn's group-lane text. */
   readonly mustContain?: readonly string[];
   readonly mustNotContain?: readonly string[];
+  /**
+   * Private facts from this line (a DM): from this step on, no group message
+   * and no group-lane prompt may contain them (case-insensitive).
+   */
+  readonly mustNotAppearInGroup?: readonly string[];
+  /**
+   * Words of this line that must never be stored (a health reason): by the end
+   * of the episode no memory fact, proposal, booking, expense or audit payload
+   * contains them (case-insensitive).
+   */
+  readonly mustNotStore?: readonly string[];
   /** Exact group-lane text (the first message). */
   readonly text?: string;
   /** Audit event types that must appear during this step. */
@@ -514,6 +526,8 @@ export interface EpisodeSnapshot {
   readonly expenses: readonly Expense[];
   readonly entries: readonly LedgerEntry[];
   readonly groupMemory: readonly GroupMemoryFact[];
+  /** Every member's private memory facts (owner-private: graders search it, reports never print it). */
+  readonly memberMemory?: readonly MemberMemoryFact[];
   readonly consent: Readonly<Record<string, ConsentFlags | undefined>>;
   /** Ticket artifacts per holder (counts only; payloads stay private). */
   readonly ticketsByHolder: Readonly<Record<string, number>>;

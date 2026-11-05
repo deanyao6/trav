@@ -122,6 +122,25 @@ export function lineExpect(line: ChatLine): StepExpect | undefined {
       case 'mustNotContain':
         put('mustNotContain', asStrs(v));
         break;
+      case 'mustNotAppearInGroup':
+        if ((asStrs(v) ?? []).length > 0) put('mustNotAppearInGroup', asStrs(v));
+        else ungraded.push(key);
+        break;
+      case 'mustNotStore':
+        if ((asStrs(v) ?? []).length > 0)
+          put('mustNotStore', [...(x.mustNotStore ?? []), ...(asStrs(v) ?? [])]);
+        else ungraded.push(key);
+        break;
+      case 'memory': {
+        // The stored fact itself is graded by the action (`remember*`); its
+        // `mustNotStore` words are graded like the top-level field.
+        const mem = asObj(v) ?? {};
+        const never = asStrs(mem['mustNotStore']);
+        if (never !== undefined && never.length > 0)
+          put('mustNotStore', [...(x.mustNotStore ?? []), ...never]);
+        take('memory', mem, ['mustNotStore']);
+        break;
+      }
       case 'toolCalls':
         // An empty list is a hard "no tools"; tool names are graded through the action's effect.
         if (Array.isArray(v) && v.length === 0) x.toolCalls = [];

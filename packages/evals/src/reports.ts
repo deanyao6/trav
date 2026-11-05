@@ -58,6 +58,21 @@ export interface ScenarioSummary {
   readonly failing: readonly string[];
   /** Declared checklist ids and their status in this run. */
   readonly checklist: readonly { readonly id: string; readonly status: string }[];
+  /**
+   * Results that graded nothing, with why (never passes): graders with nothing
+   * to grade and the chat-line fields no grader checks (`turn_expectations:ungraded`).
+   * Absent in summaries written before T-077 round 2.
+   */
+  readonly skipped?: readonly { readonly graderId: string; readonly reason: string }[];
+}
+
+/** Skipped results of a scenario, with their reasons, in grader order. */
+export function skippedResults(
+  results: readonly GraderResult[],
+): { graderId: string; reason: string }[] {
+  return results
+    .filter((r) => r.skipped !== undefined)
+    .map((r) => ({ graderId: r.graderId, reason: r.skipped ?? '' }));
 }
 
 export interface RunSummary {
@@ -149,6 +164,10 @@ export function summarize(outcomes: readonly ScenarioOutcome[], meta: RunMeta): 
       ...(o.crashed !== undefined ? { crashed: true } : {}),
       failing: failingIds(o.results),
       checklist: o.coverage.map((c) => ({ id: c.id, status: c.status })),
+      skipped: skippedResults(o.results).map((s) => ({
+        graderId: s.graderId,
+        reason: redact(s.reason, secrets),
+      })),
     })),
     safetyFailures: allSafetyFailures(outcomes, staticChecks).map((f) => ({
       scenarioId: f.scenarioId,
@@ -787,6 +806,33 @@ export function renderReport(
   }
   out.push('');
 
+  out.push('## Not graded (skipped)');
+  out.push('');
+  out.push(
+    'Results that graded nothing, per scenario, with why. A skipped result is never a pass. `turn_expectations:ungraded` lists the replayed chat-line expectation fields no grader checks yet; the other entries are graders with nothing to grade in that episode.',
+  );
+  out.push('');
+  const anySkipped = outcomes.some((o) => skippedResults(o.results).length > 0);
+  if (!anySkipped) {
+    out.push('Nothing was skipped.');
+    out.push('');
+  } else {
+    out.push('| scenario | chat-line fields not graded | graders with nothing to grade |');
+    out.push('|---|---|---|');
+    for (const o of outcomes) {
+      const sk = skippedResults(o.results);
+      if (sk.length === 0) continue;
+      const fields = sk.filter((s) => s.graderId.endsWith(':ungraded')).map((s) => s.reason);
+      const rest = sk
+        .filter((s) => !s.graderId.endsWith(':ungraded'))
+        .map((s) => `${s.graderId} (${s.reason})`);
+      out.push(
+        `| ${o.scenario.id} | ${cell(fields.join('; ') || '')} | ${cell(rest.join('; '))} |`,
+      );
+    }
+    out.push('');
+  }
+
   const sources = new Map<string, number>();
   let skippedLines = 0;
   for (const o of outcomes) {
@@ -815,7 +861,7 @@ export function renderReport(
   if (skippedLines > 0) {
     out.push('');
     out.push(
-      `${String(skippedLines)} replayed chat line(s) were skipped (membership changes and system ingestion events are not replayed yet).`,
+      `${String(skippedLines)} replayed chat line(s) were skipped (membership changes are not replayed; card and email system lines are, as owner imports).`,
     );
   }
   out.push('');

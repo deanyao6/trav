@@ -167,6 +167,8 @@ const STEP_EXPECT = {
   modelSource: opt(oneOf(['script', 'fallback', 'live'])),
   mustContain: opt(strs),
   mustNotContain: opt(strs),
+  mustNotAppearInGroup: opt(arrayOf(str, { nonEmpty: true })),
+  mustNotStore: opt(arrayOf(str, { nonEmpty: true })),
   text: opt(str),
   audit: opt(strs),
   injection: opt(

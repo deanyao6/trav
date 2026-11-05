@@ -79,8 +79,13 @@ function noEffect(step: StepRecord, before: number): boolean {
   );
 }
 
-function privateCard(m: OutboundMessage): boolean {
-  return m.to.kind === 'member' && m.card?.type === 'expense_confirm';
+/** A private "looks shared?" card (or a digest holding one) DM'd to someone. */
+export function privateCard(m: OutboundMessage): boolean {
+  if (m.to.kind !== 'member' || m.card?.type !== 'expense_confirm') return false;
+  return (
+    m.card.visibility === 'private' ||
+    (m.card.digestItems ?? []).some((d) => d.visibility === 'private')
+  );
 }
 
 function noGroup(step: StepRecord): boolean {

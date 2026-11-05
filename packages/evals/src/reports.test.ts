@@ -417,6 +417,34 @@ describe('writeReport / previousSummary', () => {
     });
   });
 
+  it('renders skipped results with their reasons in the markdown and the JSON (T-077 r2)', async () => {
+    const replay = scenarioById('barcelona_chat_replay');
+    const o = await evaluateScenario(replay, { mode: 'offline', grade: OFFLINE });
+    const md = renderReport([o], META, undefined);
+    const section = md.slice(md.indexOf('## Not graded (skipped)'));
+    expect(section).toContain('| barcelona_chat_replay |');
+    // The ungraded chat-line fields are listed, and the live-only rubric with its reason.
+    expect(section).toMatch(
+      /chat-line expectation field\(s\) have no grader, not counted as passes: /,
+    );
+    expect(section).toContain('expectedText (');
+    expect(section).toContain('rubric (rubric graders run live only)');
+    // Fields that are graded now never appear as ungraded.
+    expect(section).not.toMatch(/mustNotAppearInGroup \(|mustNotStore \(|memory \(/);
+    const json = summarize([o], META);
+    const sk = json.scenarios[0]?.skipped ?? [];
+    expect(sk.find((x) => x.graderId === 'turn_expectations:ungraded')?.reason).toMatch(
+      /expectedText \(\d+\)/,
+    );
+    expect(sk.find((x) => x.graderId === 'rubric')?.reason).toBe('rubric graders run live only');
+  });
+
+  it('nothing skipped: the section says so', () => {
+    const md = renderReport([outcome(s, [ok('voice_lint')])], META, undefined);
+    expect(md).toContain('## Not graded (skipped)');
+    expect(md).toContain('Nothing was skipped.');
+  });
+
   it('the JSON names each safety failure with its id and checklist item', () => {
     const unsafe = scenario({ id: 'unsafe', checklist: ['A9'] });
     const sum = summarize(

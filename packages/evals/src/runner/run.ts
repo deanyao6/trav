@@ -731,6 +731,7 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
       expenses: stores.group.expenses.listByTrip(tripId),
       entries: stores.group.expenses.listEntries(tripId),
       groupMemory: stores.group.groupMemory.listByGroup(groupId),
+      memberMemory: members.flatMap((m) => stores.private.listMemberMemory(m.memberId, groupId)),
       consent: consentNow(),
       ticketsByHolder,
     },
