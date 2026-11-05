@@ -309,16 +309,16 @@ export function restrictedForMinors(p: Venue): boolean {
 
 /**
  * Minors caution (SAFETY §2.7): anyone going who is under 18 or of unknown
- * age; in a DM, the asker being a minor; in the group thread, a family-mode
- * group even when the minor is out tonight (the outbound family screen
- * applies to the whole thread).
+ * age; the asker being a minor; or a family-mode group, in the thread and in
+ * any member's DM alike, even when the minor is out tonight (the outbound
+ * family screen applies to both lanes, so a bar list there would be dropped).
  */
 export function cautiousFor(
   input: Pick<SuggestTurnInput, 'group' | 'members' | 'me' | 'lane' | 'now'>,
   people: readonly Member[],
 ): boolean {
   if (people.some((m) => safety.isMinor(m, input.now) || safety.isAgeUnknown(m))) return true;
-  if (input.lane === 'dm') return safety.isMinor(input.me, input.now);
+  if (safety.isMinor(input.me, input.now)) return true;
   return safety.isFamilyMode(input.group, input.members, input.now);
 }
 

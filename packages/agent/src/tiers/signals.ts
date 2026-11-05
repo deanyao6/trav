@@ -180,10 +180,26 @@ function textSignal(text: string, at: string): TierSignal | undefined {
 /** "@trav …" anywhere, or "trav, …" / "hey trav …" up front (the vocative, as in mention.ts). */
 const ADDRESSED_RE = /@trav\b|^\s*(?:hey\s+|yo\s+|ok\s+)?trav\b/i;
 
-/** May this group line state a want? Addressed to Trav, or clearly about spending. */
+/** "is the dress code casual?", "what should i wear": asking, not wanting. "can we / shall we …?" still wants. */
+const ASKING_RE =
+  /\?|^\s*(?:@trav\s+|(?:hey\s+)?trav,?\s+)?(?:is|are|was|were|what|how|which|does|do|did|will|would)\b/i;
+const WANT_QUESTION_RE = /^\s*(?:@trav\s+|(?:hey\s+)?trav,?\s+)?(?:can|could|should|shall) we\b/i;
+/** "we spent so much at that fancy place last night": a look back, not what they want now. */
+const LOOKING_BACK_RE =
+  /\b(?:spent|paid|was|were|cost us|last night|yesterday|the other (?:day|night))\b/i;
+
+/**
+ * May this group line state a want? Addressed to Trav, or clearly about
+ * spending; and in either case neither a question about something ("is that
+ * place expensive or casual?") nor a look back ("we spent a fortune at that
+ * fancy place last night"). Such lines still count as descriptions.
+ */
 export function statedCounts(line: GroupLine): boolean {
-  const addressed = line.addressed ?? ADDRESSED_RE.test(line.text);
-  return addressed || tiers.aboutSpending(line.text);
+  const t = line.text;
+  if (ASKING_RE.test(t) && !WANT_QUESTION_RE.test(t)) return false;
+  if (LOOKING_BACK_RE.test(t)) return false;
+  const addressed = line.addressed ?? ADDRESSED_RE.test(t);
+  return addressed || tiers.aboutSpending(t);
 }
 
 /** Every member in `members` mapped to their signals (possibly none). */

@@ -560,6 +560,56 @@ describe('r1 #3: offhand words in unaddressed chat are not stated wants', () => 
   });
 });
 
+describe('r2 #1: an adult DM in a family-mode group is cautious too, and never silent', () => {
+  it.each([['any good bars tonight', 'casual'], ['any good bars tonight, casual', undefined]])(
+    'Dean DMs %s: food for everyone, sent',
+    async (ask, answer) => {
+      const h = harness();
+      makeMinor(h);
+      const all = [await h.dm('h_dean', ask)];
+      if (all[0]!.note === 'suggest:question' && answer !== undefined)
+        all.push(await h.dm('h_dean', answer));
+      const last = all.at(-1)!;
+      for (const t of all) expect(t.silent).toBe(false);
+      expect(last.note).toMatch(/^suggest:(?:places|answered)$/);
+      expect(text(last)).toContain('food for everyone tonight:');
+      for (const p of CATALOG.places.filter(restrictedForMinors))
+        expect(text(last)).not.toContain(p.name);
+    },
+  );
+});
+
+describe('r2 #2: questions and look-backs are never stated wants', () => {
+  it.each([
+    "can't believe how much money we spent at that fancy place last night",
+    '@trav is dinner tonight fancy? what should i wear',
+  ])('a fresh group, then "%s": the question still fires', async (line) => {
+    const h = harness();
+    await h.say('h_chase', line);
+    const r = await h.say('h_dean', '@trav where should we eat tonight');
+    expect(r.note).toBe('suggest:question');
+  });
+
+  it.each(['@trav is the dress code casual at razzmatazz?', 'is that place expensive or casual?'])(
+    'a high-end trip, then "%s": still high-end places',
+    async (line) => {
+      const { h } = withFixture('barcelona-high');
+      await h.say('h_dean', line);
+      const r = await h.say('h_arjun', '@trav where should we eat tonight');
+      expect(r.note).toBe('suggest:places');
+      for (const l of levelsIn(text(r))) expect(l).toBeGreaterThanOrEqual(3);
+    },
+  );
+
+  it('"can we keep it cheap tonight?" is still a want', async () => {
+    const h = harness();
+    await h.say('h_piotr', 'can we keep it cheap tonight?');
+    const r = await h.say('h_dean', '@trav where should we eat tonight');
+    expect(r.note).toBe('suggest:places');
+    for (const l of levelsIn(text(r))) expect(l).toBeLessThanOrEqual(2);
+  });
+});
+
 describe('r1 #4: a suggestion ask is not a standing signal', () => {
   it('"@trav cheap eats tonight" does not decide tomorrow', async () => {
     const h = harness();
