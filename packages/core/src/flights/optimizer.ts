@@ -20,8 +20,14 @@ import {
   prepare,
 } from './score.js';
 import type { Cand, Prepared } from './score.js';
-import { beamSearch, exactSearch, exhaustiveSearch, minArrivalSpreadMinutes } from './search.js';
-import type { Leaf } from './search.js';
+import {
+  beamSearch,
+  exactSearch,
+  exhaustiveSearch,
+  minArrivalSpreadMinutes,
+  newSearchWork,
+} from './search.js';
+import type { Leaf, SearchWork } from './search.js';
 import type {
   GroupItinerary,
   MemberTravel,
@@ -151,10 +157,11 @@ function runBeam(
   active: OptimizerConstraints,
   k: number,
   seeds: readonly Leaf[],
+  work: SearchWork,
 ): Leaf[] {
   let width = BEAM_WIDTH;
   for (let attempt = 0; ; attempt += 1) {
-    const leaves = beamSearch(p, lists, active, k, width, seeds);
+    const leaves = beamSearch(p, lists, active, k, width, seeds, work);
     if (leaves.length > 0 || attempt === BEAM_RETRIES) return leaves;
     width *= 2;
   }
@@ -166,22 +173,23 @@ function runStrategy(
   lists: readonly (readonly Cand[])[],
   active: OptimizerConstraints,
   k: number,
+  work: SearchWork,
 ): Leaf[] {
   switch (strategy) {
     case 'exact':
-      return exactSearch(p, lists, active, k).leaves;
+      return exactSearch(p, lists, active, k, Infinity, work).leaves;
     case 'exhaustive':
-      return exhaustiveSearch(p, lists, active, k);
+      return exhaustiveSearch(p, lists, active, k, work);
     case 'beam':
-      return runBeam(p, lists, active, k, []);
+      return runBeam(p, lists, active, k, [], work);
     case 'auto': {
       // Small: exact, unbounded. Large: exact under a node budget (branch-and-
       // bound usually finishes in milliseconds), then the beam seeded with
       // whatever the exact run found if the budget ran out.
       const small = combinationCount(lists) <= EXACT_COMBINATION_LIMIT;
-      const exact = exactSearch(p, lists, active, k, small ? Infinity : EXACT_NODE_BUDGET);
+      const exact = exactSearch(p, lists, active, k, small ? Infinity : EXACT_NODE_BUDGET, work);
       if (exact.complete) return exact.leaves;
-      return runBeam(p, lists, active, k, exact.leaves);
+      return runBeam(p, lists, active, k, exact.leaves, work);
     }
     default:
       throw new TravError('invalid_argument', `unknown search mode ${String(strategy)}`);
@@ -230,6 +238,7 @@ function closestSpreadUnder(
   p: Prepared,
   lists: readonly (readonly Cand[])[],
   active: OptimizerConstraints,
+  work: SearchWork,
 ): number | null {
   const spreadOnly: Prepared = {
     ...p,
@@ -244,7 +253,7 @@ function closestSpreadUnder(
       },
     },
   };
-  const top = runStrategy(strategy, spreadOnly, lists, active, 1)[0];
+  const top = runStrategy(strategy, spreadOnly, lists, active, 1, work)[0];
   return top === undefined ? null : top.terms.arrivalSpreadMinutes;
 }
 
@@ -255,6 +264,7 @@ function reasonFor(
   lists: Lists,
   leaves: readonly Leaf[],
   strategy: Strategy,
+  work: SearchWork,
 ): string {
   const c = p.input.constraints;
   const fmt = (minor: number): string => formatMoney(money(minor, p.currency));
@@ -307,7 +317,7 @@ function reasonFor(
       if (active.fairnessMaxAboveMedian === undefined) {
         return `no combo lands everyone within ${window}; closest is ${formatMinutes(raw)}`;
       }
-      const fair = closestSpreadUnder(strategy, p, lists.pruned, active) ?? raw;
+      const fair = closestSpreadUnder(strategy, p, lists.pruned, active, work) ?? raw;
       if (raw <= max) {
         return `the only combos landing everyone within ${window} break the fairness limit; closest fair one is ${formatMinutes(fair)}`;
       }
@@ -328,7 +338,7 @@ interface Solved {
   readonly relaxed: readonly RelaxedConstraint[];
 }
 
-function solve(p: Prepared, strategy: Strategy): Solved {
+function solve(p: Prepared, strategy: Strategy, work: SearchWork): Solved {
   if (p.members.length === 0) return { leaves: [], relaxed: [] };
   const k = p.input.maxResults;
   const present = presentConstraints(p.input.constraints);
@@ -336,13 +346,13 @@ function solve(p: Prepared, strategy: Strategy): Solved {
     const active = withoutConstraints(p.input.constraints, subset);
     const lists = filterLists(p, active, strategy !== 'exhaustive');
     if (lists === null) continue;
-    const leaves = runStrategy(strategy, p, lists.pruned, active, k);
+    const leaves = runStrategy(strategy, p, lists.pruned, active, k, work);
     if (leaves.length === 0) continue;
     return {
       leaves,
       relaxed: subset.map((constraint) => ({
         constraint,
-        reason: reasonFor(constraint, p, active, lists, leaves, strategy),
+        reason: reasonFor(constraint, p, active, lists, leaves, strategy, work),
       })),
     };
   }
@@ -381,9 +391,13 @@ function toItinerary(
   };
 }
 
-function run(input: OptimizerInput, strategy: Strategy): OptimizerResult {
+function run(
+  input: OptimizerInput,
+  strategy: Strategy,
+  work: SearchWork = newSearchWork(),
+): OptimizerResult {
   const p = prepare(input);
-  const { leaves, relaxed } = solve(p, strategy);
+  const { leaves, relaxed } = solve(p, strategy, work);
   const cheapestTotalMinor = p.cands.reduce((s, list) => s + (list[0] as Cand).price, 0);
   return {
     itineraries: leaves.map((leaf, i) => toItinerary(leaf, i + 1, p, relaxed, cheapestTotalMinor)),
@@ -399,4 +413,18 @@ export function optimizeGroupFlights(input: OptimizerInput): OptimizerResult {
 /** Exhaustive oracle for small inputs (≤4 members × ≤4 choices); used by the property test. */
 export function bruteForceOptimize(input: OptimizerInput): OptimizerResult {
   return run(input, 'exhaustive');
+}
+
+/**
+ * `optimizeGroupFlights` plus the work its searches did (T-181). For tests:
+ * the worst case is bounded by node and extension counts, which do not depend
+ * on machine load. Not exported from the package index.
+ */
+export function optimizeGroupFlightsWithWork(input: OptimizerInput): {
+  readonly result: OptimizerResult;
+  readonly work: Readonly<SearchWork>;
+} {
+  const work = newSearchWork();
+  const result = run(input, input.search ?? 'auto', work);
+  return { result, work };
 }

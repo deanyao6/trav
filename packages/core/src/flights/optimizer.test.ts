@@ -20,6 +20,14 @@ import type {
   OptimizerInput,
   OptimizerWeights,
 } from './index.js';
+import {
+  BEAM_WIDTH,
+  EXACT_COMBINATION_LIMIT,
+  EXACT_NODE_BUDGET,
+  optimizeGroupFlightsWithWork,
+} from './optimizer.js';
+import { prepare } from './score.js';
+import { exhaustiveSearch, newSearchWork } from './search.js';
 import { choice, inputOf, syntheticInput } from './testkit.js';
 
 const eur = (major: number): Money => money(major * 100, 'EUR');
@@ -956,10 +964,13 @@ describe('larger inputs', () => {
     for (const it of r.itineraries) assertHonoured(it, input);
   });
 
-  it('a pathological all-ties input (branch-and-bound worst case) still terminates under 2s', () => {
-    const members = Array.from({ length: 6 }, (_, i) => member(`mem_${i}`));
+  // T-181: bounded by work done, not wall clock (a timer fails under load).
+  it('a pathological all-ties input (branch-and-bound worst case) stops at the node budget', () => {
+    const MEMBERS = 6;
+    const PER_MEMBER = 40;
+    const members = Array.from({ length: MEMBERS }, (_, i) => member(`mem_${i}`));
     const choices = members.flatMap((m) =>
-      Array.from({ length: 40 }, (_, j) =>
+      Array.from({ length: PER_MEMBER }, (_, j) =>
         choice({
           memberId: m.memberId,
           offerId: `${m.memberId}-${j}`,
@@ -969,10 +980,47 @@ describe('larger inputs', () => {
         }),
       ),
     );
-    const t0 = performance.now();
-    const r = optimizeGroupFlights(inputOf({ members, choices }));
-    expect(performance.now() - t0).toBeLessThan(2000);
+    const input = inputOf({ members, choices });
+    const { result: r, work } = optimizeGroupFlightsWithWork(input);
+
+    // 40^6 combinations is far over the exact limit: one budgeted branch-and-
+    // bound run that hits its budget exactly, then one seeded beam run.
+    expect(PER_MEMBER ** MEMBERS).toBeGreaterThan(EXACT_COMBINATION_LIMIT);
+    expect(work.exactRuns).toBe(1);
+    expect(work.exactNodes).toBe(EXACT_NODE_BUDGET);
+    expect(work.beamRuns).toBe(1);
+    // Depth 0 extends the single empty state; later depths at most BEAM_WIDTH states.
+    expect(work.beamExtensions).toBeLessThanOrEqual(
+      PER_MEMBER + (MEMBERS - 1) * BEAM_WIDTH * PER_MEMBER,
+    );
+    expect(work.exhaustiveRuns).toBe(0);
+    expect(work.exhaustiveLeaves).toBe(0);
+
     expect(r.itineraries).toHaveLength(3);
     expect(r.itineraries[0]?.breakdown.score).toBe(2400);
+    // The work counts above are the bound. This timeout only catches a hang;
+    // it is generous on purpose so machine load cannot fail the test.
+  }, 60_000);
+
+  it('work counters: a small input runs one unbudgeted exact search and no beam', () => {
+    const input = syntheticInput(4, 5, 7);
+    const { result, work } = optimizeGroupFlightsWithWork(input);
+    expect(work.exactRuns).toBeGreaterThanOrEqual(1);
+    expect(work.exactNodes).toBeGreaterThan(0);
+    // An unbudgeted run never expands more than the full tree (sum of 5^d, d = 1..4).
+    expect(work.exactNodes).toBeLessThanOrEqual(work.exactRuns * (5 + 25 + 125 + 625));
+    expect(work.beamRuns).toBe(0);
+    expect(work.beamExtensions).toBe(0);
+    expect(result).toEqual(optimizeGroupFlights(input));
+  });
+
+  it('work counters: the exhaustive oracle counts every combination it scores', () => {
+    const p = prepare(syntheticInput(3, 4, 3));
+    const work = newSearchWork();
+    exhaustiveSearch(p, p.cands, {}, 3, work);
+    expect(work.exhaustiveRuns).toBe(1);
+    expect(work.exhaustiveLeaves).toBe(4 ** 3);
+    expect(work.exactRuns).toBe(0);
+    expect(work.beamRuns).toBe(0);
   });
 });

@@ -12,7 +12,7 @@ import type { IsoDateTime, MemberId } from '../primitives.js';
 import type { Group, Member } from '../domain/group.js';
 import type { ContentTag } from '../domain/trip.js';
 import { TravError } from '../errors.js';
-import { findTerm, normalizeText, termRegex } from './text.js';
+import { normalizeText, termRegex, termsRegex } from './text.js';
 
 export const ADULT_AGE = 18;
 
@@ -251,9 +251,11 @@ export const CONTENT_TERMS: readonly {
   { tag: 'cannabis', terms: ['cannabis', 'weed', 'marijuana', 'dispensary', 'edibles'] },
 ];
 
+// One matcher per tag (T-181): same hits as testing each term's `termRegex`,
+// without compiling a Unicode-boundary regex per term on first use.
 const COMPILED_CONTENT_TERMS = CONTENT_TERMS.map((g) => ({
   tag: g.tag,
-  compiled: g.terms.map((term) => ({ term, re: termRegex(term) })),
+  re: termsRegex(g.terms),
 }));
 
 /**
@@ -291,7 +293,7 @@ export function detectContentTags(text: string): ContentTag[] {
   for (const re of COMPILED_BENIGN) cleaned = cleaned.replace(re, ' ');
   const tags: ContentTag[] = [];
   for (const g of COMPILED_CONTENT_TERMS) {
-    if (findTerm(cleaned, g.compiled) !== null) tags.push(g.tag);
+    if (g.re !== null && g.re.test(normalizeText(cleaned))) tags.push(g.tag);
   }
   return tags;
 }

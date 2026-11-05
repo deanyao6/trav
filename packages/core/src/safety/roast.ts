@@ -12,7 +12,7 @@ import type { Group, Member } from '../domain/group.js';
 import type { Trip } from '../domain/trip.js';
 import type { ConsentLookup } from '../domain/consent.js';
 import { groupAgeUnconfirmed, groupHasMinor, isFamilyMode, isMinor } from './minors.js';
-import { termRegex, normalizeText } from './text.js';
+import { termRegex, termsRegex, normalizeText } from './text.js';
 
 export type RoastBlockCause =
   | 'mode_off'
@@ -433,9 +433,21 @@ function compile(
 ): readonly { readonly re: RegExp; readonly category: RoastTopicCategory }[] {
   const hit = compiledCache.get(blocklist);
   if (hit !== undefined) return hit;
-  const compiled = blocklist
-    .filter((e) => e.term.trim().length > 0)
-    .map((e) => ({ re: termRegex(e.term), category: e.category }));
+  // One regex per run of consecutive same-category entries (T-181). The first
+  // run that matches holds the first matching entry, because every entry in an
+  // earlier run did not match, so the category returned is the same as testing
+  // each entry's `termRegex` in list order.
+  const runs: { terms: string[]; category: RoastTopicCategory }[] = [];
+  for (const e of blocklist) {
+    if (e.term.trim().length === 0) continue;
+    const last = runs.at(-1);
+    if (last !== undefined && last.category === e.category) last.terms.push(e.term);
+    else runs.push({ terms: [e.term], category: e.category });
+  }
+  const compiled = runs.flatMap((r) => {
+    const re = termsRegex(r.terms);
+    return re === null ? [] : [{ re, category: r.category }];
+  });
   compiledCache.set(blocklist, compiled);
   return compiled;
 }
