@@ -42,6 +42,9 @@ import type {
 } from '../../interfaces/common.js';
 import type { ChannelSendOptions } from '../types.js';
 import { isDmOnlyCard } from '../types.js';
+import type { ChannelProfileId } from '../profiles.js';
+import { channelProfile } from '../profiles.js';
+import { textForChannel } from '../fallbackText.js';
 
 export interface SimulatorParticipant {
   readonly handle: ChannelHandle;
@@ -65,6 +68,12 @@ export interface SimulatorChannelOptions {
   readonly conversations: readonly SimulatorConversation[];
   /** Trav's own handle. Default `trav`. */
   readonly travHandle?: ChannelHandle;
+  /**
+   * T-069: start from a named profile (`channel/profiles.ts`): the default
+   * `simulator`, `imessage_relay_group` or `mixed_group_mms`.
+   * `capabilities` overrides apply on top.
+   */
+  readonly profile?: ChannelProfileId;
   /** Override capabilities, e.g. `{ buttons: false }` to simulate a WhatsApp group. */
   readonly capabilities?: Partial<Omit<ChannelCapabilities, 'kind'>>;
 }
@@ -204,16 +213,13 @@ export interface SimulatorChannel extends ChannelAdapter {
   injectMemberLeft(input: InjectMembershipInput): Promise<InboundMembership>;
 }
 
-const DEFAULT_CAPABILITIES: ChannelCapabilities = {
-  kind: 'simulator',
-  buttons: true,
-  richCards: true,
-  reactions: true,
-  privateDm: true,
-  threadedReplies: true,
-  canAddMembers: true,
-  systemNotices: true,
-};
+function capabilitiesFor(options: SimulatorChannelOptions): ChannelCapabilities {
+  return {
+    ...channelProfile(options.profile ?? 'simulator'),
+    ...options.capabilities,
+    kind: 'simulator',
+  };
+}
 
 /** T-165: a notice is one line of bare text; a card, buttons, images, mentions or a line break make it a message. */
 function hasNoticeExtras(message: OutboundMessage): boolean {
@@ -242,7 +248,7 @@ export function createSimulatorChannel(options: SimulatorChannelOptions): Simula
     throw new Error('createSimulatorChannel: at least one conversation is required');
   }
   const travHandle = options.travHandle ?? 'trav';
-  const capabilities: ChannelCapabilities = { ...DEFAULT_CAPABILITIES, ...options.capabilities };
+  const capabilities = capabilitiesFor(options);
   const info: AdapterInfo = { provider: 'simulator', mode: 'mock' };
 
   const conversations = new Map<ConversationId, SimulatorParticipant[]>();
@@ -334,7 +340,10 @@ export function createSimulatorChannel(options: SimulatorChannelOptions): Simula
     const notice = message.kind === 'system_notice';
     // A notice on a channel without the subscript style posts as an ordinary bubble.
     const systemNotice = notice && capabilities.systemNotices;
-    const degraded = cardDropped || actionsDropped || (notice && !systemNotice);
+    // T-069: "👍 to book" / "tap Sent" become text replies where the channel can't tap.
+    const text = textForChannel(message, capabilities);
+    const textRewritten = text !== message.text;
+    const degraded = cardDropped || actionsDropped || (notice && !systemNotice) || textRewritten;
 
     const entry = record<TranscriptMessage>({
       type: 'message',
@@ -346,7 +355,7 @@ export function createSimulatorChannel(options: SimulatorChannelOptions): Simula
       fromName: 'trav',
       messageId: message.id,
       ...(dm ? { dmHandle: dm.handle, dmName: dm.displayName } : {}),
-      text: message.text,
+      text,
       ...(message.card && !cardDropped ? { card: message.card } : {}),
       actions,
       attachments: (message.images ?? []).map((img): TranscriptAttachment => ({
@@ -543,6 +552,7 @@ export function createSimulatorChannel(options: SimulatorChannelOptions): Simula
     },
 
     async injectReaction(input) {
+      if (!capabilities.reactions) throw new Error('simulator: this channel has no reactions');
       const target = findMessage(input.targetMessageId);
       if (!target) throw new Error(`simulator: unknown message ${input.targetMessageId}`);
       assertCanSee(target, input.from);

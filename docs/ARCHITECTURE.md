@@ -33,6 +33,8 @@ packages/core/src/
 packages/adapters/src/
   interfaces/*                       (types only; written by connector-scout, aligned to core)
   channel/simulator/* channel/keywords.ts channel/budget.ts
+  channel/profiles.ts channel/fallbackText.ts      (T-069, D-048: capability profiles; wire text for what a channel can't tap)
+  channel/pacing.ts channel/debounce.ts           (T-071, D-048: relay-line pacing decorators)
   mock/{tickets,flights,lodging,payments,settleup,transactions,email,album,fx}/*
   real/{sendblue,whatsapp,telegram,plaid,stripe,duffel,hotelbeds}/stub.ts   (T-025)
 packages/agent/src/
@@ -81,6 +83,7 @@ ChannelAdapter.onEvent(InboundEvent)                              adapters
     7. sendTurn(drafts, deps)                                                agent/outbound/send.ts
          screenOutbound (core/safety) → lintVoice → lane routing → audit `message.sent`
          → channel.sendGroup / channel.sendDirect (wrapped by withMessageBudget)   adapters
+           relay lines (D-048): withInboundDebounce(withOutboundPacing(channel)) underneath
     8. schedule follow-ups (proposal_expiry at decision.expiresAt) on the Scheduler.
 ```
 

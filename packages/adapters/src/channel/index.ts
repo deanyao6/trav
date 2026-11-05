@@ -8,3 +8,10 @@ export * from './simulator/index.js';
 export * from './keywords.js';
 export * from './budget.js';
 export * from './transcript.js';
+// T-069: channel profiles and the capability text fallback.
+export * from './profiles.js';
+export * from './fallbackText.js';
+// T-071: relay-line pacing (outbound) and burst debounce (inbound).
+export * from './timers.js';
+export * from './pacing.js';
+export * from './debounce.js';

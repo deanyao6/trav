@@ -38,6 +38,20 @@ export function isDmOnlyCard(card: RichCard): boolean {
   return false;
 }
 
+/**
+ * Cards that ask a member or the group for an answer (approve, share, pick,
+ * mark sent). T-069 rewrites answer instructions only on these (or a message
+ * with actions); T-071 never drops them and sends them first.
+ */
+export function isAnswerCard(card: RichCard): boolean {
+  return (
+    card.type === 'booking_proposal' ||
+    card.type === 'expense_confirm' ||
+    card.type === 'options' ||
+    card.type === 'settle_up'
+  );
+}
+
 /** True if the message carries anything that must never reach the group lane. */
 export function isDmOnlyMessage(message: OutboundMessage): boolean {
   return message.card !== undefined && isDmOnlyCard(message.card);

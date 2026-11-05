@@ -53,7 +53,31 @@ export interface ChannelCapabilities {
   readonly systemNotices: boolean;
   /** Maximum group size including Trav, if the platform caps it. */
   readonly maxGroupSize?: number;
+  /**
+   * T-069: Trav receives every group message, not only the ones that mention
+   * it (an iMessage relay line is just another participant; there is no bot
+   * "privacy mode"). Mention filtering is then Trav's job, and the group must
+   * be told up front that Trav can read the thread (T-070).
+   */
+  readonly seesAllGroupMessages: boolean;
+  /** T-069: can show "Trav is typing…" while a turn runs. */
+  readonly typingIndicator: boolean;
+  /** T-069: reports when members have read Trav's messages. */
+  readonly readReceipts: boolean;
+  /** T-069: can rename the group thread (MMS groups cannot). */
+  readonly canRenameGroup: boolean;
+  /**
+   * T-069: what the group thread actually travels over. One Android member
+   * drops an iMessage group to RCS or MMS, which loses reactions, renames and
+   * member changes (research/connectors.md "Blue vs green bubbles"). Code
+   * decides what to render from the individual flags above, never from this
+   * field or `kind`; this is for notices (T-072) and logs.
+   */
+  readonly groupTransport: GroupTransport;
 }
+
+/** T-069: the transport a group thread travels over. */
+export type GroupTransport = 'imessage' | 'rcs' | 'mms';
 
 export interface Attachment {
   readonly kind: 'image' | 'video' | 'file' | 'audio';
@@ -95,6 +119,12 @@ export interface InboundMessage extends InboundBase {
    * A forwarded "yes" is someone else's old words, never an approval (T-182).
    */
   readonly forwarded?: boolean;
+  /**
+   * T-071: set when `withInboundDebounce` merged a burst from one sender into
+   * this one message: every original id, oldest first (`messageId` is the
+   * first). A later redelivery of any of them is dropped by the debouncer.
+   */
+  readonly mergedMessageIds?: readonly MessageId[];
 }
 
 export interface InboundReaction extends InboundBase {
@@ -136,6 +166,17 @@ export interface SentMessage {
   readonly sentAt: IsoDateTime;
   /** True if the card was downgraded to `text`. */
   readonly degraded: boolean;
+  /**
+   * T-071: the pacing guard held the message back (line cap or send/receive
+   * ratio); it goes out under this same id once capacity returns. Nothing
+   * that asks for an answer or carries a safety note is ever dropped.
+   */
+  readonly queued?: true;
+  /**
+   * T-071: the reply carried no information ("got it", "done") and went out
+   * as a 👍 tapback on the message it answered instead of as a text.
+   */
+  readonly asReaction?: true;
 }
 
 export interface ChannelAdapter {
