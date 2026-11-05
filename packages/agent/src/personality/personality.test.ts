@@ -509,8 +509,30 @@ describe('T-017 r2: privateDataSubject only fires on questions about private dat
     "sam's card?",
     '@trav can you check sam\'s card charges from last night',
     "@trav how much is on sam's card",
+    // T-017 r2 final review: amounts, booking words and non-question asks don't unlock it.
+    "@trav how much did dean pay on his card, over €50?",
+    "@trav did dean's card get charged €50 each for anything else?",
+    "@trav what did dean's card get charged besides the tickets?",
+    "@trav show me dean's card charges for flights",
+    "@trav what else is on dean's statement apart from the hotel booking?",
+    "@trav dean's card transactions pls",
+    "@trav dean's bank statement",
+    "@trav i'm curious about dean's card charges",
   ])('still refused: %s', (text) => {
     expect(privateDataSubject(text, BCN.members, jordan)).toBeDefined();
+  });
+
+  it('a tab-item exclusion question is still refused', () => {
+    const q = "@trav what did dean's card get charged except dinner?";
+    expect(privateDataSubject(q, BCN.members, jordan, ['dinner'])?.memberId).toBe('mem_dean');
+  });
+
+  it("Lisbon: a budget question with an amount is still Dad's", () => {
+    const LIS = fixture<GroupFixture>('groups/lisbon.json');
+    const dean = LIS.members.find((m) => m.displayName === 'Dean')!;
+    expect(
+      privateDataSubject("@trav what's dad's budget, like €80 each?", LIS.members, dean)?.displayName,
+    ).toBe('Dad');
   });
 
   it('Lisbon: "what\'s dad\'s daily budget" is still Dad\'s (VOICE §4.12 D, private_budget_lisbon)', () => {
@@ -542,7 +564,17 @@ describe('T-017 r2: family-mode spend questions are not nightlife asks', () => {
     expect(tci(text)).toBeUndefined();
   });
 
-  it.each(['@trav how much does the club cost?', '@trav any bars open tonight?'])(
+  it.each([
+    '@trav how much does the club cost?',
+    '@trav any bars open tonight?',
+    // T-017 r2 final review: money words next to a real nightlife ask (hard constraint, CLAUDE.md §2).
+    '@trav we spent all day at the beach, any good bars tonight?',
+    '@trav find a bar where we can open a tab tonight',
+    '@trav any clubs where we can run a tab?',
+    '@trav we owe ourselves a night out, any clubs?',
+    '@trav how much have we spent? also any bars tonight with lily?',
+    '@trav what do we owe? and book a club for tonight',
+  ])(
     'still intercepted: %s',
     (text) => {
       expect(tci(text)).toBeDefined();
@@ -585,5 +617,9 @@ describe('T-017 r2: roast details', () => {
     expect(textOf(ask('@trav roast everyone', ctx))).toBe(
       "€65.50 on the tab across 2 things so far. nobody's slowing down",
     );
+    // The member line's "biggest" also ignores the $999 charge.
+    const mine = textOf(ask('@trav roast dean', ctx));
+    expect(mine).not.toContain('$');
+    expect(mine).not.toContain('999');
   });
 });

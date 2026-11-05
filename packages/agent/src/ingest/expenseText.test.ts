@@ -734,4 +734,28 @@ describe("T-017 r2: \"on X's card\" names the payer, not who's in", () => {
     const [e] = ready("@trav i paid €84 for dinner on Alex's card, split with everyone", BCN('mem_sam'));
     expect(e!.payer).toBe('mem_sam');
   });
+
+  // T-017 r2 final review: a card that didn't pay says nothing about the payer.
+  it.each([
+    "@trav i paid €84 for dinner, not on Dean's card, split with everyone",
+    "@trav tried it on Dean's card but it got declined, so i paid €84 for dinner, split with everyone",
+    "@trav €84 dinner split with everyone, should've put it on Dean's card but i paid",
+  ])('negated or failed card keeps the sender as payer: %s', (text) => {
+    const [e] = ready(text, BCN('mem_sam'));
+    expect(e!.payer).toBe('mem_sam');
+  });
+
+  it('a stated payer who is not the card owner, or several expenses, is not guessed', () => {
+    const ctx = BCN('mem_sam');
+    expect(
+      parseExpenseText("@trav Jordan paid €84 for dinner on Dean's card, split with everyone", ctx)
+        .kind,
+    ).toBe('unsure');
+    expect(
+      parseExpenseText(
+        "@trav €84 dinner on dean's card and €20 taxi i paid, split with everyone",
+        ctx,
+      ).kind,
+    ).toBe('unsure');
+  });
 });

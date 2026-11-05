@@ -51,6 +51,18 @@ const PAYER_OR_SPLIT =
 const BOOKING =
   /\b(?:tickets?|booking|bookings|booked|reservations?|flights?|deposit|lodging|airbnb|hotel booking)\b/u;
 
+/** A payment put on a card: "it went on Dean's card", "put it on jordan's card". */
+const PAID_ON_CARD =
+  /\b(?:paid|put(?: it)?|went|goes|go|charged(?: it)?|was charged)\s+(?:\p{L}+\s+){0,3}?on\s+\p{L}[\p{L}-]*'s\s+(?:credit\s+|debit\s+)?card\b/u;
+
+/** "did sam's card go through for the tickets": whether a booking charge worked. */
+const WENT_THROUGH =
+  /^(?:what\s+)?(?:did|has|have)\s+\p{L}[\p{L}-]*'s\s+(?:credit\s+|debit\s+)?card\s+(?:go|gone|get|got)\s+(?:through|charged|declined|approved)\s+for\s+(?:the|our|my|his|her|their)\s+[^,;.?!]{1,40}\??$/u;
+
+/** "besides the tickets", "anything else": asks about the rest of the private data. */
+const EXCLUSION =
+  /\b(?:besides|except|apart from|other than|aside from|else|anything|everything|all|outside of)\b/u;
+
 /** "...for the late-night kebabs": the message names something already on the tab. */
 function mentionsTabItem(t: string, tabItems: readonly string[]): boolean {
   return tabItems.some((d) => {
@@ -79,9 +91,23 @@ export function privateDataSubject(
 ): Member | undefined {
   const t = commandText(text);
   const question = text.includes('?') || REVEAL_CLAUSE.test(t);
-  if (!question) return undefined;
-  if (AMOUNT.test(t) && PAYER_OR_SPLIT.test(t)) return undefined;
-  if (BOOKING.test(t) || mentionsTabItem(t, tabItems)) return undefined;
+  // Fails closed: any mention of another member's private data is refused
+  // unless it is plainly an expense statement or the one booking question.
+  // A statement ("i paid €84 for dinner on Jordan's card, split with
+  // everyone") carries an amount plus a payer or split instruction, or puts a
+  // payment on the card; it is never a question.
+  if (!question && (AMOUNT.test(t) || PAID_ON_CARD.test(t)) && PAYER_OR_SPLIT.test(t)) {
+    return undefined;
+  }
+  // "did sam's card go through for the tickets?": only that shape, about a
+  // booking or a tab item, and never "besides / except / what else".
+  if (
+    WENT_THROUGH.test(t) &&
+    !EXCLUSION.test(t) &&
+    (BOOKING.test(t) || mentionsTabItem(t, tabItems))
+  ) {
+    return undefined;
+  }
   for (const m of members) {
     if (m.memberId === me.memberId) continue;
     const name = escapeRe(m.displayName.toLowerCase());
@@ -113,8 +139,19 @@ const ASK_WORDS =
  * never a nightlife suggestion. "how much does the club cost" is a plan ask
  * and is still intercepted.
  */
-const SPEND_OR_TAB =
-  /\b(?:spent|owe|owes|owed|tab)\b|\bhow much (?:did|have|has|had)\b.*\b(?:spend|pay|paid|put|drop|dropped|blow|blew)\b/u;
+const SPEND_QUESTION =
+  /^(?:how much (?:did|have|has|had|do|does) (?:we|i|you|they|\p{L}+) (?:spend|spent|pay|paid|put|drop|dropped|blow|blew|owe)\b|what (?:do|did|does) (?:we|i|\p{L}+) owe\b|what'?s (?:on )?the tab\b)/u;
+
+/**
+ * Anything beyond the one ledger question: a plan or ask word, a second
+ * clause, or "tonight". Any of these and the intercept still runs.
+ */
+const BEYOND_SPEND =
+  /\b(?:any|find|book|get|suggest|recommend|recs?|ideas?|where|tonight|tomorrow|take|bring|go|going|hit|plan|options?|also|and|then|plus|open|run|start)\b|[,;:]|\?\s*\S/u;
+
+function isOnlySpendQuestion(t: string): boolean {
+  return SPEND_QUESTION.test(t) && !BEYOND_SPEND.test(t);
+}
 
 const ADULTS_PHRASE =
   /\b(?:just|only) (?:the )?(?:adults|grown[- ]?ups|parents)\b|\bfor the (?:adults|grown[- ]?ups|parents)\b|\badults?[- ]only\b|\bwe'?re both (?:18|21)\+?/u;
@@ -206,7 +243,8 @@ export function minorNightlifeRefusal(input: {
   if (!safety.isRestrictedContent(tags)) return undefined;
   if (!ASK_WORDS.test(`${t}${input.text.includes('?') ? '?' : ''}`)) return undefined;
   // "how much did we spend at the bar?" is about money already on the tab, not a plan.
-  if (SPEND_OR_TAB.test(t)) return undefined;
+  // Only when the whole message is that one question (fails closed otherwise).
+  if (isOnlySpendQuestion(t)) return undefined;
   if (explicitAdultAudience(input.text, members, me, now) !== undefined) return undefined;
 
   const active = members.filter((m) => m.active && m.role !== 'guest');

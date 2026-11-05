@@ -1232,14 +1232,32 @@ function itemized(scan: Scan, total: AmountTok): ExpenseDraft['lineItems'] | 'un
 const CARD_OWNER =
   /(?:\s*[,;]\s*|\s+)(?:(?:and\s+)?(?:it|that|this|all of it)\s+(?:went|goes|was|is|got charged|was charged)\s+|put\s+(?:it\s+)?)?on\s+([\p{L}][\p{L}-]{0,30})'s\s+(?:credit\s+|debit\s+)?card\b/iu;
 
+/** The card was not what paid: negated, failed, wished, or only tried. */
+const CARD_DOUBT =
+  /\b(?:not|never|didn'?t|did not|wasn'?t|isn'?t|couldn'?t|wouldn'?t|should'?ve|should have|could'?ve|would'?ve|meant to|tried|try|declined|bounced|failed|rejected|instead of|rather than)\b/iu;
+
 export function parseExpenseText(text: string, ctx: ExpenseTextContext): ExpenseTextParse {
   const clean = cleanText(text);
   const card = CARD_OWNER.exec(clean);
   const owner = card === null ? undefined : memberByWord(card[1]!, ctx.members);
   if (card === null || owner === undefined) return parseExpenseTextInner(text, ctx);
+  // "not on Dean's card", "tried it on Dean's card but it got declined",
+  // "should've put it on Dean's card": the card did not pay, so it says
+  // nothing about the payer. Parse the message without the phrase.
   const rest = `${clean.slice(0, card.index)}${clean.slice(card.index + card[0].length)}`;
+  if (CARD_DOUBT.test(clean)) return parseExpenseTextInner(rest, ctx);
   const parsed = parseExpenseTextInner(rest, ctx);
   if (parsed.kind !== 'drafts') return parsed;
+  // Several expenses, or a stated payer who isn't the card owner ("Jordan paid
+  // €84 on Dean's card"): ambiguous, so ask instead of guessing.
+  if (parsed.drafts.length > 1) return { kind: 'unsure', reason: 'card_owner_multi' };
+  const stated = parsed.drafts[0]!.payer;
+  if (
+    stated.kind === 'unknown' ||
+    (stated.memberId !== owner && stated.memberId !== ctx.senderMemberId)
+  ) {
+    return { kind: 'unsure', reason: 'card_owner_vs_payer' };
+  }
   return {
     kind: 'drafts',
     drafts: parsed.drafts.map((d) => ({ ...d, payer: { kind: 'member', memberId: owner } })),

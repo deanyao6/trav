@@ -386,7 +386,10 @@ function memberLine(
   trip: Trip,
 ): Line | undefined {
   const name = member.displayName;
-  const mine = ctx.expenses.filter((e) => soloPayer(e, member.memberId));
+  // Trip currency only: a $90 charge must not outrank €80 by raw minor units.
+  const mine = ctx.expenses.filter(
+    (e) => soloPayer(e, member.memberId) && e.amount.currency === trip.currency,
+  );
   const rides = ctx.expenses.filter((e) => e.category === 'transport');
   const ridesLine = (): Line | undefined => {
     const myRides = rides.filter((e) => soloPayer(e, member.memberId));
