@@ -94,11 +94,14 @@ import {
   importEligibility,
   sharePlan,
 } from './pending.js';
+import { nextCardImportSlot } from './cardSchedule.js';
 
 /** A broken cursor can never page forever. */
 export const MAX_SYNC_PAGES = 50;
 /** Three or more prompts from one import go out as one digest (VOICE §2, §4.5 B). */
 export const DIGEST_MIN = 3;
+/** Held items released at a digest slot go out as one DM from two up (VOICE §2 batching, T-067). */
+export const HELD_DIGEST_MIN = 2;
 /** A charge within this many hours of a logged expense with the same payer and amount is that expense. */
 const DUPLICATE_WINDOW_H = 48;
 
@@ -191,7 +194,7 @@ export function postedUpdatedText(merchant: string, posted: Money, was: Money): 
 
 /** VOICE: the same, when the tab can't simply follow (another currency, a split Trav won't guess). */
 export function postedAskText(merchant: string, posted: Money, was: Money): string {
-  return `your ${merchant} charge posted at ${formatMoney(posted)}, the tab still says ${formatMoney(was)}. 👎 the card from when you shared it to take it off, then log the right amount`;
+  return `your ${merchant} charge posted at ${formatMoney(posted)}, the tab still says ${formatMoney(was)}. 👎 my "logged:" message from when you shared it takes it off, then log the right amount`;
 }
 
 /** Plaid personal-finance category → ledger category. */
@@ -548,7 +551,12 @@ export async function importCardTransactions(
       amount: tx.amount,
       direction: tx.direction,
       pending: tx.pending,
-      merchantRaw: tx.rawName,
+      // SAFETY §2.9 G4: once the item was answered (shared, kept private, expired) or the
+      // descriptor was purged, a re-sync or a posted row never brings the raw text back.
+      merchantRaw:
+        (item !== undefined && item.status !== 'pending') || existing?.merchantRaw === ''
+          ? ''
+          : tx.rawName,
       merchantDisplay: displayName(tx, matches.length > 0),
       category,
       ...(tx.location !== undefined
@@ -728,7 +736,14 @@ export async function importCardTransactions(
   );
   const held: string[] = [];
   const drafts: OutboundMessage[] = [...postedDrafts];
-  if (input.delivery === 'next_digest' && toPrompt.length + heldBefore.length >= 2) {
+  // After the trip's last slot there is no digest to wait for: deliver now (T-067 r1 #5).
+  const hasNextSlot = nextCardImportSlot(trip, now) !== undefined;
+  const releasing = heldBefore.length > 0;
+  if (
+    input.delivery === 'next_digest' &&
+    hasNextSlot &&
+    toPrompt.length + heldBefore.length >= 2
+  ) {
     for (const it of toPrompt) {
       // The old card (an amount change) stops working: the item has no card until the digest.
       const { cardMessageId: _old, ...rest } = it;
@@ -761,7 +776,10 @@ export async function importCardTransactions(
         ...(plan.label !== undefined ? { splitWithLabel: plan.label } : {}),
       };
     };
-    const batches = toPrompt.length >= DIGEST_MIN ? [toPrompt] : toPrompt.map((i) => [i]);
+    // A digest slot releasing held items sends them as one DM from two items up
+    // (VOICE §2, like EMAIL_DIGEST_MIN); otherwise the digest starts at three (D-029).
+    const digestMin = releasing ? HELD_DIGEST_MIN : DIGEST_MIN;
+    const batches = toPrompt.length >= digestMin ? [toPrompt] : toPrompt.map((i) => [i]);
     for (const batch of batches) {
       const msg = renderLooksShared(
         { ownerMemberId: owner.memberId, items: batch.map(entry) },

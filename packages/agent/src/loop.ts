@@ -120,6 +120,7 @@ import {
 import { answerShare, matchShareAnswer, whichCharge, type ShareMatch } from './ingest/pending.js';
 import { LEFT_LOOKBACK_MIN } from './ingest/riders.js';
 import {
+  importOffText,
   intakeDocument as screenDocument,
   type DocumentIntake,
   type DocumentIntakeOutcome,
@@ -273,6 +274,12 @@ export interface CardImportRequest extends Omit<CardImportInput, 'adapter'> {
    * too), unless `cursor` is given.
    */
   readonly adapter?: TransactionsAdapter;
+  /**
+   * T-090: the owner asked for this sync (the simulator's DM-rail card). With
+   * `cardImport` off, one DM line says how to turn it on; nothing is read.
+   * Scheduled imports never set it (no unsolicited DMs).
+   */
+  readonly consentHint?: boolean;
 }
 
 export interface CardImportResult extends TurnResult, CardImportOutcome {}
@@ -2995,13 +3002,15 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
   }
 
   /**
-   * T-067: the saved Plaid cursor per (group, owner) for the runtime's own
-   * provider. In memory: a restart re-syncs from the start, which the import
-   * absorbs (rows upsert by provider id, items are found again, nothing is
-   * re-asked).
+   * T-067: the saved Plaid cursor per (group, owner, trip) for the runtime's
+   * own provider, so a sync for one trip never skips rows another trip's sync
+   * consumed (r1 #6). In memory: a restart re-syncs from the start, which the
+   * import absorbs (rows upsert by provider id, items are found again, nothing
+   * is re-asked, purged descriptors stay purged).
    */
   const cardCursors = new Map<string, string>();
-  const cursorKey = (groupId: GroupId, memberId: MemberId): string => `${groupId}|${memberId}`;
+  const cursorKey = (groupId: GroupId, memberId: MemberId, trip: Trip | null): string =>
+    `${groupId}|${memberId}|${trip?.tripId ?? '-'}`;
 
   /**
    * T-067: queue each consenting owner's next `card_import` slot (idempotent
@@ -3048,7 +3057,7 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     if (adapter === undefined) {
       throw new TravError('not_implemented', 'card import: no transactions provider configured');
     }
-    const key = cursorKey(group.groupId, owner.memberId);
+    const key = cursorKey(group.groupId, owner.memberId, trip);
     const cursor = input.cursor ?? (own ? cardCursors.get(key) : undefined);
     const before = snapshotAudit(group.groupId);
     const outcome = await importCards(
@@ -3056,6 +3065,19 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       { stores, clock, ids, model, group, members, trip },
     );
     if (own && outcome.nextCursor !== undefined) cardCursors.set(key, outcome.nextCursor);
+    // T-090: an owner-initiated sync with import off gets one DM line on how to
+    // turn it on (the provider was never called; scheduled jobs never ask for this).
+    const drafts =
+      input.consentHint === true && outcome.status === 'consent_off'
+        ? [
+            {
+              id: ids.next('msg'),
+              groupId: group.groupId,
+              to: { kind: 'member' as const, memberId: owner.memberId },
+              text: importOffText('cardImport'),
+            },
+          ]
+        : outcome.drafts;
     const r: Resolved = {
       group,
       members,
@@ -3065,9 +3087,10 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       lane: 'dm',
       now,
     };
-    const sent = await send(r, outcome.drafts);
+    const sent = await send(r, drafts);
     return {
       ...outcome,
+      drafts,
       outbound: sent,
       toolCalls: [],
       auditEventIds: auditIdsSince(group.groupId, before),

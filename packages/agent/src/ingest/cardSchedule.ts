@@ -89,8 +89,9 @@ export function cardImportOwners(stores: Stores, groupId: string, now: IsoDateTi
 }
 
 /**
- * The next import job for every consenting owner of every planning or active
- * trip, for the ones not already queued (`queued` = job ids on the scheduler).
+ * The next import job for every consenting owner of each group's current
+ * (planning or active) trip, for the ones not already queued (`queued` = job
+ * ids on the scheduler).
  */
 export function cardImportJobsFor(
   stores: Stores,
@@ -99,17 +100,14 @@ export function cardImportJobsFor(
 ): ScheduledJob[] {
   const out: ScheduledJob[] = [];
   for (const g of stores.group.groups.list()) {
-    const trips = stores.group.trips
-      .listByGroup(g.groupId)
-      .filter((t) => t.status === 'planning' || t.status === 'active');
-    if (trips.length === 0) continue;
-    const owners = cardImportOwners(stores, g.groupId, now);
-    for (const trip of trips) {
-      for (const owner of owners) {
-        if (queued.has(cardImportJobId(trip.tripId, owner))) continue;
-        const job = nextCardImportJob(trip, owner, now);
-        if (job !== undefined) out.push(job);
-      }
+    // One card, one sync position: only the group's current trip is synced
+    // (T-067 r1 #6), the same trip an on-demand import files rows under.
+    const trip = stores.group.trips.current(g.groupId, now);
+    if (trip === undefined) continue;
+    for (const owner of cardImportOwners(stores, g.groupId, now)) {
+      if (queued.has(cardImportJobId(trip.tripId, owner))) continue;
+      const job = nextCardImportJob(trip, owner, now);
+      if (job !== undefined) out.push(job);
     }
   }
   return out;

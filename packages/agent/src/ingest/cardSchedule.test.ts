@@ -36,6 +36,7 @@ import {
   nextCardImportSlot,
 } from './cardSchedule.js';
 import { postedAskText, postedUpdatedText } from './card.js';
+import { importOffText } from './intake.js';
 
 const G = BARCELONA.groupId;
 const T = BARCELONA.tripId;
@@ -321,6 +322,51 @@ describe('scheduled card import on the simulated clock (T-067)', () => {
     expect(samJob(h)?.runAt).toBe('2026-03-15T20:00:00+01:00');
   });
 
+  it('T-090: an owner-asked sync with import off sends one DM line on how to turn it on, provider untouched; a scheduled one never does', async () => {
+    const h = harness();
+    h.clock.set('2026-03-15T09:00:00+01:00');
+    const syncs = provider(h).syncCount();
+    const r = await h.runtime.agent.importCardTransactions({
+      groupId: G,
+      ownerMemberId: SAM,
+      consentHint: true,
+    });
+    expect(r.status).toBe('consent_off');
+    expect(provider(h).syncCount()).toBe(syncs);
+    expect(r.outbound).toHaveLength(1);
+    expect(msg(r.outbound[0])).toMatchObject({
+      to: { kind: 'member', memberId: SAM },
+      text: importOffText('cardImport'),
+    });
+    expect(
+      h.channel
+        .groupTranscript(BARCELONA.conversationId)
+        .some((e) => /import/.test(JSON.stringify(e))),
+    ).toBe(false);
+    // Without the flag (what the scheduled job passes): silence.
+    const quiet = await h.runtime.agent.importCardTransactions({ groupId: G, ownerMemberId: SAM });
+    expect(quiet.outbound).toEqual([]);
+  });
+
+  it("r1 #6: only the group's current trip gets card-import jobs (one card, one sync position)", async () => {
+    const h = harness();
+    const stores = h.runtime.stores;
+    const current = stores.group.trips.current(G, h.clock.now())!;
+    stores.group.trips.create({
+      ...current,
+      tripId: 'trip_bcn_later',
+      name: 'Barcelona again',
+      startDate: '2026-06-12',
+      endDate: '2026-06-15',
+      status: 'planning',
+    });
+    setConsent(h, SAM, true);
+    const jobs = cardImportJobsFor(stores, h.clock.now());
+    expect(jobs.map((j) => j.tripId)).toEqual([
+      stores.group.trips.current(G, h.clock.now())!.tripId,
+    ]);
+  });
+
   it('no provider (transactions: false): nothing is queued', async () => {
     const h = harness({ runtime: { transactions: false } });
     await optIn(h, 'h_sam', 'card');
@@ -358,15 +404,49 @@ describe('between digest slots (VOICE §2 batching)', () => {
 
     const turns = await at(h, '2026-03-15T10:00:00+01:00');
     const job = turns.find((t) => t.note === 'scheduled:card_import:imported')!;
-    // Two items, separate cards (a digest is for 3+, card.ts DIGEST_MIN), both sent at the slot.
-    expect(job.outbound).toHaveLength(2);
+    // The slot releases what was held as ONE digest DM (VOICE §2), even for two items.
+    expect(job.outbound).toHaveLength(1);
+    const digest = msg(job.outbound[0]);
+    expect(digest.to).toEqual({ kind: 'member', memberId: SAM });
+    expect(digest.text.split('\n')[0]).toBe(
+      '2 charges that look shared, 👍 each one you want on the tab:',
+    );
+    expect(safety.lintVoice(digest.text, 'dm').ok).toBe(true);
     const after = h.runtime.stores.private.listPendingItems(SAM, G, 'pending');
-    expect(after.every((i) => i.heldForDigest === undefined && i.cardMessageId !== undefined)).toBe(
+    expect(after).toHaveLength(2);
+    expect(after.every((i) => i.heldForDigest === undefined && i.cardMessageId === digest.id)).toBe(
       true,
     );
     const uber = after.find((i) => i.amount.amountMinor === 2340)!;
-    const tap = await h.tap('h_sam', uber.cardMessageId!, 'confirm');
+    const event = await h.channel.injectButtonTap({
+      from: 'h_sam',
+      cardMessageId: digest.id,
+      actionId: 'confirm',
+      value: uber.id,
+    });
+    const tap = await h.runtime.agent.handleInbound(event);
     expect(tap.note).toBe('looks_shared:shared');
+  });
+
+  it("after the trip's last digest slot there is nothing to wait for: two new charges go out now", async () => {
+    const h = harness();
+    setConsent(h, SAM, true);
+    h.clock.set('2026-03-18T21:00:00+01:00'); // past the last slot (Mar 18, 8pm)
+    const r = await h.runtime.agent.importCardTransactions({
+      groupId: G,
+      ownerMemberId: SAM,
+      delivery: 'next_digest',
+    });
+    expect(r.status).toBe('imported');
+    expect(r.prompted.length).toBeGreaterThanOrEqual(2);
+    expect(r.held).toEqual([]);
+    expect(r.outbound.length).toBeGreaterThan(0);
+    expect(
+      h.runtime.stores.private
+        .listPendingItems(SAM, G, 'pending')
+        .every((i) => i.heldForDigest === undefined && i.cardMessageId !== undefined),
+    ).toBe(true);
+    expect(samJob(h)).toBeUndefined(); // no slot left to queue
   });
 
   it('a single new charge between slots is not held', async () => {
@@ -422,8 +502,13 @@ async function sharePending(h: Harness, adapter: MockTransactionsAdapter) {
     .listByTrip(T)
     .find((e) => e.source === 'card_transaction')!;
   expect(expense.amount).toEqual(eur(1980));
-  return { first, expense };
+  const logged = msg(tap.outbound[0]);
+  expect(logged.text).toMatch(/^logged: /);
+  return { first, expense, logged };
 }
+
+const samRawNames = (h: Harness): string[] =>
+  h.runtime.stores.private.listCardTransactions(SAM, G).map((t) => t.merchantRaw);
 
 function postUber(adapter: MockTransactionsAdapter, amount: Money): void {
   const posted = allRows().find((t) => t.transactionId === 'txn_sam_uber_0315')!;
@@ -532,7 +617,7 @@ describe('a charge that posts after the owner shared it (T-067)', () => {
   it('posted in another currency: the tab is left alone and the owner is asked', async () => {
     const h = setup();
     const adapter = pendingOnlyAdapter(h);
-    const { first, expense } = await sharePending(h, adapter);
+    const { first, expense, logged } = await sharePending(h, adapter);
     postUber(adapter, { amountMinor: 2550, currency: 'USD' });
     const second = await h.runtime.agent.importCardTransactions({
       groupId: G,
@@ -546,7 +631,67 @@ describe('a charge that posts after the owner shared it (T-067)', () => {
     expect(second.outbound).toHaveLength(1);
     const text = msg(second.outbound[0]).text;
     expect(text).toBe(postedAskText('Uber', { amountMinor: 2550, currency: 'USD' }, eur(1980)));
+    expect(text).toContain('👎 my "logged:" message');
     expect(safety.lintVoice(text, 'dm').ok).toBe(true);
+    // r1 #4: the message the line points at is the one whose 👎 takes it off the tab.
+    await h.react('h_sam', logged.id, '👎');
+    expect(h.runtime.stores.group.expenses.get(expense.expenseId)!.status).toBe('undone');
+  });
+
+  it('r1 #2: the descriptor purged on share never comes back with the posted row', async () => {
+    const h = setup();
+    const adapter = pendingOnlyAdapter(h);
+    const { first } = await sharePending(h, adapter);
+    expect(samRawNames(h)).toEqual(['']); // purged on share (SAFETY §2.9 G4)
+    postUber(adapter, eur(2340));
+    await h.runtime.agent.importCardTransactions({
+      groupId: G,
+      ownerMemberId: SAM,
+      adapter,
+      cursor: first.nextCursor!,
+    });
+    expect(samRawNames(h)).toEqual(['']);
+    // And a restart's full re-sync (fresh provider, no cursor) of the shared charge.
+    const restarted = createMockTransactions({
+      clock: h.clock,
+      fixtures: [
+        {
+          ownerMemberId: SAM,
+          accounts: SAM_FX.accounts,
+          pages: [{ added: [UBER_PENDING], modified: [], removed: [] }],
+        },
+      ],
+    });
+    postUber(restarted, eur(2340));
+    await h.runtime.agent.importCardTransactions({
+      groupId: G,
+      ownerMemberId: SAM,
+      adapter: restarted,
+    });
+    expect(samRawNames(h)).toEqual(['']);
+  });
+
+  it('r1 #2: a restart re-sync from the start keeps answered rows purged (shared and kept private)', async () => {
+    const h = setup();
+    watersOnTab(h);
+    h.clock.set('2026-03-15T09:00:00+01:00');
+    const r = await h.runtime.agent.importCardTransactions({ groupId: G, ownerMemberId: SAM });
+    expect(r.prompted).toHaveLength(1);
+    await h.tap('h_sam', msg(r.outbound[0]).id, 'keep_private');
+    const uberRow = () =>
+      h.runtime.stores.private
+        .listCardTransactions(SAM, G)
+        .find((t) => t.providerTransactionId === 'txn_sam_uber_0315')!;
+    expect(uberRow().merchantRaw).toBe('');
+    // A restarted runtime has no cursor: a fresh provider, a full re-sync.
+    const again = await h.runtime.agent.importCardTransactions({
+      groupId: G,
+      ownerMemberId: SAM,
+      adapter: createMockTransactions({ clock: h.clock }),
+    });
+    expect(again.prompted).toEqual([]);
+    expect(again.outbound).toEqual([]);
+    expect(uberRow().merchantRaw).toBe('');
   });
 
   it('an expense the group already undid stays undone and nothing is said', async () => {

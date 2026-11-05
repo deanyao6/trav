@@ -690,18 +690,38 @@ describe('combined sentences through the loop (offline, no model)', () => {
     expect(JSON.stringify(changed)).not.toContain('mem_sam');
   });
 
-  it('T-153: a booking ask naming everyone never writes the minor in on the 18+ roster', async () => {
-    const h = harness();
+  it.each([
+    ['out', 'an earlier out'],
+    ['in', 'a stale in row'],
+  ] as const)(
+    'T-153: a booking ask naming everyone leaves the minor out (%s: %s)',
+    async (was, _why) => {
+      const h = harness();
+      const stores = h.runtime.stores;
+      const sam = stores.group.members.listByGroup(G).find((m) => m.memberId === 'mem_sam')!;
+      stores.group.members.upsert({ ...sam, birthDate: '2010-05-01', ageBand: 'under18' });
+      mark(stores, RAZZ, 'mem_sam', was);
+      await h.say(
+        'h_dean',
+        '@trav get razzmatazz tickets for me, henry, maya, jordan, priya and sam',
+      );
+      expect(statuses(stores, RAZZ)['mem_sam']).toBe('out');
+      expect(h.audit().some((e) => e.type === 'booking.completed')).toBe(false);
+    },
+  );
+
+  it('T-153: a roll call on an adult-only plan never asks the minor to answer', async () => {
+    // Monday: the 18+ club plan, nobody has answered yet.
+    const h = monday();
     const stores = h.runtime.stores;
     const sam = stores.group.members.listByGroup(G).find((m) => m.memberId === 'mem_sam')!;
     stores.group.members.upsert({ ...sam, birthDate: '2010-05-01', ageBand: 'under18' });
-    mark(stores, RAZZ, 'mem_sam', 'out');
-    await h.say(
-      'h_dean',
-      '@trav get razzmatazz tickets for me, henry, maya, jordan, priya and sam',
-    );
-    expect(statuses(stores, RAZZ)['mem_sam']).toBe('out');
-    expect(h.audit().some((e) => e.type === 'booking.completed')).toBe(false);
+    // Handler level: in a family group the outbound screen drops a line naming the club plan.
+    const r = turn(stores, "@trav who's in tonight?", MON_1702, 'mem_dean');
+    expect(r?.kind).toBe('roll_call');
+    const text = r !== undefined && 'text' in r ? r.text : '';
+    expect(text).toMatch(/haven't said: /);
+    expect(text).not.toMatch(/haven't said: .*Sam/);
   });
 
   it('unaddressed and outside any window: silence, nothing written', async () => {

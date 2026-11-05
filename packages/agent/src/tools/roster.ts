@@ -153,10 +153,12 @@ export const setAttendanceTool: ToolDefinition<
     const roster = rosterView(ctx, activity);
     if (write.refused === true) {
       const keptOff = keptOffFor(ctx.stores.group, activity, members, ctx.now);
-      const inCount = roster.in.filter((m) => !keptOff.has(m.memberId)).length;
+      const keptIn = roster.in.filter((m) => !keptOff.has(m.memberId));
+      const inCount = keptIn.length;
       return {
         kind: 'kept_off',
-        roster,
+        // The view and the line agree: nobody kept off is shown as in.
+        roster: { ...roster, in: keptIn },
         text: `${keptOffLine([memberId], members)}. that's ${String(inCount)} in`,
       };
     }

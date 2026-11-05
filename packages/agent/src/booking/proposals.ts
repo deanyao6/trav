@@ -1221,10 +1221,16 @@ function syncRoster(
   // the D9 check below still refuses the booking itself.
   const keptOff = keptOffFor(group, activity, group.members.listByGroup(ctx.groupId), now);
   const changed: { memberId: MemberId; status: 'in' | 'out' }[] = [];
-  const write = (memberId: MemberId, status: 'in' | 'out'): void => {
+  const write = (memberId: MemberId, wanted: 'in' | 'out'): void => {
     const was = current.get(memberId);
-    if (was === status || (status === 'out' && was === 'maybe')) return;
-    if (status === 'in' && keptOff.has(memberId)) return;
+    let status = wanted;
+    if (wanted === 'in' && keptOff.has(memberId)) {
+      // A stale in or maybe row is set to out, as `setAttendance` does.
+      if (was !== 'in' && was !== 'maybe') return;
+      status = 'out';
+    } else if (was === status || (status === 'out' && was === 'maybe')) {
+      return;
+    }
     group.trips.setAttendance({
       activityId: activity.activityId,
       memberId,

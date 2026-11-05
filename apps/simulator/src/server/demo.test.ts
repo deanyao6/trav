@@ -209,9 +209,11 @@ describe('demo states 4–6 on the real runtime, opened on demo state 1, in orde
   it('4 → 5 → 6: next morning and end of trip move the clock and drain; Wrapped posts at the end', async () => {
     const b = await toState3();
     await toMorningAfterRide(b, { waters: false });
-    // Sam never turned card import on: the sync reads nothing.
+    // Sam never turned card import on: the sync reads nothing (he gets the T-090 hint).
     const s4 = await post(b, '/api/intake', { docId: 'doc_bcn_sam_card_1' });
-    expect(bcn(s4).status).toBe('trav sent nothing for that card sync (cards:consent_off)');
+    expect(
+      messages(bcn(s4).dms['mem_sam']!).filter((m) => m.card?.type === 'expense_confirm'),
+    ).toEqual([]);
     const s5 = await post(b, '/api/clock', { step: 'morning', groupId: BARCELONA.groupId });
     expect(s5.now).toBe('2026-03-15T10:00:00+01:00');
     // T-015: the Razzmatazz booking is the only thing on the tab overnight (Sam's card was
@@ -286,11 +288,16 @@ describe('T-067: card sync on the simulated clock', () => {
     expect(bcn(s4).status).toBe('trav sent nothing for that card sync (cards:held_for_digest)');
     const s5 = await post(b, '/api/clock', { step: 'morning', groupId: BARCELONA.groupId });
     expect(s5.now).toBe('2026-03-15T10:00:00+01:00');
+    // One digest DM with both (VOICE §2), not two separate prompts.
     const prompts = pending(s5);
-    expect(prompts.map((m) => m.text.split('\n')[0]).sort()).toEqual([
-      'saw €23.40 from Uber at 2:14am, that the ride back from razzmatazz?',
-      'saw €28 from Razzmatazz at 1:28am',
-    ]);
+    expect(prompts).toHaveLength(1);
+    const digest = prompts[0]!;
+    expect(digest.text.split('\n')[0]).toBe(
+      '2 charges that look shared, 👍 each one you want on the tab:',
+    );
+    expect(digest.text).toContain('€23.40');
+    expect(digest.text).toContain('€28');
+    expect(digest.card?.type === 'expense_confirm' && digest.card.digestItems?.length).toBe(2);
     expectGroupClean(s5);
     expect(groupPayload(s5)).not.toContain('23.40');
     for (const m of BARCELONA.members.filter((x) => x.memberId !== 'mem_sam')) {
@@ -311,14 +318,21 @@ describe('T-067: card sync on the simulated clock', () => {
 });
 
 describe('T-090: the DM rail respects import consent', () => {
-  it("Sam's card before opt-in: nothing is read, nothing is said, nothing on the tab; it stays feedable and works after opt-in", async () => {
+  it("Sam's card before opt-in: one DM line on how to turn it on, no prompt, nothing on the tab; it stays feedable and works after opt-in", async () => {
     const b = await demoBackend();
     await toMorningAfterRide(b);
     const before = await post(b, '/api/intake', { docId: 'doc_bcn_sam_card_1' });
     const samDm = messages(bcn(before).dms['mem_sam']!);
     // T-067: the card sync is the real import; import off ⇒ the provider is never called.
-    expect(samDm.filter((m) => m.isTrav)).toEqual([]);
-    expect(bcn(before).status).toBe('trav sent nothing for that card sync (cards:consent_off)');
+    expect(samDm.filter((m) => m.card?.type === 'expense_confirm')).toEqual([]);
+    expect(samDm.filter((m) => m.isTrav).map((m) => m.text)).toEqual([
+      "card import's off, so i didn't look at that charge. say 'card import on' if you want me to",
+    ]);
+    // Owner-only: nobody else's DM tab has it.
+    for (const m of BARCELONA.members.filter((x) => x.memberId !== 'mem_sam')) {
+      expect(JSON.stringify(bcn(before).dms[m.memberId])).not.toContain("card import's off");
+    }
+    expect(groupPayload(before)).not.toContain("card import's off");
     expect(groupPayload(before)).not.toContain('23.40');
     expect(JSON.stringify(before)).not.toContain('23.40');
     expectGroupClean(before);

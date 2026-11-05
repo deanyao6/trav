@@ -184,7 +184,15 @@ export function handleRosterMessage(input: RosterTurnInput): RosterTurn | undefi
     return {
       kind: 'roll_call',
       activity,
-      text: renderRollCall(activity, roster, members, trip.timeZone, now),
+      // Never asks a member kept off an adult-only plan to answer (T-153).
+      text: renderRollCall(
+        activity,
+        roster,
+        members,
+        trip.timeZone,
+        now,
+        keptOffFor(group, activity, members, now),
+      ),
     };
   }
 

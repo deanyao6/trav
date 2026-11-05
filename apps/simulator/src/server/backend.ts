@@ -143,7 +143,8 @@ export function servicesOf(runtime: ServiceSource, clock: SimulatedClock): SimSe
       ? {
           // Between digest slots: one new charge is asked about now, two or more wait (VOICE §2).
           syncCard: (input: CardSyncInput) =>
-            agent.importCardTransactions!({ ...input, delivery: 'next_digest' }),
+            // consentHint: import off ⇒ one DM line on how to turn it on (T-090), nothing read.
+            agent.importCardTransactions!({ ...input, delivery: 'next_digest', consentHint: true }),
         }
       : {}),
   };
