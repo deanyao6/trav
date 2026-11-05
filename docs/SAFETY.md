@@ -31,6 +31,8 @@ All amounts in this document are integer minor units (`totalMinor: 2000` = €20
 | T11 | **Minors** | Club suggestions in the Turks and Caicos chat with a 14-year-old; the minor approves a booking; a 21+ ticket bought with the minor as payer | Legal and ethical exposure | §2.7 predicates applied to every outbound message and every proposal |
 | T12 | **Data lingers after the trip** | Receipt images, email bodies, card imports and transcripts kept forever; "forget this trip" leaves rows behind | Breach blast radius grows with every trip | §2.9 retention windows, deletion spec, row-count-zero test |
 | T13 | **Secrets and live calls** | API keys in fixtures or logs; a "mock" adapter that actually hits a network | Money or data leaves the sandbox | §2.10, CLAUDE.md §2 |
+| T15 | **Wrong payer from chat text** | "€84 dinner on Dean's card, split with everyone. not Henry" logs the sender as payer because an unrelated "not" switched off the card-owner rule; "Jordan paid on Dean's card" picks one of two payers | The ledger credits the wrong person; transfers move real money later | §2.5 payer attribution: stated or asked, never defaulted when the text names a different source |
+| T16 | **Stale age attestation** | A lead confirms "everyone's 18+", roast mode goes on, then a member of unknown age (possibly a minor) joins and roasts continue | Roast or nightlife content reaches an undeclared minor | §2.7 age attestation reset on roster change |
 | T14 | **Approval replay / stale consent** | A "yes" from 2 hours ago is applied to a new proposal; a confirm button pressed twice; a proposal approved after the attendee list changed | Spend the group no longer wants | §2.1 approval TTL, invalidation on change, one grant per proposal |
 
 Out of scope for v0 (document, don't build): face recognition for photo consent, real payment fraud, account takeover on the channel itself, provider-side chargebacks.
@@ -321,6 +323,8 @@ function promote(item: CardTransaction | EmailReceipt | ReceiptScan, confirmatio
 **Surfacing to the owner**
 
 - Pending private items are shown only on the owner's private channel: the simulator has a per-member private thread with Trav; the iMessage/WhatsApp adapters route to a 1:1 conversation. If an adapter has no private channel, Trav posts in the group **only** a count with no amounts or merchants ("Dean, 2 charges look shared, check your thread with me"), and the item cannot be confirmed from the group thread.
+- **Even a count is the owner's.** Whether a member has unconfirmed private items, and how many, is private: in a small group a count plus timing says who has an unshared charge. So (a) the group-lane prompt never carries other members' pending counts (the sender's own count only, if anything); (b) no group message (recap, Wrapped, settle-up, reply) mentions pending private items, in aggregate or per member, except the no-private-channel fallback above, addressed to that owner; (c) a group-lane question about another member's pending items ("what's pending for Sam") gets the §4.12 D refusal. (Added at the post-P0 checkpoint: T-099, T-112.)
+- **Rule-made refusals are a backstop, not the control.** `personality/refusals.ts` intercepts "what did Sam's card get charged" so the model never sees the question, but a miss must still be harmless: the structural guarantee is that the group-lane prompt and group-lane tools hold no other member's private data (C1, C2, C8).
 - Confirm cards are one tap: "Share with group" / "Just me" / "Edit". Dismissed items stay private and are purged per §2.9.
 
 **Memory**
@@ -362,6 +366,7 @@ Applies to: receipt OCR text, email subjects and bodies, provider inventory desc
 - **Acting on behalf of others.** A member may request a booking that charges other members (that is the product). Whether the other payers must confirm is decided by §2.1 (`approvalMode`). What a member may never do is *confirm* for another member.
 - **Impersonation predicate.** `isValidApproval(msg, decision) = msg.senderId ∈ decision.requiredApprovers && member(msg.senderId).role === 'member' && !isMinor && msg.ts <= decision.expiresAt && boundProposal(msg) === decision.proposalId`. Text content that names another member ("Dean said yes", "everyone's in") contributes nothing to this predicate. Trav may *ask* Dean directly, but never treats the claim as Dean's answer.
 - **Attendance vs payers.** When the request names a subset ("the 5 of us, Henry's sick"), `attendees` and `payers` are the named subset; a member marked out for that activity in `attendance` is excluded even if the count would otherwise match. If the model cannot resolve exactly who, it asks; it never guesses by count.
+- **Payer attribution from text.** A chat expense's payer is the member the text states ("Dean paid", "on Dean's card", "I paid"), or the sender when nothing else names one. When the text names a payer source and the parser cannot tell whether that source paid (negation, a failed card, two candidate payers, several expenses), it asks; it never falls back to the sender. A negation counts only if it applies to the payer phrase, not anywhere in the message ("not Henry" is about who is in, not about the card).
 - **Leaving.** A member who leaves becomes `active: false`: no future payer role, no approvals, their private store is handled per §2.9, their existing ledger lines remain (balances must still reconcile).
 
 ### 2.6 Consent flags
@@ -376,7 +381,9 @@ Per member, stored in `PrivateStore.consent`, every flag **default `false`**, ev
 | `emailImport` | Email receipts are ingested into their private store | same |
 | `memoryAcrossTrips` | Their `member_memory` persists after the trip ends | same |
 
-Group-level settings (`GroupSettings`, changed by adult members, audited via `policy.changed`): `roastMode` (default `false`), the spending policy (§2.1), `retentionDays` (§2.9).
+**Minors and consent (VOICE §8, D-026).** A minor may always turn a flag off and may never turn `roast`, `cardImport`, `emailImport` or `photos` on. The one exception to "owner only": the minor's `guardianMemberId` (an active adult in the same group) may turn the minor's `photos` on or off, audited with `via: 'guardian'`. A minor's photo is shown only while the minor's `photos` flag and the guardian's own `photos` flag are both `true`. Nobody else can change a minor's flags, and nothing can turn on a minor's `roast` or imports.
+
+Group-level settings (`GroupSettings`, changed by adult members, audited via `policy.changed` for the spending policy and `settings.changed` for the rest): `roastMode` (default `false`), `allAdultsConfirmed` (§2.7), the spending policy (§2.1), `retentionDays` (§2.9).
 
 **Photos.** `AlbumAdapter.listPhotos(groupId, { forRecap: true })` filters by `consent.photos === true` *at query time*; opting out hides a member's photos from every future recap and album view, including re-rendered old recaps. Any member can say "@trav remove that photo" on a photo card; it is hidden group-wide and audited. Documented limitation: v0 cannot detect who is *in* a photo; consent is the uploader's.
 
@@ -398,6 +405,15 @@ Rules (each a test):
 3. **Roasts.** `groupHasMinor` disables roast mode entirely, regardless of who the target is (§2.8).
 4. **Recaps.** Morning After and Wrapped for a group with a minor never include nightlife "awards" or alcohol-related spending categories as highlights; the spend still appears in the ledger as plain numbers.
 5. **Memory.** Nothing in `member_memory` for a minor other than preferences the minor or a parent stated in the group thread.
+
+**Age attestation (`allAdultsConfirmed`).** Unknown age counts as adult only after a lead's attestation, so the attestation is safety state, not a preference:
+
+- It is set only by a lead's own deterministic command ("we're all 18+") or their "yes" to Trav's "everyone 18+?" question, never inferred by the model from looser text, and it is refused while `groupHasMinor`.
+- It covers the roster it was given for. Any roster change that adds an active member whose age is unknown (a join, a guest promoted, a re-activated member) resets it to `false` (audited `settings.changed`, actor trav), and roast mode then stays blocked (`age_unconfirmed`) until a lead re-confirms.
+
+**Family-mode notice.** When a group enters family mode (seeded with a minor, a minor joins, `familyModeForced`), Trav posts one notice in the group as its own turn, through the outbound screen, audited as `settings.changed{setting:'familyMode'}` so it is never repeated, and audited "off" (silently) when family mode ends. The notice names only the minors and guardians, never ages or birth dates.
+
+**Rule-made intercepts.** A deterministic "nightlife with a minor" intercept (`minorNightlifeRefusal`) answers with family options before the model runs. Like §2.3's privacy intercept it is a backstop: the screen below is the control. Whatever decides that a request has an adult-only audience (`explicitAdultAudience`) must fail closed on any inclusive reference to a minor, by name or by referent ("our 14-year-old", "the little one", "our daughter"), and must be fixed to do so before its result is ever passed to the screen as `explicitAdultRequest` (T-113). Until then the agent never sets `explicitAdultRequest`, so the screen suppresses every restricted draft in a family group.
 
 The outbound gate `screenOutbound(draft, group)` runs on **every** Trav message (chat replies, recaps, roasts, proposal cards) before it is sent. It is the one place these predicates are enforced, so there is one place to test.
 
@@ -468,6 +484,7 @@ Apply to every change. "Must" items are blockers. Each item names the test or gr
 - [ ] **A7** Non-refundable items never auto-approve; flights and lodging require `each_payer`.
 - [ ] **A8** Price change / payer change / policy change / expiry after a decision invalidates the grant; execution is refused and `approval.invalidated` or `approval.expired` is written.
 - [ ] **A9** Payers equal the named subset ("the 5 of us, Henry's sick" → exactly 5, Henry absent). Ledger split sums to the cent among those 5 only.
+- [ ] **A10** Chat-expense payer attribution (§2.5): a message naming a payer source ("on Dean's card") yields that payer or a question, never the sender by default; negation applies only when it modifies the payer phrase. Table test with distractor negations elsewhere in the message ("not Henry", "he didn't eat", "we tried the paella").
 
 ### B. Audit (must)
 
@@ -485,6 +502,8 @@ Apply to every change. "Must" items are blockers. Each item names the test or gr
 - [ ] **C5** Pending private items and confirm cards are delivered only on the owner's private channel; the group thread shows at most a count.
 - [ ] **C6** The "looks shared" classifier call has `tools: []` and its raw output is not stored in `GroupStore`.
 - [ ] **C7** `member_memory` facts appear in the group chat only if their source message was in the group thread.
+- [ ] **C8** No group-lane prompt or group message carries another member's pending private-item count; "what's pending for Sam" from Jordan in the group is refused (§2.3 "Even a count is the owner's"). Grep `privatePendingCounts` and `countPendingByOwner` in group-lane renderers.
+- [ ] **C9** Rule-made refusals fail toward refusing: any message that names another member's card, bank, email, statement, budget or pending items and asks for or about it is refused, even when it also logs an expense. Table-tested, including mixed messages ("i paid €5, split with everyone. and sam's card charges").
 
 ### D. Untrusted content (must)
 
@@ -501,6 +520,7 @@ Apply to every change. "Must" items are blockers. Each item names the test or gr
 - [ ] **E3** "Dean said it's fine" from Henry's `senderId` does not satisfy `requiredApprovers`; writes `approval.invalid_attempt{claimed_for_other}`.
 - [ ] **E4** A bare "yes" from a non-requester with multiple pending proposals yields a disambiguation question, not an approval.
 - [ ] **E5** A minor's confirmation is ignored with `approval.invalid_attempt{minor}`.
+- [ ] **E6** Seed and fixture loaders fail closed on identity: every seeded member gets the channel's handle for that conversation, a member with no handle is an error (never a fallback to a fixture `senderId` that another chat also uses), and no two active members across the store share a `senderId` unless they are the same person by design.
 
 ### F. Minors and roasts (must)
 
@@ -510,10 +530,13 @@ Apply to every change. "Must" items are blockers. Each item names the test or gr
 - [ ] **F4** `roastAllowed` false when: mode off, any minor, target opted out, target is guest/inactive/left, trip long over.
 - [ ] **F5** Roast blocklist fixtures (body, romance, outsider, trait, health including "Henry's sick", intoxication, hardship, legal, minor) are all suppressed by Gate 2 with `roast.suppressed{topic_blocked|classifier_blocked}`; allowlist fixtures (Uber spend, late to airport) pass.
 - [ ] **F6** "stop roasting" / "stop roasting me" take effect on the very next message.
+- [ ] **F7** `allAdultsConfirmed` is set only by a lead's deterministic command or "yes", never by a model tool call alone, and resets when a member of unknown age joins (§2.7); roast mode is then `age_unconfirmed`.
+- [ ] **F8** `explicitAdultAudience` returns undefined for every inclusive minor referent (name, "our 14 year old", "the kids", "the little one", "our daughter/son"); table test. Required before anything sets `explicitAdultRequest` on the screen.
+- [ ] **F9** Minor consent (§2.6): a minor can turn flags off only; only the minor's guardian can turn the minor's `photos` on; nothing turns a minor's `roast` or imports on.
 
 ### G. Consent and retention (must for G1–G3, should for the rest)
 
-- [ ] **G1** All consent flags default `false`; only the owner's `senderId` can change them; each change audited.
+- [ ] **G1** All consent flags default `false`; only the owner's `senderId` can change them (the §2.6 guardian exception for a minor's photos aside); each change audited. **Every** ingestion entry point (`importCardTransactions`, `importEmailReceipts`, and `intakeDocument` or any later intake path) checks the flag before reading or storing anything; a test per entry point and per source.
 - [ ] **G2** `AlbumAdapter` never returns a photo from a member with `photos !== true` at query time; opt-out hides photos from re-rendered recaps.
 - [ ] **G3** "forget this trip" row-count-zero test passes across every table (except redacted audit); "forget me" deletes the private partition and pseudonymizes ledger lines; balances still reconcile.
 - [ ] **G4** Raw inputs are purged on promotion/dismissal and by the 30-day job.
