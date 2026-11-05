@@ -21,6 +21,15 @@ Promoted from `## Proposed` after the post-P0 eval and QA runs. The full task li
 5. **T-077, T-078, T-079, T-080, T-086** eval-harness honesty (grade per-line expectations, replay ingestion lines, per-trip inventory, stale `pending`). Expect scores to drop.
 P1 next: T-093, T-094, T-095, T-084, T-085, T-082, T-099, T-074, T-075, T-037, then the rest of P1. T-083: the Orchestrator approves adding the 👍 step to the scenario (SAFETY D5 wins).
 
+### P0 — from T-077 line grading (Orchestrator, 2026-11-04 session 13)
+
+Vetted T-132..T-147: all are Trav product features, none touch the environment. Promoted:
+1. **T-138** a blocked roast line drops the whole Morning After.
+2. **T-142** Wrapped scheduled for every planning/active trip, not only the seeded demo.
+3. **T-112 + T-099** (P1 → next) pending private-item counts out of the group prompt and the group recap (SAFETY §2.3).
+Then P1 in this order: T-082, T-135, T-067, T-094, T-095, T-133, T-137, T-141, T-143, T-132, T-134, T-084, T-083, T-145, T-147, T-146, T-074, T-075, T-037.
+Decisions (D-029): **T-139** a guest gets one "i only work for people in this chat" line, then silence; the chat fixture is aligned to that (no amplification to non-members). **T-144** the digest rule stays at 3+ rows; below that each row gets its own card, and the fixture is aligned so the tap targets the card that carries the row.
+
 ### P0 — v0 demo (dependency order)
 
 **Parallel groups (architect, 2026-10-22).** Tasks may run concurrently when they touch disjoint *directories*; the `index.ts` files already export every module directory, so a task that stays inside its directory never edits a shared file. Skeleton signatures are in place (`docs/ARCHITECTURE.md`); builders replace `notImplemented(...)` bodies and may add exports inside their own directory.
