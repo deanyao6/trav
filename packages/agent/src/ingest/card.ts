@@ -130,6 +130,8 @@ export interface CardImportInput {
    *    two or more are held (`heldForDigest`) for the owner's next slot.
    */
   readonly delivery?: 'now' | 'next_digest';
+  /** The scheduled import at a digest slot: two or more items go out as one digest (VOICE §2). */
+  readonly atSlot?: boolean;
 }
 
 export type CardImportStatus =
@@ -542,7 +544,8 @@ export async function importCardTransactions(
       id: existing?.id ?? ids.next('priv'),
       ownerMemberId: owner.memberId,
       groupId: group.groupId,
-      tripId: trip.tripId,
+      // A re-read row keeps its trip, so "forget this trip" deletes the right rows (SAFETY §2.9).
+      tripId: existing?.tripId ?? trip.tripId,
       createdAt: existing?.createdAt ?? now,
       providerTransactionId: tx.transactionId,
       accountId: tx.accountId,
@@ -738,12 +741,12 @@ export async function importCardTransactions(
   const drafts: OutboundMessage[] = [...postedDrafts];
   // After the trip's last slot there is no digest to wait for: deliver now (T-067 r1 #5).
   const hasNextSlot = nextCardImportSlot(trip, now) !== undefined;
-  const releasing = heldBefore.length > 0;
-  if (
-    input.delivery === 'next_digest' &&
-    hasNextSlot &&
-    toPrompt.length + heldBefore.length >= 2
-  ) {
+  // A slot delivery, or items that were held (even if their amount changed since): one digest from two.
+  const releasing =
+    input.atSlot === true ||
+    heldBefore.length > 0 ||
+    toPrompt.some((i) => i.heldForDigest === true);
+  if (input.delivery === 'next_digest' && hasNextSlot && toPrompt.length + heldBefore.length >= 2) {
     for (const it of toPrompt) {
       // The old card (an amount change) stops working: the item has no card until the digest.
       const { cardMessageId: _old, ...rest } = it;

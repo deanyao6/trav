@@ -42,7 +42,6 @@ export const LINE_PENDING: Readonly<Record<string, LinePending>> = Object.fromEn
     'msg_bcn_0036',
     'msg_bcn_0037',
   ]),
-  ...gap('T-133', '"anything cheaper" does not re-search the pending event', ['msg_bcn_0042']),
   ...gap('T-143', 'a sold-out slot or an unnamed venue gets no alternatives or question', [
     'msg_bcn_0052',
     'msg_bcn_0056',

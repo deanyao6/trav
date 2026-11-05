@@ -367,6 +367,44 @@ describe('scheduled card import on the simulated clock (T-067)', () => {
     ]);
   });
 
+  it('r2 #2, #3: a job queued for an earlier trip ends once another trip is current; re-read rows keep their trip', async () => {
+    const h = harness();
+    henryOut(h);
+    setConsent(h, SAM, true);
+    h.clock.set('2026-03-15T09:00:00+01:00');
+    await h.runtime.agent.importCardTransactions({ groupId: G, ownerMemberId: SAM });
+    expect(samJob(h)?.tripId).toBe(T);
+    const stores = h.runtime.stores;
+    const bcn = stores.group.trips.get(T)!;
+    stores.group.trips.create({
+      ...bcn,
+      tripId: 'trip_other',
+      name: 'Valencia',
+      startDate: '2026-03-18',
+      endDate: '2026-03-20',
+      status: 'active',
+    });
+    h.clock.set('2026-03-18T09:00:00+01:00');
+    expect(stores.group.trips.current(G, h.clock.now())?.tripId).toBe('trip_other');
+    const before = new Map(
+      stores.private.listCardTransactions(SAM, G).map((t) => [t.providerTransactionId, t.tripId]),
+    );
+    await h.runtime.agent.importCardTransactions({ groupId: G, ownerMemberId: SAM });
+    for (const t of stores.private.listCardTransactions(SAM, G)) {
+      const was = before.get(t.providerTransactionId);
+      if (was !== undefined) expect(t.tripId).toBe(was);
+    }
+    const turns = await at(h, '2026-03-18T10:00:00+01:00');
+    const notes = turns.map((t) => t.note);
+    expect(notes.filter((n) => n === 'scheduled:card_import:imported').length).toBeLessThanOrEqual(
+      1,
+    );
+    const bcnJobs = h.runtime.scheduler
+      .list()
+      .filter((j) => j.kind === 'card_import' && j.tripId === T);
+    expect(bcnJobs).toEqual([]);
+  });
+
   it('no provider (transactions: false): nothing is queued', async () => {
     const h = harness({ runtime: { transactions: false } });
     await optIn(h, 'h_sam', 'card');
@@ -426,6 +464,48 @@ describe('between digest slots (VOICE §2 batching)', () => {
     });
     const tap = await h.runtime.agent.handleInbound(event);
     expect(tap.note).toBe('looks_shared:shared');
+  });
+
+  // T-067 r2 #1: one digest at the slot whether or not the owner synced between slots.
+  it('r2 #1: with no sync in between, the slot still sends two new charges as one digest', async () => {
+    const h = harness();
+    henryOut(h);
+    setConsent(h, SAM, true);
+    h.clock.set('2026-03-14T21:00:00+01:00');
+    await h.runtime.agent.importCardTransactions({
+      groupId: G,
+      ownerMemberId: SAM,
+      delivery: 'next_digest',
+    });
+    const turns = await at(h, '2026-03-15T10:00:00+01:00');
+    const job = turns.find((t) => t.note === 'scheduled:card_import:imported')!;
+    expect(job.outbound).toHaveLength(1);
+    expect(msg(job.outbound[0]).text.split('\n')[0]).toBe(
+      '2 charges that look shared, 👍 each one you want on the tab:',
+    );
+  });
+
+  it('r2 #1: held charges whose amount changed before the slot still go out as one digest', async () => {
+    const h = harness();
+    henryOut(h);
+    setConsent(h, SAM, true);
+    h.clock.set('2026-03-15T09:00:00+01:00');
+    const r = await h.runtime.agent.importCardTransactions({
+      groupId: G,
+      ownerMemberId: SAM,
+      delivery: 'next_digest',
+    });
+    expect(r.held).toHaveLength(2);
+    const changed = allRows()
+      .filter((t) => ['txn_sam_waters_0315', 'txn_sam_uber_0315_p'].includes(t.transactionId))
+      .map((t) => ({ ...t, amount: eur(t.amount.amountMinor + 111) }));
+    provider(h).pushUpdate(SAM, { modified: changed });
+    const turns = await at(h, '2026-03-15T10:00:00+01:00');
+    const job = turns.find((t) => t.note === 'scheduled:card_import:imported')!;
+    expect(job.outbound).toHaveLength(1);
+    expect(msg(job.outbound[0]).text.split('\n')[0]).toBe(
+      '2 charges that look shared, 👍 each one you want on the tab:',
+    );
   });
 
   it("after the trip's last digest slot there is nothing to wait for: two new charges go out now", async () => {

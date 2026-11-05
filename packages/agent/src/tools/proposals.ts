@@ -18,6 +18,9 @@ import {
 
 export interface PendingProposalSummary {
   readonly proposalId: string;
+  readonly kind: BookingProposal['kind'];
+  /** The provider offer it holds (a ticket tier's offerId, a stay's rate id). */
+  readonly itemRef: string;
   readonly description: string;
   /** Seat tier ("VIP mezzanine"), '' when the offer has none. */
   readonly tier: string;
@@ -42,6 +45,8 @@ export function summarizeProposal(
   const name = (id: MemberId): string => nameOf(members, id);
   return {
     proposalId: p.proposalId,
+    kind: p.kind,
+    itemRef: p.itemRef,
     description: p.description,
     tier: p.tierName ?? '',
     totalMinor: p.totalMinor,

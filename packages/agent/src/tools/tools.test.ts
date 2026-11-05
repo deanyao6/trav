@@ -7,6 +7,7 @@ import type { BalancesResult, LogExpenseResult } from './ledger.js';
 import type { PendingProposalSummary } from './proposals.js';
 import { V0_TOOL_NAMES } from './registry.js';
 import type { RosterView } from './roster.js';
+import type { EventResult } from './search.js';
 import type { SettingsChangeResult, SettingsView } from './settings.js';
 import type { TurnToolContext } from './shared.js';
 
@@ -529,6 +530,40 @@ describe('booking tools stop at a proposal', () => {
     };
     expect(res.events.length).toBeGreaterThan(0);
     expect(res.events.every((e) => /razzmatazz/i.test(e.name))).toBe(true);
+  });
+
+  it('T-133: search_events lists each tier, cheapest first, with plain seat words and refundability', async () => {
+    const h = harness();
+    const res = (await h.runtime.tools.run(
+      'search_events',
+      { query: 'barça', quantity: 6, date: '2026-03-15' },
+      ctx(h),
+    )) as { events: EventResult[] };
+    const barca = res.events.find((e) => e.eventId === 'evt_fcb_sev_20260315')!;
+    expect(barca.tiers).toEqual([
+      {
+        offerId: 'off_fcb_sev_gol',
+        tier: 'Gol Nord',
+        seat: 'behind the goal',
+        amountMinor: 6800,
+        currency: 'EUR',
+        text: '€68',
+        refundable: false,
+      },
+      {
+        offerId: 'off_fcb_sev_tribuna',
+        tier: 'Tribuna lateral',
+        seat: 'sideline',
+        amountMinor: 7200,
+        currency: 'EUR',
+        text: '€72',
+        refundable: false,
+      },
+    ]);
+    expect(barca).toMatchObject({ fromTier: 'Gol Nord', fromSeat: 'behind the goal' });
+    // Read-only: nothing proposed, held or bought.
+    expect(h.pending()).toEqual([]);
+    expect(h.tickets.purchaseCount()).toBe(0);
   });
 });
 

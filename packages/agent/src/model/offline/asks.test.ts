@@ -13,6 +13,7 @@ import type {
 } from '../client.js';
 import {
   CANCEL_NOT_ALLOWED_TEXT,
+  CHEAPER_TICKETS_ONLY_TEXT,
   HEALTH_MEMORY_TEXT,
   NOTHING_LIKE_THAT_TEXT,
   NOTHING_PENDING_TEXT,
@@ -217,6 +218,166 @@ describe('cheaper responder', () => {
     expect(res.toolCalls).toEqual([]);
     expect(res.text).toContain('€18');
     expect(res.text).toContain('€60 ones above are still held');
+  });
+
+  const barcaPending = {
+    proposalId: 'prop_barca',
+    kind: 'ticket',
+    itemRef: 'off_fcb_sev_tribuna',
+    description: 'FC Barcelona vs Sevilla FC',
+    tier: 'Tribuna lateral',
+    totalMinor: 43200,
+    currency: 'EUR',
+    total: '€432',
+    attendees: [1, 2, 3, 4, 5, 6],
+    eventDate: '2026-03-15',
+  };
+  const tierRow = (
+    offerId: string,
+    tier: string,
+    seat: string | null,
+    each: number,
+    r = false,
+  ) => ({
+    offerId,
+    tier,
+    seat,
+    amountMinor: each,
+    currency: 'EUR',
+    text: `€${each / 100}`,
+    refundable: r,
+  });
+  const barcaEvent = (tiers: unknown[]) => ({
+    eventId: 'evt_fcb',
+    name: 'FC Barcelona vs Sevilla FC',
+    bookable: true,
+    from: { amountMinor: 6800, currency: 'EUR' },
+    fromTier: 'Gol Nord',
+    fromRefundable: false,
+    tiers,
+  });
+  function cheaperWith(proposals: unknown[], events: unknown[]): CompletionResponse {
+    const first = ask('Sam: @trav anything cheaper');
+    const c1 = cheaperResponder.complete(first)!.toolCalls[0]!;
+    const second = after(first, c1, { proposals });
+    const c2 = cheaperResponder.complete(second)!.toolCalls[0]!;
+    expect(c2).toMatchObject({
+      name: 'search_events',
+      input: { query: 'fc barcelona vs sevilla fc', quantity: 6, date: '2026-03-15' },
+    });
+    const res = cheaperResponder.complete(after(second, c2, { events }))!;
+    expect(res.toolCalls).toEqual([]);
+    return res;
+  }
+
+  it('T-133: the same event’s cheaper tier, with where the seats are and refundability (VOICE §4.10 C)', () => {
+    const res = cheaperWith(
+      [barcaPending],
+      [
+        barcaEvent([
+          tierRow('off_fcb_sev_gol', 'Gol Nord', 'behind the goal', 6800),
+          tierRow('off_fcb_sev_tribuna', 'Tribuna lateral', 'sideline', 7200),
+        ]),
+      ],
+    );
+    expect(res.text).toBe(
+      'only cheaper seats for fc barcelona vs sevilla fc: €68 each · behind the goal (Gol Nord) · non-refundable\n' +
+        'the €72 sideline ones above are still held. 👍 there to keep them',
+    );
+  });
+
+  it('T-133: several cheaper tiers are listed cheapest first (at most 3); the held tier never is', () => {
+    const res = cheaperWith(
+      [barcaPending],
+      [
+        barcaEvent([
+          tierRow('off_a', 'Grada alta', null, 4000, true),
+          tierRow('off_b', 'Gol Sud', 'behind the goal', 5000),
+          tierRow('off_c', 'Gol Nord', 'behind the goal', 6800),
+          tierRow('off_d', 'Lateral alta', 'sideline', 7000),
+          tierRow('off_fcb_sev_tribuna', 'Tribuna lateral', 'sideline', 7200),
+        ]),
+      ],
+    );
+    expect(res.text.split('\n')).toEqual([
+      'cheaper seats for fc barcelona vs sevilla fc:',
+      '€40 each · Grada alta · refundable',
+      '€50 each · behind the goal (Gol Sud) · non-refundable',
+      '€68 each · behind the goal (Gol Nord) · non-refundable',
+      'the €72 sideline ones above are still held. 👍 there to keep them',
+    ]);
+  });
+
+  it('T-133: an equal price is not cheaper; no cheaper tier ⇒ the cheapest other event, else "already the cheapest"', () => {
+    const same = barcaEvent([tierRow('off_fcb_sev_tribuna', 'Tribuna lateral', 'sideline', 7200)]);
+    const tie = barcaEvent([
+      tierRow('off_x', 'Lateral', 'sideline', 7200),
+      tierRow('off_fcb_sev_tribuna', 'Tribuna lateral', 'sideline', 7200),
+    ]);
+    expect(cheaperWith([barcaPending], [tie]).text).toBe(
+      "that's already the cheapest i can book for fc barcelona vs sevilla fc\nthe €72 sideline ones above are still held. 👍 there to keep them",
+    );
+    const espanyol = {
+      name: 'RCD Espanyol vs Getafe',
+      bookable: true,
+      tiers: [tierRow('off_esp', 'General', null, 5500, true)],
+    };
+    expect(cheaperWith([barcaPending], [same, espanyol]).text).toBe(
+      'nothing cheaper for fc barcelona vs sevilla fc. rcd espanyol vs getafe is €55 each that night, refundable\n' +
+        'the €72 sideline ones above are still held. 👍 there to keep them',
+    );
+    // Another currency is never compared (no FX guesses).
+    const usd = {
+      ...espanyol,
+      tiers: [{ ...tierRow('off_esp', 'General', null, 100), currency: 'USD' }],
+    };
+    expect(cheaperWith([barcaPending], [same, usd]).text).toMatch(/^that's already the cheapest/);
+  });
+
+  it('T-133: only ticket proposals are re-searched; a stay waiting alone gets the honest line', () => {
+    const stay = {
+      ...barcaPending,
+      proposalId: 'prop_stay',
+      kind: 'lodging',
+      description: 'Eixample 3BR',
+    };
+    const first = ask('Sam: @trav anything cheaper');
+    const c1 = cheaperResponder.complete(first)!.toolCalls[0]!;
+    const alone = cheaperResponder.complete(after(first, c1, { proposals: [stay] }))!;
+    expect(alone.toolCalls).toEqual([]);
+    expect(alone.text).toBe(CHEAPER_TICKETS_ONLY_TEXT);
+    // A stay next to one ticket proposal: the ticket one is searched, no "which one?".
+    const both = cheaperResponder.complete(after(first, c1, { proposals: [stay, barcaPending] }))!;
+    expect(both.toolCalls[0]).toMatchObject({ name: 'search_events' });
+  });
+
+  it('T-133 / msg_bcn_0042: after the Barça proposal, "anything cheaper" searches, proposes nothing, and the proposal stays pending', async () => {
+    const h = harness();
+    const ask40 = await h.say(
+      'h_dean',
+      '@trav barça vs sevilla sunday mar 15, 6 tickets together, sideline not behind the goal',
+    );
+    expect(ask40.toolCalls).toContain('propose_booking');
+    const [held] = h.pending();
+    expect(held).toMatchObject({ itemRef: 'off_fcb_sev_tribuna', status: 'pending' });
+    const auditBefore = h.audit().length;
+    const turn = await h.say('h_sam', '@trav anything cheaper');
+    expect(turn.toolCalls).toEqual(['get_pending_proposals', 'search_events']);
+    const out = turn.outbound.map((o) => ('text' in o ? o.text : '')).join('\n');
+    expect(out).toContain('€68');
+    expect(out).toContain('behind the goal');
+    expect(out).toContain('non-refundable');
+    expect(out).toContain('still held');
+    // Read-only: the one pending proposal is the same one, nothing held or bought.
+    expect(h.pending().map((p) => [p.proposalId, p.status])).toEqual([
+      [held!.proposalId, 'pending'],
+    ]);
+    expect(h.tickets.purchaseCount()).toBe(0);
+    const newTypes = h
+      .audit()
+      .slice(auditBefore)
+      .map((e) => e.type);
+    expect(newTypes.filter((t) => /^(booking|approval|proposal)\./.test(t))).toEqual([]);
   });
 });
 

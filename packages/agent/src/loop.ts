@@ -2670,6 +2670,10 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       .listByGroup(group.groupId)
       .find((m) => m.memberId === owner);
     if (member === undefined) return silent('scheduled:card_import:no_member');
+    // A job queued while another trip was current ends here, not requeued (T-067 r2 #2).
+    if (stores.group.trips.current(group.groupId, now)?.tripId !== trip.tripId) {
+      return silent('scheduled:card_import:not_current_trip');
+    }
     const before = snapshotAudit(group.groupId);
     const ran = (status: string, counts: Record<string, number> = {}): void => {
       stores.group.audit.append({
@@ -2699,6 +2703,7 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
         groupId: group.groupId,
         ownerMemberId: owner,
         delivery: 'now',
+        atSlot: true,
       });
     } catch (e) {
       // A private-lane background job: never the group's failure line. Try again next slot.

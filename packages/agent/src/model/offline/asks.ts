@@ -5,8 +5,9 @@
  *
  *  - ticket asks ⇒ `propose_booking` (a proposal and a card; the purchase is
  *    still `ApprovalPolicy` + a 👍 away, SAFETY §2.1). Never a purchase.
- *  - "anything cheaper" ⇒ `get_pending_proposals` ⇒ `search_events` ⇒ one
- *    line from those results (real prices only).
+ *  - "anything cheaper" ⇒ `get_pending_proposals` ⇒ `search_events` ⇒ the
+ *    same event's cheaper tiers with their trade-off (T-133), from those
+ *    results only (real prices; never a new proposal).
  *  - "cancel the vip thing" ⇒ `get_pending_proposals` ⇒ `cancel_proposal`.
  *  - a place to stay ⇒ `search_lodging` (round 2 is a script when one
  *    matches, else a line from the results; stays aren't bookable yet).
@@ -37,6 +38,7 @@ import {
   venueIndexFrom,
   type VenueIndex,
 } from '../../booking/request.js';
+import { seatPlainWords } from '../../booking/seats.js';
 import { deriveScriptKey } from './scripts.js';
 
 const ZERO_USAGE = { inputTokens: 0, outputTokens: 0 } as const;
@@ -60,6 +62,9 @@ export const NOTHING_PENDING_TEXT =
   "nothing's waiting on a 👍 right now, so there's nothing to drop";
 export const NOTHING_PENDING_CHEAPER_TEXT =
   "nothing's waiting on a 👍 right now. tell me what you want and i'll find the cheapest";
+/** "anything cheaper" with only a stay or a flight waiting (T-133): those aren't re-searched. */
+export const CHEAPER_TICKETS_ONLY_TEXT =
+  "i can only look for cheaper tickets from the chat right now. what's above is still waiting on its 👍";
 export const CANCEL_NOT_ALLOWED_TEXT =
   'only whoever asked for it, or a trip lead, can drop that one. a 👎 on the card from someone going works too';
 export const CANCEL_GONE_TEXT = "that one's not waiting anymore, so there's nothing to drop";
@@ -316,6 +321,8 @@ interface PendingSummary {
   readonly attendees: readonly unknown[];
   readonly eventDate?: string;
   readonly tier?: string;
+  readonly kind?: string;
+  readonly itemRef?: string;
 }
 
 function pendingFrom(result: unknown): PendingSummary[] | undefined {
@@ -364,8 +371,10 @@ export const cheaperResponder: FallbackResponder = {
     if (round.name === 'get_pending_proposals') {
       const pending = pendingFrom(round.result) ?? [];
       if (pending.length === 0) return response(req, NOTHING_PENDING_CHEAPER_TEXT, []);
-      if (pending.length > 1) return response(req, whichOneText(pending, 'look'), []);
-      const p = pending[0]!;
+      const tickets = ticketsOnly(pending);
+      if (tickets.length === 0) return response(req, CHEAPER_TICKETS_ONLY_TEXT, []);
+      if (tickets.length > 1) return response(req, whichOneText(tickets, 'look'), []);
+      const p = tickets[0]!;
       const input = {
         query: shortName(p.description),
         quantity: Math.max(1, p.attendees.length),
@@ -377,54 +386,129 @@ export const cheaperResponder: FallbackResponder = {
     }
     if (round.name === 'search_events') {
       const first = round.all.find((x) => x.name === 'get_pending_proposals');
-      const p = pendingFrom(first?.result)?.[0];
+      const p = ticketsOnly(pendingFrom(first?.result) ?? [])[0];
       if (p === undefined || !isRecord(round.result) || !Array.isArray(round.result['events'])) {
         return response(req, NOTHING_PENDING_CHEAPER_TEXT, []);
       }
-      const n = Math.max(1, p.attendees.length);
-      const each = Math.round(p.totalMinor / n);
-      const held = `the ${fmt(each, p.currency)} ones above are still held. 👍 there to keep them`;
-      const events = (round.result['events'] as unknown[]).filter(isRecord).flatMap((e) => {
-        const from = e['from'];
-        if (e['bookable'] !== true || !isRecord(from)) return [];
-        if (typeof from['amountMinor'] !== 'number' || from['currency'] !== p.currency) return [];
-        if (typeof e['name'] !== 'string') return [];
-        return [
-          {
-            name: e['name'],
-            amountMinor: from['amountMinor'],
-            tier: typeof e['fromTier'] === 'string' ? e['fromTier'] : undefined,
-            refundable: e['fromRefundable'] === true,
-          },
-        ];
-      });
-      const cheaper = events
-        .filter((e) => e.amountMinor < each)
-        .sort((a, b) => a.amountMinor - b.amountMinor);
-      const same = cheaper.find((e) => e.name === p.description);
-      const what = shortName(p.description);
-      const refund = (r: boolean): string => (r ? 'refundable' : 'non-refundable');
-      if (same !== undefined) {
-        const tier = same.tier === undefined ? '' : `, ${same.tier}`;
-        return response(
-          req,
-          `cheapest i can book for ${what} is ${fmt(same.amountMinor, p.currency)} each${tier}, ${refund(same.refundable)}\n${held}`,
-          [],
-        );
-      }
-      const other = cheaper[0];
-      if (other !== undefined) {
-        return response(
-          req,
-          `nothing cheaper for ${what}. ${shortName(other.name)} is ${fmt(other.amountMinor, p.currency)} each that night, ${refund(other.refundable)}\n${held}`,
-          [],
-        );
-      }
-      return response(req, `that's already the cheapest i can book for ${what}\n${held}`, []);
+      return response(req, cheaperText(p, round.result['events'] as unknown[]), []);
     }
     return undefined;
   },
 };
+
+/** Ticket proposals only: a stay or a flight is never re-searched as an event. */
+function ticketsOnly(list: readonly PendingSummary[]): PendingSummary[] {
+  return list.filter((p) => p.kind === undefined || p.kind === 'ticket');
+}
+
+interface CheaperTier {
+  readonly offerId?: string;
+  readonly tier?: string;
+  readonly seat?: string;
+  readonly amountMinor: number;
+  readonly refundable: boolean;
+}
+
+interface CheaperEvent {
+  readonly name: string;
+  readonly tiers: readonly CheaperTier[];
+}
+
+/** The `search_events` results this line reads; an event without `tiers` falls back to its cheapest offer. */
+function cheaperEvents(raw: readonly unknown[], currency: string): CheaperEvent[] {
+  return raw.filter(isRecord).flatMap((e): CheaperEvent[] => {
+    if (e['bookable'] !== true || typeof e['name'] !== 'string') return [];
+    const listed = Array.isArray(e['tiers']) ? (e['tiers'] as unknown[]).filter(isRecord) : [];
+    const tiers: CheaperTier[] = listed.flatMap((t): CheaperTier[] =>
+      typeof t['amountMinor'] === 'number' && t['currency'] === currency
+        ? [
+            {
+              ...(typeof t['offerId'] === 'string' ? { offerId: t['offerId'] } : {}),
+              ...(typeof t['tier'] === 'string' && t['tier'].length > 0 ? { tier: t['tier'] } : {}),
+              ...(typeof t['seat'] === 'string' && t['seat'].length > 0 ? { seat: t['seat'] } : {}),
+              amountMinor: t['amountMinor'],
+              refundable: t['refundable'] === true,
+            },
+          ]
+        : [],
+    );
+    const from = e['from'];
+    if (
+      tiers.length === 0 &&
+      isRecord(from) &&
+      typeof from['amountMinor'] === 'number' &&
+      from['currency'] === currency
+    ) {
+      tiers.push({
+        ...(typeof e['fromTier'] === 'string' && e['fromTier'].length > 0
+          ? { tier: e['fromTier'] }
+          : {}),
+        ...(typeof e['fromSeat'] === 'string' && e['fromSeat'].length > 0
+          ? { seat: e['fromSeat'] }
+          : {}),
+        amountMinor: from['amountMinor'],
+        refundable: e['fromRefundable'] === true,
+      });
+    }
+    if (tiers.length === 0) return [];
+    return [{ name: e['name'], tiers: [...tiers].sort((a, b) => a.amountMinor - b.amountMinor) }];
+  });
+}
+
+/** "behind the goal (Gol Nord)", "Gol Nord", or "behind the goal"; '' when neither is known. */
+function seatLabel(t: Pick<CheaperTier, 'tier' | 'seat'>): string {
+  if (t.seat !== undefined && t.tier !== undefined) {
+    return foldText(t.seat) === foldText(t.tier) ? t.seat : `${t.seat} (${t.tier})`;
+  }
+  return t.seat ?? t.tier ?? '';
+}
+
+/** Cheaper tiers listed under the context line; held line after (≤ 6 lines, VOICE §3.1). */
+const MAX_CHEAPER = 3;
+
+/**
+ * "anything cheaper" for one pending ticket proposal (T-133, VOICE §4.10 C):
+ * the same event's cheaper tiers first, each with its trade-off (where the
+ * seats are, refundability); else the cheapest other event that night; else
+ * "already the cheapest". Prices come only from the search results. The
+ * pending proposal is never touched: the last line says it's still held.
+ */
+function cheaperText(p: PendingSummary, rawEvents: readonly unknown[]): string {
+  const n = Math.max(1, p.attendees.length);
+  const each = Math.round(p.totalMinor / n);
+  const heldSeat = seatPlainWords(p.tier);
+  const held = `the ${fmt(each, p.currency)}${heldSeat !== undefined ? ` ${heldSeat}` : ''} ones above are still held. 👍 there to keep them`;
+  const what = shortName(p.description);
+  const refund = (r: boolean): string => (r ? 'refundable' : 'non-refundable');
+  const line = (t: CheaperTier): string =>
+    [`${fmt(t.amountMinor, p.currency)} each`, seatLabel(t), refund(t.refundable)]
+      .filter((x) => x.length > 0)
+      .join(' · ');
+  const events = cheaperEvents(rawEvents, p.currency);
+  // The pending event: the one listing the held offer, else the one with its name.
+  const same =
+    (p.itemRef !== undefined
+      ? events.find((e) => e.tiers.some((t) => t.offerId === p.itemRef))
+      : undefined) ?? events.find((e) => e.name === p.description);
+  const cheaperTiers = (same?.tiers ?? [])
+    .filter((t) => t.amountMinor < each && (p.itemRef === undefined || t.offerId !== p.itemRef))
+    .slice(0, MAX_CHEAPER);
+  if (cheaperTiers.length === 1) {
+    return `only cheaper seats for ${what}: ${line(cheaperTiers[0]!)}\n${held}`;
+  }
+  if (cheaperTiers.length > 1) {
+    return [`cheaper seats for ${what}:`, ...cheaperTiers.map(line), held].join('\n');
+  }
+  const other = events
+    .filter((e) => e !== same)
+    .map((e) => ({ name: e.name, t: e.tiers[0]! }))
+    .filter((x) => x.t.amountMinor < each)
+    .sort((a, b) => a.t.amountMinor - b.t.amountMinor)[0];
+  if (other !== undefined) {
+    return `nothing cheaper for ${what}. ${shortName(other.name)} is ${fmt(other.t.amountMinor, p.currency)} each that night, ${refund(other.t.refundable)}\n${held}`;
+  }
+  return `that's already the cheapest i can book for ${what}\n${held}`;
+}
 
 // ---------- "cancel the vip thing" ----------
 

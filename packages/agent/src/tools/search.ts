@@ -8,6 +8,7 @@ import { formatMoney, localDate, safety, TravError } from '@trav/core';
 import type { FlightsAdapter, LodgingAdapter, TicketsAdapter, EventCategory } from '@trav/adapters';
 import { sanitizeInline } from '../context/groupContext.js';
 import { refundableNow } from '../booking/proposals.js';
+import { seatPlainWords } from '../booking/seats.js';
 import type { ToolDefinition } from './registry.js';
 import {
   activeMembers,
@@ -45,6 +46,23 @@ export interface SearchEventsInput {
   readonly category?: EventCategory;
 }
 
+/** One bookable tier of an event (T-133: "anything cheaper" compares tiers of the same event). */
+export interface TierResult {
+  readonly offerId: string;
+  readonly tier: string;
+  /** Where the seats are in plain words ("behind the goal", "sideline"), null when the tier name doesn't say. */
+  readonly seat: string | null;
+  /** Per person, fees included. */
+  readonly amountMinor: number;
+  readonly currency: string;
+  readonly text: string;
+  /** Refundable as of now. */
+  readonly refundable: boolean;
+}
+
+/** Tiers listed per event (cheapest first): enough to compare, small enough for a tool result. */
+const MAX_TIERS = 4;
+
 export interface EventResult {
   readonly eventId: string;
   readonly name: string;
@@ -63,6 +81,10 @@ export interface EventResult {
   /** Tier name and refundability (as of now) of the cheapest bookable offer. */
   readonly fromTier: string | null;
   readonly fromRefundable: boolean | null;
+  /** Plain-words seat of the cheapest bookable offer ("behind the goal"), null when unknown. */
+  readonly fromSeat: string | null;
+  /** Bookable tiers for the asked quantity, cheapest first (at most 4). */
+  readonly tiers: readonly TierResult[];
   readonly bookable: boolean;
 }
 
@@ -78,7 +100,7 @@ export function createSearchEventsTool(tickets: TicketsAdapter): ToolDefinition<
   return {
     name: 'search_events',
     description:
-      'Search events, clubs, matches, attractions and tours in the trip city for the trip dates. Returns the cheapest bookable price per event. Read-only.',
+      'Search events, clubs, matches, attractions and tours in the trip city for the trip dates. Returns the cheapest bookable price per event and its bookable seat tiers (cheapest first, with where the seats are and refundability), so you can compare tiers of the same event. Read-only: it never proposes or buys.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -121,12 +143,28 @@ export function createSearchEventsTool(tickets: TicketsAdapter): ToolDefinition<
       for (const ev of res.value.slice(0, 12)) {
         const offers = await tickets.getOffers(ev.eventId, input.quantity ?? 1);
         const api = offers.ok ? offers.value.filter((o) => o.purchaseMode === 'api') : [];
-        const cheapest = [...api].sort(
+        const sorted = [...api].sort(
           (a, b) =>
             a.unitPrice.amountMinor +
             a.unitFees.amountMinor -
             (b.unitPrice.amountMinor + b.unitFees.amountMinor),
-        )[0];
+        );
+        const cheapest = sorted[0];
+        const tiers = sorted
+          .filter((o) => o.maxPerOrder >= (input.quantity ?? 1))
+          .slice(0, MAX_TIERS)
+          .map((o): TierResult => {
+            const each = o.unitPrice.amountMinor + o.unitFees.amountMinor;
+            return {
+              offerId: o.offerId,
+              tier: sanitizeInline(o.tierName, 40),
+              seat: seatPlainWords(o.tierName) ?? null,
+              amountMinor: each,
+              currency: o.unitPrice.currency,
+              text: formatMoney({ amountMinor: each, currency: o.unitPrice.currency }),
+              refundable: refundableNow(o, ctx.now),
+            };
+          });
         const from =
           cheapest === undefined
             ? null
@@ -150,6 +188,8 @@ export function createSearchEventsTool(tickets: TicketsAdapter): ToolDefinition<
           refundableOption: api.some((o) => refundableNow(o, ctx.now)),
           fromTier: cheapest === undefined ? null : sanitizeInline(cheapest.tierName, 40),
           fromRefundable: cheapest === undefined ? null : refundableNow(cheapest, ctx.now),
+          fromSeat: cheapest === undefined ? null : (seatPlainWords(cheapest.tierName) ?? null),
+          tiers,
           bookable: api.length > 0,
         });
       }
