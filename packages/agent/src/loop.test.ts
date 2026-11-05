@@ -2150,3 +2150,28 @@ describe('T-148 #7: a proposal card that failed to send is withdrawn', () => {
     expect(messages(yes).some((m) => /^booked/.test(m.text))).toBe(false);
   });
 });
+
+describe('T-222 r1 #1: suggestion asks with money in them, end to end', () => {
+  it.each([
+    '@trav got any dinner places under 35 euros a head?',
+    '@trav what lunch spots have you got under €20',
+    '@trav we got €45 left each, any dinner ideas?',
+    '@trav dinner spot ideas where the bill wont be wild',
+  ])('rules answer with suggestions and nothing is logged: %s', async (text) => {
+    const h = harness();
+    const turn = await h.say('h_dean', text);
+    expect(turn.note).toMatch(/^suggest:/);
+    expect(h.runtime.stores.group.expenses.listByTrip(T)).toHaveLength(0);
+  });
+
+  it('a payment stated at a place is logged, not answered with suggestions', async () => {
+    const h = harness();
+    const turn = await h.say(
+      'h_piotr',
+      '@trav i got the bill at the noodle place, 60 euros, all six of us',
+    );
+    expect(turn.note ?? '').not.toMatch(/^suggest:/);
+    const [e] = h.runtime.stores.group.expenses.listByTrip(T);
+    expect(e?.amount.amountMinor).toBe(6000);
+  });
+});

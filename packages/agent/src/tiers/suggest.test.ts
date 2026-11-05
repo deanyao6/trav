@@ -138,6 +138,31 @@ describe('parseSuggestAsk', () => {
       parseSuggestAsk('@trav the last dinner spot was €25 a head, any good places like it?'),
     ).toBeDefined();
   });
+
+  // T-222 r1 #1: "got" in a question, "have you got", "got … left" and a bare
+  // "bill" are not payments; these are all still restaurant asks
+  it.each([
+    '@trav got any lunch places under €25 a head?',
+    '@trav got any ideas for brunch under 15 euros?',
+    '@trav which tapas spots have you got under €35',
+    '@trav got recs for a good lunch spot? 30 euros each max',
+    '@trav we got €50 left each, any ideas for dinner?',
+    "@trav we've got 30 euros each, dinner spot ideas",
+    '@trav lunch spot ideas where the bill wont be huge',
+    '@trav any places that do a set lunch, bill under €20',
+    '@trav any recs for dinner with bill and the others tonight',
+    '@trav i got the kids, any ideas for lunch under €20 a head',
+  ])('still a restaurant ask: %s', (t) => {
+    expect(parseSuggestAsk(t)?.category).toBe('restaurant');
+  });
+
+  it.each([
+    '@trav we grabbed the tab at the wine bar, €64, everyone',
+    '@trav maya got our dinner at that place, 80 euros',
+    '@trav got the lunch at the beach spot, $45, split with everyone',
+  ])('a payment shape with an amount is not an ask: %s', (t) => {
+    expect(parseSuggestAsk(t)).toBeUndefined();
+  });
 });
 
 describe('renderSuggestions', () => {

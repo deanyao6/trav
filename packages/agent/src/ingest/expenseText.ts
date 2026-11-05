@@ -1144,8 +1144,14 @@ function parseParticipants(
   // list may follow from it (not everyone, an except list or a count), and
   // only from names said before it. "…, the others went home, henry too":
   // is Henry in or one of the others? Ask.
+  // The list must also hold the sender and a member payer (T-222 r1 #2):
+  // "dean and chase, the others walked" from Arjun leaves Arjun among "the
+  // others", so did he walk and only pay, or ride too? Ask, never guess.
   if (othersOut) {
     if (result.spec?.kind !== 'list') return vagueSpec;
+    const inList = new Set(result.spec.ids);
+    if (!inList.has(scan.ctx.senderMemberId)) return vagueSpec;
+    if (payer.kind === 'member' && !inList.has(payer.memberId)) return vagueSpec;
     const after = scan.low.slice(othersAt, span[1]);
     if (
       scan.names.some((h) => h.start > othersAt && h.end <= span[1]) ||
@@ -1192,6 +1198,15 @@ function parseParticipantsAfterVague(
   const all = ctx.members.map((m) => m.memberId);
   const size = all.length;
   const payerId = payer.kind === 'member' ? payer.memberId : undefined;
+
+  // a headcount, read first so an except list is checked against it
+  const countRe = new RegExp(
+    // "all 6" is a headcount only on its own or before a people word: "all 6
+    // tickets" is how many things, not who's in (T-222)
+    `\\b(?:the|all|us|just the|only the)?\\s*${COUNT_WORD}\\s+of\\s+(?:us|you)\\b|\\b(?:split\\s+(?:it\\s+)?)?${COUNT_WORD}\\s+ways\\b|\\b(\\d{1,2})\\s*[x×]\\s*[€$£]?\\d|\\ball\\s+${COUNT_WORD}(?=\\s*(?:$|[,.;:!?)])|\\s+(?:people|ppl|persons|guys|split|evenly|equally)\\b)`,
+  );
+  const cm = countRe.exec(low);
+  const headcount = cm === null ? undefined : countOf(cm[1] ?? cm[2] ?? cm[3] ?? cm[4] ?? '');
 
   // except: "everyone but henry", "all except henry, piotr and arjun",
   // "me and everyone else apart from henry" (T-216), "not including x or y",
@@ -1250,19 +1265,19 @@ function parseParticipantsAfterVague(
       (r) => r.kind === 'list' && r.ids.some((x) => !out.has(x)),
     );
     if (listedToo) return { spec: { kind: 'vague', phrase: 'names' }, restToPayer };
-    if (ids.length > 0 && ids.length < size)
-      return { spec: { kind: 'except', ids: uniq(ids) }, restToPayer };
+    const outIds = uniq(ids);
+    // "for the 4 of us, not including tomas" in a group of six: the count and
+    // the except list disagree (six minus one is five), so ask (T-222 r1 #3).
+    // A count of the whole group ("all 6 of us except rafa") names the group
+    // the except list is taken from, so it agrees.
+    if (headcount !== undefined && headcount !== size && size - outIds.length !== headcount)
+      return { spec: { kind: 'vague', phrase: 'names' }, restToPayer };
+    if (outIds.length > 0 && outIds.length < size)
+      return { spec: { kind: 'except', ids: outIds }, restToPayer };
   }
 
   // counts
-  let n: number | undefined;
-  const countRe = new RegExp(
-    // "all 6" is a headcount only on its own or before a people word: "all 6
-    // tickets" is how many things, not who's in (T-222)
-    `\\b(?:the|all|us|just the|only the)?\\s*${COUNT_WORD}\\s+of\\s+(?:us|you)\\b|\\b(?:split\\s+(?:it\\s+)?)?${COUNT_WORD}\\s+ways\\b|\\b(\\d{1,2})\\s*[x×]\\s*[€$£]?\\d|\\ball\\s+${COUNT_WORD}(?=\\s*(?:$|[,.;:!?)])|\\s+(?:people|ppl|persons|guys|split|evenly|equally)\\b)`,
-  );
-  const cm = countRe.exec(low);
-  if (cm !== null) n = countOf(cm[1] ?? cm[2] ?? cm[3] ?? cm[4] ?? '');
+  let n: number | undefined = headcount;
   /** "for all 6": claims the whole group, so it never picks an activity roster by count. */
   const allBare = cm?.[4] !== undefined;
   if (

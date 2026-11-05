@@ -371,9 +371,26 @@ describe('T-222: "the others" plus a clause that says they were out', () => {
     'i paid €45 for the taxi, me and rafa, the others never paid me back',
     // an except list and "the others": ask rather than combine them
     'i paid €45 for the taxi, everyone except luca, the others walked',
+    // r1 #2: the sender (Bea, the payer) is not in the list, so she is one of
+    // "the others": did she walk and only pay? never the named ones alone
+    'i got the cab back, €45, rafa and luca, the others walked',
+    'i got the cab back, €45, rafa, the others walked',
   ]) {
     it(`asks: ${text}`, () => expectQuestion(text, ctx('Bea')));
   }
+
+  it('a named payer outside the list asks, even when the sender is in it (r1 #2)', () => {
+    expectQuestion('tomas paid €30 for the cab, me and ines, the others walked', ctx('Maya'));
+  });
+
+  it('a named payer and the sender both in the list is the split (r1 #2)', () => {
+    const e = only(
+      'tomas paid €30 for the cab, tomas, ines and me, the others walked',
+      ctx('Maya'),
+    );
+    expect(e.payer).toBe(id('Tomas'));
+    expect(shares(e)).toEqual({ [id('Maya')]: 1000, [id('Tomas')]: 1000, [id('Ines')]: 1000 });
+  });
 });
 
 describe('T-222: "not including" is an except list, never a list', () => {
@@ -409,6 +426,45 @@ describe('T-222: "not including" is an except list, never a list', () => {
   it('an unknown name in the list asks', () => {
     expectQuestion('i paid €40 for lunch, not including zed', ctx('Maya'));
   });
+
+  // r1 #3: a headcount that the except list contradicts (six minus one is
+  // five, not four) asks, for every except wording
+  for (const text of [
+    'i paid €80 for lunch for the 4 of us, not including luca',
+    'i paid €80 for lunch for the four of us, except luca',
+    'i paid €80 for lunch, the 3 of us, not counting bea or rafa',
+    'i paid €80 for lunch, split 4 ways, leaving out ines',
+    'i paid €80 for lunch, split 3 ways, excluding me',
+  ]) {
+    it(`asks: ${text}`, () => expectQuestion(text, ctx('Maya')));
+  }
+});
+
+describe('T-222 r1 #3: a headcount that agrees with the except list', () => {
+  checkRows([
+    {
+      sender: 'Maya',
+      text: 'i paid €50 for lunch for the 5 of us, not including luca',
+      payer: 'Maya',
+      totalMinor: 5000,
+      inside: ['Maya', 'Tomas', 'Ines', 'Rafa', 'Bea'],
+    },
+    {
+      sender: 'Rafa',
+      text: 'i paid €80 for lunch, split 4 ways, except ines and bea',
+      payer: 'Rafa',
+      totalMinor: 8000,
+      inside: ['Maya', 'Tomas', 'Rafa', 'Luca'],
+    },
+    {
+      // the whole group's count names who the except list is taken from
+      sender: 'Tomas',
+      text: 'i paid €50 for the boat, all six of us except bea',
+      payer: 'Tomas',
+      totalMinor: 5000,
+      inside: ['Maya', 'Tomas', 'Ines', 'Rafa', 'Luca'],
+    },
+  ]);
 });
 
 describe('T-222: "them" as the things bought', () => {
