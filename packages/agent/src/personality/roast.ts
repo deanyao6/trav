@@ -34,8 +34,8 @@ import {
   formatClockTime,
   formatMoney,
   localDate,
+  ledger,
   localHour,
-  money,
   parseIso,
   safety,
 } from '@trav/core';
@@ -57,6 +57,7 @@ import {
   ROAST_AGE_UNCONFIRMED_REQUEST_TEXT,
   ROAST_MINOR_TEXT,
   ROAST_TRIP_OVER_TEXT,
+  SELF_NOT_OPTED_IN_TEXT,
   notOptedInText,
   refuseOutsiderText,
 } from '../settings/text.js';
@@ -274,7 +275,12 @@ export function answerRoast(req: RoastRequest, ctx: RoastContext): RoastAnswer {
       if (gate.cause === 'minor_in_group') return refuse(NOPE_TEXT, 'minor_in_group', 'minor');
       return ctx.optedOut(target.member.memberId)
         ? refuse(REFUSE_OPTED_OUT_TEXT, 'member_opted_out')
-        : refuse(notOptedInText(target.member.displayName), 'member_opted_out');
+        : refuse(
+            target.member.memberId === ctx.me.memberId
+              ? SELF_NOT_OPTED_IN_TEXT
+              : notOptedInText(target.member.displayName),
+            'member_opted_out',
+          );
     }
   }
 
@@ -373,10 +379,6 @@ function consecutive(dates: readonly string[]): boolean {
   return days.every((d, i) => i === 0 || daysBetween(days[i - 1]!, d) === 1);
 }
 
-function sumMinor(list: readonly Expense[]): number {
-  return list.reduce((s, e) => s + e.amount.amountMinor, 0);
-}
-
 function memberLine(
   member: Member,
   topics: readonly string[],
@@ -457,11 +459,13 @@ function memberLine(
 }
 
 /** A line about the whole group names nobody (VOICE §7.1: the group, not one person). */
-function groupLine(expenses: readonly Expense[], trip: Trip): Line | undefined {
+function groupLine(all: readonly Expense[], trip: Trip): Line | undefined {
+  // Amounts are only summed in the trip currency (a €-tab with one $ charge never adds the two).
+  const expenses = all.filter((e) => e.amount.currency === trip.currency);
   const rides = expenses.filter((e) => e.category === 'transport');
   if (rides.length >= 3) {
     return {
-      text: `${String(rides.length)} rides on the tab so far, ${formatMoney(money(sumMinor(rides), trip.currency))}. walking is free`,
+      text: `${String(rides.length)} rides on the tab so far, ${formatMoney(ledger.totalSpent(rides, trip.currency))}. walking is free`,
       topic: 'rides',
     };
   }
@@ -478,7 +482,7 @@ function groupLine(expenses: readonly Expense[], trip: Trip): Line | undefined {
       };
     }
     return {
-      text: `${formatMoney(money(sumMinor(expenses), trip.currency))} on the tab across ${String(expenses.length)} things so far. nobody's slowing down`,
+      text: `${formatMoney(ledger.totalSpent(expenses, trip.currency))} on the tab across ${String(expenses.length)} things so far. nobody's slowing down`,
       topic: 'total',
     };
   }

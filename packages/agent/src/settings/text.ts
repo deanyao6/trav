@@ -60,6 +60,9 @@ export function refuseOutsiderText(pronoun: 'she' | 'he' | 'they'): string {
   return `${who} not in the chat, so no`;
 }
 
+/** A self-roast ask ("@trav roast me for the ubers") before opting in. */
+export const SELF_NOT_OPTED_IN_TEXT = "you haven't opted in. '@trav roast me' is how";
+
 export function notOptedInText(name: string): string {
   return `${name} hasn't opted in. '@trav roast me' is how`;
 }

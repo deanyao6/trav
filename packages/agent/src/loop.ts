@@ -148,6 +148,7 @@ import {
 } from './mention.js';
 import { handleRosterMessage, type RosterTurn } from './roster/turn.js';
 import {
+  announceFamilyMode,
   createSettingsFlow,
   type SettingsOutcome,
   type SettingsTurnContext,
@@ -1916,14 +1917,31 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       drafts = hasGroup ? [...follow] : [...drafts, ...follow];
     }
     const sent = await send(r, drafts);
+    // After a roster change, the family-mode notice is its own turn (VOICE §8, idempotent).
+    const notice = result.kind === 'changed' && r.lane === 'group' ? await familyNotice(r) : [];
+    const all = [...sent, ...notice];
     return {
-      outbound: sent,
+      outbound: all,
       toolCalls: [],
       auditEventIds: auditIdsSince(r.group.groupId, before),
-      silent: sent.length === 0,
+      silent: all.length === 0,
       modelSources: [],
       note: `roster:${result.kind}`,
     };
+  }
+
+  /**
+   * VOICE §8 "shown once in the group when it kicks in" after a roster change
+   * (a join, a member's age updated by the host): `announceFamilyMode` is
+   * idempotent (audited), so calling it on every roster change is safe.
+   */
+  async function familyNotice(r: Resolved): Promise<Outbound[]> {
+    return [
+      ...(await announceFamilyMode(
+        { stores, clock, ids, sendTurn: deps.sendTurn },
+        r.group.groupId,
+      )),
+    ];
   }
 
   // ---------- settings, consent, roast requests (T-017) ----------
@@ -2274,8 +2292,16 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     if (share !== undefined) return shareTurn(r, share);
     switch (event.type) {
       case 'member_joined':
-      case 'member_left':
-        return silent(`membership:${event.type}`);
+      case 'member_left': {
+        // A roster change can start (or end) family mode: VOICE §8 notice, at most once.
+        const before = snapshotAudit(r.group.groupId);
+        const notice = r.lane === 'group' ? await familyNotice(r) : [];
+        return silent(`membership:${event.type}`, {
+          outbound: notice,
+          silent: notice.length === 0,
+          auditEventIds: auditIdsSince(r.group.groupId, before),
+        });
+      }
       case 'reaction': {
         if (event.removed) return silent('reaction:removed');
         const intent = reactionIntent(event.reaction);

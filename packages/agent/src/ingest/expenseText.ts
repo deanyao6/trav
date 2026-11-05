@@ -1223,7 +1223,30 @@ function itemized(scan: Scan, total: AmountTok): ExpenseDraft['lineItems'] | 'un
 }
 
 /** Parses one message. `text` is the sender's own words (quoted lines already removed). */
+/**
+ * "…on Jordan's card", ", it went on Dean's card": whose card the money went
+ * on. That member's money paid for it, so they are the payer; the phrase is
+ * not a "who's in" name. Only a member's card counts ("on my card" is the
+ * sender's and handled by the cues; "on Alex's card" is left alone).
+ */
+const CARD_OWNER =
+  /(?:\s*[,;]\s*|\s+)(?:(?:and\s+)?(?:it|that|this|all of it)\s+(?:went|goes|was|is|got charged|was charged)\s+|put\s+(?:it\s+)?)?on\s+([\p{L}][\p{L}-]{0,30})'s\s+(?:credit\s+|debit\s+)?card\b/iu;
+
 export function parseExpenseText(text: string, ctx: ExpenseTextContext): ExpenseTextParse {
+  const clean = cleanText(text);
+  const card = CARD_OWNER.exec(clean);
+  const owner = card === null ? undefined : memberByWord(card[1]!, ctx.members);
+  if (card === null || owner === undefined) return parseExpenseTextInner(text, ctx);
+  const rest = `${clean.slice(0, card.index)}${clean.slice(card.index + card[0].length)}`;
+  const parsed = parseExpenseTextInner(rest, ctx);
+  if (parsed.kind !== 'drafts') return parsed;
+  return {
+    kind: 'drafts',
+    drafts: parsed.drafts.map((d) => ({ ...d, payer: { kind: 'member', memberId: owner } })),
+  };
+}
+
+function parseExpenseTextInner(text: string, ctx: ExpenseTextContext): ExpenseTextParse {
   if (ctx.members.length === 0) return { kind: 'none' };
   const orig = cleanText(text);
   const low = orig.toLowerCase();

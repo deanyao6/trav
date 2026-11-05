@@ -31,16 +31,57 @@ function escapeRe(s: string): string {
 }
 
 /**
- * The member whose private data the message asks about, if any: "Sam's card",
- * "what did Sam's card get charged", "what's on Jordan's statement", "what
- * did Sam spend on his card". The sender's own data is not "someone else's".
+ * A question or a reveal request: a clause that opens with a question word or
+ * a "show me" verb ("what did Sam's card get charged", "show me sam's pending
+ * charges", "..., and what's henry's budget"), or a message with a "?".
+ * "i paid €84 on Jordan's card" and "it went on Dean's card" are statements.
+ */
+const REVEAL_CLAUSE =
+  /(?:^|[,.;:!?]\s*|\b(?:and|also|so|but|then|plus|or|like)\s+)(?:(?:pls|please|hey|ok|okay|wait|yo)\s+)?(?:(?:can|could|will|would) (?:you|u)\s+)?(?:what|what's|whats|how|show|tell|give|reveal|see|look|check|read|list|pull|open|share|send|dig|did|does|do|has|have|is|was|were|any|who|where|which|when|why)\b/u;
+
+/** An amount ("€200", "84 euros"). */
+const AMOUNT =
+  /(?:[€$£¥]\s?\d|\d(?:[\d,.]*\d)?\s?(?:€|eur|euros?|usd|dollars?|bucks|gbp|pounds?|quid)(?![\p{L}]))/u;
+
+/** A payer or split instruction: what a logged expense carries. */
+const PAYER_OR_SPLIT =
+  /\b(?:split|splitting|paid|pay|paying|put|went on|goes on|go on|charged? (?:it|to|on)|covered|covering|cover|owe|owes|log|add|each|ways|between)\b/u;
+
+/** The thing asked about is a booking Trav made, which the group already sees (receipt, audit). */
+const BOOKING =
+  /\b(?:tickets?|booking|bookings|booked|reservations?|flights?|deposit|lodging|airbnb|hotel booking)\b/u;
+
+/** "...for the late-night kebabs": the message names something already on the tab. */
+function mentionsTabItem(t: string, tabItems: readonly string[]): boolean {
+  return tabItems.some((d) => {
+    const item = d.toLowerCase().replace(/\s+/gu, ' ').trim();
+    if (item.length < 3) return false;
+    return new RegExp(String.raw`(?<![\p{L}])${escapeRe(item)}(?![\p{L}])`, 'u').test(t);
+  });
+}
+
+/**
+ * The member whose private data the message asks about, if any: "what did
+ * Sam's card get charged", "what's on Jordan's statement", "what did Sam spend
+ * on his card", "what's dad's daily budget". Only questions or reveal requests
+ * count. Never fired for an expense being logged ("i paid €84 for dinner on
+ * Jordan's card, split with everyone": an amount plus a payer or split
+ * instruction) or for a booking or tab item ("did sam's card go through for
+ * the tickets?": the booking is a group fact). The sender's own data is not
+ * "someone else's".
  */
 export function privateDataSubject(
   text: string,
   members: readonly Member[],
   me: Member,
+  /** Descriptions of what is on the trip's tab (a group fact, so asking about one is not private). */
+  tabItems: readonly string[] = [],
 ): Member | undefined {
   const t = commandText(text);
+  const question = text.includes('?') || REVEAL_CLAUSE.test(t);
+  if (!question) return undefined;
+  if (AMOUNT.test(t) && PAYER_OR_SPLIT.test(t)) return undefined;
+  if (BOOKING.test(t) || mentionsTabItem(t, tabItems)) return undefined;
   for (const m of members) {
     if (m.memberId === me.memberId) continue;
     const name = escapeRe(m.displayName.toLowerCase());
@@ -65,6 +106,15 @@ export function privateDataRefusal(subject: Member): string {
 
 const ASK_WORDS =
   /\?|\b(?:book|get|find|any|suggest|recommend|recs?|ideas?|where|what'?s good|take|bring|go to|going to|hit|plan|options?)\b/u;
+
+/**
+ * A spend or tab question ("how much did we spend at the bar?", "what do we
+ * owe for the casino"): money already on the tab, answered from the ledger,
+ * never a nightlife suggestion. "how much does the club cost" is a plan ask
+ * and is still intercepted.
+ */
+const SPEND_OR_TAB =
+  /\b(?:spent|owe|owes|owed|tab)\b|\bhow much (?:did|have|has|had)\b.*\b(?:spend|pay|paid|put|drop|dropped|blow|blew)\b/u;
 
 const ADULTS_PHRASE =
   /\b(?:just|only) (?:the )?(?:adults|grown[- ]?ups|parents)\b|\bfor the (?:adults|grown[- ]?ups|parents)\b|\badults?[- ]only\b|\bwe'?re both (?:18|21)\+?/u;
@@ -155,6 +205,8 @@ export function minorNightlifeRefusal(input: {
   const tags = safety.detectContentTags(t);
   if (!safety.isRestrictedContent(tags)) return undefined;
   if (!ASK_WORDS.test(`${t}${input.text.includes('?') ? '?' : ''}`)) return undefined;
+  // "how much did we spend at the bar?" is about money already on the tab, not a plan.
+  if (SPEND_OR_TAB.test(t)) return undefined;
   if (explicitAdultAudience(input.text, members, me, now) !== undefined) return undefined;
 
   const active = members.filter((m) => m.active && m.role !== 'guest');

@@ -718,3 +718,20 @@ describe('T-010 r2 review cases', () => {
     expect(run('i paid €84 for dinner + tip, everyone', ctx).kind).not.toBe('ready');
   });
 });
+
+describe("T-017 r2: \"on X's card\" names the payer, not who's in", () => {
+  it.each([
+    ["@trav split the €200 groceries with everyone, it went on Dean's card", 'mem_dean', 20000],
+    ["@trav i paid €84 for dinner on Jordan's card, split with everyone", 'mem_jordan', 8400],
+    ["@trav €60 taxi, everyone. put it on Maya's card", 'mem_maya', 6000],
+  ])('%s', (text, payer, minor) => {
+    const [e] = ready(text, BCN('mem_sam'));
+    expect(e).toMatchObject({ payer, amount: { amountMinor: minor, currency: 'EUR' } });
+    expect(e!.split).toMatchObject({ method: 'equal' });
+  });
+
+  it("someone outside the group's card is left to the usual rules (the stated payer)", () => {
+    const [e] = ready("@trav i paid €84 for dinner on Alex's card, split with everyone", BCN('mem_sam'));
+    expect(e!.payer).toBe('mem_sam');
+  });
+});

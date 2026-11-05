@@ -397,6 +397,23 @@ export function createSettingsFlow(deps: SettingsFlowDeps): SettingsFlow {
 
   // ---------- consent ----------
 
+  /**
+   * Card/email import confirmations name the owner's private pending count
+   * (SAFETY §2.6: visible only to its owner), so asked in the group they go to
+   * the owner's DM; the group sees only a 👍 on the request. The change itself
+   * is already applied by then (off always applies).
+   */
+  function importAck(ctx: SettingsTurnContext, text: string, note: string): SettingsOutcome {
+    const dm: OutboundMessage = {
+      id: ids.next('msg'),
+      groupId: ctx.group.groupId,
+      to: { kind: 'member', memberId: ctx.me.memberId },
+      text,
+    };
+    if (ctx.lane === 'dm') return { drafts: [dm], note };
+    return { drafts: [...thumbsUp(ctx, note).drafts, dm], note: `${note}:dm` };
+  }
+
   function consent(
     ctx: SettingsTurnContext,
     cmd: Extract<SettingsCommand, { kind: 'consent' }>,
@@ -482,9 +499,17 @@ export function createSettingsFlow(deps: SettingsFlowDeps): SettingsFlow {
       case 'photos':
         return say(ctx, cmd.on ? T.PHOTOS_ON_TEXT : T.PHOTOS_OFF_TEXT, note);
       case 'cardImport':
-        return say(ctx, cmd.on ? T.CARD_IMPORT_ON_TEXT : T.droppedPendingText(T.CARD_IMPORT_OFF_TEXT, r.dropped), note);
+        return importAck(
+          ctx,
+          cmd.on ? T.CARD_IMPORT_ON_TEXT : T.droppedPendingText(T.CARD_IMPORT_OFF_TEXT, r.dropped),
+          note,
+        );
       case 'emailImport':
-        return say(ctx, cmd.on ? T.EMAIL_IMPORT_ON_TEXT : T.droppedPendingText(T.EMAIL_IMPORT_OFF_TEXT, r.dropped), note);
+        return importAck(
+          ctx,
+          cmd.on ? T.EMAIL_IMPORT_ON_TEXT : T.droppedPendingText(T.EMAIL_IMPORT_OFF_TEXT, r.dropped),
+          note,
+        );
       case 'memoryAcrossTrips':
         return say(ctx, cmd.on ? T.MEMORY_ON_TEXT : T.MEMORY_OFF_TEXT, note);
     }
@@ -735,7 +760,14 @@ export function createSettingsFlow(deps: SettingsFlowDeps): SettingsFlow {
   }
 
   function refusals(ctx: SettingsTurnContext, text: string): SettingsOutcome | undefined {
-    const subject = privateDataSubject(text, ctx.members, ctx.me);
+    const tabItems =
+      ctx.trip === null
+        ? []
+        : stores.group.expenses
+            .listByTrip(ctx.trip.tripId)
+            .filter((e) => e.status === 'logged')
+            .map((e) => e.description);
+    const subject = privateDataSubject(text, ctx.members, ctx.me, tabItems);
     if (subject !== undefined) return say(ctx, privateDataRefusal(subject), 'refusal:private_data');
     if (ctx.lane !== 'group' || ctx.trip === null) return undefined;
     const nightlife = minorNightlifeRefusal({

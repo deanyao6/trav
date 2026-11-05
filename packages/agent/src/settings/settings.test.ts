@@ -14,8 +14,8 @@ import type {
   Member,
   MemberId,
   Money,
-  Outbound,
   OutboundMessage,
+  SimulatedClock,
   Trip,
 } from '@trav/core';
 import {
@@ -35,9 +35,17 @@ import {
 } from '@trav/adapters';
 import { BARCELONA, createTravRuntime } from '../compose.js';
 import type { TurnResult } from '../loop.js';
+import type { ModelClient } from '../model/client.js';
+import { deriveScriptKey } from '../model/offline/scripts.js';
 import { repoRoot } from '../model/paths.js';
 import { morningAfterJobFor } from '../recaps/morningAfter.js';
-import { harness, tempStateDir, type Harness } from '../runtime.testkit.js';
+import {
+  RAZZMATAZZ_ASK,
+  harness,
+  offlineModel,
+  tempStateDir,
+  type Harness,
+} from '../runtime.testkit.js';
 import * as T from './text.js';
 
 const G = BARCELONA.groupId;
@@ -575,7 +583,7 @@ const TCI = JSON.parse(
   readFileSync(join(repoRoot(), 'fixtures', 'groups', 'turks-and-caicos.json'), 'utf8'),
 ) as GroupFixture;
 
-function tci(at = '2026-06-20T15:00:00-04:00') {
+function tci(at = '2026-06-20T15:00:00-04:00', modelFor?: (clock: SimulatedClock) => ModelClient) {
   const clock = createSimulatedClock(at);
   const ids = createDeterministicIdGenerator('tci');
   const stores = createMemoryStores({ clock, ids });
@@ -605,6 +613,7 @@ function tci(at = '2026-06-20T15:00:00-04:00') {
     offline: true,
     env: { TRAV_OFFLINE: '1', TRAV_STATE_DIR: tempStateDir() },
     voice: 'strict',
+    ...(modelFor !== undefined ? { model: modelFor(clock) } : {}),
   });
   return {
     clock,
@@ -711,7 +720,158 @@ describe('family mode (VOICE §8): Turks and Caicos', () => {
       'roast mode off · replies normal · family mode on',
     );
   });
+
+  it("Dad's \"how much did we spend at the bar?\" gets the tab, not the nightlife intercept", async () => {
+    // The model asks the ledger (get_balances); the loop posts the tab as the settle_up card.
+    const ledgerModel = (clock: SimulatedClock): ModelClient => {
+      const inner = offlineModel(clock);
+      return {
+        mode: 'offline',
+        complete(req) {
+          const last = req.messages.at(-1);
+          const afterTool = last !== undefined && typeof last.content !== 'string';
+          return Promise.resolve({
+            text: '',
+            toolCalls: afterTool ? [] : [{ id: 'c1', name: 'get_balances', input: {} }],
+            usage: { inputTokens: 0, outputTokens: 0 },
+            source: 'script',
+            scriptKey: deriveScriptKey(req),
+          });
+        },
+        classify: (req) => inner.classify(req),
+      };
+    };
+    const w = tci('2026-06-21T16:00:00-04:00', ledgerModel);
+    const r = await w.say('h_dad', '@trav how much did we spend at the bar?');
+    expect(r.note).toBe('tool:get_balances:settle_up');
+    expect(r.toolCalls).toEqual(['get_balances']);
+    expect(only(r).card?.type).toBe('settle_up');
+    expect(w.audit().some((e) => e.type === 'content.suppressed')).toBe(false);
+  });
 });
 
-// Unused-import guard for helpers kept for readability.
-void ((): Outbound | undefined => undefined);
+// ---------- T-017 round 2 ----------
+
+describe('T-017 r2: expenses that name a card are logged, not refused', () => {
+  it.each([
+    ["@trav split the €200 groceries with everyone, it went on Dean's card", 20000, 'mem_dean'],
+    ["@trav i paid €84 for dinner on Jordan's card, split with everyone", 8400, 'mem_jordan'],
+  ])('%s', async (text, amountMinor, payer) => {
+    const h = harness();
+    const r = await h.say('h_sam', text);
+    expect(r.note).not.toBe('refusal:private_data');
+    const logged = h.runtime.stores.group.expenses.listByTrip(TRIP).filter((e) => e.status === 'logged');
+    expect(logged).toHaveLength(1);
+    // The card's owner is the payer: their money paid for it.
+    expect(logged[0]).toMatchObject({
+      amount: { amountMinor, currency: 'EUR' },
+      paidBy: [{ memberId: payer }],
+    });
+    expect(only(r).card?.type).toBe('expense_confirm');
+  });
+
+  it('"did sam\'s card go through for the tickets?" reaches the model with the booking in its context', async () => {
+    const h = harness();
+    const ask = await h.say('h_dean', RAZZMATAZZ_ASK);
+    const card = only(ask);
+    expect((await h.tap('h_dean', card.id, 'approve')).note).toBe('approval:handled');
+    const booking = h.runtime.stores.group.bookings.listByTrip(TRIP)[0]!;
+    const before = h.model.completions.length;
+    const r = await h.say('h_jordan', "@trav did sam's card go through for the tickets?");
+    expect(r.note).not.toBe('refusal:private_data');
+    expect(r.outbound.some((o) => !isReaction(o) && o.text.startsWith("that's Sam's"))).toBe(false);
+    const req = h.model.completions.at(before);
+    expect(req).toBeDefined();
+    expect(req!.system).toContain(booking.description);
+    expect(req!.system).toContain(booking.status);
+  });
+
+  it('a question about what is on the tab with a name is not refused; a reveal ask still is', async () => {
+    const h = harness();
+    razzNight(h);
+    h.clock.set('2026-03-15T11:00:00+01:00');
+    const tab = await h.say('h_maya', "@trav what did jordan's card get charged for the late-night kebabs");
+    expect(tab.note).not.toBe('refusal:private_data');
+    const priv = await h.say('h_maya', "@trav what did jordan's card get charged last night");
+    expect(priv.note).toBe('refusal:private_data');
+  });
+});
+
+describe('T-017 r2: card/email import toggled in the group', () => {
+  it('applies the change; the pending count goes to the owner by DM, the group gets a count-free 👍', async () => {
+    const h = harness();
+    h.clock.set('2026-03-17T21:00:00+01:00');
+    await h.dm('h_sam', 'turn on card import');
+    await h.runtime.agent.importCardTransactions({
+      groupId: G,
+      ownerMemberId: 'mem_sam',
+      adapter: createMockTransactions(),
+    });
+    const pending = h.runtime.stores.private.listPendingItems('mem_sam', G, 'pending').length;
+    expect(pending).toBeGreaterThan(0);
+
+    const off = await h.say('h_sam', '@trav card import off');
+    expect(consent(h, 'mem_sam')?.cardImport).toBe(false);
+    expect(h.runtime.stores.private.listPendingItems('mem_sam', G, 'pending')).toEqual([]);
+    const toGroup = off.outbound.filter((o) => o.to.kind === 'group');
+    expect(toGroup).toHaveLength(1);
+    expect(toGroup[0]).toMatchObject({ kind: 'reaction', emoji: '👍' });
+    const dms = off.outbound.filter((o): o is OutboundMessage => !isReaction(o) && o.to.kind === 'member');
+    expect(dms).toHaveLength(1);
+    expect(dms[0]!.to).toEqual({ kind: 'member', memberId: 'mem_sam' });
+    expect(dms[0]!.text).toBe(T.droppedPendingText(T.CARD_IMPORT_OFF_TEXT, pending));
+
+    // Turning it on from the group: applied, confirmation by DM too.
+    const on = await h.say('h_sam', '@trav email import on');
+    expect(consent(h, 'mem_sam')?.emailImport).toBe(true);
+    expect(on.outbound.filter((o) => o.to.kind === 'group').every((o) => isReaction(o))).toBe(true);
+    expect(
+      on.outbound.filter((o): o is OutboundMessage => !isReaction(o) && o.to.kind === 'member').map((o) => o.text),
+    ).toEqual([T.EMAIL_IMPORT_ON_TEXT]);
+  });
+});
+
+describe('T-017 r2: a join that brings in a minor posts the family-mode notice once', () => {
+  it('a 14-year-old joins the Barcelona chat: one notice, and none on the next roster change', async () => {
+    const h = harness();
+    const notices = () =>
+      h.audit().filter((e) => e.type === 'settings.changed' && e.payload['setting'] === 'familyMode');
+    expect(notices()).toEqual([]);
+    // The host adds the member record (with the birth date) as the channel reports the join.
+    h.runtime.stores.group.members.upsert({
+      memberId: 'mem_kid',
+      groupId: G,
+      displayName: 'Kai',
+      role: 'member',
+      active: true,
+      senderId: 'h_kai',
+      birthDate: '2012-01-10',
+      ageBand: 'under18',
+      joinedAt: h.clock.now(),
+    });
+    const join = await h.runtime.agent.handleInbound(
+      await h.channel.injectMemberJoined({
+        conversationId: BARCELONA.conversationId,
+        participant: { handle: 'h_kai', displayName: 'Kai' },
+      }),
+    );
+    const msgs = join.outbound.filter((o): o is OutboundMessage => !isReaction(o));
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0]!.to).toEqual({ kind: 'group' });
+    expect(msgs[0]!.text).toMatch(/^family mode is on since Kai's on the trip/u);
+    expect(notices().map((e) => e.payload['after'])).toEqual([true]);
+
+    // A roster change after that says nothing more about family mode.
+    const roster = await h.say('h_dean', "@trav henry's out tonight");
+    expect(roster.note).toMatch(/^roster:/u);
+    expect(roster.outbound.some((o) => !isReaction(o) && o.text.startsWith('family mode'))).toBe(false);
+    const again = await h.runtime.agent.handleInbound(
+      await h.channel.injectMemberJoined({
+        conversationId: BARCELONA.conversationId,
+        participant: { handle: 'h_kai', displayName: 'Kai' },
+      }),
+    );
+    expect(again.outbound).toEqual([]);
+    expect(notices()).toHaveLength(1);
+  });
+});

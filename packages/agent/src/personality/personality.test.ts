@@ -481,3 +481,109 @@ describe('VOICE §4.12 C: nightlife with a minor', () => {
     expect(bcn).toBeUndefined();
   });
 });
+
+describe('T-017 r2: privateDataSubject only fires on questions about private data', () => {
+  const sam = BCN.members.find((m) => m.memberId === 'mem_sam')!;
+  const jordan = BCN.members.find((m) => m.memberId === 'mem_jordan')!;
+
+  it.each([
+    ["@trav split the €200 groceries with everyone, it went on Dean's card", sam],
+    ["@trav i paid €84 for dinner on Jordan's card, split with everyone", sam],
+    ["@trav put 45 euros for the taxi on Maya's card, split it 3 ways", jordan],
+    ["@trav did sam's card go through for the tickets?", jordan],
+    ["@trav what did sam's card get charged for the razzmatazz booking", jordan],
+    ["@trav it went on sam's card", jordan],
+  ])('not a refusal: %s', (text, me) => {
+    expect(privateDataSubject(text, BCN.members, me)).toBeUndefined();
+  });
+
+  it('a tab item is a group fact; the same ask with no tab item is still refused', () => {
+    const q = "@trav what did sam's card get charged for the late-night kebabs";
+    expect(privateDataSubject(q, BCN.members, jordan, ['late-night kebabs'])).toBeUndefined();
+    expect(privateDataSubject(q, BCN.members, jordan, [])?.memberId).toBe('mem_sam');
+  });
+
+  it.each([
+    "@trav what's henry's budget",
+    "@trav what does priya eat, and what's henry's budget",
+    "sam's card?",
+    '@trav can you check sam\'s card charges from last night',
+    "@trav how much is on sam's card",
+  ])('still refused: %s', (text) => {
+    expect(privateDataSubject(text, BCN.members, jordan)).toBeDefined();
+  });
+
+  it('Lisbon: "what\'s dad\'s daily budget" is still Dad\'s (VOICE §4.12 D, private_budget_lisbon)', () => {
+    const LIS = fixture<GroupFixture>('groups/lisbon.json');
+    const dean = LIS.members.find((m) => m.displayName === 'Dean')!;
+    expect(privateDataSubject("@trav what's dad's daily budget", LIS.members, dean)?.displayName).toBe(
+      'Dad',
+    );
+  });
+});
+
+describe('T-017 r2: family-mode spend questions are not nightlife asks', () => {
+  const tci = (text: string) =>
+    minorNightlifeRefusal({
+      group: TCI.group,
+      members: TCI.members,
+      trip: TCI.trip,
+      activities: TCI.activities,
+      me: TCI.members.find((m) => m.memberId === 'mem_tci_dad')!,
+      text,
+      now: '2026-06-21T16:00:00-04:00',
+    });
+
+  it.each([
+    '@trav how much did we spend at the bar?',
+    '@trav what do we owe for the casino night?',
+    "@trav what's on the tab from the bar?",
+  ])('not intercepted: %s', (text) => {
+    expect(tci(text)).toBeUndefined();
+  });
+
+  it.each(['@trav how much does the club cost?', '@trav any bars open tonight?'])(
+    'still intercepted: %s',
+    (text) => {
+      expect(tci(text)).toBeDefined();
+    },
+  );
+});
+
+describe('T-017 r2: roast details', () => {
+  it('a self-roast without opt-in is "you haven\'t opted in", not the third person', () => {
+    const ctx = world('barcelona', { me: 'mem_sam', optedIn: [] });
+    expect(ask('@trav roast me for the ubers', ctx)).toMatchObject({
+      kind: 'refuse',
+      cause: 'member_opted_out',
+      text: T.SELF_NOT_OPTED_IN_TEXT,
+    });
+    expect(T.SELF_NOT_OPTED_IN_TEXT).toBe("you haven't opted in. '@trav roast me' is how");
+    expect(lint(T.SELF_NOT_OPTED_IN_TEXT, 'refusal', BCN.members)).toEqual([]);
+    // Someone else's name keeps the third person.
+    expect(textOf(ask('@trav roast Sam for the ubers', world('barcelona', { me: 'mem_jordan' })))).toBe(
+      T.notOptedInText('Sam'),
+    );
+  });
+
+  it('the group line only sums the trip currency', () => {
+    const base = BCN_LEDGER.expenses.find((e) => e.expenseId === 'exp_bcn_015')!;
+    const at = (id: string, minor: number, currency: 'EUR' | 'USD'): Expense => ({
+      ...base,
+      expenseId: id,
+      description: 'groceries',
+      category: 'food',
+      amount: { amountMinor: minor, currency },
+      paidBy: [{ memberId: 'mem_dean', amount: { amountMinor: minor, currency } }],
+      occurredAt: '2026-03-14T13:00:00+01:00',
+      status: 'logged',
+    });
+    const ctx = world('barcelona', {
+      optedIn: ALL_BCN,
+      expenses: [at('e1', 4000, 'EUR'), at('e2', 2550, 'EUR'), at('e3', 99900, 'USD')],
+    });
+    expect(textOf(ask('@trav roast everyone', ctx))).toBe(
+      "€65.50 on the tab across 2 things so far. nobody's slowing down",
+    );
+  });
+});
