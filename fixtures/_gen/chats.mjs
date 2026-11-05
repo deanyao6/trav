@@ -209,7 +209,9 @@ export function barcelonaChat(opts = {}) {
     approval: { effect: 'granted', complete: true },
     booking: { kind: 'lodging', itemRef: 'rate_bcn_eixample_3br_flex', purchaseCount: 1, totalMinor: 138000 },
     expense: exp({ payer: g.dean, total: eur(138000), split: eq(g.all), category: 'lodging', description: 'Eixample 3br apartment', activityId: 'act_bcn_lodging', source: 'booking' }),
-    audit: ['policy.evaluated', 'approval.granted', 'booking.attempted', 'booking.completed', 'ledger.written'],
+    // policy.evaluated is written when the proposal is made (msg_bcn_0027), as for Razzmatazz (T-132).
+    audit: ['approval.granted', 'booking.attempted', 'booking.completed', 'ledger.written'],
+    auditOrder: ['policy.evaluated', 'approval.granted', 'booking.attempted', 'booking.completed', 'ledger.written'],
     mustContain: ['booked ✅', '€1,380'],
   }, { ref: 'bcn_lodging_complete' });
 

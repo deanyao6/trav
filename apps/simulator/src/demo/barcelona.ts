@@ -19,7 +19,6 @@
  * `runBarcelonaDemo()` returns the transcript and the list of checks; it
  * never throws on a failed check (the CLI turns `ok: false` into exit 1).
  */
-import type { LodgingSearchResult } from '@trav/adapters';
 import { loadMockFlightInventory, toFlightChoice } from '@trav/adapters';
 import type { TravRuntime } from '@trav/agent';
 import { createTravRuntime } from '@trav/agent';
@@ -80,7 +79,6 @@ export const OFFLINE_FALLBACK = "i'm not sure what you mean";
 /** The steps that have no chat flow in v0 (printed in the transcript header). */
 export const DEMO_NOTES: readonly string[] = [
   "step 2 (flights): v0 has no chat flow that posts group flight options or books flights (`booking/proposals.ts` answers `unsupported_kind` for flights). Trav's chat reply is scripted to say exactly that (it can't line up or book group flights in chat yet) and quotes no optimizer numbers; the step then runs the core multi-origin optimizer (`flights.optimizeGroupFlights`) over the mock flights provider directly, in a labeled block. Nothing is booked.",
-  'step 3 (lodging): the real `search_lodging` call; the offline reply text is scripted on its result. No chat flow proposes or books a stay yet, so the step also lists the mock search directly for the check. Nothing is booked.',
   'step 10 (settle-up): Trav answers "@trav settle now" with the transfers; Maya\'s 👍 on the card (or her [Paid] tap) records that she says she paid and re-posts the card with her row ticked (T-141). Payee confirmation, disputes and nudges are not built (T-037), so the demo applies the remaining transfers to the balances itself and checks that everyone ends at €0. No money moves.',
 ];
 
@@ -276,13 +274,51 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
 
     // ---------------- 3. lodging ----------------
     await section('3. lodging', '2026-02-03T20:31:00+01:00');
-    await say(
+    const stayReply = await say(
       'Dean',
       'ok now a place. @trav find a 6 person airbnb in eixample or gracia, under €1500 total, refundable',
     );
-    const stay = await planLodging(rt());
-    emit(stay.text);
-    check('a refundable 6-person stay under €1,500 is the first option', stay.ok, stay.detail);
+    const stayCard = stayReply.find((m) => m.card?.type === 'booking_proposal');
+    check(
+      'Trav proposed the refundable Eixample stay for all 6 (€1,380, €230 each), passing on the cheaper non-refundable one',
+      stayCard !== undefined &&
+        /€1,380 for 5 nights · €230 each · free cancel/.test(stayCard.text) &&
+        /non-refundable/.test(stayCard.text),
+      stayReply.map((m) => m.text).join(' | '),
+    );
+    if (stayCard) {
+      // Lodging is on everyone paying (SAFETY C2): each of the 6 taps.
+      for (const name of ['Dean', 'Maya', 'Jordan', 'Priya', 'Sam']) {
+        const live = messageById(view(), stayCard.messageId);
+        if (live?.cardState?.liveActionIds.includes('approve') !== true) break;
+        await tap(name, live, 'approve');
+      }
+      // A relayed approval is never a grant (SAFETY §2.5).
+      await say('Jordan', "henry's at practice, i'll approve for him. go ahead trav");
+      const stays = (): number =>
+        rt()
+          .stores.group.bookings.listByTrip(TRIP_ID)
+          .filter((b) => b.kind === 'lodging').length;
+      check('Jordan\'s "i\'ll approve for him" books nothing', stays() === 0);
+      const live = messageById(view(), stayCard.messageId);
+      if (live?.cardState?.liveActionIds.includes('approve') === true) {
+        await tap('Henry', live, 'approve');
+      }
+      const receipt = messages(view().thread).find(
+        (m) => m.seq > stayCard.seq && m.card?.type === 'receipt',
+      );
+      const shares = shareAmounts(rt(), expenseWith(rt(), 138000));
+      check(
+        "Henry's own 👍 books it: one stay, €1,380 on Dean's card, €230 each on the tab",
+        stays() === 1 &&
+          receipt !== undefined &&
+          /booked ✅/.test(receipt.text) &&
+          /€1,380/.test(receipt.text) &&
+          shares.size === 6 &&
+          MEMBER_ORDER.every((id) => shares.get(id) === 23000),
+        JSON.stringify([...shares]),
+      );
+    }
 
     // ---------------- 4. Barça tickets ----------------
     await section('4. Barça tickets', '2026-02-10T19:30:00+01:00');
@@ -760,44 +796,6 @@ async function planFlights(rt: TravRuntime): Promise<PlanResult> {
     text: lines.join('\n'),
     ...(ok ? {} : { detail: `missing ${result.missing.join(', ')}` }),
   };
-}
-
-/** The mock lodging provider: whole-unit stays for 6, refundable first, then cheapest. */
-async function planLodging(rt: TravRuntime): Promise<PlanResult> {
-  const res = await rt.providers.lodging.search({
-    near: { city: 'Barcelona' },
-    checkIn: '2026-03-12',
-    checkOut: '2026-03-17',
-    adults: 6,
-    wholeUnitForGroup: true,
-    maxTotal: money(150000, 'EUR'),
-  });
-  if (!res.ok) return { ok: false, text: '> lodging search failed', detail: res.error.message };
-  const rows = res.value
-    .flatMap((r: LodgingSearchResult) =>
-      r.rates.filter((x) => x.sleeps >= 6).map((rate) => ({ property: r.property, rate })),
-    )
-    .sort(
-      (a, b) =>
-        Number(b.rate.refundPolicy.refundable) - Number(a.rate.refundPolicy.refundable) ||
-        a.rate.totalAmount.amountMinor - b.rate.totalAmount.amountMinor,
-    )
-    .slice(0, 3);
-  const lines = [
-    '> **[planner step, no chat flow yet]** mock lodging search, refundable first, under €1,500:',
-    '>',
-  ];
-  rows.forEach((r, i) => {
-    lines.push(
-      `> ${String(i + 1)}. ${r.property.name} · ${formatMoney(r.rate.totalAmount)} for 5 nights · sleeps ${String(r.rate.sleeps)} · ${r.rate.refundPolicy.refundable ? 'refundable' : 'non-refundable'}`,
-    );
-  });
-  const first = rows[0];
-  const ok =
-    first !== undefined &&
-    first.rate.refundPolicy.refundable &&
-    first.rate.totalAmount.amountMinor <= 150000;
-  return { ok, text: lines.join('\n'), ...(ok ? {} : { detail: 'no refundable stay' }) };
 }
 
 // ---------------- settle-up ----------------

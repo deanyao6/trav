@@ -44,4 +44,5 @@ Things the overnight run could not decide or was blocked on. Ranked by importanc
 ## 2026-11-05 (session 15)
 
 - **T-141 vs T-037: who confirms a settle-up payment (decide, medium).** T-141 lets the payer's own 👍 or [Paid] tap mark their transfer paid, and balances drop right away (D-034). T-037's acceptance says balances change only on the payee's confirmation. Payer-only is simpler and matches what T-141 asked; payee confirmation is safer against a mistaken tap. A mistaken 👍 can't be undone in chat yet. Pick the rule before T-037 is built.
+- **T-132 legal names for bookings (decide, medium; D-037).** Trav knows only display names ("Dean"), so stays are booked under the lead guest's first name, which works only for whole-home rentals. Hotels, hostels and flights need a full name. Before any real provider, members need a private traveler profile (full legal name, maybe date of birth). Should Trav ask for it in a DM the first time it's needed, or once at trip setup?
 - **T-135 riders: reading the group thread (decide, low).** Kept from session 14: the Uber split infers who left from members' own "heading back" lines. Keep, or always ask on a mismatch?

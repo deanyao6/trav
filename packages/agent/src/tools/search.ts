@@ -371,7 +371,7 @@ export function createSearchLodgingTool(
   return {
     name: 'search_lodging',
     description:
-      'Search places to stay in the trip city for the trip dates (whole-unit for the group by default). Refundable options first. Read-only; lodging is always booked with a lead confirming.',
+      'Search places to stay in the trip city for the trip dates (whole-unit for the group by default). Refundable options first. Read-only; to book one, call propose_booking with kind lodging and its rateId as itemRef (everyone staying approves).',
     inputSchema: {
       type: 'object',
       properties: {

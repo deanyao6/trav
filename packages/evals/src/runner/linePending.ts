@@ -32,16 +32,6 @@ export const LINE_PENDING: Readonly<Record<string, LinePending>> = Object.fromEn
     'msg_bcn_0025',
     'msg_bcn_0026',
   ]),
-  ...gap('T-132', 'offline lodging ask searches but never proposes the rate', [
-    'msg_bcn_0027',
-    'msg_bcn_0031',
-    'msg_bcn_0032',
-    'msg_bcn_0033',
-    'msg_bcn_0034',
-    'msg_bcn_0035',
-    'msg_bcn_0036',
-    'msg_bcn_0037',
-  ]),
   ...gap('T-083', 'receipt photo waits for the payer 👍 (SAFETY D5) the fixture lacks', [
     'msg_bcn_0093',
     'msg_bcn_0161',

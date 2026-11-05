@@ -9,8 +9,9 @@
  *    same event's cheaper tiers with their trade-off (T-133), from those
  *    results only (real prices; never a new proposal).
  *  - "cancel the vip thing" ⇒ `get_pending_proposals` ⇒ `cancel_proposal`.
- *  - a place to stay ⇒ `search_lodging` (round 2 is a script when one
- *    matches, else a line from the results; stays aren't bookable yet).
+ *  - a place to stay ⇒ `search_lodging` ⇒ `propose_booking` on the best
+ *    refundable rate (T-132; a proposal and a card, never a purchase), else
+ *    one line from the results (nothing refundable fits).
  *  - "remember …" ⇒ `remember` (never health details).
  *  - a personal budget in a DM ⇒ `remember` (scope me, the figure only,
  *    never the reason; T-134).
@@ -25,12 +26,14 @@
 import { formatMoney, money } from '@trav/core';
 import type { CurrencyCode } from '@trav/core';
 import {
+  areaOf,
   askedThing,
   bestMatchesBy,
   categoryOnly,
   closestSlotText,
   onNight,
   rankSlots,
+  shortDate,
   type SlotOption,
 } from '../../booking/proposals.js';
 import { loadAllTicketInventories } from '@trav/adapters';
@@ -1162,8 +1165,17 @@ export function parseStayAsk(text: string): Record<string, unknown> | undefined 
   };
 }
 
+/** Folded words joined by single spaces ("Gràcia!" ⇒ "gracia"). */
+function wordsOf(s: string): string {
+  return foldText(s)
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+    .join(' ');
+}
+
 interface Stay {
   readonly name: string;
+  readonly rateId?: string;
   readonly area: string;
   readonly totalMinor: number;
   readonly currency: string;
@@ -1194,20 +1206,38 @@ export const lodgingResponder: FallbackResponder = {
         typeof s['currency'] === 'string' &&
         typeof s['refundable'] === 'boolean',
     );
-    const tail =
-      "nothing's booked. stays aren't bookable from the chat yet, book it on the site and tell me the total";
-    const best = stays[0];
-    if (best === undefined) {
+    if (stays.length === 0) {
       return response(
         req,
         "nothing fits that for the trip dates. raise the budget or try another area, nothing's booked",
         [],
       );
     }
+    // The areas the member named ("in eixample or gracia") win; none named, or
+    // none of them in the results, and every result stays in (T-132).
+    const words = ` ${wordsOf(theAsk(req)?.text ?? '')} `;
+    const inArea = stays.filter((s) => {
+      const area = wordsOf(areaOf(s.area) ?? '');
+      return area.length > 0 && words.includes(` ${area} `);
+    });
+    const pool = inArea.length > 0 ? inArea : stays;
+    // Refundable first (SAFETY C5, VOICE §4.1 C): the search lists refundable
+    // stays first, so a refundable best fit is proposed on its rate. The card,
+    // its price and the trade-off line come from the proposal service; the
+    // purchase is still the policy plus every payer's 👍 away (T-132).
+    const best = pool[0]!;
+    if (best.refundable && typeof best.rateId === 'string' && offered(req, 'propose_booking')) {
+      return response(req, '', [
+        call(req, prefix, 2, 'propose_booking', { kind: 'lodging', itemRef: best.rateId }),
+      ]);
+    }
+    const tail = best.refundable
+      ? "nothing's booked. ask me in the group and i'll post it for everyone's 👍"
+      : "nothing refundable fits that, so nothing's booked. raise the budget or try other dates";
     const refund = best.refundable
       ? best.refundableUntil === null
         ? 'refundable'
-        : `free cancel until ${best.refundableUntil.slice(0, 10)}`
+        : `free cancel until ${shortDate(best.refundableUntil.slice(0, 10))}`
       : 'non-refundable';
     const lines = [
       `best fit: ${best.name}`,

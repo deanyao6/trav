@@ -60,10 +60,38 @@ function member(m: Member): Member {
 export interface SeedOptions {
   readonly extras?: boolean;
   readonly settings?: Readonly<Record<string, unknown>>;
+  /**
+   * The episode start. A member's spending prefs exist only from when they
+   * told Trav their budget (their private `budget` fact's `learnedAt`, the
+   * fixture generator's `prefsFrom`): prefs told later are held back and
+   * returned in `deferredPrefs`, for the runner to apply when the clock gets
+   * there (T-132: Henry's €80 cap is told on mar 11, not before).
+   */
+  readonly now?: string;
 }
 
-/** Writes the fixture group into `stores` and returns it. */
-export function seedGroup(stores: Stores, trip: TripName, opts: SeedOptions = {}): GroupFixture {
+/** Spending prefs that start to apply at `at` (see `SeedOptions.now`). */
+export interface DeferredPrefs {
+  readonly at: string;
+  readonly prefs: MemberSpendingPrefs;
+}
+
+/** When `memberId` told Trav their budget: their latest private `budget` fact's `learnedAt`. */
+export function prefsToldAt(f: GroupFixture, memberId: string): string | undefined {
+  return f.memberMemory
+    .filter((m) => m['ownerMemberId'] === memberId && m['category'] === 'budget')
+    .map((m) => String(m['learnedAt']))
+    .sort((a, b) => Date.parse(a) - Date.parse(b))
+    .at(-1);
+}
+
+/** Writes the fixture group into `stores` and returns it, with any prefs held back (`SeedOptions.now`). */
+export function seedGroup(
+  stores: Stores,
+  trip: TripName,
+  opts: SeedOptions = {},
+): GroupFixture & { readonly deferredPrefs: readonly DeferredPrefs[] } {
+  const deferredPrefs: DeferredPrefs[] = [];
   const f = loadGroupFixture(trip);
   const group: Group =
     opts.settings === undefined
@@ -76,7 +104,12 @@ export function seedGroup(stores: Stores, trip: TripName, opts: SeedOptions = {}
   for (const a of f.attendance) stores.group.trips.setAttendance(a);
   if (opts.extras === true) {
     for (const c of f.consent) stores.private.putConsent(c.memberId, c);
-    for (const p of f.memberPrefs) stores.private.putPrefs(p.memberId, p);
+    for (const p of f.memberPrefs) {
+      const at = opts.now === undefined ? undefined : prefsToldAt(f, p.memberId);
+      if (at !== undefined && opts.now !== undefined && Date.parse(at) > Date.parse(opts.now)) {
+        deferredPrefs.push({ at, prefs: p });
+      } else stores.private.putPrefs(p.memberId, p);
+    }
     for (const g of f.groupMemory) stores.group.groupMemory.upsert(g);
     for (const m of f.memberMemory) {
       const fact: MemberMemoryFact = markPrivate({
@@ -93,5 +126,5 @@ export function seedGroup(stores: Stores, trip: TripName, opts: SeedOptions = {}
       stores.private.putMemberMemory(fact.ownerMemberId, fact);
     }
   }
-  return f;
+  return { ...f, deferredPrefs };
 }

@@ -579,6 +579,7 @@ describe('mock lodging: book', () => {
       { guestMemberIds: ['mem_dean', 'mem_dean'] },
       { leadGuest: { memberId: 'mem_stranger', givenName: 'S', familyName: 'T' } },
       { leadGuest: { memberId: 'mem_dean', givenName: '', familyName: 'T' } },
+      { leadGuest: { memberId: 'mem_dean', givenName: 'Dean', familyName: ' ' } },
       { specialRequests: 'x'.repeat(501) },
     ];
     for (const [i, c] of guestCases.entries()) {
@@ -655,6 +656,34 @@ describe('mock lodging: host messaging', () => {
     const summary = value(await lodging.getCheckInSummary(booking.bookingId));
     expect(summary.hostMessaging).toBe('supported');
     expect(summary.payAtProperty).toBeUndefined();
+  });
+});
+
+describe('mock lodging: the lead guest name (D-037, T-132)', () => {
+  it('a whole-home rental books under a given name alone; a hotel refuses it and books with a family name', async () => {
+    const { lodging } = setup();
+    const home = await lodging.book(
+      bookReq({ leadGuest: { memberId: 'mem_dean', givenName: 'Dean' } }),
+    );
+    expect(value(home).status).toBe('confirmed');
+    const hotelReq = (familyName?: string, key = 'idem_hotel'): BookLodgingRequest =>
+      bookReq({
+        rateId: 'rate_bcn_hotel_2triples',
+        expectedTotal: eur(231000),
+        idempotencyKey: key,
+        leadGuest: {
+          memberId: 'mem_dean',
+          givenName: 'Dean',
+          ...(familyName !== undefined ? { familyName } : {}),
+        },
+        approval: proof({ approvalId: `grant_${key}`, maxAmount: eur(231000) }),
+      });
+    expect(errorCode(await lodging.book(hotelReq()))).toBe('invalid_request');
+    expect(lodging.bookingCount()).toBe(1);
+    expect(value(await lodging.book(hotelReq('Fictional', 'idem_hotel_2'))).status).toBe(
+      'confirmed',
+    );
+    expect(lodging.bookingCount()).toBe(2);
   });
 });
 

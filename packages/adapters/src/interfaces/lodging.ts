@@ -79,6 +79,19 @@ export interface LodgingSearchResult {
   readonly rates: readonly LodgingRate[];
 }
 
+/**
+ * The guest the stay is booked under (D-037). Hotels and hostels need the
+ * family name; a whole-home rental (`vacation_rental` or `apartment`, the
+ * Airbnb-style case) is booked under the lead guest's given name, which is
+ * all its host sees.
+ * v0 keeps no legal names, so the family name is present only when the
+ * member's display name has one; nothing is ever invented. A real adapter
+ * whose provider requires a surname for every kind must refuse without one.
+ */
+export interface LeadGuest extends Omit<Traveler, 'familyName'> {
+  readonly familyName?: string;
+}
+
 export interface BookLodgingRequest {
   /**
    * The group the stay is booked for. Must equal `approval.groupId`;
@@ -86,7 +99,7 @@ export interface BookLodgingRequest {
    */
   readonly groupId: GroupId;
   readonly rateId: string;
-  readonly leadGuest: Traveler;
+  readonly leadGuest: LeadGuest;
   /** All members staying, for occupancy and the ledger split. */
   readonly guestMemberIds: readonly MemberId[];
   readonly expectedTotal: Money;

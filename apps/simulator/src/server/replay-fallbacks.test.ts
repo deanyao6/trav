@@ -69,7 +69,7 @@ async function playAll(): Promise<ReplayRun> {
  */
 const KNOWN_FALLBACKS: readonly string[] = [];
 
-/** Taps that need a card v0 can't post yet (flights and stays aren't bookable, T-074). */
+/** Taps that need a card v0 can't post yet (flights aren't bookable, T-074; stays are since T-132). */
 const KNOWN_SKIPS: readonly string[] = [
   'msg_bcn_0020',
   'msg_bcn_0021',
@@ -77,12 +77,6 @@ const KNOWN_SKIPS: readonly string[] = [
   'msg_bcn_0024',
   'msg_bcn_0025',
   'msg_bcn_0026',
-  'msg_bcn_0031',
-  'msg_bcn_0032',
-  'msg_bcn_0033',
-  'msg_bcn_0034',
-  'msg_bcn_0035',
-  'msg_bcn_0037',
 ];
 
 describe('Barcelona replay: generic fallback ratchet (T-092)', () => {
@@ -104,6 +98,12 @@ describe('Barcelona replay: generic fallback ratchet (T-092)', () => {
     // Barça (T-081): a proposal over the cap that everyone charged 👍s, then a receipt.
     expect(said('msg_bcn_0040')).toMatch(/6 tickets · Tribuna lateral/);
     expect(said('msg_bcn_0049')).toMatch(/^booked ✅ fc barcelona vs sevilla fc, 6 tickets/);
+    // The stay (T-132): the refundable Eixample rate for all 6, booked on Henry's 👍, not Jordan's relay.
+    expect(said('msg_bcn_0027')).toMatch(
+      /€1,380 for 5 nights · €230 each · free cancel until mar 7/,
+    );
+    expect(said('msg_bcn_0036')).toBe('');
+    expect(said('msg_bcn_0037')).toMatch(/^booked ✅ eixample 3br with balcony, €1,380/);
     // No reply anywhere repeats why Henry is out.
     for (const texts of run.byLine.values()) {
       for (const t of texts)

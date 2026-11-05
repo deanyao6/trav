@@ -73,7 +73,9 @@ export type ClaimedApproval =
   /** "Dean said it's fine": the text speaks for one named member. */
   | { readonly kind: 'named'; readonly claimedFor: MemberId }
   /** "everyone's in": a claim about the group that names nobody in particular. */
-  | { readonly kind: 'everyone' };
+  | { readonly kind: 'everyone' }
+  /** "i'll approve for him" naming nobody: relayed consent, never the sender's own 👍 (T-132). */
+  | { readonly kind: 'proxy' };
 
 /**
  * "Dean said it's fine", "Dean's ok", "Dean is good". Attendance words ("in",
@@ -121,9 +123,44 @@ export function detectClaimedApproval(
     const re = new RegExp(`\\b${escapeRegExp(name)}${SAID_YES}`, 'i');
     if (re.test(t)) return { kind: 'named', claimedFor: m.memberId };
   }
+  const proxy = PROXY_APPROVAL.exec(t);
+  if (proxy !== null) {
+    // "i'll approve for henry" / "henry's at practice, i'll approve for him":
+    // relayed consent (SAFETY §2.5, T-132). The person meant is the member
+    // named, else (a pronoun) the only other member the text names; else
+    // nobody in particular, and it still never counts as the sender's own 👍.
+    // "i approve for sure" names no one: not a proxy.
+    const others = members.filter((m) => m.memberId !== sender && m.displayName.trim().length > 0);
+    const named = (s: string) =>
+      others.filter((m) => new RegExp(`\\b${escapeRegExp(m.displayName.trim())}\\b`, 'i').test(s));
+    const who = (proxy[1] ?? proxy[2] ?? '').toLowerCase().replace(/'s$/, '');
+    const direct = named(who);
+    if (direct.length > 0 || PROXY_PRONOUN.test(who)) {
+      const inText = direct.length > 0 ? direct : named(t);
+      return inText.length === 1
+        ? { kind: 'named', claimedFor: inText[0]!.memberId }
+        : { kind: 'proxy' };
+    }
+  }
   if (EVERYONE_IN.test(t)) return { kind: 'everyone' };
   return undefined;
 }
+
+/**
+ * "i'll approve for him", "approving on henry's behalf", "i can 👍 for maya",
+ * "we'll confirm it for everyone": the sender approving for someone else. The
+ * approval is the sender's own act (first person, or a bare "approving …"),
+ * so "can you confirm for everyone what time" is not one. Group 1 (or 2, the
+ * "on X's behalf" form) is who it is for.
+ */
+const PROXY_VERB = String.raw`(?:\b(?:i|i'll|ill|i will|i'm|im|i am|let me|i can|i'd|we'll|we will|we can)\s+(?:just\s+|gonna\s+|going to\s+|also\s+)?(?:approve|approving|confirm|confirming|👍|sign off|signing off|say yes|saying yes|vote yes)|\b(?:approving|confirming|signing off))`;
+const PROXY_APPROVAL = new RegExp(
+  String.raw`${PROXY_VERB}\s+(?:it\s+|this\s+|that\s+|(?:this|that|the) one\s+)?(?:(?:for|on behalf of|in place of|instead of)\s+(him|her|them|everyone|everybody|all of (?:us|them)|the group|[\p{L}][\p{L}'-]*)(?![\p{L}])|on\s+(his|her|their|[\p{L}][\p{L}-]*'s)\s+behalf\b)`,
+  'iu',
+);
+/** Who a proxy approval can be for without a name. */
+const PROXY_PRONOUN =
+  /^(?:him|her|them|his|their|everyone|everybody|all of us|all of them|the group)$/;
 
 /**
  * Approval-shaped words that turn a claim about someone else ("Dean said it's
@@ -197,7 +234,7 @@ export function gateApproval(input: ApprovalGateInput): ApprovalGateResult {
   const claim =
     input.text.length > 0 ? detectClaimedApproval(input.text, input.members, me) : undefined;
   if (claim !== undefined) {
-    if (claim.kind === 'named' || !hasApprovalIntentWord(input.text)) {
+    if (claim.kind !== 'everyone' || !hasApprovalIntentWord(input.text)) {
       return { kind: 'ignored', cause: 'claimed_for_other' };
     }
     ownAsApprover = true;

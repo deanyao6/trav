@@ -84,6 +84,7 @@ import type {
   BookingPaymentsAdapter,
   FlightsAdapter,
   IssuedTicket,
+  LeadGuest,
   LodgingAdapter,
   Result,
   TicketsAdapter,
@@ -247,6 +248,18 @@ export function travelerOf(member: Member): Traveler | undefined {
   const parts = sanitizeInline(member.displayName, 80).trim().split(/\s+/).filter(Boolean);
   if (parts.length < 2) return undefined;
   return { memberId: member.memberId, givenName: parts[0]!, familyName: parts.slice(1).join(' ') };
+}
+
+/**
+ * The lead guest of a stay (D-037): given and family name when the display
+ * name has both, else the given name alone (a whole-home rental is booked
+ * under it; a hotel provider refuses it). Nothing is invented.
+ */
+export function leadGuestOf(member: Member): LeadGuest | undefined {
+  const full = travelerOf(member);
+  if (full !== undefined) return full;
+  const given = sanitizeInline(member.displayName, 80).trim();
+  return given.length === 0 ? undefined : { memberId: member.memberId, givenName: given };
 }
 
 /** `gate 14 · sector 234` + `row 8 · seat 11` ⇒ { gate, section, row, seat }, when present. */
@@ -578,9 +591,11 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
         const leadId =
           proposal.paidBy.kind === 'member_card' ? proposal.paidBy.memberId : proposal.requestedBy;
         const lead = members.find((m) => m.memberId === leadId);
-        const leadGuest = lead === undefined ? undefined : travelerOf(lead);
+        // D-037: the family name only when the display name has one; the
+        // provider refuses a hotel without it, a whole-home rental doesn't need it.
+        const leadGuest = lead === undefined ? undefined : leadGuestOf(lead);
         if (leadGuest === undefined) {
-          return notSupported('the lead guest has no family name on file');
+          return notSupported('the lead guest has no name on file');
         }
         const res = await providers.lodging.book({
           ...base,

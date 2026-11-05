@@ -1039,6 +1039,85 @@ describe('lodging, remember, honest gaps', () => {
     ).toBeUndefined();
   });
 
+  describe('T-132: round 2 proposes the refundable best fit', () => {
+    const stay = (over: Record<string, unknown>) => ({
+      propertyId: 'p',
+      rateId: 'r',
+      name: 'Place',
+      kind: 'vacation_rental',
+      area: 'Carrer 1, Eixample',
+      sleeps: 6,
+      bedrooms: 3,
+      total: '€1,380',
+      totalMinor: 138000,
+      currency: 'EUR',
+      refundable: true,
+      refundableUntil: '2026-03-07T23:59:00+01:00',
+      reviewScore: 9,
+      ...over,
+    });
+    const round2 = (text: string, stays: unknown[], tools?: string[]) => {
+      const first = ask(text, tools);
+      const c1 = lodgingResponder.complete(first)!.toolCalls[0]!;
+      expect(c1.name).toBe('search_lodging');
+      return lodgingResponder.complete(after(first, c1, { stays }))!;
+    };
+    const ASK_TEXT =
+      'Dean: ok now a place. @trav find a 6 person airbnb in eixample or gracia, under €1500 total, refundable pls';
+
+    it('the first refundable stay in the areas asked ⇒ propose_booking on its rate, no text', () => {
+      const res = round2(ASK_TEXT, [
+        stay({ rateId: 'rate_beach', area: 'x, Barceloneta', totalMinor: 120000 }),
+        stay({ rateId: 'rate_eix', area: "Carrer d'Aragó 255, Eixample" }),
+        stay({ rateId: 'rate_poble', area: 'y, Poblenou', refundable: false, totalMinor: 119000 }),
+      ]);
+      expect(res.text).toBe('');
+      expect(res.toolCalls).toHaveLength(1);
+      expect(res.toolCalls[0]).toMatchObject({
+        name: 'propose_booking',
+        input: { kind: 'lodging', itemRef: 'rate_eix' },
+      });
+    });
+
+    it('accents fold: "gracia" finds Gràcia; no area asked ⇒ the first refundable anywhere', () => {
+      const gracia = round2(ASK_TEXT, [
+        stay({ rateId: 'rate_beach', area: 'x, Barceloneta' }),
+        stay({ rateId: 'rate_gra', area: 'Carrer de Verdi 30, Gràcia' }),
+      ]);
+      expect(gracia.toolCalls[0]!.input).toMatchObject({ itemRef: 'rate_gra' });
+      const anywhere = round2('Dean: @trav find a 6 person airbnb under €1500', [
+        stay({ rateId: 'rate_beach', area: 'x, Barceloneta' }),
+        stay({ rateId: 'rate_gra', area: 'Carrer de Verdi 30, Gràcia' }),
+      ]);
+      expect(anywhere.toolCalls[0]!.input).toMatchObject({ itemRef: 'rate_beach' });
+    });
+
+    it('nothing refundable fits ⇒ one honest line, nothing proposed', () => {
+      const res = round2(ASK_TEXT, [
+        stay({
+          rateId: 'rate_poble',
+          area: 'y, Eixample',
+          refundable: false,
+          refundableUntil: null,
+        }),
+      ]);
+      expect(res.toolCalls).toEqual([]);
+      expect(res.text).toContain('non-refundable');
+      expect(res.text).toContain("nothing refundable fits that, so nothing's booked");
+    });
+
+    it('no propose_booking offered ⇒ the stay in text, with its refund date in VOICE time', () => {
+      const res = round2(
+        ASK_TEXT,
+        [stay({ rateId: 'rate_eix' })],
+        CHAT_TOOLS.filter((t) => t !== 'propose_booking'),
+      );
+      expect(res.toolCalls).toEqual([]);
+      expect(res.text).toContain('free cancel until mar 7');
+      expect(res.text).toContain("nothing's booked");
+    });
+  });
+
   it('remember: a fact is stored; a health detail never is', () => {
     expect(parseRememberAsk('remember jordan always picks the playlist')).toBe(
       'jordan always picks the playlist',

@@ -31,6 +31,8 @@ export function parseProposeInput(raw: unknown): ProposeInput {
   if (eventId !== undefined) out.eventId = eventId;
   const offerId = optString(r, 'offerId', 80);
   if (offerId !== undefined) out.offerId = offerId;
+  const itemRef = optString(r, 'itemRef', 80);
+  if (itemRef !== undefined) out.itemRef = itemRef;
   const attendees = optStringArray(r, 'attendeeMemberIds');
   if (attendees !== undefined) out.attendeeMemberIds = attendees;
   const excludedIds = optStringArray(r, 'excludedMemberIds');
@@ -70,7 +72,7 @@ export function createProposeBookingTool(
   return {
     name: 'propose_booking',
     description:
-      'Propose a booking (event tickets for now) for named members. Finds the event and the best refundable offer, locks the price, and posts a proposal card that a member must confirm; nothing is bought by this tool. Name exactly who is going in attendeeMemberIds (or everyone minus excludedMemberIds/excludedNames); if you cannot tell who is in, ask the group instead of guessing from a headcount.',
+      'Propose a booking (event tickets, or a place to stay) for named members. Tickets: finds the event and the best refundable offer and locks the price. Lodging: kind "lodging" with itemRef = the rateId you picked from search_lodging (prefer refundable); the rate is re-checked and everyone staying approves. Posts a proposal card that members must confirm; nothing is bought by this tool. Name exactly who is going in attendeeMemberIds (or everyone minus excludedMemberIds/excludedNames); if you cannot tell who is in, ask the group instead of guessing from a headcount.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -82,6 +84,7 @@ export function createProposeBookingTool(
         query: { type: 'string', description: 'event or venue, e.g. "razzmatazz"' },
         eventId: { type: 'string' },
         offerId: { type: 'string' },
+        itemRef: { type: 'string', description: 'lodging: the rateId from search_lodging' },
         attendeeMemberIds: { type: 'array', items: { type: 'string' } },
         excludedMemberIds: { type: 'array', items: { type: 'string' } },
         excludedNames: { type: 'array', items: { type: 'string' } },

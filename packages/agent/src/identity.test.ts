@@ -217,6 +217,45 @@ describe('detectClaimedApproval', () => {
     expect(detectClaimedApproval('dean is at the airbnb', members, 'mem_henry')).toBeUndefined();
     expect(detectClaimedApproval('yes', members, 'mem_henry')).toBeUndefined();
   });
+
+  it('T-132: approving FOR someone is relayed consent, for the one meant', () => {
+    const henry = { kind: 'named', claimedFor: 'mem_henry' };
+    for (const text of [
+      "henry's at practice, i'll approve for him. go ahead trav",
+      "i'll approve for henry",
+      'approving on henry’s behalf'.replace('’', "'"),
+      "i'm confirming it for Henry, he's busy",
+      'i can 👍 for henry',
+      "henry's out, let me approve for him",
+    ]) {
+      expect(detectClaimedApproval(text, members, 'mem_jordan'), text).toEqual(henry);
+    }
+    // Nobody (or several) named: still never the sender's own 👍.
+    expect(detectClaimedApproval("i'll approve for him", members, 'mem_jordan')).toEqual({
+      kind: 'proxy',
+    });
+    expect(
+      detectClaimedApproval("dean and maya are busy, i'll approve for them", members, 'mem_jordan'),
+    ).toEqual({ kind: 'proxy' });
+    expect(detectClaimedApproval("i'll confirm it for everyone", members, 'mem_jordan')).toEqual({
+      kind: 'proxy',
+    });
+  });
+
+  it('T-132: not a proxy approval', () => {
+    for (const text of [
+      'can you confirm for everyone what time we meet',
+      'is 9 ok for henry?',
+      'i approve',
+      "i'll approve it",
+      'we approve for sure',
+      'i approve for sure 👍',
+      "i'll confirm for real",
+      'henry is at practice',
+    ]) {
+      expect(detectClaimedApproval(text, members, 'mem_jordan'), text).toBeUndefined();
+    }
+  });
 });
 
 describe('gateApproval (SAFETY §2.5 pre-check)', () => {
@@ -257,6 +296,20 @@ describe('gateApproval (SAFETY §2.5 pre-check)', () => {
       kind: 'ignored',
       cause: 'claimed_for_other',
     });
+  });
+
+  it('T-132: "i\'ll approve for him" is never the sender\'s own approval, even on a bound card', () => {
+    const henry: Identity = { kind: 'member', member: members[1]! };
+    for (const text of ["i'll approve for him, go ahead", "i'll approve for dean, book it"]) {
+      expect(gateApproval(input(henry, { text })), text).toEqual({
+        kind: 'ignored',
+        cause: 'claimed_for_other',
+      });
+      expect(
+        gateApproval(input(henry, { text, boundProposalId: proposal.proposalId })),
+        text,
+      ).toEqual({ kind: 'ignored', cause: 'claimed_for_other' });
+    }
   });
 
   it('a bound card wins; an unknown bound card is no_pending', () => {

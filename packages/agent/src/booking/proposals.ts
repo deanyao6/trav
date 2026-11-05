@@ -58,7 +58,15 @@ import {
   zonedWallTimeToMs,
   zoneOffsetMinutes,
 } from '@trav/core';
-import type { TicketEvent, TicketHold, TicketOffer, TicketsAdapter } from '@trav/adapters';
+import type {
+  LodgingAdapter,
+  LodgingRate,
+  LodgingSearchResult,
+  TicketEvent,
+  TicketHold,
+  TicketOffer,
+  TicketsAdapter,
+} from '@trav/adapters';
 import { sanitizeInline } from '../context/groupContext.js';
 import { keptOffFor } from '../roster/index.js';
 import { cardHolderFor, carrierOf, payersFor, type PayerRule } from './payers.js';
@@ -67,6 +75,8 @@ import { askedMinutes, CATEGORY_WORDS, foldText, resolveNight, weekdayName } fro
 export interface ProposalDeps {
   readonly stores: Stores;
   readonly tickets: TicketsAdapter;
+  /** Lodging proposals (T-132); absent ⇒ "can't book places to stay from the chat yet". */
+  readonly lodging?: LodgingAdapter;
   readonly clock: Clock;
   readonly ids: IdGenerator;
 }
@@ -79,6 +89,8 @@ export interface ProposeInput {
   /** Provider event / offer ids when the model already searched. */
   readonly eventId?: string;
   readonly offerId?: string;
+  /** Lodging: the `rateId` from `search_lodging` (T-132). */
+  readonly itemRef?: string;
   /** Exactly who is going; wins over quantity and roster. */
   readonly attendeeMemberIds?: readonly MemberId[];
   /** Named out ("Henry's sick"), by id or by display name. */
@@ -690,6 +702,9 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
         text: "there's no trip set up for this group yet, so nothing to book against",
       };
     }
+    if (input.kind === 'lodging' && deps.lodging !== undefined) {
+      return proposeLodging(deps.lodging, input, ctx, grp, trip, now);
+    }
     if (input.kind !== 'ticket') {
       return {
         kind: 'unavailable',
@@ -1120,20 +1135,401 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
       status: 'pending',
     };
 
+    const recorded = await recordProposal({
+      proposal,
+      trip,
+      grp,
+      ctx,
+      members,
+      activity: act,
+      roster,
+      now,
+      release: async () => {
+        await tickets.releaseHold(hold.holdId);
+      },
+    });
+    if (recorded.kind === 'done') return recorded.result;
+    const { decision, grant, ruleId, messageId, auditIds } = recorded;
+
+    const perPerson = money(Math.round(totalMinor / quantity), proposal.currency);
+    const text = renderProposalText({
+      proposal,
+      decision,
+      event,
+      members,
+      excluded: outIds,
+      perPerson,
+      now,
+      tz,
+      ruleId,
+      capPerPersonMinor: grp.spendingPolicy.perPersonAutoCapMinor,
+      ...(addOn ? { alreadyBooked: booked.size } : {}),
+      ...(tierAsked ? { tierName: offer.tierName } : {}),
+      ...(trip.familyTab === true ? { familyTab: true } : {}),
+    });
+    const card = buildCard({
+      cardId: ids.next('card'),
+      proposal,
+      decision,
+      event,
+      byId,
+      excluded: outIds,
+      perPerson,
+      text,
+      ruleId,
+      capPerPersonMinor: grp.spendingPolicy.perPersonAutoCapMinor,
+    });
+
+    return {
+      kind: 'proposal',
+      proposal,
+      decision,
+      grant,
+      card,
+      text,
+      messageId,
+      auditEventIds: auditIds,
+      event: {
+        eventId: event.eventId,
+        name: sanitizeInline(event.name, 80),
+        venue: sanitizeInline(event.venue.name, 80),
+        startsAt: event.startsAt,
+      },
+      attendees,
+      excluded: outIds,
+    };
+  }
+
+  /**
+   * A place to stay (T-132, VOICE §4.1 C): the rate the model picked from
+   * `search_lodging`, re-checked with the provider so the card shows the live
+   * price → who's staying (everyone active unless named; a member marked out
+   * of the stay stays out) → the trip's lodging plan for that property, or a
+   * new one → `recordProposal` like every other kind. Lodging has no provider
+   * hold: the executor re-checks the rate again before any money moves, and a
+   * changed price re-quotes (T-009). Nothing is bought here.
+   */
+  async function proposeLodging(
+    lodging: LodgingAdapter,
+    input: ProposeInput,
+    ctx: ProposeContext,
+    grp: { readonly spendingPolicy: GroupSpendingPolicy },
+    trip: Trip,
+    now: IsoDateTime,
+  ): Promise<ProposeResult> {
+    const rateId = input.itemRef ?? input.offerId;
+    if (rateId === undefined) {
+      return {
+        kind: 'unavailable',
+        reason: 'not_found',
+        text: "which place? tell me the area and budget and i'll look. nothing's booked",
+      };
+    }
+    const members = group.members.listByGroup(ctx.groupId);
+    const active = activeMembers(members);
+    const order = active.map((m) => m.memberId);
+    const byId = new Map(members.map((m) => [m.memberId, m] as const));
+    const tz = trip.timeZone;
+    const checkIn = trip.startDate;
+    const checkOut = trip.endDate;
+
+    // ---- 1. the live rate (a re-price is quoted as is, never the old number) ----
+    let rechecked = await lodging.recheckRate(rateId);
+    if (!rechecked.ok && rechecked.error.code === 'price_changed') {
+      rechecked = await lodging.recheckRate(rateId);
+    }
+    if (!rechecked.ok) {
+      const code = rechecked.error.code;
+      return {
+        kind: 'unavailable',
+        reason:
+          code === 'not_found'
+            ? 'not_found'
+            : code === 'sold_out'
+              ? 'sold_out'
+              : 'provider_unavailable',
+        text:
+          code === 'not_found' || code === 'sold_out' || code === 'offer_expired'
+            ? "that place isn't bookable anymore. nothing's booked, no charge\n@ me and i'll look again"
+            : "the stays site isn't responding. no charge went through\n@ me again in a few",
+      };
+    }
+    const rate = rechecked.value;
+
+    // ---- 2. who's staying ----
+    const existing = findLodgingActivity(group, trip, undefined, input.activityId);
+    const rosterRows = existing === null ? [] : group.trips.listAttendance(existing.activityId);
+    const markedOut = new Set(rosterRows.filter((r) => r.status !== 'in').map((r) => r.memberId));
+    const base =
+      rosterRows.length > 0
+        ? inOrder(
+            rosterRows.filter((r) => r.status === 'in').map((r) => r.memberId),
+            order,
+          )
+        : order;
+    const party = resolveParty({ input, active, byId, order, base, markedOut });
+    if (party.kind === 'clarify') return party;
+    const attendees = party.attendees;
+    if (rate.sleeps < attendees.length) {
+      return {
+        kind: 'clarify',
+        question: `that one sleeps ${String(rate.sleeps)} and there are ${String(attendees.length)} of you. want me to look for a bigger place?`,
+        problems: ['over_capacity'],
+      };
+    }
+
+    // ---- 3. the property (for its name and area) and the refundable trade-off ----
+    const searched = await lodging.search({
+      near: { city: trip.city },
+      checkIn,
+      checkOut,
+      adults: attendees.length,
+      // Every kind, so a hotel rate finds its hotel; the trade-off below only
+      // weighs rates that sleep the whole party.
+      wholeUnitForGroup: false,
+    });
+    const results: readonly LodgingSearchResult[] = searched.ok ? searched.value : [];
+    const property = results.find((r) => r.rates.some((x) => x.rateId === rate.rateId))?.property;
+    const name = sanitizeInline(property?.name ?? rate.roomName, 80);
+    const refundable = refundableNow(rate, now);
+    const totalMinor = rate.totalAmount.amountMinor;
+    const currency = rate.totalAmount.currency;
+    const fits = results
+      .map((r) => ({ ...r, rates: r.rates.filter((x) => x.sleeps >= attendees.length) }))
+      .filter((r) => r.rates.length > 0);
+    const cheaperLocked = refundable
+      ? cheapestLockedBelow(fits, totalMinor, currency, now)
+      : undefined;
+
+    // ---- 4. nothing twice, and a lead guest the provider can book under ----
+    const key = approval.deriveIdempotencyKey({
+      groupId: ctx.groupId,
+      tripId: trip.tripId,
+      kind: 'lodging',
+      provider: lodging.info.provider,
+      itemRef: rate.rateId,
+      eventDate: checkIn,
+      payerIds: attendees,
+      currency,
+      totalMinor,
+    });
+    const pendingSame = group.bookings
+      .listPendingProposals(ctx.groupId)
+      .find((p) => p.idempotencyKey === key && p.status === 'pending');
+    if (pendingSame !== undefined) {
+      return {
+        kind: 'pending_exists',
+        proposalId: pendingSame.proposalId,
+        text: "that one's already waiting for a 👍 above",
+      };
+    }
+    const booked = group.bookings.getBookingByKey(key);
+    if (booked !== undefined) {
+      return {
+        kind: 'duplicate',
+        bookingId: booked.bookingId,
+        text: `already booked: ${sanitizeInline(booked.description, 60)}, ${formatMoney(money(booked.totalMinor, booked.currency))}`,
+      };
+    }
+    const payerRule: PayerRule = {
+      members,
+      now,
+      familyTab: trip.familyTab === true,
+      requestedBy: ctx.requestedBy,
+    };
+    const payers = payerShares(attendees, totalMinor, currency, payerRule);
+    const holder = cardHolderFor(
+      ctx.requestedBy,
+      payers.map((s) => s.memberId),
+      payerRule,
+    );
+    // D-037: the stay is booked under the card holder. A hotel or hostel (or a
+    // property the search can't place) needs their family name, and v0 only
+    // has display names: say so now, before anyone taps; never invent one.
+    const wholeHome = property?.kind === 'vacation_rental' || property?.kind === 'apartment';
+    if (!wholeHome && !hasFamilyName(byId.get(holder))) {
+      const what =
+        property?.kind === 'hotel' || property?.kind === 'hostel'
+          ? `a ${property.kind}`
+          : 'that place';
+      return {
+        kind: 'unavailable',
+        reason: 'not_found',
+        text: `${what} needs the lead guest's full name and i only have first names, so nothing's booked\nbook it on the site, or pick a whole-home rental and i'll post it here`,
+      };
+    }
+
+    // ---- 5. the plan and who's on it (reasons are never stored) ----
+    const activity =
+      existing ??
+      findLodgingActivity(group, trip, name, undefined) ??
+      createLodgingActivity(group, ids, trip, name, property?.place.address, now);
+    const outIds = order.filter((id) => !attendees.includes(id));
+    syncRoster(group, activity, attendees, outIds, ctx, now);
+    const roster: Roster = {
+      activityId: activity.activityId,
+      inMemberIds: attendees,
+      outMemberIds: outIds,
+      maybeMemberIds: [],
+      asOf: now,
+    };
+
+    // ---- 6. the proposal ----
+    const proposal: BookingProposal = {
+      proposalId: ids.next('prop'),
+      groupId: ctx.groupId,
+      tripId: trip.tripId,
+      activityId: activity.activityId,
+      kind: 'lodging',
+      provider: lodging.info.provider,
+      itemRef: rate.rateId,
+      description: name,
+      ...(property !== undefined ? { city: property.place.city } : {}),
+      totalMinor,
+      currency,
+      quotedAt: now,
+      quoteRef: rate.rateId,
+      ...(rate.expiresAt !== undefined ? { holdExpiresAt: rate.expiresAt } : {}),
+      payers,
+      attendees,
+      paidBy: { kind: 'member_card', memberId: holder },
+      refundable,
+      ...(refundable && rate.refundPolicy.refundableUntil !== undefined
+        ? { refundDeadline: rate.refundPolicy.refundableUntil }
+        : {}),
+      eventDate: checkIn,
+      ageRestriction: null,
+      contentTags: [],
+      requestedBy: ctx.requestedBy,
+      requestedAt: now,
+      sourceMessageId: ctx.sourceMessageId,
+      idempotencyKey: key,
+      status: 'pending',
+    };
+
+    const recorded = await recordProposal({
+      proposal,
+      trip,
+      grp,
+      ctx,
+      members,
+      activity,
+      roster,
+      now,
+      release: async () => {},
+    });
+    if (recorded.kind === 'done') return recorded.result;
+    const { decision, grant, ruleId, messageId, auditIds } = recorded;
+    const area = areaOf(property?.place.address);
+    const text = renderLodgingText({
+      proposal,
+      decision,
+      members,
+      excluded: outIds,
+      name,
+      checkIn,
+      checkOut,
+      now,
+      tz,
+      capPerPersonMinor: grp.spendingPolicy.perPersonAutoCapMinor,
+      ...(cheaperLocked !== undefined ? { cheaperLocked } : {}),
+      ...(trip.familyTab === true ? { familyTab: true } : {}),
+    });
+    const nights = daysBetween(checkIn, checkOut);
+    const card = buildLodgingCard({
+      cardId: ids.next('card'),
+      proposal,
+      decision,
+      byId,
+      excluded: outIds,
+      name,
+      ...(area !== undefined ? { area } : {}),
+      details: [
+        `${String(nights)} night${nights === 1 ? '' : 's'}, ${stayDates(checkIn, checkOut)}`,
+        `sleeps ${String(rate.sleeps)}`,
+        ...(rate.payAtProperty !== undefined && rate.payAtProperty.amountMinor > 0
+          ? [`${formatMoney(rate.payAtProperty)} paid at the property, not charged by trav`]
+          : []),
+      ],
+      text,
+      ruleId,
+      capPerPersonMinor: grp.spendingPolicy.perPersonAutoCapMinor,
+    });
+    return {
+      kind: 'proposal',
+      proposal,
+      decision,
+      grant,
+      card,
+      text,
+      messageId,
+      auditEventIds: auditIds,
+      event: {
+        eventId: rate.propertyId,
+        name,
+        venue: area ?? name,
+        startsAt: tripStartIso(trip),
+      },
+      attendees,
+      excluded: outIds,
+    };
+  }
+
+  /**
+   * Every proposal kind ends here (SAFETY §2.1): `checkProposalConsistency`
+   * (problems ⇒ one question, the hold released) → `approval.evaluate` →
+   * audit `proposal.created` → `policy.evaluated` → deny ⇒ the hold released,
+   * else a grant → auto-approve, or audit `approval.requested` with the
+   * pre-allocated card message id. The caller renders the card.
+   */
+  async function recordProposal(a: {
+    readonly proposal: BookingProposal;
+    readonly trip: Trip;
+    readonly grp: { readonly spendingPolicy: GroupSpendingPolicy };
+    readonly ctx: ProposeContext;
+    readonly members: readonly Member[];
+    readonly activity: Activity | null;
+    readonly roster: Roster | null;
+    readonly now: IsoDateTime;
+    readonly release: () => Promise<void>;
+  }): Promise<
+    | { readonly kind: 'done'; readonly result: ProposeResult }
+    | {
+        readonly kind: 'card';
+        readonly decision: PolicyDecision;
+        readonly grant: ApprovalGrant;
+        readonly ruleId: string;
+        readonly messageId: MessageId;
+        readonly auditIds: readonly AuditEventId[];
+      }
+  > {
+    const { proposal, trip, grp, ctx, members, now } = a;
+    const attendees = proposal.attendees;
+    const key = proposal.idempotencyKey;
+    const byId = new Map(members.map((m) => [m.memberId, m] as const));
     const consistency = approval.checkProposalConsistency(
       proposal,
       trip,
-      act,
-      roster,
+      a.activity,
+      a.roster,
       members,
       now,
     );
     if (!consistency.ok) {
-      await tickets.releaseHold(hold.holdId);
+      await a.release();
       return {
-        kind: 'clarify',
-        question: clarifyFor(consistency.problems, attendees, byId, trip, proposal.ageRestriction),
-        problems: consistency.problems,
+        kind: 'done',
+        result: {
+          kind: 'clarify',
+          question: clarifyFor(
+            consistency.problems,
+            attendees,
+            byId,
+            trip,
+            proposal.ageRestriction,
+          ),
+          problems: consistency.problems,
+        },
       };
     }
 
@@ -1222,21 +1618,27 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
 
     if (decision.outcome === 'deny') {
       group.bookings.updateProposal({ ...proposal, status: 'rejected' });
-      await tickets.releaseHold(hold.holdId);
+      await a.release();
       if (decision.reasons.includes('duplicate') && decision.existingBookingId !== null) {
         return {
-          kind: 'duplicate',
-          bookingId: decision.existingBookingId,
-          text: 'already booked that one. say "buy it again" if you really want a second set',
+          kind: 'done',
+          result: {
+            kind: 'duplicate',
+            bookingId: decision.existingBookingId,
+            text: 'already booked that one. say "buy it again" if you really want a second set',
+          },
         };
       }
       return {
-        kind: 'denied',
-        proposalId: proposal.proposalId,
-        reasons: decision.reasons,
-        ruleId,
-        text: denyText(decision, proposal, grp.spendingPolicy.hardMaxPerBookingMinor),
-        auditEventIds: auditIds,
+        kind: 'done',
+        result: {
+          kind: 'denied',
+          proposalId: proposal.proposalId,
+          reasons: decision.reasons,
+          ruleId,
+          text: denyText(decision, proposal, grp.spendingPolicy.hardMaxPerBookingMinor),
+          auditEventIds: auditIds,
+        },
       };
     }
 
@@ -1244,7 +1646,10 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
     group.bookings.saveGrant(grant);
 
     if (decision.outcome === 'auto_approve') {
-      return { kind: 'auto_approved', proposal, decision, grant, auditEventIds: auditIds };
+      return {
+        kind: 'done',
+        result: { kind: 'auto_approved', proposal, decision, grant, auditEventIds: auditIds },
+      };
     }
 
     const messageId = ids.next('msg');
@@ -1265,54 +1670,7 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
         },
       }).id,
     );
-
-    const perPerson = money(Math.round(totalMinor / quantity), proposal.currency);
-    const text = renderProposalText({
-      proposal,
-      decision,
-      event,
-      members,
-      excluded: outIds,
-      perPerson,
-      now,
-      tz,
-      ruleId,
-      capPerPersonMinor: grp.spendingPolicy.perPersonAutoCapMinor,
-      ...(addOn ? { alreadyBooked: booked.size } : {}),
-      ...(tierAsked ? { tierName: offer.tierName } : {}),
-      ...(trip.familyTab === true ? { familyTab: true } : {}),
-    });
-    const card = buildCard({
-      cardId: ids.next('card'),
-      proposal,
-      decision,
-      event,
-      byId,
-      excluded: outIds,
-      perPerson,
-      text,
-      ruleId,
-      capPerPersonMinor: grp.spendingPolicy.perPersonAutoCapMinor,
-    });
-
-    return {
-      kind: 'proposal',
-      proposal,
-      decision,
-      grant,
-      card,
-      text,
-      messageId,
-      auditEventIds: auditIds,
-      event: {
-        eventId: event.eventId,
-        name: sanitizeInline(event.name, 80),
-        venue: sanitizeInline(event.venue.name, 80),
-        startsAt: event.startsAt,
-      },
-      attendees,
-      excluded: outIds,
-    };
+    return { kind: 'card', decision, grant, ruleId, messageId, auditIds };
   }
 
   async function repropose(
@@ -1334,6 +1692,8 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
       attendeeMemberIds: attendees,
       ...(previous.activityId !== undefined ? { activityId: previous.activityId } : {}),
       ...(previous.eventDate !== '' ? { date: previous.eventDate } : {}),
+      // A stay is re-quoted on the same rate (T-132); the provider re-prices it.
+      ...(previous.kind === 'lodging' ? { itemRef: previous.itemRef } : {}),
     };
     if (trip === undefined || previous.kind !== 'ticket') return propose(input, ctx);
     // Same event: match by night and (sanitized) name, which is what `description` holds.
@@ -1514,6 +1874,187 @@ function createActivity(
   };
   group.trips.upsertActivity(activity);
   return activity;
+}
+
+/**
+ * Who a proposal is for, from the ask (T-132; the same rules the ticket path
+ * applies): a named subset wins, but a member marked out stays out; else
+ * `base` minus anyone named out. An unknown name, a count that isn't the
+ * roster, or nobody ⇒ one question.
+ */
+export function resolveParty(a: {
+  readonly input: Pick<
+    ProposeInput,
+    'attendeeMemberIds' | 'attendeeNames' | 'excludedMemberIds' | 'excludedNames' | 'quantity'
+  >;
+  readonly active: readonly Member[];
+  readonly byId: ReadonlyMap<MemberId, Member>;
+  readonly order: readonly MemberId[];
+  readonly base: readonly MemberId[];
+  readonly markedOut: ReadonlySet<MemberId>;
+}):
+  | { readonly kind: 'party'; readonly attendees: MemberId[] }
+  | Extract<ProposeResult, { kind: 'clarify' }> {
+  const { input, active, byId, order, base, markedOut } = a;
+  const whoIsIn = (ids: readonly MemberId[], problems: string[]) =>
+    ({
+      kind: 'clarify',
+      question: `who's in? i've got ${names(ids, byId)}. 👍 if that's right, or tell me who to swap`,
+      problems,
+    }) as const;
+  const byName = (raw: string): Member | undefined => {
+    const hits = active.filter((m) => m.displayName.toLowerCase() === raw.trim().toLowerCase());
+    return hits.length === 1 ? hits[0] : undefined;
+  };
+  const excluded = new Set<MemberId>(input.excludedMemberIds ?? []);
+  for (const raw of input.excludedNames ?? []) {
+    const m = byName(raw);
+    if (m === undefined) return whoIsIn(base, [`unknown_name:${sanitizeInline(raw, 40)}`]);
+    excluded.add(m.memberId);
+  }
+  for (const id of excluded) {
+    if (!byId.has(id)) return whoIsIn(base, [`unknown_member:${sanitizeInline(id, 40)}`]);
+  }
+  const named: MemberId[] = [...(input.attendeeMemberIds ?? [])];
+  for (const raw of input.attendeeNames ?? []) {
+    const m = byName(raw);
+    if (m === undefined) return whoIsIn(base, [`unknown_name:${sanitizeInline(raw, 40)}`]);
+    named.push(m.memberId);
+  }
+  let attendees: MemberId[];
+  if (named.length > 0) {
+    const unknown = [...new Set(named.filter((id) => !order.includes(id)))];
+    if (unknown.length > 0) {
+      return whoIsIn(
+        base,
+        unknown.map((id) => `attendee_not_member:${sanitizeInline(id, 40)}`),
+      );
+    }
+    attendees = inOrder(
+      named.filter((id) => !excluded.has(id) && !markedOut.has(id)),
+      order,
+    );
+  } else {
+    attendees = base.filter((id) => !excluded.has(id));
+  }
+  if (input.quantity !== undefined && input.quantity !== attendees.length) {
+    return whoIsIn(attendees, ['quantity_not_roster']);
+  }
+  if (attendees.length === 0) {
+    return {
+      kind: 'clarify',
+      question: "who's in? nobody is marked in for that one yet",
+      problems: ['empty_roster'],
+    };
+  }
+  return { kind: 'party', attendees };
+}
+
+/**
+ * The trip's lodging plan: the one asked for by id, else (with `name`) the
+ * one for that property, else (no name) the only lodging plan with no
+ * booking yet. Null when there is none.
+ */
+function findLodgingActivity(
+  group: Stores['group'],
+  trip: Trip,
+  name: string | undefined,
+  activityId: string | undefined,
+): Activity | null {
+  if (activityId !== undefined) {
+    const a = group.trips.getActivity(activityId);
+    if (a === undefined || a.tripId !== trip.tripId || a.kind !== 'lodging') {
+      throw new TravError('not_found', `lodging activity ${activityId} is not on this trip`);
+    }
+    return a;
+  }
+  // A plan whose stay is already booked is done: another stay gets its own plan.
+  const open = group.trips
+    .listActivities(trip.tripId)
+    .filter(
+      (a) =>
+        a.kind === 'lodging' &&
+        a.bookingId === undefined &&
+        bookedAttendees(group, trip, a.activityId).size === 0,
+    );
+  if (name === undefined) return open.length === 1 ? open[0]! : null;
+  const want = foldText(name);
+  return open.find((a) => foldText(a.venue ?? '') === want || foldText(a.name) === want) ?? null;
+}
+
+function createLodgingActivity(
+  group: Stores['group'],
+  ids: IdGenerator,
+  trip: Trip,
+  name: string,
+  address: string | undefined,
+  now: IsoDateTime,
+): Activity {
+  const activity: Activity = {
+    activityId: ids.next('act'),
+    tripId: trip.tripId,
+    groupId: trip.groupId,
+    kind: 'lodging',
+    name,
+    venue: name,
+    ...(address !== undefined ? { address: sanitizeInline(address, 120) } : {}),
+    contentTags: [],
+    ageRestriction: null,
+    createdAt: now,
+  };
+  group.trips.upsertActivity(activity);
+  return activity;
+}
+
+/** A display name with a family name in it ("Dean Yao"), the only name source v0 has (D-037). */
+export function hasFamilyName(member: Pick<Member, 'displayName'> | undefined): boolean {
+  if (member === undefined) return false;
+  return sanitizeInline(member.displayName, 80).trim().split(/\s+/).filter(Boolean).length >= 2;
+}
+
+/** "Carrer de Pujades 140, Poblenou" ⇒ "Poblenou" (the neighbourhood after the last comma). */
+export function areaOf(address: string | undefined): string | undefined {
+  if (address === undefined) return undefined;
+  const parts = address.split(',').map((s) => s.trim());
+  const last = parts.length > 1 ? parts[parts.length - 1] : undefined;
+  return last === undefined || last.length === 0 ? undefined : sanitizeInline(last, 40);
+}
+
+/** The cheapest stay that is cheaper than `totalMinor` only because it can't be refunded (VOICE §4.1 C). */
+export function cheapestLockedBelow(
+  results: readonly LodgingSearchResult[],
+  totalMinor: number,
+  currency: Money['currency'],
+  now: IsoDateTime,
+): { readonly total: Money; readonly area: string | undefined } | undefined {
+  let best: { rate: LodgingRate; address: string | undefined } | undefined;
+  for (const r of results) {
+    for (const rate of r.rates) {
+      if (refundableNow(rate, now) || rate.totalAmount.currency !== currency) continue;
+      if (rate.totalAmount.amountMinor >= totalMinor) continue;
+      if (best === undefined || rate.totalAmount.amountMinor < best.rate.totalAmount.amountMinor) {
+        best = { rate, address: r.property.place.address };
+      }
+    }
+  }
+  return best === undefined
+    ? undefined
+    : { total: best.rate.totalAmount, area: areaOf(best.address) };
+}
+
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+/** "2026-03-07" ⇒ "mar 7" (VOICE §3.9). */
+export function shortDate(date: IsoDate): string {
+  const [, m, d] = date.split('-').map(Number) as [number, number, number];
+  return `${MONTHS[m - 1] ?? ''} ${String(d)}`;
+}
+
+/** "mar 12–17", or "mar 30–apr 2" across a month. */
+export function stayDates(checkIn: IsoDate, checkOut: IsoDate): string {
+  const sameMonth = checkIn.slice(0, 7) === checkOut.slice(0, 7);
+  const end = sameMonth ? String(Number(checkOut.slice(8, 10))) : shortDate(checkOut);
+  return `${shortDate(checkIn)}–${end}`;
 }
 
 /**
@@ -1825,6 +2366,164 @@ function buildCard(input: CardInput): BookingProposalCard {
     })),
     excluded: input.excluded.map((id) => ({ memberId: id, name: name(id) })),
     pricePerPerson: input.perPerson,
+    total: money(p.totalMinor, p.currency),
+    refundable: p.refundable,
+    ...(p.refundDeadline !== undefined ? { refundDeadline: p.refundDeadline } : {}),
+    paidBy: p.paidBy,
+    policy: {
+      requiresApprovalFrom: decision.requiredApprovers,
+      approvalMode: decision.approvalMode === 'each_payer' ? 'each_payer' : 'any_one',
+      overCap,
+      capPerPerson: money(input.capPerPersonMinor, p.currency),
+      ...(reason !== undefined ? { reason } : {}),
+      ruleId: input.ruleId,
+    },
+    holdExpiresAt: proposalExpiresAt(decision, p) ?? p.quotedAt,
+    status: 'pending',
+  };
+}
+
+export interface LodgingRenderInput {
+  readonly proposal: BookingProposal;
+  readonly decision: PolicyDecision;
+  readonly members: readonly Member[];
+  readonly excluded: readonly MemberId[];
+  /** The property's name, sanitized. */
+  readonly name: string;
+  readonly checkIn: IsoDate;
+  readonly checkOut: IsoDate;
+  readonly now: IsoDateTime;
+  readonly tz: string;
+  readonly capPerPersonMinor: number;
+  /** A cheaper stay that is non-refundable: named as the trade-off (VOICE §4.1 C). */
+  readonly cheaperLocked?: { readonly total: Money; readonly area: string | undefined };
+  readonly familyTab?: boolean;
+}
+
+/**
+ * VOICE §4.1 C, at most 6 lines (§3.1): the place and dates, the total for
+ * the nights with each share and the refund terms, the non-refundable
+ * trade-off when there is one, who's staying and whose card, who has to 👍
+ * and why, and how long the ask is open. Built from the stored proposal and
+ * the policy decision only, never model text.
+ */
+export function renderLodgingText(input: LodgingRenderInput): string {
+  const { proposal: p, decision, members, excluded, now, tz } = input;
+  const byId = new Map(members.map((m) => [m.memberId, m] as const));
+  const n = p.attendees.length;
+  const total = money(p.totalMinor, p.currency);
+  const nights = daysBetween(input.checkIn, input.checkOut);
+  const lines: string[] = [];
+  lines.push(
+    `found a place for ${String(n)}: ${input.name}, ${stayDates(input.checkIn, input.checkOut)}`,
+  );
+  const shares = p.payers.map((s) => s.shareMinor);
+  const even = shares.every((s) => s === shares[0]);
+  const each =
+    shares.length <= 1
+      ? undefined
+      : even
+        ? `${formatMoney(money(shares[0]!, p.currency))} each`
+        : `≈${formatMoney(money(Math.round(p.totalMinor / shares.length), p.currency))} each`;
+  const refund = !p.refundable
+    ? 'non-refundable'
+    : p.refundDeadline === undefined
+      ? 'free cancel'
+      : `free cancel until ${shortDate(localDate(p.refundDeadline, tz))}`;
+  lines.push(
+    [
+      `${formatMoney(total)} for ${String(nights)} night${nights === 1 ? '' : 's'}`,
+      ...(each !== undefined ? [each] : []),
+      refund,
+    ].join(' · '),
+  );
+  if (p.refundable && input.cheaperLocked !== undefined) {
+    const where = input.cheaperLocked.area === undefined ? '' : ` in ${input.cheaperLocked.area}`;
+    lines.push(
+      `there's a ${formatMoney(input.cheaperLocked.total)} one${where} but it's non-refundable, so i'd go with this`,
+    );
+  }
+  const who = names(p.attendees, byId);
+  const holder =
+    p.paidBy.kind === 'member_card' ? `${names([p.paidBy.memberId], byId)}'s card` : 'each card';
+  const payerIds = p.payers.map((s) => s.memberId);
+  const split =
+    payerIds.length <= 1
+      ? input.familyTab === true
+        ? 'on the family tab'
+        : `all on ${names(payerIds, byId)}`
+      : `split ${String(payerIds.length)} ways on the tab`;
+  lines.push(
+    `${excluded.length > 0 ? `${who} (not ${names(excluded, byId)})` : who} · on ${holder}, ${split}`,
+  );
+  const approvers = decision.requiredApprovers;
+  const open = `open for ${String(minutesUntil(proposalExpiresAt(decision, p) ?? addMinutes(now, 15), now))} min`;
+  if (decision.approvalMode === 'each_payer' && approvers.length > 1) {
+    const why = decision.reasons.includes('kind_requires_each_payer')
+      ? 'lodging is on everyone paying'
+      : decision.reasons.includes('over_per_person_cap')
+        ? `that's over the ${formatMoney(money(input.capPerPersonMinor, p.currency))}/person cap`
+        : 'this one is on everyone paying';
+    lines.push(`${why}, so all ${String(approvers.length)} of you have to 👍`);
+    lines.push(`👍 to book, or say "not me" first. ${open}`);
+  } else if (approvers.length === 1 && approvers[0] !== p.requestedBy) {
+    const okBy = names([approvers[0]!], byId);
+    lines.push(`👍 from ${okBy} to book, or anyone can say "not me" first. ${open}`);
+  } else if (approvers.length > 1 && !approvers.includes(p.requestedBy)) {
+    const list = approvers.map((id) => names([id], byId));
+    lines.push(
+      `one 👍 from ${list.slice(0, -1).join(', ')} or ${list[list.length - 1] ?? ''} books it. ${open}`,
+    );
+  } else {
+    lines.push(`👍 to book, or say "not me" first. ${open}`);
+  }
+  return lines.join('\n');
+}
+
+function buildLodgingCard(input: {
+  readonly cardId: string;
+  readonly proposal: BookingProposal;
+  readonly decision: PolicyDecision;
+  readonly byId: ReadonlyMap<MemberId, Member>;
+  readonly excluded: readonly MemberId[];
+  readonly name: string;
+  readonly area?: string;
+  readonly details: readonly string[];
+  readonly text: string;
+  readonly ruleId: string;
+  readonly capPerPersonMinor: number;
+}): BookingProposalCard {
+  const { proposal: p, decision, byId } = input;
+  const name = (id: MemberId): string => sanitizeInline(byId.get(id)?.displayName ?? id, 40);
+  const overCap = decision.reasons.includes('over_per_person_cap');
+  const reason = overCap
+    ? `over the ${formatMoney(money(input.capPerPersonMinor, p.currency))}/person cap`
+    : !p.refundable
+      ? 'non-refundable'
+      : decision.reasons.includes('kind_requires_each_payer')
+        ? 'lodging is on everyone paying'
+        : undefined;
+  const n = Math.max(1, p.payers.length);
+  return {
+    cardId: input.cardId,
+    type: 'booking_proposal',
+    title: input.name,
+    fallbackText: input.text,
+    proposalId: p.proposalId,
+    category: 'lodging',
+    item: {
+      name: input.name,
+      ...(input.area !== undefined ? { venue: input.area } : {}),
+      details: input.details,
+    },
+    quantity: p.attendees.length,
+    charged: p.payers.map((s) => ({
+      memberId: s.memberId,
+      name: name(s.memberId),
+      share: money(s.shareMinor, p.currency),
+    })),
+    excluded: input.excluded.map((id) => ({ memberId: id, name: name(id) })),
+    pricePerPerson: money(Math.round(p.totalMinor / n), p.currency),
     total: money(p.totalMinor, p.currency),
     refundable: p.refundable,
     ...(p.refundDeadline !== undefined ? { refundDeadline: p.refundDeadline } : {}),

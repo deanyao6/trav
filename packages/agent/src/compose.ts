@@ -220,7 +220,13 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
   for (const job of recapJobsFor(stores, clock.now())) scheduler.schedule(job);
   const groupMemory = createGroupMemory({ repo: stores.group.groupMemory, ids });
   const memberMemory = createMemberMemory({ store: stores.private, ids });
-  const proposals = createProposalService({ stores, tickets: providers.tickets, clock, ids });
+  const proposals = createProposalService({
+    stores,
+    tickets: providers.tickets,
+    lodging: providers.lodging,
+    clock,
+    ids,
+  });
   const tools = createV0ToolRegistry({
     proposals,
     tickets: providers.tickets,

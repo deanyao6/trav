@@ -283,7 +283,8 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
   );
   const stores = createMemoryStores({ clock, ids });
   const fixture = loadGroupFixture(trip);
-  seedGroup(stores, trip, {
+  const { deferredPrefs } = seedGroup(stores, trip, {
+    now: start,
     extras: scenario.setup?.fixtureExtras === true,
     ...(scenario.setup?.settings !== undefined ? { settings: scenario.setup.settings } : {}),
   });
@@ -456,8 +457,16 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
     return (out?.find((m) => m.card !== undefined) ?? out?.[0])?.id;
   };
 
+  // Spending prefs told after the episode start apply once the clock gets there.
+  const heldPrefs = [...deferredPrefs];
   const moveClock = (to: string): void => {
     if (parseIso(to) > clock.nowMs()) clock.set(to);
+    for (let i = heldPrefs.length - 1; i >= 0; i -= 1) {
+      const d = heldPrefs[i]!;
+      if (parseIso(d.at) > clock.nowMs()) continue;
+      stores.private.putPrefs(d.prefs.memberId, d.prefs);
+      heldPrefs.splice(i, 1);
+    }
   };
 
   try {
@@ -605,7 +614,10 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
           }
           case 'advance': {
             if (step.to !== undefined) moveClock(step.to);
-            else clock.advanceMs((step.minutes ?? 0) * 60_000);
+            else {
+              clock.advanceMs((step.minutes ?? 0) * 60_000);
+              moveClock(clock.now());
+            }
             records.push(finish({ lane: 'system' }));
             if (step.drain !== false) await drainEach(index);
             break;

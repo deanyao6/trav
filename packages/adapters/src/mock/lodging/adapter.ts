@@ -54,6 +54,7 @@ import type {
   LodgingRate,
   LodgingSearchRequest,
   LodgingSearchResult,
+  PropertyKind,
   PropertyMessage,
 } from '../../interfaces/lodging.js';
 import {
@@ -400,7 +401,11 @@ export function createMockLodging(options: MockLodgingOptions): MockLodging {
   const lookupBooking = (bookingId: string): BookingRecord | undefined =>
     typeof bookingId === 'string' ? bookings.get(bookingId) : undefined;
 
-  const checkGuests = (req: BookLodgingRequest, sleeps: number): string | undefined => {
+  const checkGuests = (
+    req: BookLodgingRequest,
+    sleeps: number,
+    kind: PropertyKind,
+  ): string | undefined => {
     const ids = req.guestMemberIds as unknown;
     if (!Array.isArray(ids) || ids.length === 0) return 'guestMemberIds required';
     if (!ids.every(nonEmpty)) return 'guest ids must be non-empty strings';
@@ -411,7 +416,14 @@ export function createMockLodging(options: MockLodgingOptions): MockLodging {
     if (!nonEmpty(lead.memberId) || !(ids as string[]).includes(lead.memberId)) {
       return 'leadGuest must be one of the guests';
     }
-    if (!nonEmpty(lead.givenName) || !nonEmpty(lead.familyName)) return 'leadGuest name required';
+    if (!nonEmpty(lead.givenName)) return 'leadGuest name required';
+    // D-037: a whole-home rental is booked under a given name; a hotel or hostel needs the surname.
+    if (lead.familyName !== undefined && !nonEmpty(lead.familyName)) {
+      return 'leadGuest familyName must be non-empty when given';
+    }
+    if (!isWholeUnit(kind) && lead.familyName === undefined) {
+      return 'leadGuest familyName required for this property';
+    }
     if (
       req.specialRequests !== undefined &&
       (typeof req.specialRequests !== 'string' ||
@@ -556,7 +568,7 @@ export function createMockLodging(options: MockLodgingOptions): MockLodging {
       }
 
       // 5. Guests.
-      const guestProblem = checkGuests(request, s.inv.rate.sleeps);
+      const guestProblem = checkGuests(request, s.inv.rate.sleeps, s.prop.property.kind);
       if (guestProblem) return done(fail('invalid_request', `book: ${guestProblem}`));
 
       // 6. Price: expectedTotal must equal the live total.
