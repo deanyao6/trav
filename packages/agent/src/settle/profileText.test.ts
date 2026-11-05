@@ -47,10 +47,9 @@ describe('parseHandleStatements', () => {
     // An explicit try followed by words is refused too.
     expect(parseHandleStatements('venmo: chase w')).toEqual([{ rail: 'venmo' }]);
     expect(parseHandleStatements('my venmo is @chase w')).toEqual([{ rail: 'venmo' }]);
+    // A hyphen alone is ordinary English (r2 #1): hint, never saved.
+    expect(parseHandleStatements('my venmo is chase-w')).toEqual([{ rail: 'venmo', soft: true }]);
     // Handle-shaped, a sigil or a colon still works, and a clause or thanks may follow.
-    expect(parseHandleStatements('my venmo is chase-w')).toEqual([
-      { rail: 'venmo', handle: 'chase-w' },
-    ]);
     expect(parseHandleStatements('my venmo is @chasew, thanks!')).toEqual([
       { rail: 'venmo', handle: 'chasew' },
     ]);
@@ -62,6 +61,44 @@ describe('parseHandleStatements', () => {
       { rail: 'zelle', handle: '+16175550142' },
     ]);
     expect(parseHandleStatements('my zelle is broken, use venmo')).toEqual([]);
+  });
+
+  it('r2 #1: hyphenated English words are never saved', () => {
+    for (const t of [
+      'my venmo is maxed-out, can i zelle you',
+      'my venmo is locked-out lol',
+      'my venmo is on-hold.',
+      'my venmo is re-linked',
+      'my venmo is co-signed',
+    ]) {
+      expect(
+        parseHandleStatements(t).every((s) => s.handle === undefined),
+        t,
+      ).toBe(true);
+    }
+  });
+
+  it('r2 #2-4: a sigil handle saves whatever follows; "handle is", "still", "now"', () => {
+    for (const t of [
+      'my venmo is @chase-w btw',
+      'my venmo is @chase-w if you need it',
+      'my venmo is @chase-w :)',
+      'my venmo is @chase-w (new one)',
+      'my venmo is @chase-w thank you',
+      'my venmo is still @chase-w',
+      'my venmo is @chase-w now',
+    ]) {
+      expect(parseHandleStatements(t), t).toEqual([{ rail: 'venmo', handle: 'chase-w' }]);
+    }
+    expect(parseHandleStatements('my cashtag is $chasew btw')).toEqual([
+      { rail: 'cashapp', handle: 'chasew' },
+    ]);
+    expect(parseHandleStatements('my venmo handle is chasew')).toEqual([
+      { rail: 'venmo', handle: 'chasew' },
+    ]);
+    expect(parseHandleStatements('my venmo username is chasew')).toEqual([
+      { rail: 'venmo', handle: 'chasew' },
+    ]);
   });
 });
 

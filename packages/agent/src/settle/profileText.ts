@@ -43,7 +43,7 @@ export interface HandleStatement {
 
 /** Words between "my venmo" and the handle itself. */
 const HANDLE_FILLER =
-  /^(?:\s*(?:handle|username|user\s?name|user|name|tag|id|account|acct|email|e-mail|number|phone|is|it's|its|'s|’s|=|:|-|should\s+be|now))*\s*/iu;
+  /^(?:\s*(?:handle|username|user\s?name|user|name|tag|id|account|acct|email|e-mail|number|phone|is|it's|its|'s|’s|=|:|-|should\s+be|now|still))*\s*/iu;
 
 /**
  * "my venmo is @chase-w", "venmo: @chase-w", "my cashtag is $chasew", "my
@@ -77,12 +77,19 @@ export function parseHandleStatements(text: string): HandleStatement[] {
     // venmo is acting up" is not a handle (T-166 r1 #2). A clause break or a
     // thanks may follow. A zelle email or phone number can't be a word of a
     // sentence, so words may follow it.
-    const ends = zelleContact !== undefined || HANDLE_TAIL.test(tail);
     const sigil = hasSigil(rail, candidate, inline);
-    // Without a sigil or a colon, a plain word ("broken", "frozen") is not a
-    // handle: it must look like one (a digit, "-" or "_"), so a typo'd
-    // sentence never becomes a one-tap link to a stranger's account.
-    const shaped = sigil || colon || rail === 'zelle' || /[\d_-]/u.test(candidate);
+    // A sigil handle can't contain spaces, so words after it aren't part of
+    // it ("my venmo is @chase-w btw"); only a lone 1-2 letter token reads as
+    // a split handle ("@chase w") (T-166 r2 #2).
+    const ends =
+      zelleContact !== undefined ||
+      HANDLE_TAIL.test(tail) ||
+      (sigil && !/^\s+\p{L}{1,2}\s*$/u.test(tail));
+    // Without a sigil, a colon or "handle is", a plain word ("broken",
+    // "maxed-out") is not a handle: it must have a digit or "_", so a
+    // sentence never becomes a one-tap link to a stranger's account
+    // (T-166 r1 #2, r2 #1). A hyphen alone is ordinary English.
+    const shaped = sigil || colon || handleWord || rail === 'zelle' || /[\d_]/u.test(candidate);
     const handle = ends && shaped ? payments.normalizeHandle(rail, candidate) : undefined;
     if (handle !== undefined) {
       found.set(rail, { rail, handle });
@@ -101,7 +108,7 @@ export function parseHandleStatements(text: string): HandleStatement[] {
 
 /** What may follow a handle: nothing, a clause break, "and ...", or a thanks. */
 const HANDLE_TAIL =
-  /^\s*(?:$|[,;.!?\n)]|(?:and|thanks|thx|ty|pls|please|lol|cheers)\b|[\p{Extended_Pictographic}])/iu;
+  /^\s*(?:$|[,;.!?\n)]|(?:and|thanks|thank\s+you|thx|ty|pls|please|lol|cheers|btw|now)\b|[\p{Extended_Pictographic}])/iu;
 
 /** The candidate carries its rail's sigil: venmo `@` or link, cash app `$` or link, paypal.me/. */
 function hasSigil(rail: HandleRail, candidate: string, inline: boolean): boolean {
