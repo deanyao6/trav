@@ -101,6 +101,7 @@ import { nightOf, shortEventName } from './booking/proposals.js';
 import type { BookingExecutor, ProviderRegistry } from './booking/executor.js';
 import { buildGroupContext, renderGroupPrompt, sanitizeInline } from './context/groupContext.js';
 import { createChatExpenseFlow } from './ingest/chatExpense.js';
+import { foreignOriginal } from './render/expenseConfirm.js';
 import {
   createReceiptFlow,
   receiptAttachment,
@@ -2598,8 +2599,14 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
         r.members.find((m) => m.memberId === e.paidBy[0]?.memberId)?.displayName ?? 'someone',
         40,
       );
-    const item = (e: Expense): string =>
-      `${formatMoney(e.amount)} ${sanitizeInline(e.description, 40).toLowerCase()}`;
+    // VOICE §3.4: a converted expense shows what was paid, then the trip amount (T-084 review).
+    const item = (e: Expense): string => {
+      const original = foreignOriginal(e);
+      const what = sanitizeInline(e.description, 40).toLowerCase();
+      return original === undefined
+        ? `${formatMoney(e.amount)} ${what}`
+        : `${formatMoney(original)} ${what} (≈${formatMoney(e.amount)})`;
+    };
     const onePayer = live.every((e) => payerOf(e) === payerOf(expense));
     const what = onePayer
       ? `${live.map(item).join(' and ')} on ${payerOf(expense)}`

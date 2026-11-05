@@ -212,6 +212,14 @@ describe('exactly one clarifying question when a money fact is missing (VOICE §
     expect(logged(h)[0]!.amount).toEqual({ amountMinor: 6000, currency: 'EUR' });
   });
 
+  // T-084 review #1: the undo line shows what was paid, like the logged line.
+  it('T-084: undoing a converted expense keeps the original currency on the item', async () => {
+    const h = harness();
+    const turn = await h.say('h_dean', '@trav $40 USD for the museum, everyone');
+    const undo = await h.react('h_dean', only(turn).id, '👎');
+    expect(only(undo).text).toBe("undone: $40 museum (≈€36.90) on Dean, it's off the tab");
+  });
+
   it('T-084: a foreign amount is converted at the mock rate for its date, no question', async () => {
     const h = harness();
     // sat 14 mar: the table has no weekend rows, so friday 13 mar (1.0840 USD per EUR) is used
