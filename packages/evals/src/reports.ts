@@ -571,6 +571,13 @@ function changesSection(out: string[], c: RunChanges | undefined, note: string):
   out.push('');
 }
 
+/** The first `n` evidence lines, then "+N more" when it cut any (worst-5 section, T-160). */
+export function evidenceHead(evidence: readonly string[], n = 4): string {
+  const head = evidence.slice(0, n).join('; ');
+  const rest = evidence.length - n;
+  return rest > 0 ? `${head}; +${String(rest)} more` : head;
+}
+
 export function renderReport(
   outcomes: readonly ScenarioOutcome[],
   meta: RunMeta,
@@ -776,7 +783,7 @@ export function renderReport(
     } else {
       for (const r of bad) {
         out.push(
-          `- **${r.graderId}**${r.safetyId !== undefined ? ` (SAFETY ${r.safetyId})` : ''}, score ${r.score.toFixed(2)}: ${cell(r.evidence.slice(0, 4).join('; '))}`,
+          `- **${r.graderId}**${r.safetyId !== undefined ? ` (SAFETY ${r.safetyId})` : ''}, score ${r.score.toFixed(2)}: ${cell(evidenceHead(r.evidence))}`,
         );
         const hint = HYPOTHESES[r.graderId.split(':')[0] ?? ''];
         if (hint !== undefined) out.push(`  - likely area: ${hint}`);

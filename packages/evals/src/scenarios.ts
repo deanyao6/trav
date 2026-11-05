@@ -243,6 +243,16 @@ const STEP_EXPECT = {
   noTicketsTo: opt(strs),
   ingested: opt(nonNegInt),
   maxTransfers: opt(nonNegInt),
+  // T-160 chat-line ground truth: derived from the fixture line by the replay expansion only.
+  expenseDetails: opt(derivedOnly),
+  proposalDetails: opt(derivedOnly),
+  booking: opt(derivedOnly),
+  refusal: opt(derivedOnly),
+  transfers: opt(derivedOnly),
+  nightOutFraming: opt(derivedOnly),
+  markedPaidBy: opt(derivedOnly),
+  suggestionAudience: opt(derivedOnly),
+  explicitAdultRequest: opt(derivedOnly),
   // Set by the replay expansion only: a scenario file states its gap with the scenario-level `pending`.
   pending: opt(derivedOnly),
   ungraded: opt(derivedOnly),

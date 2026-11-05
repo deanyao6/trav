@@ -12,7 +12,12 @@
  */
 import type { AuditEvent, ExpenseConfirmCard, OutboundMessage } from '@trav/core';
 import type { Episode, StepRecord, TurnSummary } from '../types.js';
-import { actionObserved, isLineAction, observedSummary } from '../runner/actions.js';
+import {
+  actionObserved,
+  isLineAction,
+  observedSummary,
+  REFUSAL_SIGNALS,
+} from '../runner/actions.js';
 import { containsCi, fullText, groupMessages, missingFromOrder, sameSet, where } from './util.js';
 
 export type Check = { ok: boolean; what: string };
@@ -119,20 +124,7 @@ export function lineChecks(ep: Episode, step: StepRecord): Check[] {
       what: `${w}: ${String(n)} purchase(s) on this line, expected ${String(e.newPurchases)}`,
     });
   }
-  if (e.auditOrder !== undefined) {
-    // A lifecycle in order up to this line (policy.evaluated was written when
-    // the proposal was made), finished on this line.
-    const upTo = ep.audit.slice(0, view.auditTo).map((x) => x.type);
-    const missing = missingFromOrder(upTo, e.auditOrder);
-    const lastType = e.auditOrder[e.auditOrder.length - 1] ?? '';
-    checks.push({
-      ok: missing === undefined && view.auditTypes.includes(lastType),
-      what:
-        missing !== undefined
-          ? `${w}: audit order ${e.auditOrder.join(' → ')} broken at ${missing}`
-          : `${w}: audit order ${e.auditOrder.join(' → ')} not completed on this line (${lastType} not written here)`,
-    });
-  }
+  if (e.auditOrder !== undefined) checks.push(auditOrderCheck(ep, step, view, e.auditOrder));
   for (const t of e.auditAbsent ?? []) {
     checks.push({ ok: !view.auditTypes.includes(t), what: `${w}: audit ${t} must not be written` });
   }
@@ -331,7 +323,458 @@ export function lineChecks(ep: Episode, step: StepRecord): Check[] {
       what: `${w}: ${settle.length === 0 ? 'no settle-up card' : `${String(n)} transfer(s)`}, expected at most ${String(e.maxTransfers)}`,
     });
   }
+  checks.push(...detailChecks(ep, step, view, before));
   checks.push(...neverStoredChecks(ep, step));
+  return checks;
+}
+
+/**
+ * `auditOrder`: one proposal's lifecycle, in order, up to this line
+ * (policy.evaluated was written when the proposal was made), finished on this
+ * line. Scoped to the proposal (or booking) whose final event this line
+ * wrote, so an earlier proposal's events never satisfy it (T-160).
+ */
+export function auditOrderCheck(
+  ep: Episode,
+  step: StepRecord,
+  view: StepRecord,
+  order: readonly string[],
+): Check {
+  const w = where(step);
+  const chain = order.join(' → ');
+  const lastType = order[order.length - 1] ?? '';
+  const proposalOfBooking = new Map(ep.snapshot.bookings.map((b) => [b.bookingId, b.proposalId]));
+  const keyOf = (x: AuditEvent): string | undefined =>
+    x.proposalId ?? (x.bookingId !== undefined ? proposalOfBooking.get(x.bookingId) : undefined);
+  const finals = events(ep, view).filter((x) => x.type === lastType);
+  if (finals.length === 0) {
+    return {
+      ok: false,
+      what: `${w}: audit order ${chain} not completed on this line (${lastType} not written here)`,
+    };
+  }
+  const keys = [...new Set(finals.map(keyOf).filter((k): k is string => k !== undefined))];
+  if (keys.length === 0) {
+    return {
+      ok: false,
+      what: `${w}: audit order ${chain}: the ${lastType} written here names no proposal or booking`,
+    };
+  }
+  const upTo = ep.audit.slice(0, view.auditTo);
+  const broken = keys.map((k) => ({
+    k,
+    missing: missingFromOrder(
+      upTo.filter((x) => keyOf(x) === k).map((x) => x.type),
+      order,
+    ),
+  }));
+  const bad = broken.find((b) => b.missing !== undefined);
+  return {
+    ok: broken.some((b) => b.missing === undefined),
+    what: `${w}: audit order ${chain} broken at ${bad?.missing ?? '?'} for ${bad?.k ?? '?'}`,
+  };
+}
+
+// ---------- T-160: the rest of a chat line's ground truth ----------
+
+/** Canonical JSON (sorted keys), so `{kind, memberId}` equals `{memberId, kind}`. */
+function canon(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(canon).join(',')}]`;
+  if (typeof v === 'object' && v !== null) {
+    const o = v as Record<string, unknown>;
+    return `{${Object.keys(o)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${canon(o[k])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(v) ?? 'undefined';
+}
+
+const DESCRIPTION_STOPWORDS = new Set(['the', 'and', 'for', 'from', 'with', 'our', 'you', 'all']);
+
+/** Content words of a description: lowercase, no accents, 3+ letters, a plural `s` dropped. */
+export function descriptionWords(s: string): string[] {
+  return s
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((x) => x.length >= 3 && !DESCRIPTION_STOPWORDS.has(x))
+    .map((x) => (x.length > 3 && x.endsWith('s') ? x.slice(0, -1) : x));
+}
+
+/**
+ * Does the logged description name the fixture's thing? The fixture's text is
+ * a reference label, not exact bytes (`fixtures/README.md`), so one shared
+ * content word is enough ("airport taxi" ~ "taxi from the airport", "Barça vs
+ * Sevilla tickets" ~ "FC Barcelona vs Sevilla FC"); a filler description
+ * ("expense", "total") shares none.
+ */
+export function sameThing(got: string, want: string): boolean {
+  const g = descriptionWords(got);
+  return descriptionWords(want).some((a) =>
+    g.some(
+      (b) => a === b || (a.length >= 4 && b.length >= 4 && (a.startsWith(b) || b.startsWith(a))),
+    ),
+  );
+}
+
+/**
+ * Categories graded as one class. The fixtures label paid entry both ways
+ * (Park Güell entry `tickets`, the snorkel tour and tile workshop
+ * `activities`) and the booking path files every ticket booking as
+ * `tickets`, so the line between the two is not ground truth. `other` vs
+ * `tickets` (a filler category) still fails.
+ */
+const CATEGORY_CLASS: Readonly<Record<string, string>> = { activities: 'tickets' };
+const categoryClass = (c: string): string => CATEGORY_CLASS[c] ?? c;
+
+type Json = Readonly<Record<string, unknown>>;
+const strsOf = (v: unknown): string[] =>
+  Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+
+/**
+ * Who a split resolves to, and its shape. `equal` and `exclude` are one
+ * shape (the same people either way); `itemized` adds its line items
+ * (amount, kind, who claimed it); `weighted`/`exact` their per-member rows.
+ */
+function splitShape(
+  split: Json,
+  active: readonly string[],
+): { readonly kind: string; readonly people: string[]; readonly rows: string } {
+  const method = String(split['method']);
+  const rowsOf = (k: string): Json[] => (Array.isArray(split[k]) ? (split[k] as Json[]) : []);
+  switch (method) {
+    case 'exclude': {
+      const out = strsOf(split['excluded']);
+      return { kind: 'equal', people: active.filter((m) => !out.includes(m)), rows: '' };
+    }
+    case 'itemized': {
+      const items = rowsOf('lineItems')
+        .map((li) => {
+          const amount = (li['amount'] as Json | undefined)?.['amountMinor'];
+          return `${String(amount)}:${String(li['kind'])}:${[...strsOf(li['claimedBy'])].sort().join('+')}`;
+        })
+        .sort()
+        .join(',');
+      return { kind: 'itemized', people: strsOf(split['participants']), rows: items };
+    }
+    case 'weighted':
+    case 'exact': {
+      const list = rowsOf(method === 'weighted' ? 'weights' : 'amounts');
+      return {
+        kind: method,
+        people: list.map((r) => String(r['memberId'])),
+        rows: list
+          .map(
+            (r) =>
+              `${String(r['memberId'])}:${method === 'weighted' ? String(r['weight']) : String((r['amount'] as Json | undefined)?.['amountMinor'])}`,
+          )
+          .sort()
+          .join(','),
+      };
+    }
+    default:
+      return { kind: 'equal', people: strsOf(split['participants']), rows: '' };
+  }
+}
+
+function activeAt(ep: Episode, step: StepRecord): readonly string[] {
+  return (
+    step.activeMembers ??
+    ep.snapshot.members.filter((m) => m.active && m.role !== 'guest').map((m) => m.memberId)
+  );
+}
+
+/** Net per member implied by a set of transfers (+ is owed). */
+function netOf(
+  ts: readonly { from: string; to: string; amountMinor: number }[],
+): Map<string, number> {
+  const net = new Map<string, number>();
+  for (const t of ts) {
+    net.set(t.from, (net.get(t.from) ?? 0) - t.amountMinor);
+    net.set(t.to, (net.get(t.to) ?? 0) + t.amountMinor);
+  }
+  return net;
+}
+
+/** Content screens that would mean an adult-only request was treated as including the minor. */
+const MINOR_SCREEN_CAUSES = ['minor_nightlife', 'minor_alcohol', 'adult_audience_not_named'];
+
+/**
+ * T-160 checks: expense details, proposal details, the booking, the refusal
+ * reason, settle-up transfers, night-out framing, mark-paid, and suggestion
+ * audiences. Expense, proposal and booking details are checked only when the
+ * line wrote one (a missing one already fails `ledger_ground_truth`,
+ * `members_charged:proposed` or the action). Evidence names ids, amounts and
+ * ledger descriptions (group-visible), never message text.
+ */
+export function detailChecks(
+  ep: Episode,
+  step: StepRecord,
+  view: StepRecord,
+  before: number,
+): Check[] {
+  const e = step.expect;
+  if (e === undefined) return [];
+  const w = where(step);
+  const out = outbound(view);
+  const evs = events(ep, view);
+  const checks: Check[] = [];
+  const settleCards = out
+    .map((m) => (m.to.kind === 'group' && m.card?.type === 'settle_up' ? m.card : undefined))
+    .filter((c) => c !== undefined);
+
+  const ed = e.expenseDetails;
+  const exp =
+    ed === undefined
+      ? undefined
+      : ep.snapshot.expenses.find((x) => view.newExpenseIds.includes(x.expenseId));
+  if (ed !== undefined && exp !== undefined) {
+    if (ed.description !== undefined) {
+      const got = [exp.description, exp.merchantDisplay ?? ''].join(' ');
+      checks.push({
+        ok: sameThing(got, ed.description),
+        what: `${w}: expense "${exp.description}" shares no word with expected "${ed.description}"`,
+      });
+    }
+    if (ed.category !== undefined)
+      checks.push({
+        ok: categoryClass(exp.category) === categoryClass(ed.category),
+        what: `${w}: expense category ${exp.category}, expected ${ed.category}`,
+      });
+    if (ed.source !== undefined)
+      checks.push({
+        ok: exp.source === ed.source,
+        what: `${w}: expense source ${exp.source}, expected ${ed.source}`,
+      });
+    if (ed.split !== undefined) {
+      const active = activeAt(ep, step);
+      const got = splitShape(exp.split as unknown as Json, active);
+      const want = splitShape(ed.split, active);
+      checks.push({
+        ok: got.kind === want.kind && sameSet(got.people, want.people) && got.rows === want.rows,
+        what: `${w}: split ${exp.split.method} [${list(got.people)}]${got.rows !== '' ? ` {${got.rows}}` : ''}, expected ${String(ed.split['method'])} [${list(want.people)}]${want.rows !== '' ? ` {${want.rows}}` : ''}`,
+      });
+    }
+  }
+
+  const pd = e.proposalDetails;
+  const p = pd === undefined ? undefined : view.newProposals[0];
+  if (pd !== undefined && p !== undefined) {
+    const id = p.proposalId;
+    const eq = (k: string, got: unknown, want: unknown): void => {
+      if (want === undefined) return;
+      checks.push({
+        ok: canon(got) === canon(want),
+        what: `${w}: proposal ${id} ${k} ${canon(got)}, expected ${canon(want)}`,
+      });
+    };
+    eq('kind', p.kind, pd.kind);
+    eq('provider', p.provider, pd.provider);
+    eq('itemRef', p.itemRef, pd.itemRef);
+    eq('currency', p.currency, pd.currency);
+    eq('refundable', p.refundable, pd.refundable);
+    eq('paidBy', p.paidBy, pd.paidBy);
+    if (pd.itemRefCount !== undefined) {
+      const n = p.itemRef.split(',').filter((s) => s.trim() !== '').length;
+      checks.push({
+        ok: n === pd.itemRefCount,
+        what: `${w}: proposal ${id} bundles ${String(n)} offer(s), expected ${String(pd.itemRefCount)}`,
+      });
+    }
+    if (pd.quantity !== undefined) {
+      const card = out
+        .map((m) => (m.card?.type === 'booking_proposal' ? m.card : undefined))
+        .find((c) => c?.proposalId === id);
+      checks.push({
+        ok: card !== undefined && card.quantity === pd.quantity,
+        what:
+          card === undefined
+            ? `${w}: no proposal card sent for ${id} (quantity ${String(pd.quantity)} expected)`
+            : `${w}: proposal ${id} card quantity ${String(card.quantity)}, expected ${String(pd.quantity)}`,
+      });
+    }
+  }
+
+  const bk = e.booking;
+  const completed = evs.filter((x) => x.type === 'booking.completed');
+  const booking =
+    bk === undefined
+      ? undefined
+      : ep.snapshot.bookings.find((b) =>
+          completed.some((x) => x.bookingId === b.bookingId || x.proposalId === b.proposalId),
+        );
+  if (bk !== undefined && booking !== undefined) {
+    const id = booking.bookingId;
+    const eq = (k: string, got: unknown, want: unknown): void => {
+      if (want === undefined) return;
+      checks.push({
+        ok: canon(got) === canon(want),
+        what: `${w}: booking ${id} ${k} ${canon(got)}, expected ${canon(want)}`,
+      });
+    };
+    eq('kind', booking.kind, bk.kind);
+    eq('provider', booking.provider, bk.provider);
+    eq('totalMinor', booking.totalMinor, bk.totalMinor);
+    eq('paidBy', booking.paidBy, bk.paidBy);
+    if (bk.itemRef !== undefined) {
+      const prop = ep.snapshot.proposals.find((x) => x.proposalId === booking.proposalId);
+      eq('itemRef', prop?.itemRef ?? 'unknown', bk.itemRef);
+    }
+    if (bk.orderRefPrefix !== undefined)
+      checks.push({
+        ok: booking.orderRef.startsWith(bk.orderRefPrefix),
+        what: `${w}: booking ${id} order ref does not start with ${bk.orderRefPrefix}`,
+      });
+    const orders = booking.providerRef.split(',').filter((s) => s.trim() !== '').length;
+    if (bk.orders !== undefined)
+      checks.push({
+        ok: orders === bk.orders,
+        what: `${w}: booking ${id} has ${String(orders)} provider order(s), expected ${String(bk.orders)}`,
+      });
+    if (bk.purchasesPerOrder !== undefined) {
+      const bought = view.purchasesAfter - before;
+      checks.push({
+        ok: bought === orders * bk.purchasesPerOrder,
+        what: `${w}: ${String(bought)} purchase(s) for ${String(orders)} order(s), expected ${String(bk.purchasesPerOrder)} per order`,
+      });
+    }
+    if (bk.ledgerWrites !== undefined)
+      checks.push({
+        ok: view.newExpenseIds.length === bk.ledgerWrites,
+        what: `${w}: booking ${id} wrote ${String(view.newExpenseIds.length)} ledger expense(s), expected ${String(bk.ledgerWrites)}`,
+      });
+    const ticketMsgs = out.filter((m) => m.card?.type === 'ticket' && m.card.bookingId === id);
+    const ownerOf = (m: OutboundMessage): string =>
+      m.card?.type === 'ticket' ? m.card.ownerMemberId : '';
+    if (bk.ticketsPerHolder !== undefined) {
+      const n = bk.ticketsPerHolder;
+      const off = booking.attendees.filter(
+        (a) =>
+          ticketMsgs.filter((m) => ownerOf(m) === a).length !== n ||
+          booking.tickets.filter((t) => t.holderMemberId === a).length !== n,
+      );
+      checks.push({
+        ok: off.length === 0,
+        what: `${w}: booking ${id}: ${list(off)} did not get exactly ${String(n)} ticket(s)`,
+      });
+    }
+    if (bk.qrInGroup === false) {
+      const payloads = ticketMsgs
+        .map((m) => (m.card?.type === 'ticket' ? m.card.qr.payload : ''))
+        .filter((s) => s !== '');
+      const leaks = groupMessages(view).filter(
+        (m) => m.card?.type === 'ticket' || payloads.some((q) => JSON.stringify(m).includes(q)),
+      );
+      checks.push({
+        ok: leaks.length === 0,
+        what: `${w}: booking ${id}: ${String(leaks.length)} group message(s) carry a ticket or QR payload`,
+      });
+    }
+    for (const [holder, to] of Object.entries(bk.ticketDeliveredTo ?? {})) {
+      const got = ticketMsgs
+        .filter((m) => ownerOf(m) === holder)
+        .map((m) => (m.to.kind === 'member' ? m.to.memberId : 'group'));
+      checks.push({
+        ok: got.length > 0 && got.every((t) => t === to),
+        what: `${w}: ${holder}'s ticket went to [${list(got)}], expected ${to}`,
+      });
+    }
+  }
+
+  if (e.refusal !== undefined) {
+    const sig = REFUSAL_SIGNALS[e.refusal.reason];
+    const topic = e.refusal.topicCategory;
+    const note = view.turn?.note ?? '';
+    const audited =
+      sig?.audit === undefined ||
+      evs.some(
+        (x) =>
+          x.type === sig.audit?.type &&
+          x.payload['cause'] === sig.audit.cause &&
+          (topic === undefined || x.payload['topicCategory'] === topic),
+      );
+    const noted = sig?.notePrefix === undefined || note.startsWith(sig.notePrefix);
+    const seen = evs
+      .filter((x) => x.type.endsWith('.suppressed'))
+      .map(
+        (x) =>
+          `${x.type}{${String(x.payload['cause'])}${x.payload['topicCategory'] !== undefined ? `/${String(x.payload['topicCategory'])}` : ''}}`,
+      );
+    checks.push({
+      ok: sig !== undefined && audited && noted,
+      what: `${w}: refusal reason ${e.refusal.reason}${topic !== undefined ? `/${topic}` : ''} not shown (suppressions [${list(seen)}], note ${note === '' ? 'none' : note})`,
+    });
+  }
+
+  if (e.transfers !== undefined) {
+    const card = settleCards[settleCards.length - 1];
+    if (card === undefined) {
+      checks.push({ ok: false, what: `${w}: no settle-up card to compare transfers with` });
+    } else {
+      const got = netOf(
+        card.transfers.map((t) => ({ from: t.from, to: t.to, amountMinor: t.amount.amountMinor })),
+      );
+      const want = netOf(e.transfers);
+      const off = [...new Set([...got.keys(), ...want.keys()])]
+        .filter((m) => (got.get(m) ?? 0) !== (want.get(m) ?? 0))
+        .map((m) => `${m} ${String(got.get(m) ?? 0)} vs ${String(want.get(m) ?? 0)}`);
+      checks.push({
+        ok: off.length === 0,
+        what: `${w}: settle-up nets differ from the expected transfers: ${off.join(', ')}`,
+      });
+    }
+  }
+
+  if (e.nightOutFraming !== undefined) {
+    const nights = groupMessages(view).filter(
+      (m) => m.card?.type === 'recap' && m.card.lastNight.events.length > 0,
+    ).length;
+    checks.push({
+      ok: e.nightOutFraming ? nights > 0 : nights === 0,
+      what: e.nightOutFraming
+        ? `${w}: no recap of last night's events posted`
+        : `${w}: ${String(nights)} recap(s) of last night's events posted, expected none`,
+    });
+  }
+
+  if (e.markedPaidBy !== undefined) {
+    const who = e.markedPaidBy;
+    checks.push({
+      ok: settleCards.some((c) => c.transfers.some((t) => t.from === who && t.paid === true)),
+      what: `${w}: no settle-up card shows ${who}'s transfer as paid`,
+    });
+  }
+
+  if (e.suggestionAudience !== undefined) {
+    const aud = e.suggestionAudience;
+    checks.push({
+      ok: actionObserved('reply', view, before),
+      what: `${w}: no suggestion for [${list(aud)}] (observed ${observedSummary(view, before)})`,
+    });
+    for (const np of view.newProposals) {
+      const extra = np.attendees.filter((a) => !aud.includes(a));
+      checks.push({
+        ok: extra.length === 0,
+        what: `${w}: proposal ${np.proposalId} includes ${list(extra)}, outside [${list(aud)}]`,
+      });
+    }
+  }
+
+  if (e.explicitAdultRequest === true) {
+    const screened = evs
+      .filter(
+        (x) =>
+          x.type === 'content.suppressed' &&
+          MINOR_SCREEN_CAUSES.includes(String(x.payload['cause'])),
+      )
+      .map((x) => String(x.payload['cause']));
+    checks.push({
+      ok: actionObserved('reply', view, before) && screened.length === 0,
+      what: `${w}: adult-only request not answered as one (minor screens [${list(screened)}]; observed ${observedSummary(view, before)})`,
+    });
+  }
   return checks;
 }
 

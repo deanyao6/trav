@@ -1,7 +1,7 @@
 [
   {
-    "id": "heldout_razzmatazz_paraphrase",
-    "title": "held-out: the flagship ask in other words (\"grab razz tix for the five of us, henry's out\")",
+    "id": "heldout_razz_everybody_except",
+    "title": "held-out (rotated T-160): the flagship ask as \"everybody except\" one member",
     "tags": ["booking", "heldout"],
     "expect": { "maxPurchases": 0 },
     "steps": [
@@ -9,7 +9,7 @@
         "do": "say",
         "at": "2026-03-14T21:40:00+01:00",
         "from": "h_priya",
-        "text": "@trav grab razz tix for the five of us tonight, henry's out",
+        "text": "@trav razzmatazz tonight for everybody except henry pls",
         "expect": {
           "proposal": {
             "attendees": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"],
@@ -17,7 +17,53 @@
             "excluded": ["mem_henry"],
             "totalMinor": 9000
           },
-          "mustNotContain": ["sick"],
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "heldout_razz_count_sitting_out",
+    "title": "held-out (rotated T-160): the flagship ask as a spelled-out count with one member sitting out",
+    "tags": ["booking", "heldout"],
+    "expect": { "maxPurchases": 0 },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-14T21:40:00+01:00",
+        "from": "h_priya",
+        "text": "@trav five tickets to razzmatazz tonight, henry's sitting this one out",
+        "expect": {
+          "proposal": {
+            "attendees": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"],
+            "payers": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"],
+            "excluded": ["mem_henry"],
+            "totalMinor": 9000
+          },
+          "mustNotContain": ["sitting this one out"],
+          "purchases": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "heldout_razz_named_book_into",
+    "title": "held-out (rotated T-160): the flagship ask as a named list, sender first, Henry never named",
+    "tags": ["booking", "heldout"],
+    "expect": { "maxPurchases": 0 },
+    "steps": [
+      {
+        "do": "say",
+        "at": "2026-03-14T21:40:00+01:00",
+        "from": "h_priya",
+        "text": "@trav book me, sam, maya, jordan and dean into razzmatazz tonight",
+        "expect": {
+          "proposal": {
+            "attendees": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"],
+            "payers": ["mem_dean", "mem_maya", "mem_jordan", "mem_priya", "mem_sam"],
+            "excluded": ["mem_henry"],
+            "totalMinor": 9000
+          },
           "purchases": 0
         }
       }

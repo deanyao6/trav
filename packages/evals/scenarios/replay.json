@@ -12,7 +12,7 @@
     "title": "the Barcelona chat replayed into the ledger: balances match ledger/barcelona.json to the cent",
     "tags": ["ledger", "replay"],
     "pending": "T-144",
-    "pendingNote": "the final balances miss one ledger line: Dean's €47.20 groceries from his card digest (T-144); both receipt photos are logged on the payer's 👍 (T-083) and other per-line gaps (flights T-074, …) are named in the evidence",
+    "pendingNote": "the final balances miss one ledger line: Dean's €47.20 groceries from his card digest (T-144); both receipt photos are logged on the payer's 👍 (T-083), so they are not part of the gap",
     "setup": { "fixtureExtras": true },
     "expect": { "ledgerGroundTruth": "barcelona" },
     "steps": [{ "do": "replay", "chat": "barcelona" }]

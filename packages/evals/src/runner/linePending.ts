@@ -22,6 +22,13 @@ const gap = (task: string, why: string, ids: readonly string[]): [string, LinePe
 export const LINE_PENDING: Readonly<Record<string, LinePending>> = Object.fromEntries([
   // ---- Barcelona (fixtures/chats/barcelona.jsonl) ----
   // (msg_bcn_0014–0026, group flights: T-074 landed, graded as is.)
+  // T-160 grades expense.description/category: a chat expense with no object in the
+  // message is logged as "€156 expense" / "€108 total", category other.
+  ...gap('T-087', 'chat expense logged with a filler description ("expense", "total")', [
+    'msg_bcn_0054',
+    'msg_bcn_0058',
+    'msg_bcn_0166',
+  ]),
   ...gap('T-136', 'roast from group-ledger facts finds nothing to say', ['msg_bcn_0112']),
   ...gap('T-139', "a guest's second message: fixture expects a refusal, agent stays silent", [
     'msg_bcn_0147',
@@ -31,8 +38,14 @@ export const LINE_PENDING: Readonly<Record<string, LinePending>> = Object.fromEn
     'sys_bcn_0192',
     'msg_bcn_d_0012',
   ]),
-  // ---- Lisbon (fixtures/chats/lisbon.jsonl; held out: these name the gap, nothing is tuned on them) ----
-  ...gap('T-145', 'Lisbon match asks: sold-out derby, Benfica vs Porto proposal and its ledger', [
+  // T-160 grades expectedTransfers: the final settle's nets are off by exactly
+  // Dean's €47.20 card groceries split six ways (+3933 Dean, -786/-787 each other).
+  ...gap('T-144', "final settle misses Dean's €47.20 card groceries (never confirmed)", [
+    'msg_bcn_0172',
+  ]),
+  // ---- Lisbon (fixtures/chats/lisbon.jsonl; held out: the ids attribute the gap,
+  // the reasons stay generic so the build loop sees no held-out behaviour, T-160) ----
+  ...gap('T-145', 'held-out Lisbon line', [
     'msg_lis_0001',
     'msg_lis_0007',
     'msg_lis_0008',
@@ -40,16 +53,8 @@ export const LINE_PENDING: Readonly<Record<string, LinePending>> = Object.fromEn
     'msg_lis_0010',
     'msg_lis_0035',
   ]),
-  ...gap('T-096', 'Lisbon journey asks hit the offline fallback', [
-    'msg_lis_0017',
-    'msg_lis_d_0003',
-    'msg_lis_0029',
-  ]),
-  ...gap('T-147', 'Lisbon fado ask, its ambiguous "Yes" and the booking', [
-    'msg_lis_0021',
-    'msg_lis_0022',
-    'msg_lis_0023',
-  ]),
+  ...gap('T-096', 'held-out Lisbon line', ['msg_lis_0017', 'msg_lis_d_0003', 'msg_lis_0029']),
+  ...gap('T-147', 'held-out Lisbon line', ['msg_lis_0021', 'msg_lis_0022', 'msg_lis_0023']),
   // ---- Turks and Caicos (fixtures/chats/turks-and-caicos.jsonl) ----
   ...gap('T-023', 'family mode replies, family recap, minor age-restricted denial', [
     'msg_tci_0001',

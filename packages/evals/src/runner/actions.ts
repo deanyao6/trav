@@ -43,6 +43,29 @@ export const LINE_ACTIONS = [
 
 export type LineAction = (typeof LINE_ACTIONS)[number];
 
+/**
+ * The observable signal of each `expect.refusal.reason` in the chat fixtures
+ * (T-160): the suppression the safety screen audits, or, for a reason no
+ * audit event carries, the reason the turn records in `TurnResult.note`.
+ * A reason missing here stays listed as ungraded.
+ */
+export interface RefusalSignal {
+  /** An audit event of this type with `payload.cause` on the line. */
+  readonly audit?: { readonly type: string; readonly cause: string };
+  /** The line's turn note starts with this. */
+  readonly notePrefix?: string;
+}
+
+export const REFUSAL_SIGNALS: Readonly<Record<string, RefusalSignal>> = {
+  roast_topic_blocked: { audit: { type: 'roast.suppressed', cause: 'topic_blocked' } },
+  roast_mode_off: { audit: { type: 'roast.suppressed', cause: 'mode_off' } },
+  minor_in_group: { audit: { type: 'roast.suppressed', cause: 'minor_in_group' } },
+  minor_nightlife: { audit: { type: 'content.suppressed', cause: 'minor_nightlife' } },
+  // No audit event: the private-data refusal and a guest's turn are recorded in the note.
+  private_data_other_member: { notePrefix: 'refusal:private_data' },
+  guest_cannot_book: { notePrefix: 'guest:' },
+};
+
 export function isLineAction(a: string): a is LineAction {
   return (LINE_ACTIONS as readonly string[]).includes(a);
 }

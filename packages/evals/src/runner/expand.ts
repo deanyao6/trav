@@ -18,7 +18,7 @@
 import type { ChatLine, InjectionFixture, TripName } from '../fixtures.js';
 import { loadInjection, loadJsonl, TRIP_NAMES } from '../fixtures.js';
 import type { ImportStep, IntakeStep, Step, StepExpect } from '../types.js';
-import { isLineAction } from './actions.js';
+import { isLineAction, REFUSAL_SIGNALS } from './actions.js';
 import { LINE_PENDING } from './linePending.js';
 import { loadGroupFixture } from './seed.js';
 
@@ -83,6 +83,84 @@ const IDENTITY_CAUSES: Readonly<Record<string, 'E3' | 'E5'>> = {
   claimed_for_other: 'E3',
   minor: 'E5',
 };
+
+/** "flight_options option 1 (6 offer ids)" → 6 (a group flight bundles one offer per traveller). */
+function offerCountOf(v: unknown): number | undefined {
+  if (typeof v !== 'string') return undefined;
+  const m = /\((\d+) offer ids?\)/.exec(v);
+  return m?.[1] === undefined ? undefined : Number(m[1]);
+}
+
+/** Sets `x.proposalDetails` from a line's `expect.proposal`; returns the keys it grades. */
+function proposalDetailsOf(p: Json, x: Mutable<StepExpect>): string[] {
+  const d: Mutable<NonNullable<StepExpect['proposalDetails']>> = {};
+  const used: string[] = [];
+  for (const k of ['kind', 'provider', 'itemRef', 'currency'] as const) {
+    if (typeof p[k] === 'string') {
+      d[k] = p[k];
+      used.push(k);
+    }
+  }
+  if (typeof p['refundable'] === 'boolean') {
+    d.refundable = p['refundable'];
+    used.push('refundable');
+  }
+  if (asNum(p['quantity']) !== undefined) {
+    d.quantity = asNum(p['quantity'])!;
+    used.push('quantity');
+  }
+  if (asObj(p['paidBy']) !== undefined) {
+    d.paidBy = asObj(p['paidBy'])!;
+    used.push('paidBy');
+  }
+  const offers = offerCountOf(p['itemRefFrom']);
+  if (offers !== undefined) {
+    d.itemRefCount = offers;
+    used.push('itemRefFrom');
+  }
+  if (used.length > 0) x.proposalDetails = d;
+  return used;
+}
+
+/** Sets `x.booking` from a line's `expect.booking`; returns the keys it grades. */
+function bookingOf(b: Json, x: Mutable<StepExpect>): string[] {
+  const d: Mutable<NonNullable<StepExpect['booking']>> = {};
+  const used: string[] = [];
+  for (const k of ['kind', 'provider', 'itemRef', 'orderRefPrefix'] as const) {
+    if (typeof b[k] === 'string') {
+      d[k] = b[k];
+      used.push(k);
+    }
+  }
+  const nums = [
+    ['totalMinor', 'totalMinor'],
+    ['ordersCreated', 'orders'],
+    ['purchaseCountPerOffer', 'purchasesPerOrder'],
+    ['ledgerWrites', 'ledgerWrites'],
+    ['ticketsPerHolder', 'ticketsPerHolder'],
+  ] as const;
+  for (const [from, to] of nums) {
+    if (asNum(b[from]) !== undefined) {
+      d[to] = asNum(b[from])!;
+      used.push(from);
+    }
+  }
+  if (asObj(b['paidBy']) !== undefined) {
+    d.paidBy = asObj(b['paidBy'])!;
+    used.push('paidBy');
+  }
+  if (typeof b['qrInGroup'] === 'boolean') {
+    d.qrInGroup = b['qrInGroup'];
+    used.push('qrInGroup');
+  }
+  const delivered = asObj(b['ticketDeliveredTo']);
+  if (delivered !== undefined && Object.values(delivered).every((m) => typeof m === 'string')) {
+    d.ticketDeliveredTo = delivered as Readonly<Record<string, string>>;
+    used.push('ticketDeliveredTo');
+  }
+  if (used.length > 0) x.booking = d;
+  return used;
+}
 
 /**
  * A chat line's ground truth as step expectations (T-077). Every field of
@@ -153,8 +231,9 @@ export function lineExpect(line: ChatLine): StepExpect | undefined {
             ? (p['payers'] as Json[]).map((q) => String(q['memberId']))
             : undefined) ?? asStrs(p['payersAre']);
         const attendees = asStrs(p['attendees']);
+        const used = proposalDetailsOf(p, x);
         if (payers === undefined || attendees === undefined) {
-          ungraded.push('proposal');
+          take('proposal', p, used);
           break;
         }
         x.proposal = {
@@ -162,7 +241,7 @@ export function lineExpect(line: ChatLine): StepExpect | undefined {
           payers,
           ...(asNum(p['totalMinor']) !== undefined ? { totalMinor: asNum(p['totalMinor'])! } : {}),
         };
-        take('proposal', p, ['attendees', 'payers', 'payersAre', 'totalMinor']);
+        take('proposal', p, ['attendees', 'payers', 'payersAre', 'totalMinor', ...used]);
         break;
       }
       case 'proposals':
@@ -178,6 +257,13 @@ export function lineExpect(line: ChatLine): StepExpect | undefined {
           ungraded.push('expense');
           break;
         }
+        const details = {
+          ...(typeof ex['description'] === 'string' ? { description: ex['description'] } : {}),
+          ...(typeof ex['category'] === 'string' ? { category: ex['category'] } : {}),
+          ...(typeof ex['source'] === 'string' ? { source: ex['source'] } : {}),
+          ...(asObj(ex['split']) !== undefined ? { split: asObj(ex['split'])! } : {}),
+        };
+        if (Object.keys(details).length > 0) x.expenseDetails = details;
         const shares = Array.isArray(ex['shares'])
           ? (ex['shares'] as Json[])
               .map((s) => ({
@@ -193,7 +279,7 @@ export function lineExpect(line: ChatLine): StepExpect | undefined {
           ...(shares !== undefined ? { shares } : {}),
           ...(tol !== undefined ? { toleranceMinor: tol } : {}),
         };
-        take('expense', ex, ['paidBy', 'amount', 'shares']);
+        take('expense', ex, ['paidBy', 'amount', 'shares', ...Object.keys(details)]);
         break;
       }
       case 'tolerance':
@@ -210,9 +296,59 @@ export function lineExpect(line: ChatLine): StepExpect | undefined {
         put('newPurchases', asNum(b['purchaseCount']));
         put('ticketsTo', asStrs(b['dmsTo']));
         put('noTicketsTo', asStrs(b['noDmTo']));
-        take('booking', b, ['purchaseCount', 'dmsTo', 'noDmTo']);
+        const used = bookingOf(b, x);
+        take('booking', b, ['purchaseCount', 'dmsTo', 'noDmTo', ...used]);
         break;
       }
+      case 'refusal': {
+        const r = asObj(v) ?? {};
+        const reason = typeof r['reason'] === 'string' ? r['reason'] : undefined;
+        if (reason === undefined || REFUSAL_SIGNALS[reason] === undefined) {
+          ungraded.push('refusal');
+          break;
+        }
+        // `topicCategory` stays ungraded: the fixtures follow VOICE §7.5 (a
+        // hangover is "Health") while core's roast blocklist files hangover
+        // terms under `body`, so the audit label is not settled ground truth
+        // yet (no open task owns it; reported to the Orchestrator by T-160).
+        // `detailChecks` still matches a topic when one is set.
+        x.refusal = { reason };
+        take('refusal', r, ['reason']);
+        break;
+      }
+      case 'expectedTransfers': {
+        const ts = Array.isArray(v)
+          ? (v as Json[]).map((t) => ({
+              from: String(t['from']),
+              to: String(t['to']),
+              amountMinor: minorOf(t['amount']),
+            }))
+          : [];
+        if (ts.length === 0 || ts.some((t) => t.amountMinor === undefined)) {
+          ungraded.push(key);
+          break;
+        }
+        x.transfers = ts.map((t) => ({ from: t.from, to: t.to, amountMinor: t.amountMinor! }));
+        break;
+      }
+      case 'nightOutFraming':
+        if (typeof v === 'boolean') x.nightOutFraming = v;
+        else ungraded.push(key);
+        break;
+      case 'paidBy':
+        // Top-level `paidBy` only appears on mark-paid lines: whose transfer is now paid.
+        if (typeof v === 'string' && actions.includes('mark_paid')) x.markedPaidBy = v;
+        else ungraded.push(key);
+        break;
+      case 'suggestionAudience':
+        if ((asStrs(v) ?? []).length > 0) put('suggestionAudience', asStrs(v));
+        else ungraded.push(key);
+        break;
+      case 'explicitAdultRequest':
+        // Only `true` has an effect to check (no minor screen on an adult-only ask).
+        if (v === true) x.explicitAdultRequest = true;
+        else ungraded.push(key);
+        break;
       case 'audit':
         put('audit', asStrs(v));
         break;

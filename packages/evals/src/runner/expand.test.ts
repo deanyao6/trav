@@ -71,6 +71,7 @@ describe('lineExpect (T-077): every chat-line expectation is graded or listed as
           attendees: ['mem_dean'],
           payers: [{ memberId: 'mem_dean', shareMinor: 1800 }],
           totalMinor: 1800,
+          eventDate: '2026-03-14',
         },
         decision: { outcome: 'needs_confirmation', ruleIds: ['C1'] },
         purchaseCount: 0,
@@ -80,10 +81,11 @@ describe('lineExpect (T-077): every chat-line expectation is graded or listed as
     expect(x).toMatchObject({
       action: ['propose_booking'],
       proposal: { attendees: ['mem_dean'], payers: ['mem_dean'], totalMinor: 1800 },
+      proposalDetails: { kind: 'ticket' },
       decision: { outcome: 'needs_confirmation' },
       newPurchases: 0,
     });
-    expect(x?.ungraded).toEqual(['proposal.kind', 'decision.ruleIds']);
+    expect(x?.ungraded).toEqual(['proposal.eventDate', 'decision.ruleIds']);
   });
 
   it('maps an expense in minor units with its tolerance, dropping zero shares', () => {
@@ -126,6 +128,117 @@ describe('lineExpect (T-077): every chat-line expectation is graded or listed as
     ).toEqual({ safetyId: 'E5', invalidAttemptCause: 'minor', noEffect: true });
     expect(lineExpect(line({ action: 'reply', vibe: 'good' }))?.ungraded).toEqual(['vibe']);
     expect(lineExpect(line({ action: 'silent', ingested: 0 }))?.ingested).toBe(0);
+  });
+
+  it('T-160: grades expense details, booking fields and the flight bundle size', () => {
+    const x = lineExpect(
+      line({
+        action: 'log_expense',
+        expense: {
+          paidBy: 'mem_maya',
+          amount: { amountMinor: 15600, currency: 'EUR' },
+          description: 'Sagrada Família tickets',
+          category: 'tickets',
+          source: 'chat',
+          split: { method: 'equal', participants: ['mem_dean'] },
+          occurredAt: '2026-03-14',
+        },
+      }),
+    );
+    expect(x?.expenseDetails).toEqual({
+      description: 'Sagrada Família tickets',
+      category: 'tickets',
+      source: 'chat',
+      split: { method: 'equal', participants: ['mem_dean'] },
+    });
+    expect(x?.ungraded).toEqual(['expense.occurredAt']);
+
+    const b = lineExpect(
+      line({
+        action: 'booking_completed',
+        booking: {
+          purchaseCount: 1,
+          ticketsPerHolder: 1,
+          qrInGroup: false,
+          ledgerWrites: 1,
+          paidBy: { kind: 'member', memberId: 'mem_priya' },
+          ticketDeliveredTo: { mem_tci_lily: 'mem_tci_mom' },
+          seatMap: 'A1-A5',
+        },
+      }),
+    );
+    expect(b?.booking).toEqual({
+      ticketsPerHolder: 1,
+      qrInGroup: false,
+      ledgerWrites: 1,
+      paidBy: { kind: 'member', memberId: 'mem_priya' },
+      ticketDeliveredTo: { mem_tci_lily: 'mem_tci_mom' },
+    });
+    expect(b?.ungraded).toEqual(['booking.seatMap']);
+
+    const f = lineExpect(
+      line({
+        action: 'propose_booking',
+        proposal: {
+          refundable: true,
+          quantity: 6,
+          itemRefFrom: 'flight_options option 1 (6 offer ids)',
+        },
+      }),
+    );
+    // No attendees/payers: the proposal's people are ungraded, its details are not.
+    expect(f?.proposalDetails).toEqual({ refundable: true, quantity: 6, itemRefCount: 6 });
+    expect(f?.ungraded).toBeUndefined();
+  });
+
+  it('T-160: refusal reasons with an observable signal are graded; others stay ungraded', () => {
+    const r = lineExpect(
+      line({
+        action: 'refuse',
+        refusal: { reason: 'roast_topic_blocked', topicCategory: 'health' },
+      }),
+    );
+    expect(r?.refusal).toEqual({ reason: 'roast_topic_blocked' });
+    // The topic label is not settled ground truth (VOICE §7.5 vs core's blocklist): listed, not passed.
+    expect(r?.ungraded).toEqual(['refusal.topicCategory']);
+    const u = lineExpect(line({ action: 'refuse', refusal: { reason: 'vibes_off' } }));
+    expect(u?.refusal).toBeUndefined();
+    expect(u?.ungraded).toEqual(['refusal']);
+  });
+
+  it('T-160: transfers, night-out framing, mark-paid, audiences', () => {
+    const t = lineExpect(
+      line({
+        action: 'settle_up',
+        expectedTransfers: [
+          { from: 'mem_maya', to: 'mem_dean', amount: { amountMinor: 1250, currency: 'EUR' } },
+        ],
+      }),
+    );
+    expect(t?.transfers).toEqual([{ from: 'mem_maya', to: 'mem_dean', amountMinor: 1250 }]);
+    // A transfer with no amount cannot be graded to the cent.
+    expect(
+      lineExpect(line({ action: 'settle_up', expectedTransfers: [{ from: 'a', to: 'b' }] }))
+        ?.ungraded,
+    ).toEqual(['expectedTransfers']);
+    expect(lineExpect(line({ action: 'silent', nightOutFraming: false }))?.nightOutFraming).toBe(
+      false,
+    );
+    expect(lineExpect(line({ action: 'mark_paid', paidBy: 'mem_sam' }))?.markedPaidBy).toBe(
+      'mem_sam',
+    );
+    // A top-level paidBy anywhere else is not a mark-paid: listed, never passed.
+    expect(lineExpect(line({ action: 'reply', paidBy: 'mem_sam' }))?.ungraded).toEqual(['paidBy']);
+    expect(
+      lineExpect(line({ action: 'reply', suggestionAudience: ['mem_lis_dean'] }))
+        ?.suggestionAudience,
+    ).toEqual(['mem_lis_dean']);
+    expect(
+      lineExpect(line({ action: 'reply', explicitAdultRequest: true }))?.explicitAdultRequest,
+    ).toBe(true);
+    expect(lineExpect(line({ action: 'reply', explicitAdultRequest: false }))?.ungraded).toEqual([
+      'explicitAdultRequest',
+    ]);
   });
 
   it('carries the per-line known gap from LINE_PENDING', () => {

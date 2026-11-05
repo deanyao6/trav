@@ -131,7 +131,9 @@ describe('runScenario', () => {
     expect(evidence.some((ev) => ev.includes('[known gap: waits on'))).toBe(false);
     // Fields no grader checks are reported as skipped, never as passes.
     const ungraded = o.results.find((x) => x.graderId === 'turn_expectations:ungraded');
-    expect(ungraded?.skipped).toMatch(/proposal\.kind \(1\)/);
+    expect(ungraded?.skipped).toMatch(/toolCalls \(1\)/);
+    // proposal.kind/provider/currency/paidBy/itemRefFrom are graded since T-160.
+    expect(ungraded?.skipped).not.toMatch(/proposal\./);
     expect(ungraded?.pass).toBe(true);
   });
 

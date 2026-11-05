@@ -15,6 +15,7 @@ import {
   baselineFrom,
   changesSince,
   delta,
+  evidenceHead,
   exitCodeOf,
   loadBaseline,
   previousSummary,
@@ -211,6 +212,20 @@ describe('worstEpisodes', () => {
     expect(section).toContain('### s0: 0.0%');
     expect(section).not.toContain('### s5');
     expect(section).toContain('likely area: booking/proposals.ts');
+  });
+
+  it('says "+N more" when it cuts the evidence at 4 (T-160)', () => {
+    const six = ['e1', 'e2', 'e3', 'e4', 'e5', 'e6'];
+    expect(evidenceHead(six)).toBe('e1; e2; e3; e4; +2 more');
+    expect(evidenceHead(six.slice(0, 4))).toBe('e1; e2; e3; e4');
+    expect(evidenceHead([])).toBe('');
+    const o = outcome(scenario({ id: 'long', tags: ['booking'], checklist: [] }), [
+      bad('members_charged', 0, undefined, six),
+    ]);
+    const md = renderReport([o], META, undefined);
+    const section = md.slice(md.indexOf('## Worst 5 episodes'), md.indexOf('## Scenarios'));
+    expect(section).toContain('e4; +2 more');
+    expect(section).not.toContain('e5');
   });
 });
 

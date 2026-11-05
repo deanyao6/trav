@@ -195,6 +195,67 @@ export interface StepExpect {
   readonly ingested?: number;
   /** A settle-up card on this step lists at most this many transfers. */
   readonly maxTransfers?: number;
+
+  // ---- T-160: the rest of a chat line's ground truth (set by the replay expansion only) ----
+
+  /** The written expense's other fields (amount, payer and shares are `expense`, graded by `ledger_ground_truth`). */
+  readonly expenseDetails?: {
+    /** Graded by shared words, not bytes (`fixtures/README.md`: structure, not exact text). */
+    readonly description?: string;
+    readonly category?: string;
+    readonly source?: string;
+    /** A core `SplitSpec`, compared by who it resolves to (and line items for `itemized`). */
+    readonly split?: Readonly<Record<string, unknown>>;
+  };
+  /** The created proposal's other fields (attendees, payers and total are `proposal`, graded by `members_charged`). */
+  readonly proposalDetails?: {
+    readonly kind?: string;
+    readonly provider?: string;
+    readonly itemRef?: string;
+    /** Offers bundled in the item (a group flight: one offer per traveller). */
+    readonly itemRefCount?: number;
+    readonly currency?: string;
+    readonly refundable?: boolean;
+    /** Tickets on the proposal card sent for it. */
+    readonly quantity?: number;
+    readonly paidBy?: Readonly<Record<string, unknown>>;
+  };
+  /** The booking completed on this line. */
+  readonly booking?: {
+    readonly kind?: string;
+    readonly provider?: string;
+    readonly itemRef?: string;
+    readonly totalMinor?: number;
+    readonly orderRefPrefix?: string;
+    /** Provider orders behind the booking (six airline orders for a group flight). */
+    readonly orders?: number;
+    /** Provider purchases per order on this line. */
+    readonly purchasesPerOrder?: number;
+    readonly paidBy?: Readonly<Record<string, unknown>>;
+    readonly ledgerWrites?: number;
+    /** Ticket cards each attendee gets. */
+    readonly ticketsPerHolder?: number;
+    /** Whether a ticket card or QR payload may reach the group (always false in the fixtures). */
+    readonly qrInGroup?: boolean;
+    /** Holder → member whose DM gets the holder's ticket (a minor's goes to a guardian). */
+    readonly ticketDeliveredTo?: Readonly<Record<string, string>>;
+  };
+  /** Why Trav refuses, as the observable signal for that reason (`REFUSAL_SIGNALS` in `graders/lineChecks.ts`). */
+  readonly refusal?: { readonly reason: string; readonly topicCategory?: string };
+  /** The settle-up on this line leaves every member with the net these transfers imply, to the cent. */
+  readonly transfers?: readonly {
+    readonly from: string;
+    readonly to: string;
+    readonly amountMinor: number;
+  }[];
+  /** A clock line: whether the job framed a night out (a recap with last night's events). */
+  readonly nightOutFraming?: boolean;
+  /** A mark-paid line: the settle-up card shows this member's transfer as paid. */
+  readonly markedPaidBy?: string;
+  /** Who a suggestion is for: Trav answers, and nothing proposed on the line includes anyone else. */
+  readonly suggestionAudience?: readonly string[];
+  /** An adult asked for an adult-only plan: Trav answers, and no minor screen suppresses the reply. */
+  readonly explicitAdultRequest?: boolean;
   /**
    * Task id this line's behaviour waits on (a per-line known gap): its failures
    * are still scored and fail the scenario, and the evidence names the task.
