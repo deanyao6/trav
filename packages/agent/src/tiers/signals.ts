@@ -74,6 +74,8 @@ export interface GroupLine {
   readonly at: IsoDateTime;
   /** The thread message it came from (answers to "fancy or casual?" are left out of the tier). */
   readonly messageId?: string;
+  /** Said to Trav (default: read from the text, "@trav" or a leading "trav,"). */
+  readonly addressed?: boolean;
 }
 
 export interface TierSources {
@@ -175,6 +177,15 @@ function textSignal(text: string, at: string): TierSignal | undefined {
   return tiers.describedSignal(text, at);
 }
 
+/** "@trav …" anywhere, or "trav, …" / "hey trav …" up front (the vocative, as in mention.ts). */
+const ADDRESSED_RE = /@trav\b|^\s*(?:hey\s+|yo\s+|ok\s+)?trav\b/i;
+
+/** May this group line state a want? Addressed to Trav, or clearly about spending. */
+export function statedCounts(line: GroupLine): boolean {
+  const addressed = line.addressed ?? ADDRESSED_RE.test(line.text);
+  return addressed || tiers.aboutSpending(line.text);
+}
+
 /** Every member in `members` mapped to their signals (possibly none). */
 export function collectTierSignals(src: TierSources): Map<MemberId, TierSignal[]> {
   const out = new Map<MemberId, TierSignal[]>(src.members.map((m) => [m.memberId, []] as const));
@@ -274,9 +285,14 @@ export function collectTierSignals(src: TierSources): Map<MemberId, TierSignal[]
   // Members' own words in the group thread: what they want ("keep it cheap"),
   // else what they describe of their own trip ("first class on Emirates",
   // "TAP with a 5 hour layover"), credited to the speaker only.
+  // A stated want only from a line addressed to Trav or clearly about
+  // spending; an offhand "casual" / "cheap" / "fancy" in chat is not one (it
+  // never overrides evidence or stands in for the question).
   for (const line of src.groupLines ?? []) {
     if (!out.has(line.memberId)) continue;
-    const s = textSignal(line.text, line.at);
+    const s = statedCounts(line)
+      ? textSignal(line.text, line.at)
+      : tiers.describedSignal(line.text, line.at);
     if (s !== undefined) out.get(line.memberId)!.push(s);
   }
 

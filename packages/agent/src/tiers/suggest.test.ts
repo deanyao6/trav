@@ -5,8 +5,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import type { Member, OutboundMessage, Trip } from '@trav/core';
-import { isReaction, localDate, tiers } from '@trav/core';
+import type { ContentTag, Member, OutboundMessage, Trip } from '@trav/core';
+import { isReaction, localDate, safety, tiers } from '@trav/core';
 import { parseVenueCatalog } from '@trav/adapters';
 import { BARCELONA } from '../compose.js';
 import { harness, RAZZMATAZZ_ASK } from '../runtime.testkit.js';
@@ -410,7 +410,189 @@ describe('the people going, leaning to the most budget-conscious', () => {
     const bars = CATALOG.places.filter((p) => p.adultsOnly).map((p) => p.name);
     for (const b of bars) expect(text(r)).not.toContain(b);
     expect(r.note).toBe('suggest:places');
-    expect(text(r).startsWith('no bars on this one, so food instead:\n')).toBe(true);
+    expect(text(r).startsWith('food for everyone tonight:\n')).toBe(true);
+  });
+});
+
+// ---------- T-167 r1 (tasks/reviews/T-167-r1.md) ----------
+
+function makeMinor(h: Harness, memberId = 'mem_crowley'): void {
+  const m = h.runtime.stores.group.members.get(memberId)!;
+  h.runtime.stores.group.members.upsert({ ...m, birthDate: '2012-02-01', ageBand: 'under18' });
+}
+
+function markOutTonight(h: Harness, memberId: string): void {
+  h.runtime.stores.group.trips.setAttendance({
+    activityId: BARCELONA.razzmatazzActivityId,
+    memberId,
+    status: 'out',
+    updatedAt: h.clock.now(),
+    sourceMessageId: 'msg_prior',
+    setBy: memberId,
+  });
+}
+
+/** A catalog place a minor must never be shown (tags, adults-only, or its own words). */
+function restrictedForMinors(p: (typeof CATALOG.places)[number]): boolean {
+  return (
+    p.adultsOnly ||
+    /\b(?:vermut|vermouth|wine|beers?|cocktails?|champagne|cava|bar|bodega)\b/i.test(
+      `${p.kind} ${p.name}`,
+    ) ||
+    safety.isRestrictedContent(p.tags as ContentTag[]) ||
+    safety.isRestrictedText(`${p.kind} ${p.name}`)
+  );
+}
+
+describe('r1 #1: nothing alcohol-led is listed with a minor going', () => {
+  it('Bodega La Fusta (tapas and vermut) is tagged alcohol', () => {
+    const fusta = CATALOG.places.find((p) => p.placeId === 'pl_bcn_la_fusta')!;
+    expect(fusta.tags).toContain('alcohol');
+  });
+
+  it('every catalog entry: a restricted one never shows with a minor going, at any price level', async () => {
+    const h = harness();
+    makeMinor(h);
+    const listed = new Set<string>();
+    const asks = [
+      '@trav cheap eats tonight',
+      '@trav where should we eat tonight, nothing too fancy',
+      '@trav somewhere nice for dinner tonight',
+      '@trav dinner spot under 30 a head tonight',
+      '@trav cheap things to do tonight',
+      '@trav things to do tonight, nothing too fancy',
+      '@trav things to do tonight, somewhere nice',
+    ];
+    for (const ask of asks) {
+      const r = await h.say('h_dean', ask);
+      expect(r.silent, ask).toBe(false);
+      for (const p of CATALOG.places) if (text(r).includes(p.name)) listed.add(p.placeId);
+    }
+    expect(listed.size).toBeGreaterThan(6);
+    for (const p of CATALOG.places) {
+      if (restrictedForMinors(p)) expect(listed.has(p.placeId), p.name).toBe(false);
+    }
+  });
+});
+
+describe('r1 #2: family mode is cautious in the group, and no turn goes silent', () => {
+  it.each([
+    '@trav vermouth spots tonight',
+    '@trav drinks tips tonight',
+    '@trav any good bars tonight',
+  ])('a minor out tonight, then %s: food for everyone, never silent, never a bar', async (ask) => {
+    const h = harness();
+    makeMinor(h);
+    markOutTonight(h, 'mem_crowley');
+    const r = await h.say('h_dean', ask);
+    expect(r.silent).toBe(false);
+    if (r.note === 'suggest:question') {
+      const a = await h.say('h_chase', '@trav casual');
+      expect(a.silent).toBe(false);
+      expect(a.note).toBe('suggest:answered');
+      for (const p of CATALOG.places.filter(restrictedForMinors)) {
+        expect(text(a)).not.toContain(p.name);
+      }
+    } else {
+      expect(r.note).toMatch(/^suggest:places|^refusal:/);
+      for (const p of CATALOG.places.filter(restrictedForMinors)) {
+        expect(text(r)).not.toContain(p.name);
+      }
+    }
+  });
+
+  it('a minor asking for bars in their own DM gets food for everyone, not silence', async () => {
+    const h = harness();
+    makeMinor(h);
+    const r = await h.dm('h_crowley', 'any good bars tonight');
+    expect(r.silent).toBe(false);
+    const all = [r];
+    if (r.note === 'suggest:question') all.push(await h.dm('h_crowley', 'casual'));
+    for (const t of all) {
+      expect(t.silent).toBe(false);
+      for (const p of CATALOG.places.filter(restrictedForMinors))
+        expect(text(t)).not.toContain(p.name);
+    }
+    expect(all.at(-1)!.note).toMatch(/^suggest:(?:places|answered)$/);
+    expect(text(all.at(-1)!)).toContain('food for everyone tonight:');
+  });
+
+  it('the redirect is decided before the question: the question is about food, and the answer lands', async () => {
+    const h = harness();
+    makeMinor(h);
+    markOutTonight(h, 'mem_crowley');
+    const q = await h.say('h_dean', '@trav vermouth spots tonight');
+    expect(q.note).toBe('suggest:question');
+    const a = await h.say('h_dean', '@trav fancy');
+    expect(a.silent).toBe(false);
+    expect(text(a)).toMatch(/^fancy it is\. food for everyone tonight:\n/);
+  });
+});
+
+describe('r1 #3: offhand words in unaddressed chat are not stated wants', () => {
+  it('"is the dress code casual?" and "flights were cheap lol" never override a high-end trip', async () => {
+    const { h } = withFixture('barcelona-high');
+    for (const [who, t] of [
+      ['h_dean', 'is the dress code casual?'],
+      ['h_chase', 'flights were cheap lol'],
+      ['h_piotr', 'casual'],
+    ] as const) {
+      expect((await h.say(who, t)).silent).toBe(true);
+    }
+    const r = await h.say('h_arjun', '@trav where should we eat tonight');
+    expect(r.note).toBe('suggest:places');
+    for (const l of levelsIn(text(r))) expect(l).toBeGreaterThanOrEqual(3);
+  });
+
+  it('"anyone fancy a swim?" does not suppress the question', async () => {
+    const h = harness();
+    await h.say('h_chase', 'anyone fancy a swim?');
+    const r = await h.say('h_dean', '@trav where should we eat tonight');
+    expect(r.note).toBe('suggest:question');
+  });
+
+  it('a line clearly about spending still counts ("can we keep it cheap tonight")', async () => {
+    const h = harness();
+    await h.say('h_piotr', 'can we keep it cheap tonight, money is tight');
+    const r = await h.say('h_dean', '@trav where should we eat tonight');
+    expect(r.note).toBe('suggest:places');
+    for (const l of levelsIn(text(r))) expect(l).toBeLessThanOrEqual(2);
+  });
+});
+
+describe('r1 #4: a suggestion ask is not a standing signal', () => {
+  it('"@trav cheap eats tonight" does not decide tomorrow', async () => {
+    const h = harness();
+    expect((await h.say('h_dean', '@trav cheap eats tonight')).note).toBe('suggest:places');
+    const tmr = await h.say('h_dean', '@trav where should we eat tomorrow');
+    expect(tmr.note).toBe('suggest:question');
+  });
+});
+
+describe('r1 #5: a bare "nice" is not a vibe answer', () => {
+  it('"nice" answers nothing; "something nice" still means fancy', async () => {
+    expect(tiers.vibeAnswer('nice')).toBeUndefined();
+    expect(tiers.vibeAnswer('nice!')).toBeUndefined();
+    expect(tiers.vibeAnswer('something nice')).toBe('high');
+    const h = harness();
+    await h.say('h_dean', '@trav where should the 6 of us eat tonight');
+    expect((await h.say('h_chase', '@trav nice')).note).not.toBe('suggest:answered');
+  });
+});
+
+describe('r1 #6: an open booking proposal only takes messages that bind to it', () => {
+  it('a suggestion ask while a Razzmatazz card is open is still a suggestion', async () => {
+    const h = harness();
+    const card = await h.say('h_dean', RAZZMATAZZ_ASK);
+    expect(h.pending()).toHaveLength(1);
+    const r = await h.say('h_chase', '@trav where should we eat before, cheap eats');
+    expect(r.note).toBe('suggest:places');
+    expect(h.pending()).toHaveLength(1);
+    // A quote-reply to the card is about the booking, not a suggestion.
+    const bound = await h.say('h_chase', '@trav any cheap eats nearby?', {
+      replyToMessageId: card.outbound[0]!.id,
+    });
+    expect(bound.note ?? '').not.toMatch(/^suggest:/);
   });
 });
 

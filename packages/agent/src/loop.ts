@@ -2533,7 +2533,15 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     // `tiers/suggest.ts`): rules, never the model, and never a booking. The
     // answer to an open question first, then a fresh ask. A city with no
     // catalog falls through to the model.
-    if (r.trip !== null && canRequest(r.identity) && !aboutBooking) {
+    // Only a message that binds to a booking (a quote-reply to its card or
+    // receipt, or an answer to its question) skips this; a proposal merely
+    // open in the reply window does not (T-167 r1 #6).
+    const boundToBooking =
+      boundRef?.proposalId !== undefined ||
+      boundRef?.card.type === 'booking_proposal' ||
+      boundRef?.card.type === 'receipt' ||
+      askedRef?.proposalId !== undefined;
+    if (r.trip !== null && canRequest(r.identity) && !boundToBooking) {
       const sin: SuggestTurnInput = {
         group: r.group,
         trip: r.trip,

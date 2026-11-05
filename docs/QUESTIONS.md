@@ -65,3 +65,6 @@ In T-165, the grey "Chase added Uber €18.60 · 4 ways" line appears only for e
 
 ## New git worktrees can't be created under the sandbox (2026-11-05)
 `git worktree add .cache/wt-*` fails because the sandbox denies writes to `.claude/agents/*` inside the new checkout. The one existing worktree (`.cache/wt-t165`, created in an earlier session) is being reused for every parallel builder. If you want more parallelism, consider allowing `.cache/wt-*/.claude/agents` in the sandbox's write list. That's your call; the build loop won't touch the settings.
+
+## T-167: can one member's private budget alone set the group's tier? (2026-11-05)
+If one member's private budget is the only signal, the group gets a budget list when they're going and a "fancy or casual?" question when they're out, so others could work out where it came from. Nobody is named. Should one private signal be enough to skip the question, or should it need a second signal or a minimum group size? Right now one signal is enough.

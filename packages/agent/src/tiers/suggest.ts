@@ -33,6 +33,7 @@ import {
   tiers,
 } from '@trav/core';
 import type {
+  ContentTag,
   Group,
   GroupId,
   IsoDate,
@@ -64,6 +65,8 @@ export interface SuggestAsk {
   readonly statedTier?: SpendingTier;
   /** A per-person figure the ask says ("under 30 a head"), trip currency minor units. */
   readonly perPersonBudgetMinor?: number;
+  /** Set when a bar ask was turned into food for everyone (minors caution). */
+  readonly forAllAges?: true;
 }
 
 function fold(s: string): string {
@@ -295,6 +298,47 @@ function dietaryNeeds(texts: readonly string[]): { veg: boolean; noSeafood: bool
   };
 }
 
+/** A place a minor is never shown: adults-only, tagged, or worded as alcohol or nightlife. */
+export function restrictedForMinors(p: Venue): boolean {
+  return (
+    p.adultsOnly ||
+    safety.isRestrictedContent(p.tags as readonly ContentTag[]) ||
+    safety.isRestrictedText(`${p.kind} ${p.name}`)
+  );
+}
+
+/**
+ * Minors caution (SAFETY §2.7): anyone going who is under 18 or of unknown
+ * age; in a DM, the asker being a minor; in the group thread, a family-mode
+ * group even when the minor is out tonight (the outbound family screen
+ * applies to the whole thread).
+ */
+export function cautiousFor(
+  input: Pick<SuggestTurnInput, 'group' | 'members' | 'me' | 'lane' | 'now'>,
+  people: readonly Member[],
+): boolean {
+  if (people.some((m) => safety.isMinor(m, input.now) || safety.isAgeUnknown(m))) return true;
+  if (input.lane === 'dm') return safety.isMinor(input.me, input.now);
+  return safety.isFamilyMode(input.group, input.members, input.now);
+}
+
+/** The header for a bar ask turned into food for everyone: names nobody, says nothing about bars. */
+export function familyHeader(when: SuggestWhen): string {
+  return `food for everyone ${when}:`;
+}
+
+/** A bar ask under caution becomes food for everyone; decided before any question. */
+function minorsRedirect(
+  ask: SuggestAsk,
+  cautious: boolean,
+): { readonly ask: SuggestAsk; readonly family: boolean } {
+  if (ask.forAllAges === true) return { ask, family: true };
+  if (ask.category === 'bar' && cautious) {
+    return { ask: { ...ask, category: 'restaurant', forAllAges: true }, family: true };
+  }
+  return { ask, family: false };
+}
+
 const SEAFOOD_KIND = /\b(?:seafood|fish|paella|arr[oò]s|arrossos|marisc)\b/i;
 
 export function createSuggestFlow(deps: SuggestFlowDeps): SuggestFlow {
@@ -374,8 +418,12 @@ export function createSuggestFlow(deps: SuggestFlowDeps): SuggestFlow {
       expenses: stores.group.expenses.listByTrip(input.trip.tripId),
       entries: stores.group.expenses.listEntries(input.trip.tripId),
       travel: deps.travelFacts?.(input.group.groupId) ?? [],
+      // Answers to the question and suggestion asks ("@trav cheap eats
+      // tonight") are about one occasion, never a standing want (D-045 §2).
       groupLines: input.groupLines.filter(
-        (l) => l.messageId === undefined || !answeredIds.has(l.messageId),
+        (l) =>
+          (l.messageId === undefined || !answeredIds.has(l.messageId)) &&
+          parseSuggestAsk(l.text) === undefined,
       ),
       privateFacts: (id) => privateFacts(input, id),
     });
@@ -393,27 +441,16 @@ export function createSuggestFlow(deps: SuggestFlowDeps): SuggestFlow {
 
   async function placesText(
     input: SuggestTurnInput,
-    ask: SuggestAsk,
+    asked: SuggestAsk,
     when: SuggestWhen,
     people: readonly Member[],
     target: SpendingTier,
     stretch: SpendingTier | undefined,
-    headerPrefix: string | undefined,
   ): Promise<string | undefined> {
-    // Minors (SAFETY §2.7): nothing adults-only with anyone under 18 (or of
-    // unknown age) along. A bar ask with a minor going gets food instead.
-    const kidsAlong = people.filter((m) => safety.isMinor(m, input.now));
-    const cautious = kidsAlong.length > 0 || people.some((m) => safety.isAgeUnknown(m));
-    let category = ask.category;
-    let lead = headerPrefix;
-    if (category === 'bar' && cautious) {
-      category = 'restaurant';
-      const names = kidsAlong.map((m) => m.displayName);
-      lead =
-        names.length > 0
-          ? `no bars with ${names.join(', ')} along, so food instead`
-          : 'no bars on this one, so food instead';
-    }
+    // Minors (SAFETY §2.7): decided once, the same way the question was.
+    const cautious = cautiousFor(input, people);
+    const { ask, family } = minorsRedirect(asked, cautious);
+    const category = ask.category;
     const all = await catalog(input, category);
     if (all === undefined || all.length === 0) return undefined;
     // Dietary notes (group and each person's own) shape the list, never the text.
@@ -429,7 +466,10 @@ export function createSuggestFlow(deps: SuggestFlowDeps): SuggestFlow {
       ),
     ];
     const need = dietaryNeeds(notes);
-    let pool = all.filter((p) => !(cautious && p.adultsOnly));
+    // With a minor (or unknown age) going, or a family group: nothing
+    // adults-only, nothing tagged or worded as alcohol or nightlife, so the
+    // outbound family screen never has to drop the list (the turn never goes silent).
+    let pool = cautious ? all.filter((p) => !restrictedForMinors(p)) : [...all];
     if (category === 'restaurant') {
       const fit = pool.filter(
         (p) =>
@@ -466,8 +506,8 @@ export function createSuggestFlow(deps: SuggestFlowDeps): SuggestFlow {
     let header: string;
     if (allOver && ask.perPersonBudgetMinor !== undefined) {
       header = `nothing under ${formatMoney(money(figure!, input.trip.currency))} a head ${when}. closest:`;
-    } else if (lead !== undefined) {
-      header = `${lead}:`;
+    } else if (family) {
+      header = familyHeader(when);
     } else {
       header = headerFor({ ...ask, category }, when);
     }
@@ -479,14 +519,20 @@ export function createSuggestFlow(deps: SuggestFlowDeps): SuggestFlow {
     return renderSuggestions(header, lines);
   }
 
-  async function ask(input: SuggestTurnInput, a: SuggestAsk): Promise<SuggestOutcome | undefined> {
+  async function ask(
+    input: SuggestTurnInput,
+    asked: SuggestAsk,
+  ): Promise<SuggestOutcome | undefined> {
     const tz = input.trip.timeZone;
-    const when = whenFor(a, input.now, tz);
+    const when = whenFor(asked, input.now, tz);
     const date = dateFor(when, input.now, tz);
-    // No catalog for this city: not ours to answer.
-    const has = await catalog(input, a.category === 'bar' ? 'bar' : a.category);
-    if (has === undefined || has.length === 0) return undefined;
     const people = going(input, when);
+    // The minors redirect first, so any question (and its answer) is about
+    // what will actually be listed.
+    const a = minorsRedirect(asked, cautiousFor(input, people)).ask;
+    // No catalog for this city: not ours to answer.
+    const has = await catalog(input, a.category);
+    if (has === undefined || has.length === 0) return undefined;
     const key = keyOf(input.group.groupId, input.lane, input.me.memberId);
 
     let target: SpendingTier | undefined;
@@ -513,7 +559,7 @@ export function createSuggestFlow(deps: SuggestFlowDeps): SuggestFlow {
         }
       }
     }
-    const text = await placesText(input, a, when, people, target!, stretch, undefined);
+    const text = await placesText(input, a, when, people, target!, stretch);
     if (text === undefined) return undefined;
     return { text, note: 'suggest:places', target: target! };
   }
@@ -554,7 +600,7 @@ export function createSuggestFlow(deps: SuggestFlowDeps): SuggestFlow {
         sourceLane: 'private',
       });
     const people = going(input, q.when);
-    const out = await placesText(input, q.ask, q.when, people, tier, undefined, undefined);
+    const out = await placesText(input, q.ask, q.when, people, tier, undefined);
     const body = out ?? `${VIBE_ACK[tier]}`;
     const textOut = out === undefined ? body : `${VIBE_ACK[tier]}. ${out.charAt(0)}${out.slice(1)}`;
     return {

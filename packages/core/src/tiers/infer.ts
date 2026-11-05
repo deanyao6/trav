@@ -342,6 +342,19 @@ export function statedTier(text: string): SpendingTier | undefined {
   return undefined;
 }
 
+const SPENDING_CONTEXT =
+  /\b(?:budget\w*|spend\w*|spent|splurge|splash out|treat (?:ourselves|yourselves|myself|us)|money|cost\w*|pric(?:e|es|ey|ier)|expensive|cheap(?:er)? (?:eats|spots?|places?|options?|night|tonight|dinner|lunch|food)|keep(?:ing)? (?:it|things|costs?|spend(?:ing)?) (?:cheap|low|down)|save (?:some )?money|saving money|ball(?:ing)? out|go(?:ing)? all out|fine dining|high[- ]end|upscale|bougie|boujee|nothing fancy|fancy (?:dinner|night|place|spot|restaurant|meal)|something nice|somewhere nice|nice dinner|affordable|inexpensive)\b/;
+
+/**
+ * True when a line is clearly about spending ("can we keep it cheap tonight",
+ * "let's splurge", "i'm on a budget"), not an offhand use of the same words
+ * ("is the dress code casual?", "anyone fancy a swim?", "flights were cheap
+ * lol"). Only such lines, or lines addressed to Trav, are stated wants.
+ */
+export function aboutSpending(text: string): boolean {
+  return SPENDING_CONTEXT.test(foldTierText(text));
+}
+
 /**
  * An answer to "fancy or casual tonight?" that is only that answer
  * ("casual", "fancy pls", "let's treat ourselves", "either"), else undefined.
@@ -384,7 +397,7 @@ export function vibeAnswer(text: string): SpendingTier | undefined {
     return 'budget';
   }
   if (
-    /^(?:fancy|treat ourselves|splurge|something nice|nice|bougie|boujee|ball out|go all out|upscale)$/.test(
+    /^(?:fancy|treat ourselves|splurge|something nice|somewhere nice|bougie|boujee|ball out|go all out|upscale)$/.test(
       core,
     )
   ) {
