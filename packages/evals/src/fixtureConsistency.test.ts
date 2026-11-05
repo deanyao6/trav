@@ -20,7 +20,10 @@ interface ProposalExpect {
   readonly refundable?: boolean;
 }
 
-/** Same rule as the mock tickets adapter: refundable strictly before the deadline. */
+/**
+ * Mirrors `refundableNow` in packages/agent/src/booking/proposals.ts, which sets
+ * a proposal's `refundable` flag: refundable strictly before the deadline.
+ */
 function refundableAt(offer: OfferFixture, at: string): boolean {
   const p = offer.refundPolicy;
   if (!p.refundable) return false;
@@ -53,6 +56,7 @@ describe('chat fixtures agree with ticket inventory on refundability', () => {
         ).toBe(proposal.refundable);
         checked.push(line.id);
       }
+      expect(checked.length, `${trip}: at least one line checked`).toBeGreaterThan(0);
       if (trip === 'lisbon') {
         expect(checked).toEqual(
           expect.arrayContaining(['msg_lis_0018', 'msg_lis_0021', 'msg_lis_0032']),
@@ -61,7 +65,7 @@ describe('chat fixtures agree with ticket inventory on refundability', () => {
     });
   }
 
-  it('the deadline rule matches the mock: refundable until, not at, the deadline', () => {
+  it('the deadline rule matches refundableNow: refundable until, not at, the deadline', () => {
     const o: OfferFixture = {
       offerId: 'x',
       refundPolicy: { refundable: true, refundableUntil: '2026-04-19T15:00:00+01:00' },

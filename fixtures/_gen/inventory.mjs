@@ -119,7 +119,7 @@ export function lisbonTickets() {
     { id: 'off_lis_benfica_porto_std', eventId: 'evt_lis_benfica_porto', tier: 'Bancada Sul', price: 5000, fees: 500, available: 40, holderNames: true },
     { id: 'off_lis_benfica_porto_premium', eventId: 'evt_lis_benfica_porto', tier: 'Premium lounge', price: 22500, fees: 1500, available: 6, refundableUntil: `2026-04-16T20:30:00${LISO}`, holderNames: true },
     { id: 'off_lis_derby_any', eventId: 'evt_lis_sporting_benfica', tier: 'Any seat', price: 7000, fees: 500, available: 0, holderNames: true },
-    // Refund deadlines sit after the chat line that books the offer (D-T146):
+    // Refund deadlines sit after the chat line that books the offer (D-038):
     // Sporting is asked for 04-19 12:00, fado 04-16 17:32, tiles 04-15 21:05.
     { id: 'off_lis_sporting_braga', eventId: 'evt_lis_sporting_braga', tier: 'Central', price: 3200, fees: 300, available: 50, refundableUntil: `2026-04-19T15:00:00${LISO}` },
     { id: 'off_lis_porto_vitoria', eventId: 'evt_lis_porto_vitoria', tier: 'Lateral', price: 3700, fees: 300, available: 30 },
