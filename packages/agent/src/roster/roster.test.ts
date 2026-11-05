@@ -354,6 +354,22 @@ describe('natural language: roll calls and overrides', () => {
     ["Crowley's a maybe for razzmatazz", { who: 'Crowley', status: 'maybe', hint: 'razzmatazz' }],
     ['maybe', { who: 'me', status: 'maybe' }],
     ["i'm not sure", { who: 'me', status: 'maybe' }],
+    // T-180: every shape of the split OTHER_OUT / OTHER_IN patterns, with hint and night.
+    ["Henry's not feeling it tonight", { who: 'Henry', status: 'out', when: 'tonight' }],
+    ['henrys out for razzmatazz', { who: 'henry', status: 'out', hint: 'razzmatazz' }],
+    ['Henry out', { who: 'Henry', status: 'out' }],
+    ['count Henry is out tomorrow', { who: 'Henry', status: 'out', when: 'tomorrow' }],
+    ['Henry out for apolo', { who: 'Henry', status: 'out', hint: 'apolo' }],
+    ["Crowley's keen for apolo", { who: 'Crowley', status: 'in', hint: 'apolo' }],
+    ['Henry in', { who: 'Henry', status: 'in' }],
+    [
+      'count Henry in for razzmatazz tomorrow',
+      { who: 'Henry', status: 'in', hint: 'razzmatazz', when: 'tomorrow' },
+    ],
+    ['add Crowley tmrw', { who: 'Crowley', status: 'in', when: 'tomorrow' }],
+    ['add Crowley to razzmatazz', { who: 'Crowley', status: 'in', hint: 'razzmatazz' }],
+    ['count me out', undefined],
+    ['add me', undefined],
   ])('parseRosterUpdate(%j)', (text, expected) => {
     expect(parseRosterUpdate(text)).toEqual(expected);
   });

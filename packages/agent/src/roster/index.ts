@@ -475,16 +475,34 @@ const ME_IN = new RegExp(
   'iu',
 );
 const ME_MAYBE = new RegExp(String.raw`^(?:(?:i'?m|i am|im)\s+${MAYBE_WORDS}|maybe)${FOR}$`, 'iu');
-const OTHER_OUT = new RegExp(
-  String.raw`^${NAME}(?:'s|s| is|'?s not)\s+${OUT_WORDS}${FOR}$|^(?:count\s+)?${NAME}\s+(?:out|is out)${FOR}$`,
-  'iu',
-);
-const OTHER_IN = new RegExp(
-  String.raw`^${NAME}(?:'s| is)\s+${IN_WORDS}${FOR}$|^(?:count\s+)?${NAME}\s+in${FOR}$|^add\s+${NAME}${FOR}$`,
-  'iu',
-);
+/*
+ * One pattern per sentence shape, tried in order. Each shape carries the
+ * `name`/`hint`/`when` groups, and one RegExp joining the shapes with `|`
+ * repeats those names: V8 before Node 25 throws "Duplicate capture group
+ * name" on import (T-180). Every shape is anchored at both ends and none uses
+ * the `m`/`g`/`y` flags, so trying them in order matches exactly what the
+ * alternation did (first branch that matches the whole message wins).
+ */
+const OTHER_OUT: readonly RegExp[] = [
+  new RegExp(String.raw`^${NAME}(?:'s|s| is|'?s not)\s+${OUT_WORDS}${FOR}$`, 'iu'),
+  new RegExp(String.raw`^(?:count\s+)?${NAME}\s+(?:out|is out)${FOR}$`, 'iu'),
+];
+const OTHER_IN: readonly RegExp[] = [
+  new RegExp(String.raw`^${NAME}(?:'s| is)\s+${IN_WORDS}${FOR}$`, 'iu'),
+  new RegExp(String.raw`^(?:count\s+)?${NAME}\s+in${FOR}$`, 'iu'),
+  new RegExp(String.raw`^add\s+${NAME}${FOR}$`, 'iu'),
+];
 const OTHER_MAYBE = new RegExp(String.raw`^${NAME}(?:'s| is)\s+${MAYBE_WORDS}${FOR}$`, 'iu');
 const SELF_WORDS = new Set(['i', "i'm", 'im', 'me', 'myself']);
+
+/** The first of `res`, in order, that matches `t`, else null (an alternation without repeated group names). */
+function firstMatch(res: RegExp | readonly RegExp[], t: string): RegExpExecArray | null {
+  for (const re of res instanceof RegExp ? [res] : res) {
+    const m = re.exec(t);
+    if (m !== null) return m;
+  }
+  return null;
+}
 
 /**
  * A whole-message roster override: "Henry's sick", "i'm out tonight", "count
@@ -496,11 +514,11 @@ export function parseRosterUpdate(text: string): RosterUpdate | undefined {
   const t = stripTravPrefix(text);
   if (t.length === 0 || t.length > 80) return undefined;
   const pick = (
-    re: RegExp,
+    re: RegExp | readonly RegExp[],
     status: AttendanceStatus,
     who: 'me' | 'name',
   ): RosterUpdate | undefined => {
-    const m = re.exec(t);
+    const m = firstMatch(re, t);
     if (m === null) return undefined;
     const hint = meaningfulHint(m.groups?.['hint']);
     const name = m.groups?.['name']?.trim();
