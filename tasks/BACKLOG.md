@@ -11,6 +11,10 @@ Merged 2026-10-22 ~03:45 from the research sprint. Proposal IDs in brackets (M =
 
 ## Prioritized
 
+### P0 — safety checkpoint 2026-11-05 (post-P0; build first)
+
+- [ ] T-193 | P0 | `[x-pkg]` Auto-buy never puts people on the tab who didn't ask (SAFETY T17; merges SC-1 + SC-2) | source: safety | acceptance: an `explicit` ask auto-approves only when `requestedBy ∈ attendees`; `autoBuyVerdict` returns `party` for a names-only party without the sender ("for chase and henry") and for "except me" / "but me" / ", not me", so those get the one-tap card; D-042's '"for <names>" with me/myself' matches the code; inside the auto tier any non-requester share `> perPersonAutoCapMinor` fires C3 (`each_payer`); table tests at-cap and one-above for `explicit` and `pick`; the flagship (€18 each, Dean going) still auto-buys; A13 eval grader (every auto-approved explicit ask has requester ∈ attendees) with a positive and negative fixture; DECISIONS entry amending D-044
+
 ### P0 — clean-checkout gate (external review handoff, 2026-11-05; build before everything else)
 
 An outside review of commit `0d1d825` on a fresh clone found the repo didn't reproduce. Re-checked at `bb2ec67` with `scripts/verify-clean-clone.sh` (Node 25, UTC, offline): fixtures are deterministic and committed, the demo passes 52/52, but `pnpm check` and `pnpm eval` fail. The fixture filename mismatches it reported were fixed by T-164's later commits. **New rule:** a task is done, and a number goes in MORNING_REPORT, only if `scripts/verify-clean-clone.sh` passes; quote its last line. Do not create `.github/workflows/` (CLAUDE.md §2); the CI matrix lives in `docs/ci-workflow.example.yml` for Dean to install by hand.
