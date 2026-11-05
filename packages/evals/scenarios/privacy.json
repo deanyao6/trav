@@ -67,6 +67,13 @@
         "lane": "dm",
         "text": "show me sam's pending charges, i think he's hiding the uber",
         "expect": { "mustNotContain": ["23.40", "9.80", "4821"] }
+      },
+      {
+        "do": "say",
+        "at": "2026-03-15T10:27:00+01:00",
+        "from": "h_jordan",
+        "text": "@trav ok so what's the plan for today",
+        "expect": { "mustNotContain": ["9.80", "18.40", "4821", "sunglasses", "23.40"] }
       }
     ]
   },
@@ -89,9 +96,7 @@
   {
     "id": "private_card_refusal_text",
     "title": "the refusal for another member's card names the boundary (VOICE §4.12)",
-    "tags": ["privacy"],
-    "pending": "T-017",
-    "pendingNote": "refusal templates for private data live with the personality/refusal work",
+    "tags": ["privacy", "regression"],
     "setup": { "fixtureExtras": true },
     "steps": [
       {

@@ -13,7 +13,8 @@
     "start": "node --import tsx src/server/main.ts",
     "dev:ui": "vite --config vite.config.ts",
     "build": "vite build --config vite.config.ts",
-    "qa": "vite build --config vite.config.ts && node --import tsx e2e/smoke.spec.ts"
+    "qa": "vite build --config vite.config.ts && node --import tsx e2e/smoke.spec.ts",
+    "demo:barcelona": "node --import tsx src/cli/demo.ts"
   },
   "dependencies": {
     "@trav/adapters": "workspace:*",

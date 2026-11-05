@@ -147,6 +147,12 @@ import {
   type MentionResult,
 } from './mention.js';
 import { handleRosterMessage, type RosterTurn } from './roster/turn.js';
+import {
+  createSettingsFlow,
+  type SettingsOutcome,
+  type SettingsTurnContext,
+} from './settings/flow.js';
+import { renderSettleUpFor } from './tools/ledger.js';
 import type { ToolRegistry } from './tools/registry.js';
 import type { TurnToolContext } from './tools/shared.js';
 import { detectInjection, stripInvisible } from './untrusted.js';
@@ -609,6 +615,8 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     clock,
     ...(deps.readReceiptImage !== undefined ? { readImage: deps.readReceiptImage } : {}),
   });
+  /** Settings, consent, roast mode and roast requests (T-017): rules only, never the model. */
+  const settings = createSettingsFlow({ stores, clock, ids });
 
   const remember = (key: string): boolean => {
     if (seen.has(key)) return false;
@@ -1208,7 +1216,27 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       drafts.push(...(await renderTerminal(r, terminal.value, me, event.messageId, before)));
     } else {
       let text = clampReply(stripMarkdown(modelText));
-      if (text.length === 0) {
+      const lastTool = results.at(-1);
+      if (
+        text.length === 0 &&
+        lastTool?.name === 'get_balances' &&
+        r.lane === 'group' &&
+        r.trip !== null &&
+        !(isRecord(lastTool.value) && 'error' in lastTool.value)
+      ) {
+        // "@trav settle now" (VOICE §4.6): the tab goes out as the settle_up
+        // card (10-line limit), not as a 4-line reply.
+        const card = renderSettleUpFor(toolCtx, 'final', {
+          groupId: r.group.groupId,
+          members: r.members,
+          timeZone: r.trip.timeZone,
+          now: r.now,
+          ids,
+        });
+        drafts.push(card);
+        note = 'tool:get_balances:settle_up';
+        text = '';
+      } else if (text.length === 0) {
         const fallback = [...results]
           .reverse()
           .map((x) => resultText(x.value))
@@ -1408,12 +1436,35 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       now: r.now,
     };
 
+    const intent = classifyApprovalText(rawText);
+
+    // 0. the requester's yes/no to Trav's own "yes to confirm?" on a settings
+    // change (T-017, `settings/flow.ts`): a reply to that question, or a bare
+    // answer while it is still Trav's latest question in this lane, inside the
+    // reply window, with no proposal requested since. Anything else is not it.
+    if (me !== null && canRequest(r.identity) && (intent === 'approve' || intent === 'decline')) {
+      const q = settings.pendingQuestion(r.group.groupId, me.memberId);
+      const bare =
+        q !== undefined &&
+        event.replyToMessageId === undefined &&
+        lastQuestionAt.get(myLaneKey) === q.askedAt &&
+        parseIso(r.now) - parseIso(q.askedAt) <= REPLY_WINDOW_MS &&
+        !pendingFor(r).some((p) => !q.proposalsAtAsk.has(p.proposalId));
+      if (q !== undefined && (event.replyToMessageId === q.messageId || bare)) {
+        const before = snapshotAudit(r.group.groupId);
+        const out = settings.answer(settingsCtx(r, me, event), intent);
+        if (out !== undefined) {
+          recordInbound();
+          return settingsTurn(r, out, before);
+        }
+      }
+    }
+
     // 1. approval-shaped text ("yes", "nah", "not me"). It binds to the quoted
     // proposal card, else to the proposal card of Trav's question inside the
     // reply window, else the identity gate binds it (requester only). A quote-
     // reply to some other Trav card (a logged expense, a question) is a reply
     // to that card, not an approval of an unrelated proposal.
-    const intent = classifyApprovalText(rawText);
     const askedRef =
       boundRef === undefined
         ? cardIndexFor(r.group.groupId).lastTravQuestion(r.lane, me?.memberId)
@@ -1587,6 +1638,23 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
 
     // 4. mention gate (the claim check below needs it too).
     const mention = await detectMention(text, mentionCtx, model);
+
+    // 4·. settings, consent and roast-mode commands, roast requests, and the
+    // rule-made refusals (someone else's card; nightlife with a minor)
+    // (T-017, `settings/flow.ts`). Deterministic, never the model. Unaddressed
+    // text is only ever the roast kill switch, and only while roast mode is on.
+    if (canRequest(r.identity)) {
+      const before = snapshotAudit(r.group.groupId);
+      const out = settings.command(
+        settingsCtx(r, me, event),
+        text,
+        mention.addressed && mention.reason !== 'thanks',
+      );
+      if (out !== undefined) {
+        recordInbound();
+        return settingsTurn(r, out, before);
+      }
+    }
 
     // 4a. a receipt photo, or words about one Trav just read ("who had what?",
     // T-011, `ingest/receipt.ts`). OCR text never reaches the tool loop; the
@@ -1822,6 +1890,45 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       silent: sent.length === 0,
       modelSources: [],
       note: `roster:${result.kind}`,
+    };
+  }
+
+  // ---------- settings, consent, roast requests (T-017) ----------
+
+  function settingsCtx(r: Resolved, me: Member, event: InboundMessage): SettingsTurnContext {
+    return {
+      group: r.group,
+      members: r.members,
+      trip: r.trip,
+      me,
+      lane: r.lane,
+      now: r.now,
+      messageId: event.messageId,
+    };
+  }
+
+  async function settingsTurn(
+    r: Resolved,
+    out: SettingsOutcome,
+    before: ReadonlySet<string>,
+  ): Promise<TurnResult> {
+    const roastLines = out.roastLines;
+    const ownIds = new Set(out.drafts.map((d) => d.id));
+    const sent = await send(
+      r,
+      out.drafts,
+      roastLines === undefined
+        ? undefined
+        : (o) => (ownIds.has(o.id) ? { roastLines } : undefined),
+    );
+    out.afterSend?.(sent);
+    return {
+      outbound: sent,
+      toolCalls: [],
+      auditEventIds: auditIdsSince(r.group.groupId, before),
+      silent: sent.length === 0,
+      modelSources: [],
+      note: out.note,
     };
   }
 

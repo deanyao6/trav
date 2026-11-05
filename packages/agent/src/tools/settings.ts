@@ -5,6 +5,13 @@
  */
 import type { Group, GroupSpendingPolicy } from '@trav/core';
 import { formatMoney, money, safety, TravError } from '@trav/core';
+import {
+  ROAST_AGE_QUESTION_TEXT,
+  ROAST_LEAD_ONLY_TEXT,
+  ROAST_MINOR_TEXT,
+  ROAST_OFF_TEXT,
+  ROAST_ON_TEXT,
+} from '../settings/text.js';
 import type { ToolDefinition } from './registry.js';
 import { asRecord, bad, optEnum, requireMember } from './shared.js';
 
@@ -200,18 +207,15 @@ export const requestSettingsChangeTool: ToolDefinition<SettingsChangeInput, Sett
       if (isBooleanChange(input)) {
         const before = group.settings[input.setting];
         if (input.setting === 'roastMode' && input.value) {
-          if (!lead) return refuse(before, 'roast mode is a lead call. ask one of them');
           if (
             safety.groupHasMinor(members, ctx.now) ||
             safety.isFamilyMode(group, members, ctx.now)
           ) {
-            return refuse(
-              before,
-              'roast mode stays off for this group, someone here is under 18. the tab stays honest either way',
-            );
+            return refuse(before, ROAST_MINOR_TEXT);
           }
+          if (!lead) return refuse(before, ROAST_LEAD_ONLY_TEXT);
           if (safety.groupAgeUnconfirmed(group, members)) {
-            return refuse(before, "to turn roast mode on i need to know everyone's 18+. are they?");
+            return refuse(before, ROAST_AGE_QUESTION_TEXT);
           }
         }
         if (input.setting === 'allAdultsConfirmed' && !lead) {
@@ -241,8 +245,8 @@ export const requestSettingsChangeTool: ToolDefinition<SettingsChangeInput, Sett
         const text =
           input.setting === 'roastMode'
             ? input.value
-              ? "roast mode on. i only roast the tab. anyone can say 'trav, leave me out' or 'roast mode off'"
-              : 'off'
+              ? ROAST_ON_TEXT
+              : ROAST_OFF_TEXT
             : input.setting === 'quietMode'
               ? input.value
                 ? "quiet mode on. i'll only speak when @'d or when money needs a decision"

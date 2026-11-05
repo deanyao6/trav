@@ -1,0 +1,47 @@
+/**
+ * `pnpm demo:barcelona`: runs the Barcelona flagship journey offline through
+ * the real Trav runtime (`demo/barcelona.ts`), prints the transcript as it
+ * goes, writes it to `docs/DEMO_TRANSCRIPT.md`, and exits 1 if any check
+ * failed.
+ *
+ *   --no-write   print only, leave docs/DEMO_TRANSCRIPT.md alone
+ *   --quiet      print only the summary line (and failures)
+ *
+ * Always offline: no API key is read and no model call leaves the machine
+ * (the runtime is forced offline; `TRAV_OFFLINE` is set to 1 for this process).
+ */
+import { writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { runBarcelonaDemo } from '../demo/barcelona.js';
+
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+export const TRANSCRIPT_PATH = join(REPO_ROOT, 'docs', 'DEMO_TRANSCRIPT.md');
+
+async function main(): Promise<number> {
+  process.env['TRAV_OFFLINE'] = '1';
+  const write = !process.argv.includes('--no-write');
+  const quiet = process.argv.includes('--quiet');
+  const result = await runBarcelonaDemo(
+    quiet ? {} : { onChunk: (text) => process.stdout.write(text) },
+  );
+  const failed = result.checks.filter((c) => !c.ok);
+  if (write) writeFileSync(TRANSCRIPT_PATH, result.transcript);
+  for (const c of failed) {
+    console.error(`✗ ${c.step}: ${c.name}${c.detail !== undefined ? ` (${c.detail})` : ''}`);
+  }
+  const passed = result.checks.length - failed.length;
+  console.log(
+    `\n${result.ok ? 'PASS' : 'FAIL'}: ${String(passed)}/${String(result.checks.length)} checks` +
+      (write ? ` · transcript saved to docs/DEMO_TRANSCRIPT.md` : ''),
+  );
+  return result.ok ? 0 : 1;
+}
+
+main().then(
+  (code) => process.exit(code),
+  (e: unknown) => {
+    console.error('demo failed:', e instanceof Error ? e.message : e);
+    process.exit(1);
+  },
+);
