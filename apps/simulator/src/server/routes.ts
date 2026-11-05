@@ -5,7 +5,9 @@
  *
  *   GET  /api/state                 SimState (group threads already filtered)
  *   GET  /api/dms/:memberId         one member's DM thread
- *   POST /api/messages              { from, text, groupId?, lane? }
+ *   POST /api/messages              { from, text, groupId?, lane?, receiptId? } (receiptId: a
+ *                                   fixture receipt photo from GroupView.receipts, T-199)
+ *   GET  /api/receipts/:id.png      that photo's image (served by http.ts)
  *   POST /api/reactions             { from, targetMessageId, reaction, removed? }
  *   POST /api/button-taps           { from, cardMessageId, actionId, value? }
  *   POST /api/reset                 start over (fresh runtime; demo state 1 again if seeded)
@@ -24,6 +26,7 @@
 import { TravError } from '@trav/core';
 import type { ClockRequest, ClockStep, SimInbound } from '../shared/types.js';
 import type { SimulatorBackend } from './backend.js';
+import { receiptAttachment, receiptsForGroup } from './receipts.js';
 import type { ReplayController } from './replay.js';
 
 export interface ApiRequest {
@@ -82,12 +85,19 @@ export function parseInbound(kind: HttpInboundType, raw: unknown): SimInbound {
         throw new BadRequest('lane must be group or dm');
       }
       const groupId = optionalField(body, 'groupId');
+      // T-199: a photo is named by fixture receipt id only, never by path.
+      const receiptId = optionalField(body, 'receiptId');
+      const attachment = receiptId !== undefined ? receiptAttachment(receiptId) : undefined;
+      if (receiptId !== undefined && attachment === undefined) {
+        throw new BadRequest(`no receipt photo ${receiptId}`);
+      }
       return {
         type: 'message',
         from,
         text,
         ...(groupId !== undefined ? { groupId } : {}),
         ...(lane !== undefined ? { lane } : {}),
+        ...(attachment !== undefined ? { attachments: [attachment] } : {}),
       };
     }
     case 'reaction': {
@@ -139,6 +149,18 @@ export async function handleApi(backend: SimulatorBackend, req: ApiRequest): Pro
     if (kind !== undefined) {
       if (req.method !== 'POST') return { status: 405, body: { error: 'use POST' } };
       const input = parseInbound(kind, req.body);
+      // A receipt photo belongs to one trip: only that chat's composer offers it.
+      const photo = input.type === 'message' ? asObject(req.body)['receiptId'] : undefined;
+      if (typeof photo === 'string') {
+        const groupId =
+          (input.type === 'message' ? input.groupId : undefined) ?? backend.groups[0]?.groupId;
+        if (
+          groupId === undefined ||
+          !receiptsForGroup(groupId).some((r) => r.receiptId === photo)
+        ) {
+          return { status: 400, body: { error: `receipt ${photo} isn't from this trip` } };
+        }
+      }
       let event;
       try {
         event = await backend.inject(input);
@@ -161,14 +183,16 @@ export async function handleApi(backend: SimulatorBackend, req: ApiRequest): Pro
     if (req.path === '/api/clock') {
       if (req.method !== 'POST') return { status: 405, body: { error: 'use POST' } };
       const request = parseClock(req.body);
-      if (!backend.advanceClock) return { status: 409, body: { error: 'this backend has no clock' } };
+      if (!backend.advanceClock)
+        return { status: 409, body: { error: 'this backend has no clock' } };
       await backend.advanceClock(request);
       return { status: 200, body: { ok: true, state: backend.state() } };
     }
     if (req.path === '/api/intake') {
       if (req.method !== 'POST') return { status: 405, body: { error: 'use POST' } };
       const docId = field(asObject(req.body), 'docId');
-      if (!backend.intake) return { status: 409, body: { error: 'this backend cannot ingest documents' } };
+      if (!backend.intake)
+        return { status: 409, body: { error: 'this backend cannot ingest documents' } };
       await backend.intake(docId);
       return { status: 200, body: { ok: true, state: backend.state() } };
     }

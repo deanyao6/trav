@@ -8,7 +8,7 @@
  * simulator channel: the same event path as a 👍 tapback.
  */
 import type { ReactNode } from 'react';
-import { formatClockTime, formatMoney, formatTime } from '@trav/core';
+import { formatClockTime, formatMoney, formatTime, payments } from '@trav/core';
 import type {
   Action,
   BookingProposalCard,
@@ -394,16 +394,64 @@ function ExpenseBody(props: CardProps & { card: ExpenseConfirmCard }) {
   );
 }
 
+/** VOICE §4.6 F: what the payee has to do once a payer said Sent (the agent's own lead line). */
+export function gotItNudge(payeeNames: readonly string[]): string {
+  return `${payeeNames.join(' and ')}, tap Got it or 👍 once it lands`;
+}
+
+/**
+ * The lines of a final card's text the panel shows besides the rows: the lead
+ * Trav put on top ("tab changed since that card, here's where it stands now")
+ * and the closing instruction ("pay details are in your dms. tap Sent …").
+ * Taken from the card's own text (rendered by the agent), never re-worded here.
+ * A lead that is the Got it nudge is left out: the panel draws that per row.
+ */
+export function settleTextLines(card: SettleUpCard): {
+  readonly lead?: string;
+  readonly footer?: string;
+} {
+  if (card.mode !== 'final') return {};
+  const lines = card.fallbackText.split('\n').map((l) => l.trim());
+  const first = lines[0] ?? '';
+  const lead =
+    lines.length > 1 &&
+    !first.startsWith('final settle') &&
+    (lines[1] ?? '').startsWith('final settle') &&
+    !first.endsWith('once it lands')
+      ? first
+      : undefined;
+  const last = lines[lines.length - 1] ?? '';
+  const open = card.transfers.some((t) => t.paid !== true);
+  const footer = open && /\btap Sent\b/.test(last) ? last : undefined;
+  return {
+    ...(lead !== undefined && lead !== '' ? { lead } : {}),
+    ...(footer !== undefined ? { footer } : {}),
+  };
+}
+
 function SettleBody(props: {
   card: SettleUpCard;
   group: SimGroup;
   compact?: boolean;
   paidAction?: Action;
   onAction?: CardProps['onAction'];
+  me?: SimMember;
 }) {
-  const { card, group, compact, paidAction, onAction } = props;
+  const { card, group, compact, paidAction, onAction, me } = props;
+  // T-166 / QA-02: a payer's Sent leaves the row owed until the payee's Got it.
+  const pendingPayees = [
+    ...new Set(
+      card.transfers.filter((t) => t.pending === true && t.paid !== true).map((t) => t.to),
+    ),
+  ];
+  const text = compact ? {} : settleTextLines(card);
   return (
     <div className={compact ? 'settle compact' : 'settle'}>
+      {text.lead !== undefined ? (
+        <div className="settle-lead" data-testid="settle-lead">
+          {text.lead}
+        </div>
+      ) : null}
       {card.balances.map((b) => (
         <Row
           key={b.memberId}
@@ -422,12 +470,30 @@ function SettleBody(props: {
       ))}
       {card.mode === 'final' || card.transfers.length > 0
         ? card.transfers.map((t, i) => (
-            <div key={i} className="row transfer">
+            <div
+              key={i}
+              className={`row transfer${t.pending === true && t.paid !== true ? ' sent' : ''}`}
+              data-testid={`settle-row-${t.from}-${t.to}`}
+            >
               <span>
                 {nameOf(group, t.from)} → {nameOf(group, t.to)} {formatMoney(t.amount)}
+                {t.rail !== undefined && t.paid !== true ? (
+                  <span className="muted" data-testid="settle-rail">
+                    {' '}
+                    · {payments.RAIL_LABEL[t.rail]}
+                  </span>
+                ) : null}
               </span>
               {t.paid ? (
                 <span className="status-chip green">paid</span>
+              ) : t.pending === true ? (
+                <span
+                  className="status-chip amber"
+                  data-testid="settle-sent-chip"
+                  title="still owed until the payee taps Got it"
+                >
+                  {nameOf(group, t.from)} says sent
+                </span>
               ) : paidAction && onAction && card.mode === 'final' && !compact ? (
                 <button
                   type="button"
@@ -440,18 +506,62 @@ function SettleBody(props: {
             </div>
           ))
         : null}
+      {!compact && pendingPayees.length > 0 ? (
+        <div
+          className={`settle-nudge${me !== undefined && pendingPayees.includes(me.memberId) ? ' me' : ''}`}
+          data-testid="settle-nudge"
+        >
+          {gotItNudge(pendingPayees.map((id) => nameOf(group, id)))}
+        </div>
+      ) : null}
+      {text.footer !== undefined ? (
+        <div className="muted small" data-testid="settle-footer">
+          {text.footer}
+        </div>
+      ) : null}
       <div className="muted small">total spent {formatMoney(card.totalSpent)}</div>
     </div>
   );
 }
 
-function Photos({ photos, max }: { photos: RecapCard['photos']; max: number }) {
+/**
+ * Album photos on a recap or Wrapped (T-200). Only opted-in members' photos
+ * reach the card (the album filters by consent, and the server drops anyone
+ * who has since said "photos off"). The mock album's URLs point nowhere real,
+ * so each photo is a tile with the owner's initials and the alt text; only a
+ * same-origin path is loaded as an image, never an outside URL.
+ */
+function Photos({
+  photos,
+  max,
+  group,
+}: {
+  photos: RecapCard['photos'];
+  max: number;
+  group: SimGroup;
+}) {
   if (photos.length === 0) return null;
   return (
-    <div className="photos">
-      {photos.slice(0, max).map((p, i) => (
-        <img key={i} src={p.url} alt={p.alt} />
-      ))}
+    <div className="photos" data-testid="card-photos">
+      {photos.slice(0, max).map((p, i) =>
+        p.url.startsWith('/api/') ? (
+          <img key={i} src={p.url} alt={p.alt} data-testid="card-photo" data-owner={p.byMemberId} />
+        ) : (
+          <div
+            key={i}
+            className="photo-tile"
+            role="img"
+            aria-label={p.alt}
+            title={p.alt}
+            data-testid="card-photo"
+            data-owner={p.byMemberId}
+            style={{ background: avatarColor(group, handleOf(group, p.byMemberId)) }}
+          >
+            <span className="photo-icon">📷</span>
+            <span>{initials(nameOf(group, p.byMemberId))}</span>
+          </div>
+        ),
+      )}
     </div>
   );
 }
@@ -487,7 +597,7 @@ function RecapBody({ card, group }: { card: RecapCard; group: SimGroup }) {
           ))}
         </>
       ) : null}
-      <Photos photos={card.photos} max={3} />
+      <Photos photos={card.photos} max={3} group={group} />
     </>
   );
 }
@@ -544,7 +654,7 @@ function WrappedBody({ card, group }: { card: WrappedCard; group: SimGroup }) {
           </div>
         ))}
       </div>
-      <Photos photos={card.photos} max={6} />
+      <Photos photos={card.photos} max={6} group={group} />
       <SettleBody card={card.finalSettle} group={group} compact />
       {card.closing !== undefined ? (
         <div className="muted small" data-testid="wrapped-closing">
@@ -628,6 +738,7 @@ function body(card: RichCard, props: CardProps): ReactNode {
         <SettleBody
           card={card}
           group={props.group}
+          me={props.me}
           {...(paid ? { paidAction: paid } : {})}
           onAction={props.onAction}
         />

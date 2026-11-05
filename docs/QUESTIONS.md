@@ -74,3 +74,4 @@ Inside the auto-buy tier, one member's ask can put up to €100 on each other me
 
 ## Stale simulator process on 127.0.0.1:5191 (2026-11-05)
 An earlier QA run left a simulator server running (pid 48582, bound to 127.0.0.1:5191). The sandbox won't let the build loop stop it (`kill` is not permitted). Please run `kill 48582` when you're back.
+- 2026-11-05 — A second stale offline simulator (pid 69979, 127.0.0.1:5197) from the T-197/199/200 builder's smoke test is still running. The sandbox blocks kill, so please stop it with `kill 69979` (same as the 5191 one).

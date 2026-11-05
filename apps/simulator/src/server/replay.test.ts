@@ -295,17 +295,92 @@ describe('withReplay (real runtime, opened on the seeded chat)', () => {
   });
 
   it("the payer's receipt 👍 is skipped when no read-it card is on screen, never aimed at another card (T-083)", async () => {
-    // The replay posts no photos, so neither receipt's read-it card exists.
-    const b = withReplay(await demoBackend(), SCRIPT);
+    // Without the photos, neither receipt's read-it card exists.
+    const noPhotos = SCRIPT.map(({ attachments: _a, ...l }) => l);
+    const b = withReplay(await demoBackend(), noPhotos);
     for (const [id, ref] of [
       ['msg_bcn_0093a', 'gatblau_receipt'],
       ['msg_bcn_0161a', 'lunch_receipt'],
     ] as const) {
-      const until = SCRIPT.findIndex((l) => l.id === id);
+      const until = noPhotos.findIndex((l) => l.id === id);
       expect(until, id).toBeGreaterThan(0);
       while (b.replay.view().cursor <= until) await b.replay.step();
       expect(b.replay.view().last).toBe(`skipped ${id}: no ${ref} on screen to react to`);
     }
+  });
+
+  it('T-199 (QA-07): the receipt photo lines carry their attachment and Trav posts the pending read-it card; the payer 👍 logs it', async () => {
+    const photoLines = SCRIPT.filter((l) => l.attachments !== undefined).map((l) => l.id);
+    expect(photoLines).toEqual(['msg_bcn_0093', 'msg_bcn_0160']);
+    expect(SCRIPT.find((l) => l.id === 'msg_bcn_0093')?.attachments).toEqual([
+      {
+        kind: 'image',
+        mimeType: 'image/png',
+        uri: 'fixtures/receipts/rcpt_bcn_gatblau.png',
+        fileName: 'rcpt_bcn_gatblau.png',
+      },
+    ]);
+    const b = withReplay(await demoBackend(), SCRIPT);
+    const stepTo = async (id: string): Promise<void> => {
+      const i = SCRIPT.findIndex((l) => l.id === id);
+      while (b.replay.view().cursor <= i) await b.replay.step();
+    };
+    const thread = (): ThreadMessage[] => messages(b.state().groups[0]!.thread);
+    const readIt = (): ThreadMessage[] =>
+      thread().filter(
+        (m) =>
+          m.isTrav &&
+          m.card?.type === 'expense_confirm' &&
+          m.card.source === 'receipt_photo' &&
+          m.card.status === 'pending',
+      );
+
+    await stepTo('msg_bcn_0093');
+    expect(b.replay.view().last).toMatch(/^Piotr: 📷 @trav dinner/);
+    // Piotr's line shows the photo (served from /api/receipts), not a bare caption.
+    const piotr = thread()
+      .filter((m) => m.from === 'h_piotr')
+      .at(-1)!;
+    expect(piotr.attachments).toEqual([
+      expect.objectContaining({
+        kind: 'image',
+        uri: 'fixtures/receipts/rcpt_bcn_gatblau.png',
+        src: '/api/receipts/rcpt_bcn_gatblau.png',
+      }),
+    ]);
+    expect(readIt()).toHaveLength(1);
+    const card = readIt()[0]!;
+    expect(card.text).toContain('€184');
+    expect(card.text).not.toMatch(/nothing's logged yet, i need the total/);
+
+    const logged = (): ThreadMessage[] =>
+      thread().filter(
+        (m) =>
+          m.isTrav &&
+          m.card?.type === 'expense_confirm' &&
+          m.card.source === 'receipt_photo' &&
+          m.card.status === 'logged',
+      );
+    expect(logged()).toHaveLength(0); // nothing on the tab before the payer's 👍 (SAFETY D5)
+    await stepTo('msg_bcn_0093a');
+    expect(b.replay.view().last).not.toMatch(/^skipped/);
+    expect(logged()).toHaveLength(1);
+    expect(logged()[0]!.card).toMatchObject({
+      paidBy: 'mem_piotr',
+      amount: { amountMinor: 18400 },
+    });
+
+    await stepTo('msg_bcn_0160');
+    expect(readIt()).toHaveLength(2);
+    expect(readIt()[1]!.text).toContain('€108.90');
+    await stepTo('msg_bcn_0161a');
+    expect(b.replay.view().last).not.toMatch(/^skipped/);
+    expect(logged()).toHaveLength(2);
+    expect(logged()[1]!.card).toMatchObject({
+      paidBy: 'mem_chase',
+      amount: { amountMinor: 10890 },
+    });
+    expect(b.state().lastError).toBeUndefined();
   });
 
   it('refuses a second run while one is in flight; reset rewinds the cursor', async () => {

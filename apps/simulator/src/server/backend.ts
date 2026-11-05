@@ -35,6 +35,8 @@ import type { DemoDocument } from './documents.js';
 import { DEMO_DOCUMENTS, buildIntake } from './documents.js';
 import type { GroupClocks } from './groupClocks.js';
 import { sharedClocks } from './groupClocks.js';
+import { receiptsForGroup } from './receipts.js';
+import type { PhotoVisible } from './state.js';
 import { buildDmThread, buildState } from './state.js';
 
 /** How a backend starts over (`POST /api/reset`, or the replay's first step). */
@@ -179,6 +181,8 @@ export interface ChannelBackendOptions {
    * clock shared by every chat.
    */
   readonly clocks?: Omit<GroupClocks, 'clock'>;
+  /** T-200: recap/Wrapped photos show only while their owner has photos on (SAFETY §2.6). */
+  readonly photoVisible?: PhotoVisible;
 }
 
 export interface ChannelBackend extends SimulatorBackend {
@@ -364,6 +368,10 @@ export function createChannelBackend(options: ChannelBackendOptions): ChannelBac
               from: input.from,
               text: input.text,
               lane,
+              // T-199: a replay line's photo, or the fixture receipt the route resolved.
+              ...(input.attachments !== undefined && input.attachments.length > 0
+                ? { attachments: input.attachments }
+                : {}),
               ...(lane === 'group' && group !== undefined
                 ? { conversationId: group.conversationId }
                 : {}),
@@ -414,6 +422,7 @@ export function createChannelBackend(options: ChannelBackendOptions): ChannelBac
         member,
         channel,
         clocks.now(member.groupId),
+        options.photoVisible,
       );
     },
 
@@ -429,6 +438,8 @@ export function createChannelBackend(options: ChannelBackendOptions): ChannelBac
         typing,
         status: statusByGroup,
         intake: intakeOffers(),
+        receipts: receiptsForGroup,
+        ...(options.photoVisible !== undefined ? { photoVisible: options.photoVisible } : {}),
         controls: controls(),
         ...(lastError !== undefined ? { lastError } : {}),
       });
@@ -627,6 +638,8 @@ export interface AgentBackendParts {
   readonly services?: SimServices;
   /** One clock per chat over `clock` (T-095). Default: one shared clock. */
   readonly clocks?: Omit<GroupClocks, 'clock'>;
+  /** T-200: the runtime's current photos consent, for re-rendered recaps (SAFETY §2.6). */
+  readonly photoVisible?: PhotoVisible;
 }
 
 /**
@@ -702,6 +715,7 @@ export function createAgentBackend(parts: AgentBackendParts): ChannelBackend {
     offline: parts.offline,
     ...(parts.services !== undefined ? { services: parts.services } : {}),
     ...(parts.clocks !== undefined ? { clocks: parts.clocks } : {}),
+    ...(parts.photoVisible !== undefined ? { photoVisible: parts.photoVisible } : {}),
     respond: async (event) => {
       const result: TurnResult | undefined = await parts.agent.handleInbound(event);
       const status = silentTurnStatus(event, result, targetCardOf(parts.channel, event));

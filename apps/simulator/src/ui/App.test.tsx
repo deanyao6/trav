@@ -19,7 +19,7 @@ import { BARCELONA, RAZZMATAZZ_ASK, RAZZMATAZZ_CARD_ASK } from '../server/groups
 import { demoBackend } from '../server/testkit.js';
 import { AppView } from './App.js';
 import type { AppViewProps } from './App.js';
-import { Card } from './components/Cards.js';
+import { Card, settleTextLines } from './components/Cards.js';
 
 const noop = () => {};
 const handlers = { onAction: noop, onReact: noop };
@@ -518,6 +518,207 @@ describe('Card renders every RichCard type', () => {
     const html = renderToStaticMarkup(<Card msg={msg} group={BARCELONA} me={me} onAction={noop} />);
     expect(html).toContain('Undo · Dean');
     expect(html).not.toContain('action-undo');
+  });
+});
+
+describe('AppView: settle card after Sent (T-197, QA-02)', () => {
+  const lastSettle = (s: SimState): ThreadMessage =>
+    s.groups[0]!.thread.filter(
+      (e): e is ThreadMessage => e.kind === 'message' && e.card?.type === 'settle_up',
+    ).at(-1)!;
+  /** The settle card only (the thread also holds the running tab and other cards). */
+  const settlePart = (html: string, messageId: string): string => {
+    const start = html.indexOf(`data-message-id="${messageId}"`);
+    expect(start).toBeGreaterThan(0);
+    const end = html.indexOf('data-message-id="', start + 20);
+    return html.slice(start, end < 0 ? undefined : end);
+  };
+
+  async function settledThenSent() {
+    const b = await demoBackend();
+    await b.inject({
+      type: 'message',
+      from: 'h_dean',
+      text: '@trav i paid €84 for dinner, split with everyone but Henry',
+      groupId: BARCELONA.groupId,
+    });
+    await b.advanceClock!({ step: 'morning', groupId: BARCELONA.groupId });
+    await b.inject({
+      type: 'message',
+      from: 'h_dean',
+      text: '@trav settle now',
+      groupId: BARCELONA.groupId,
+    });
+    const before = b.state();
+    const card = lastSettle(before);
+    expect(card.card?.type === 'settle_up' && card.card.mode).toBe('final');
+    await b.inject({
+      type: 'button_tap',
+      from: 'h_chase',
+      cardMessageId: card.messageId,
+      actionId: 'sent',
+    });
+    return { b, before, after: b.state() };
+  }
+
+  it('before Sent: rows show the payment app and the "pay details are in your dms" line, no sent chip', async () => {
+    const { before } = await settledThenSent();
+    const msg = lastSettle(before);
+    const html = settlePart(render(before, 'h_chase'), msg.messageId);
+    expect(html).toContain('Chase → Dean €16.80');
+    expect(html).toContain('data-testid="settle-rail"');
+    expect(html).toMatch(/· (venmo|zelle|paypal|cash app|apple cash|cash)</);
+    expect(html).toContain('data-testid="settle-footer"');
+    expect(html).toContain('pay details are in your dms. tap Sent when you');
+    expect(html).not.toContain('data-testid="settle-sent-chip"');
+    expect(html).not.toContain('data-testid="settle-nudge"');
+    expect(html).toContain('data-testid="action-sent"');
+  });
+
+  it("after Chase's Sent: Chase's row has the pending sent chip, Dean is nudged and has Got it", async () => {
+    const { after } = await settledThenSent();
+    const msg = lastSettle(after);
+    const card = msg.card as SettleUpCard;
+    const chase = card.transfers.find((t) => t.from === 'mem_chase')!;
+    expect(chase.pending).toBe(true);
+    expect(chase.paid).not.toBe(true);
+
+    const dean = settlePart(render(after, 'h_dean'), msg.messageId);
+    expect(dean).toContain('data-testid="settle-row-mem_chase-mem_dean"');
+    expect(count(dean, 'data-testid="settle-sent-chip"')).toBe(1);
+    expect(dean).toContain('Chase says sent');
+    expect(dean).toContain('data-testid="settle-nudge"');
+    expect(dean).toContain('Dean, tap Got it or 👍 once it lands');
+    // The payee's own view highlights the nudge, and the Got it button is his.
+    expect(dean).toContain('class="settle-nudge me"');
+    expect(dean).toContain('data-testid="action-got_it"');
+    // Still owed: not marked paid, and the instruction line stays.
+    expect(dean).not.toContain('status-chip green">paid');
+    expect(dean).toContain('pay details are in your dms');
+    // The nudge is drawn once (the agent's lead line is the same text: not repeated).
+    expect(count(dean, 'tap Got it or 👍 once it lands')).toBe(1);
+
+    // Chase sees the same chip, no highlighted nudge, and no second Sent.
+    const chaseView = settlePart(render(after, 'h_chase'), msg.messageId);
+    expect(chaseView).toContain('Chase says sent');
+    expect(chaseView).toContain('class="settle-nudge"');
+    expect(chaseView).not.toContain('data-testid="action-sent"');
+    expect(chaseView).not.toContain('data-testid="action-got_it"');
+  });
+});
+
+describe('settleTextLines', () => {
+  const final = (fallbackText: string, paid = false): SettleUpCard => ({
+    ...settle,
+    fallbackText,
+    transfers: [{ ...settle.transfers[0]!, ...(paid ? { paid: true } : {}) }],
+  });
+  it('takes a lead only when the next line is the head, and never the Got it nudge', () => {
+    expect(
+      settleTextLines(
+        final(
+          "tab changed since that card, here's where it stands now\nfinal settle, 1 transfer and everyone's square\nChase → Dean €31.60\ntap Sent when you've paid. whoever's getting it taps Got it or 👍, that's what clears it",
+        ),
+      ),
+    ).toEqual({
+      lead: "tab changed since that card, here's where it stands now",
+      footer:
+        "tap Sent when you've paid. whoever's getting it taps Got it or 👍, that's what clears it",
+    });
+    expect(
+      settleTextLines(
+        final(
+          "Dean, tap Got it or 👍 once it lands\nfinal settle, 1 transfer and everyone's square\nChase says sent €31.60 to Dean\npay details are in your dms. tap Sent when you've paid. whoever's getting it taps Got it or 👍, that's what clears it",
+        ),
+      ).lead,
+    ).toBeUndefined();
+  });
+  it('no footer once everything is paid, and nothing for a running tab', () => {
+    expect(
+      settleTextLines(
+        final("final settle, it's paid and everyone's square\nChase → Dean €31.60 · paid", true),
+      ),
+    ).toEqual({});
+    expect(
+      settleTextLines({ ...settle, mode: 'running', fallbackText: 'running tab\nx\ntap Sent' }),
+    ).toEqual({});
+  });
+});
+
+describe('AppView: composer receipt photo (T-199, QA-07)', () => {
+  it('offers the trip fixture receipts, previews the attached one, and posted photos show in the thread', async () => {
+    const b = await demoBackend();
+    const s = b.state();
+    const html = render(s, 'h_piotr', { onAttach: noop });
+    expect(html).toContain('data-testid="composer-attach"');
+    expect(html).toContain('receipt: gatblau');
+    expect(html).toContain('receipt: lunch service');
+    // Only this trip's receipts.
+    expect(html).not.toContain('receipt: tasca');
+    expect(html).not.toContain('data-testid="composer-attachment"');
+
+    const picked = render(s, 'h_piotr', { onAttach: noop, attachment: 'rcpt_bcn_gatblau' });
+    expect(picked).toContain('data-testid="composer-attachment"');
+    expect(picked).toContain('src="/api/receipts/rcpt_bcn_gatblau.png"');
+    expect(picked).toContain('data-testid="composer-attachment-remove"');
+
+    // No handler (read-only view): no attach control.
+    expect(render(s, 'h_piotr')).not.toContain('data-testid="composer-attach"');
+
+    await b.inject({
+      type: 'message',
+      from: 'h_piotr',
+      text: "@trav dinner, i paid, Arjun didn't drink",
+      groupId: BARCELONA.groupId,
+      attachments: [
+        {
+          kind: 'image',
+          mimeType: 'image/png',
+          uri: 'fixtures/receipts/rcpt_bcn_gatblau.png',
+        },
+      ],
+    });
+    const after = render(b.state(), 'h_dean');
+    expect(after).toContain('data-testid="attachments"');
+    expect(after).toContain(
+      'class="attachment-img" data-testid="attachment" src="/api/receipts/rcpt_bcn_gatblau.png"',
+    );
+    expect(after).toContain('€184');
+  });
+});
+
+describe('Card: album photos on recaps and Wrapped (T-200, QA-08)', () => {
+  const me = BARCELONA.members[0]!;
+  const photos: RecapCard['photos'] = [
+    {
+      url: 'https://album.example.test/bcn/p1.jpg',
+      byMemberId: 'mem_dean',
+      alt: 'sunset at the bunkers',
+    },
+    { url: 'https://album.example.test/bcn/p2.jpg', byMemberId: 'mem_chase', alt: 'paella' },
+    { url: 'https://album.example.test/bcn/p3.jpg', byMemberId: 'mem_crowley', alt: 'camp nou' },
+    { url: 'https://album.example.test/bcn/p4.jpg', byMemberId: 'mem_arjun', alt: 'beach' },
+  ];
+  const r = (card: RichCard) =>
+    renderToStaticMarkup(
+      <Card msg={cardMessage(card, [])} group={BARCELONA} me={me} onAction={noop} />,
+    );
+
+  it('recap shows up to 3 photo tiles with owner and alt, never fetching the outside URL', () => {
+    const html = r({ ...recap, photos });
+    expect(html).toContain('data-testid="card-photos"');
+    expect(count(html, 'data-testid="card-photo"')).toBe(3);
+    expect(html).toContain('data-owner="mem_dean"');
+    expect(html).toContain('aria-label="sunset at the bunkers"');
+    expect(html).not.toContain('data-owner="mem_arjun"');
+    expect(html).not.toContain('album.example.test');
+  });
+
+  it('Wrapped shows its highlights; no photos means no photo strip', () => {
+    const html = r({ ...wrapped, photos });
+    expect(count(html, 'data-testid="card-photo"')).toBe(4);
+    expect(r(wrapped)).not.toContain('data-testid="card-photos"');
+    expect(r(recap)).not.toContain('data-testid="card-photos"');
   });
 });
 

@@ -15,6 +15,7 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { createServer } from 'node:http';
 import { extname, join, normalize, sep } from 'node:path';
 import type { SimulatorBackend } from './backend.js';
+import { receiptImage } from './receipts.js';
 import { handleApi } from './routes.js';
 
 export const SIM_HOST = '127.0.0.1';
@@ -113,6 +114,23 @@ export function createSimRequestHandler(
       const method = req.method ?? 'GET';
       if (method === 'GET' && path === '/api/events') {
         openEventStream(req, res, backend, heartbeatMs);
+        return;
+      }
+      // T-199: a posted fixture receipt photo, by listed id only.
+      const receipt = /^\/api\/receipts\/(rcpt_[a-z0-9_]+)\.png$/.exec(path);
+      if (receipt !== null && (method === 'GET' || method === 'HEAD')) {
+        const bytes = receiptImage(receipt[1]!);
+        if (bytes === undefined) {
+          sendJson(res, 404, { error: 'no such receipt photo' });
+          return;
+        }
+        res.writeHead(200, {
+          'content-type': 'image/png',
+          'content-length': String(bytes.length),
+          'cache-control': 'no-store',
+          'x-content-type-options': 'nosniff',
+        });
+        res.end(method === 'HEAD' ? undefined : bytes);
         return;
       }
       let body: unknown;

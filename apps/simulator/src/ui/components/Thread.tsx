@@ -5,7 +5,13 @@
  */
 import { useState } from 'react';
 import type { Action } from '@trav/core';
-import type { SimGroup, SimMember, ThreadEntry, ThreadMessage } from '../../shared/types.js';
+import type {
+  AttachmentView,
+  SimGroup,
+  SimMember,
+  ThreadEntry,
+  ThreadMessage,
+} from '../../shared/types.js';
 import {
   TAPBACKS,
   TRAV_TEAL,
@@ -70,6 +76,39 @@ function Text({ text, outgoing }: { text: string; outgoing: boolean }) {
   );
 }
 
+/**
+ * Photos sent with a message (T-199: a receipt photo). Only a server-given
+ * `src` (a fixture image on this simulator) is loaded; anything else is a
+ * placeholder tile, so the browser never fetches an outside URL.
+ */
+function Photos({ photos, side }: { photos: readonly AttachmentView[]; side: 'in' | 'out' }) {
+  return (
+    <div className={`attachments ${side}`} data-testid="attachments">
+      {photos.map((a, i) =>
+        a.src !== undefined ? (
+          <img
+            key={i}
+            className="attachment-img"
+            data-testid="attachment"
+            src={a.src}
+            alt={a.alt ?? 'photo'}
+          />
+        ) : (
+          <div
+            key={i}
+            className="attachment-img placeholder"
+            data-testid="attachment"
+            role="img"
+            aria-label={a.alt ?? 'photo'}
+          >
+            📷
+          </div>
+        ),
+      )}
+    </div>
+  );
+}
+
 function Reactions({ msg }: { msg: ThreadMessage }) {
   if (msg.reactions.length === 0) return null;
   return (
@@ -123,6 +162,7 @@ function MessageRow(props: {
   const [picker, setPicker] = useState(false);
   const outgoing = !msg.isTrav && msg.from === me.handle;
   const side = outgoing ? 'out' : 'in';
+  const photos = msg.card ? [] : msg.attachments.filter((a) => a.kind === 'image');
   const content = msg.card ? (
     <Card
       msg={msg}
@@ -133,12 +173,17 @@ function MessageRow(props: {
       {...(handlers.onShowDms ? { onShowDms: handlers.onShowDms } : {})}
     />
   ) : (
-    <div
-      className={`bubble ${side}${last ? ' tail' : ''}${msg.renderedAsCard ? ' as-card' : ''}`}
-      data-testid={msg.isTrav ? 'bubble-trav' : 'bubble'}
-    >
-      <Text text={msg.text} outgoing={outgoing} />
-    </div>
+    <>
+      {photos.length > 0 ? <Photos photos={photos} side={side} /> : null}
+      {msg.text !== '' || photos.length === 0 ? (
+        <div
+          className={`bubble ${side}${last ? ' tail' : ''}${msg.renderedAsCard ? ' as-card' : ''}`}
+          data-testid={msg.isTrav ? 'bubble-trav' : 'bubble'}
+        >
+          <Text text={msg.text} outgoing={outgoing} />
+        </div>
+      ) : null}
+    </>
   );
   return (
     <div className={`msg-row ${side}`} data-message-id={msg.messageId}>

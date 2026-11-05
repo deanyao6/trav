@@ -77,6 +77,28 @@ export interface AttachmentView {
   readonly mimeType: string;
   readonly uri: string;
   readonly alt?: string;
+  /**
+   * T-199: where the browser loads it from (`/api/receipts/<id>.png` for a
+   * fixture receipt photo). Absent: the thread draws a placeholder and never
+   * fetches the uri.
+   */
+  readonly src?: string;
+}
+
+/** An inbound attachment the server hands the channel (replay lines, a picked fixture receipt). */
+export interface SimAttachment {
+  readonly kind: 'image';
+  readonly mimeType: string;
+  /** Repo-relative fixture path (`fixtures/receipts/rcpt_bcn_gatblau.png`). */
+  readonly uri: string;
+  readonly fileName?: string;
+}
+
+/** A fixture receipt photo the composer can attach (T-199). The server maps the id to the file. */
+export interface ReceiptOffer {
+  readonly receiptId: string;
+  /** "gatblau", "lunch service". */
+  readonly label: string;
 }
 
 export interface ThreadMessage {
@@ -145,6 +167,8 @@ export interface GroupView {
    * text, so nothing private is in the payload before the owner sees the DM.
    */
   readonly intake: Readonly<Record<MemberId, readonly IntakeOffer[]>>;
+  /** T-199: fixture receipt photos the composer can attach in this chat (absent: no attach button). */
+  readonly receipts?: readonly ReceiptOffer[];
 }
 
 /** One fixture document waiting to be fed through `agent.intakeDocument` for its owner. */
@@ -225,6 +249,13 @@ export type SimInbound =
       /** Default: the first group. Ignored for the DM lane. */
       readonly groupId?: string;
       readonly lane?: 'group' | 'dm';
+      /**
+       * Server-side only (a replay line's photos, or the fixture receipt a
+       * `receiptId` resolved to in `routes.ts`): a client never sends a path.
+       */
+      readonly attachments?: readonly SimAttachment[];
+      /** HTTP only: a fixture receipt from `GroupView.receipts`; the route turns it into `attachments`. */
+      readonly receiptId?: string;
     }
   | {
       readonly type: 'reaction';

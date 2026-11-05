@@ -72,11 +72,10 @@ const KNOWN_FALLBACKS: readonly string[] = [];
 /**
  * Taps that need a card v0 can't post yet. Since T-074 the six
  * `flights_proposal` 👍s/taps (0020-0026) land on the flight card (stays
- * since T-132). The payer's receipt 👍s (T-083) wait on a read-it card the
- * replay never posts (it sends no photos), so they skip rather than land on
- * some other expense or settle card.
+ * since T-132). Since T-199 the replay sends the receipt photos, so the
+ * payer's receipt 👍s (0093a, 0161a) land on their read-it cards. None left.
  */
-const KNOWN_SKIPS: readonly string[] = ['msg_bcn_0093a', 'msg_bcn_0161a'];
+const KNOWN_SKIPS: readonly string[] = [];
 
 describe('Barcelona replay: generic fallback ratchet (T-092)', () => {
   it('only the known lines get the generic "not sure" fallback, and the Barça and VIP cards are tappable', async () => {
@@ -113,6 +112,12 @@ describe('Barcelona replay: generic fallback ratchet (T-092)', () => {
     );
     expect(said('msg_bcn_0036')).toBe('');
     expect(said('msg_bcn_0037')).toMatch(/^booked ✅ eixample 3br with balcony, €1,380/);
+    // Receipt photos (T-199, QA-07): Trav reads the photo, never "i need the total".
+    for (const id of ['msg_bcn_0093', 'msg_bcn_0160']) {
+      expect(said(id)).not.toMatch(/i need the total/);
+    }
+    expect(said('msg_bcn_0093')).toMatch(/€184/);
+    expect(said('msg_bcn_0160')).toMatch(/€108\.90/);
     // No reply anywhere repeats why Henry is out.
     for (const texts of run.byLine.values()) {
       for (const t of texts)

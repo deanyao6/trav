@@ -7,7 +7,8 @@
  * makes, so identity, mention gating, approvals and lanes are exactly what a
  * clicking human gets:
  *
- *   message      → inject as `senderId` (lane `direct` ⇒ that member's DM)
+ *   message      → inject as `senderId` (lane `direct` ⇒ that member's DM),
+ *                  with the line's image `attachments` (a receipt photo, T-199)
  *   reaction /   → the newest Trav card in that lane that matches the line's
  *   button_tap     `cardRef` (proposal / prompt / digest / settle), as `senderId`
  *   clock        → move the clock to `advanceTo` and drain the scheduler
@@ -32,6 +33,7 @@ import type { RichCard, ScheduledJobKind } from '@trav/core';
 import { TravError, parseIso } from '@trav/core';
 import type {
   ReplayView,
+  SimAttachment,
   SimGroup,
   SimInbound,
   SimState,
@@ -60,6 +62,30 @@ export interface ReplayLine {
   readonly participant?: { readonly handle: string; readonly displayName: string };
   /** Clock lines: the scheduled job the line exists to show (fixture `expect.scheduledJob`). */
   readonly scheduledJob?: ScheduledJobKind;
+  /** Message lines: photos sent with it (T-199: msg_bcn_0093's Gat Blau receipt). Images only. */
+  readonly attachments?: readonly SimAttachment[];
+}
+
+/**
+ * A line's `attachments`: image entries with a string uri, nothing else. The
+ * uri is passed on as written; the agent's reader only opens files under
+ * `fixtures/` and `.trav/attachments/`, and never a URL.
+ */
+function parseAttachments(raw: unknown): SimAttachment[] {
+  if (!Array.isArray(raw)) return [];
+  const out: SimAttachment[] = [];
+  for (const a of raw as unknown[]) {
+    if (typeof a !== 'object' || a === null) continue;
+    const o = a as Record<string, unknown>;
+    const uri = str(o, 'uri');
+    const mimeType = str(o, 'mimeType');
+    if (o['kind'] !== 'image' || uri === undefined || uri === '' || mimeType === undefined)
+      continue;
+    if (!mimeType.startsWith('image/')) continue;
+    const fileName = str(o, 'fileName');
+    out.push({ kind: 'image', mimeType, uri, ...(fileName !== undefined ? { fileName } : {}) });
+  }
+  return out;
 }
 
 const JOB_KINDS: readonly ScheduledJobKind[] = [
@@ -123,6 +149,7 @@ export function parseScript(text: string): ReplayLine[] {
         ? str(ex as Record<string, unknown>, 'scheduledJob')
         : undefined;
     const scheduledJob = JOB_KINDS.find((k) => k === job);
+    const attachments = parseAttachments(o['attachments']);
     const pick = (key: string): Record<string, string> => {
       const v = str(o, key);
       return v !== undefined ? { [key]: v } : {};
@@ -143,6 +170,7 @@ export function parseScript(text: string): ReplayLine[] {
       ...(cardRef !== undefined ? { cardRef } : {}),
       ...(participant !== undefined ? { participant } : {}),
       ...(scheduledJob !== undefined ? { scheduledJob } : {}),
+      ...(attachments.length > 0 ? { attachments } : {}),
     });
   });
   return out;
@@ -182,7 +210,7 @@ export function describeLine(line: ReplayLine, group: SimGroup): string {
   const dm = line.lane === 'direct' ? ' (dm)' : '';
   switch (line.kind) {
     case 'message':
-      return `${who}${dm}: ${clip(line.text)}`;
+      return `${who}${dm}: ${line.attachments !== undefined ? '📷 ' : ''}${clip(line.text)}`;
     case 'reaction':
       return `${who}${dm} ${line.reaction ?? ''} on ${line.cardRef ?? 'a card'}`;
     case 'button_tap':
@@ -303,6 +331,8 @@ export function withReplay(
           from: line.senderId,
           text: line.text,
           ...(line.lane === 'direct' ? { lane: 'dm' as const } : { groupId: group.groupId }),
+          // T-199 (QA-07): the photo goes with the line, so Trav reads the receipt.
+          ...(line.attachments !== undefined ? { attachments: line.attachments } : {}),
         };
         await backend.inject(input);
         return label;

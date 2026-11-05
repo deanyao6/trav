@@ -19,6 +19,7 @@ import type {
   GroupView,
   IntakeOffer,
   ReactionSummary,
+  ReceiptOffer,
   SimControls,
   SimGroup,
   SimMember,
@@ -26,6 +27,7 @@ import type {
   ThreadEntry,
   ThreadMessage,
 } from '../shared/types.js';
+import { attachmentSrc } from './receipts.js';
 
 /** Tapbacks that mean approve / decline on a proposal (VOICE §3.6). */
 const APPROVE_REACTIONS = new Set(['👍', 'like']);
@@ -109,6 +111,31 @@ interface DeriveContext {
   /** Every message in the group's view (both lanes) in transcript order. */
   readonly messages: readonly TranscriptMessage[];
   readonly taps: Taps;
+  /** T-200: the owner's photos flag right now (SAFETY §2.6). Absent: cards shown as sent. */
+  readonly photoVisible?: (memberId: MemberId) => boolean;
+}
+
+/**
+ * SAFETY §2.6 / G2: opting out hides a member's photos from re-rendered old
+ * recaps too. A recap or Wrapped card already in the thread keeps only the
+ * photos whose owner still has photos on; the card's image attachments
+ * follow. Nothing else about the message changes.
+ */
+export function withConsentedPhotos(
+  msg: Pick<TranscriptMessage, 'card' | 'attachments'>,
+  photoVisible: ((memberId: MemberId) => boolean) | undefined,
+): Pick<TranscriptMessage, 'card' | 'attachments'> {
+  const card = msg.card;
+  if (photoVisible === undefined || (card?.type !== 'recap' && card?.type !== 'wrapped')) {
+    return msg;
+  }
+  const hidden = new Set(card.photos.filter((p) => !photoVisible(p.byMemberId)).map((p) => p.url));
+  if (hidden.size === 0) return msg;
+  const photos = card.photos.filter((p) => !hidden.has(p.url));
+  return {
+    card: { ...card, photos },
+    attachments: msg.attachments.filter((a) => !hidden.has(a.uri)),
+  };
 }
 
 function nameOfHandle(ctx: DeriveContext, handle: string): string {
@@ -287,10 +314,14 @@ function deriveGenericState(msg: TranscriptMessage, ctx: DeriveContext): CardSta
 }
 
 function toThreadMessage(
-  msg: TranscriptMessage,
+  original: TranscriptMessage,
   ctx: DeriveContext,
   travHandle: string,
 ): ThreadMessage {
+  const msg: TranscriptMessage = {
+    ...original,
+    ...withConsentedPhotos(original, ctx.photoVisible),
+  };
   const cardState = msg.card
     ? msg.card.type === 'booking_proposal'
       ? deriveProposalState(msg, ctx)
@@ -309,12 +340,16 @@ function toThreadMessage(
     text: msg.text,
     ...(msg.card ? { card: msg.card } : {}),
     actions: msg.actions,
-    attachments: msg.attachments.map((a) => ({
-      kind: a.kind,
-      mimeType: a.mimeType,
-      uri: a.uri,
-      ...(a.alt !== undefined ? { alt: a.alt } : {}),
-    })),
+    attachments: msg.attachments.map((a) => {
+      const src = attachmentSrc(a.uri);
+      return {
+        kind: a.kind,
+        mimeType: a.mimeType,
+        uri: a.uri,
+        ...(a.alt !== undefined ? { alt: a.alt } : {}),
+        ...(src !== undefined ? { src } : {}),
+      };
+    }),
     ...(msg.replyToMessageId !== undefined ? { replyToMessageId: msg.replyToMessageId } : {}),
     renderedAsCard: msg.renderedAsCard,
     degraded: msg.degraded,
@@ -335,6 +370,7 @@ export function buildGroupThread(
   group: SimGroup,
   channel: ChannelView,
   now: IsoDateTime,
+  photoVisible?: PhotoVisible,
 ): ThreadEntry[] {
   const raw = channel
     .groupTranscript(group.conversationId)
@@ -345,8 +381,12 @@ export function buildGroupThread(
     channel.travHandle,
     now,
     (m) => !m.card || !isPrivateCard(m.card),
+    photoVisible,
   );
 }
+
+/** T-200: is this member's photos flag on in this group right now (SAFETY §2.6)? */
+export type PhotoVisible = (groupId: string, memberId: MemberId) => boolean;
 
 /** One member's private thread with Trav, limited to this group's messages and cards addressed to them. */
 export function buildDmThread(
@@ -354,6 +394,7 @@ export function buildDmThread(
   member: SimMember,
   channel: ChannelView,
   now: IsoDateTime,
+  photoVisible?: PhotoVisible,
 ): ThreadEntry[] {
   const raw = channel.dmTranscript(member.handle).filter((e) => {
     if (e.lane !== 'dm') return false;
@@ -366,6 +407,7 @@ export function buildDmThread(
     channel.travHandle,
     now,
     (m) => !m.card || cardVisibleTo(m.card, member.memberId),
+    photoVisible,
   );
 }
 
@@ -375,6 +417,7 @@ function buildEntries(
   travHandle: string,
   now: IsoDateTime,
   keep: (m: TranscriptMessage) => boolean,
+  photoVisible?: PhotoVisible,
 ): ThreadEntry[] {
   const messages = raw.filter((e): e is TranscriptMessage => e.type === 'message' && keep(e));
   const ctx: DeriveContext = {
@@ -382,6 +425,9 @@ function buildEntries(
     memberByHandle: new Map(group.members.map((m) => [m.handle, m])),
     messages,
     taps: collectInteractions(raw),
+    ...(photoVisible !== undefined
+      ? { photoVisible: (memberId: MemberId) => photoVisible(group.groupId, memberId) }
+      : {}),
   };
   const kept = new Set(messages);
   const out: ThreadEntry[] = [];
@@ -421,6 +467,10 @@ export interface BuildStateInput {
   readonly intake?: ReadonlyMap<string, Readonly<Record<MemberId, readonly IntakeOffer[]>>>;
   /** Default: no clock, no intake, no reset, no replay. */
   readonly controls?: SimControls;
+  /** T-199: the fixture receipt photos each chat's composer can attach. Default: none. */
+  readonly receipts?: (groupId: string) => readonly ReceiptOffer[];
+  /** T-200: drop recap/Wrapped photos whose owner has photos off now. Default: show as sent. */
+  readonly photoVisible?: PhotoVisible;
 }
 
 export const NO_CONTROLS: SimControls = {
@@ -434,6 +484,8 @@ export const NO_CONTROLS: SimControls = {
 export interface GroupExtras {
   readonly status?: string;
   readonly intake?: Readonly<Record<MemberId, readonly IntakeOffer[]>>;
+  readonly receipts?: readonly ReceiptOffer[];
+  readonly photoVisible?: PhotoVisible;
 }
 
 export function buildGroupView(
@@ -443,11 +495,11 @@ export function buildGroupView(
   typing: boolean,
   extras: GroupExtras = {},
 ): GroupView {
-  const thread = buildGroupThread(group, channel, now);
+  const thread = buildGroupThread(group, channel, now, extras.photoVisible);
   const dms: Record<MemberId, ThreadEntry[]> = {};
   const intake: Record<MemberId, readonly IntakeOffer[]> = {};
   for (const m of group.members) {
-    dms[m.memberId] = buildDmThread(group, m, channel, now);
+    dms[m.memberId] = buildDmThread(group, m, channel, now, extras.photoVisible);
     intake[m.memberId] = extras.intake?.[m.memberId] ?? [];
   }
   const last = [...thread].reverse().find((e): e is ThreadMessage => e.kind === 'message');
@@ -459,6 +511,9 @@ export function buildGroupView(
     typing,
     intake,
     ...(extras.status !== undefined ? { status: extras.status } : {}),
+    ...(extras.receipts !== undefined && extras.receipts.length > 0
+      ? { receipts: extras.receipts }
+      : {}),
     ...(last
       ? {
           preview: {
@@ -482,9 +537,12 @@ export function buildState(input: BuildStateInput): SimState {
       const status = input.status?.get(g.groupId);
       const intake = input.intake?.get(g.groupId);
       const now = input.nowOf?.(g.groupId) ?? input.now;
+      const receipts = input.receipts?.(g.groupId);
       return buildGroupView(g, input.channel, now, input.typing.has(g.groupId), {
         ...(status !== undefined ? { status } : {}),
         ...(intake !== undefined ? { intake } : {}),
+        ...(receipts !== undefined ? { receipts } : {}),
+        ...(input.photoVisible !== undefined ? { photoVisible: input.photoVisible } : {}),
       });
     }),
     ...(input.lastError !== undefined ? { lastError: input.lastError } : {}),

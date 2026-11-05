@@ -43,6 +43,9 @@ export interface AppViewProps {
   readonly onSelectDm: (memberId: string) => void;
   readonly onDraft: (text: string) => void;
   readonly onSend: () => void;
+  /** T-199: the fixture receipt photo attached to the next message (`GroupView.receipts`). */
+  readonly attachment?: string;
+  readonly onAttach?: (receiptId: string | undefined) => void;
   readonly onReset?: () => void;
   readonly onClock?: (step: ClockStep) => void;
   readonly onReplay?: (mode: 'step' | 'all') => void;
@@ -344,6 +347,8 @@ export function AppView(props: AppViewProps) {
     ? undefined
     : view.group.hints.find((h) => h.from === me.handle && h.text !== props.draft);
   const memberCount = view.group.members.length;
+  const receipts = view.receipts ?? [];
+  const attached = receipts.find((r) => r.receiptId === props.attachment);
   return (
     <div className="app">
       <TopBar
@@ -405,6 +410,24 @@ export function AppView(props: AppViewProps) {
                 try: {hint.text}
               </button>
             ) : null}
+            {attached !== undefined ? (
+              <div className="composer-attachment" data-testid="composer-attachment">
+                <img
+                  src={`/api/receipts/${attached.receiptId}.png`}
+                  alt={`receipt: ${attached.label}`}
+                />
+                <span>{attached.label}</span>
+                <button
+                  type="button"
+                  className="btn small secondary"
+                  data-testid="composer-attachment-remove"
+                  aria-label="remove the photo"
+                  onClick={() => props.onAttach?.(undefined)}
+                >
+                  ×
+                </button>
+              </div>
+            ) : null}
             <form
               className="composer"
               onSubmit={(e) => {
@@ -412,6 +435,23 @@ export function AppView(props: AppViewProps) {
                 props.onSend();
               }}
             >
+              {receipts.length > 0 && props.onAttach ? (
+                <select
+                  className="composer-attach"
+                  data-testid="composer-attach"
+                  aria-label="attach a receipt photo"
+                  title="attach a receipt photo (demo fixtures)"
+                  value=""
+                  onChange={(e) => props.onAttach?.(e.target.value || undefined)}
+                >
+                  <option value="">📷</option>
+                  {receipts.map((r) => (
+                    <option key={r.receiptId} value={r.receiptId}>
+                      receipt: {r.label}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
               <span
                 className="avatar small"
                 style={{ background: avatarColor(view.group, me.handle) }}
@@ -424,7 +464,11 @@ export function AppView(props: AppViewProps) {
               <input
                 className="composer-input"
                 data-testid="composer-input"
-                placeholder={`message as ${me.name}`}
+                placeholder={
+                  attached !== undefined
+                    ? `add a line, like "@trav dinner, i paid"`
+                    : `message as ${me.name}`
+                }
                 value={props.draft}
                 onChange={(e) => props.onDraft(e.target.value)}
               />
@@ -452,6 +496,7 @@ export function App() {
   const [dmMemberId, setDmMemberId] = useState<string>('');
   const [highlightDms, setHighlightDms] = useState<readonly string[]>([]);
   const [draft, setDraft] = useState('');
+  const [attachment, setAttachment] = useState<string | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
   const [dmsCollapsed, setDmsCollapsed] = useState(false);
@@ -535,9 +580,12 @@ export function App() {
       dmMemberId={dm}
       highlightDms={highlightDms}
       draft={draft}
+      {...(attachment !== undefined ? { attachment } : {})}
+      onAttach={setAttachment}
       {...(error !== undefined ? { error } : {})}
       onSelectGroup={(id) => {
         setGroupId(id);
+        setAttachment(undefined);
         setDmMemberId('');
         setHighlightDms([]);
       }}
@@ -555,12 +603,20 @@ export function App() {
         const text = draft.trim();
         if (text === '') return;
         setDraft('');
-        run({ type: 'message', from: me.handle, text, groupId: view.group.groupId });
+        setAttachment(undefined);
+        run({
+          type: 'message',
+          from: me.handle,
+          text,
+          groupId: view.group.groupId,
+          ...(attachment !== undefined ? { receiptId: attachment } : {}),
+        });
       }}
       {...(state.controls.reset
         ? {
             onReset: () => {
               setDraft('');
+              setAttachment(undefined);
               setHighlightDms([]);
               control(resetDemo);
             },
