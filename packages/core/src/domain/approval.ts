@@ -27,6 +27,14 @@ export interface GroupSpendingPolicy {
   readonly autoApproveCapMinor: number;
   /** DEFAULT 5000. */
   readonly perPersonAutoCapMinor: number;
+  /**
+   * T-193 (SAFETY T17, D-046): inside the auto tier, the most an ask or a pick
+   * may put on anyone else's tab without their own 👍. Any non-requester share
+   * over it fires C3 (`over_tab_auto_cap`, each_payer). Absent ⇒
+   * `DEFAULT_TAB_AUTO_CAP_MINOR` (€100); read it with `tabAutoCapOf`. Separate
+   * from `perPersonAutoCapMinor`, which gates the card flow (who must 👍 a card).
+   */
+  readonly perPersonTabAutoCapMinor?: number;
   /** DEFAULT 50000. */
   readonly dailyGroupCapMinor: number;
   /** DEFAULT null. */
@@ -48,6 +56,20 @@ export const DEFAULT_AUTO_BUY_CAP_MINOR = 50000;
  * an explicit ask (€200, minor units of the group currency).
  */
 export const NON_REFUNDABLE_AUTO_MAX_MINOR = 20000;
+
+/**
+ * T-193 (D-046): the default most an auto-tier purchase may put on the tab of
+ * a member who didn't ask (€100, minor units of the group currency).
+ */
+export const DEFAULT_TAB_AUTO_CAP_MINOR = 10000;
+
+/** The group's tab cap inside the auto tier (T-193): its own setting, else the €100 default. */
+export function tabAutoCapOf(
+  policy: Pick<GroupSpendingPolicy, 'perPersonTabAutoCapMinor'>,
+): number {
+  const v = policy.perPersonTabAutoCapMinor;
+  return typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : DEFAULT_TAB_AUTO_CAP_MINOR;
+}
 
 /** T-168 (a): the general-purpose kinds an ask can auto-buy. Flights, lodging and transport never are. */
 export const AUTO_BUY_KINDS: readonly BookingKind[] = ['ticket', 'other'];
@@ -142,6 +164,7 @@ export type ReasonCode =
   | 'over_auto_cap'
   | 'not_general_purpose'
   | 'over_per_person_cap'
+  | 'over_tab_auto_cap'
   | 'over_member_share_cap'
   | 'non_refundable'
   | 'over_daily_cap'
@@ -151,6 +174,7 @@ export type ReasonCode =
   | 'payer_not_requester'
   | 'card_not_requester'
   | 'minor_requester'
+  | 'requester_not_attendee'
   // auto
   | 'within_all_caps';
 

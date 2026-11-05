@@ -301,6 +301,9 @@ export function evaluatePolicy(p, policy, members, { prefs = {}, spentTodayMinor
   else if (tier === undefined) fire('C1', 'over_auto_cap', 'any_one');
   if (policy.alwaysEachPayerKinds.includes(p.kind)) fire('C2', 'kind_requires_each_payer', 'each_payer');
   if (tier === undefined && p.payers.some((s) => s.shareMinor > policy.perPersonAutoCapMinor)) fire('C3', 'over_per_person_cap', 'each_payer');
+  // T-193 (D-046): inside the tier, nobody but the requester goes on the tab for more than the tab cap (default €100).
+  const tabCap = Number.isInteger(policy.perPersonTabAutoCapMinor) && policy.perPersonTabAutoCapMinor >= 0 ? policy.perPersonTabAutoCapMinor : 10000;
+  if (tier !== undefined && p.payers.some((s) => s.memberId !== p.requestedBy && s.shareMinor > tabCap)) fire('C3', 'over_tab_auto_cap', 'each_payer');
   if (p.payers.some((s) => prefs[s.memberId] != null && s.shareMinor > prefs[s.memberId])) fire('C4', 'over_member_share_cap', 'each_payer');
   if (!p.refundable && (tier === undefined || (tier === 'explicit' && p.totalMinor > 20000))) fire('C5', 'non_refundable', 'any_one');
   if (spentTodayMinor + p.totalMinor > policy.dailyGroupCapMinor) fire('C6', 'over_daily_cap', 'any_one');
@@ -313,6 +316,8 @@ export function evaluatePolicy(p, policy, members, { prefs = {}, spentTodayMinor
   if (cardNotRequester) fire('C10', 'card_not_requester', 'any_one');
   if (minorRequester) fire('C10', 'minor_requester', p.paidBy.kind === 'per_person_cards' ? 'each_payer' : 'any_one');
   if (tier !== undefined && !['ticket', 'other'].includes(p.kind)) fire('C11', 'not_general_purpose', 'any_one');
+  // C12 (T-193): an ask or pick buys on its own only when the asker is going.
+  if (tier !== undefined && !p.attendees.includes(p.requestedBy)) fire('C12', 'requester_not_attendee', 'any_one');
   const canApprove = (m) => m && !m.guest && !m.isMinor;
   if (denied) return { outcome: 'deny', reasons, ruleIds, approvalMode: 'none', requiredApprovers: [] };
   if (mode === 'none') {

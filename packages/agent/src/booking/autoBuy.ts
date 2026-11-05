@@ -36,7 +36,10 @@
  *
  * Then the party must resolve cleanly against the roster: every name a
  * member, nobody both in and out, a stated count equal to the people it
- * names, at least one person going. And the offline ask reader
+ * names, at least one person going, and the sender among them (T-193,
+ * SAFETY T17): a NAMES party must include "me"/"myself" or the sender's own
+ * name, and an EXCEPT that names the sender ("everyone except me", "us, not
+ * me", "everyone but me") is `party`. And the offline ask reader
  * (`parseBookingRequest`) must read the same party: two readers that
  * disagree mean nobody is sure, so no auto-buy.
  *
@@ -742,6 +745,10 @@ export function autoBuyVerdict(input: AutoBuyInput): AutoBuyVerdict {
     if (attendees.some((k) => excludedKeys.includes(k) || already.has(k))) return no('party');
   }
   if (attendees.length === 0) return no('party');
+  // T-193 (SAFETY T17): the asker must be one of the people going. A party
+  // without them ("for chase and henry", "everyone except me", "us, not me")
+  // puts others on the tab who said nothing: that gets the one-tap card.
+  if (!attendees.includes(senderKey)) return no('party');
   const counts = [ask.ticketCount, party?.count].filter((c): c is number => c !== undefined);
   if (counts.some((c) => c !== attendees.length)) return no('count_mismatch');
   // A bare "get razz tickets", with no party and no count: who is going is the roster's

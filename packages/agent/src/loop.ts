@@ -110,7 +110,7 @@ import {
 import { autoBuyVerdict } from './booking/autoBuy.js';
 import { pickTextIndex, planLive } from './booking/choice.js';
 import type { ProposalService, ProposeResult } from './booking/proposals.js';
-import { bookingHeadline, nightOf } from './booking/proposals.js';
+import { autoBuyVerdictOnRoster, bookingHeadline, nightOf } from './booking/proposals.js';
 import { optionIndexOf } from './booking/flights.js';
 import type { BookingExecutor, ProviderRegistry } from './booking/executor.js';
 import { buildGroupContext, renderGroupPrompt, sanitizeInline } from './context/groupContext.js';
@@ -1498,20 +1498,27 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     // T-168 item 0 (D-044): the only road to a purchase without a card is the
     // member's own words passing the auto-buy grammar. Computed here from the
     // raw message, never from anything the model says.
+    const rosterMembers = r.members.filter(
+      (m) => m.active && m.leftAt === undefined && m.role !== 'guest',
+    );
+    const verdictFor = (alreadyOut: readonly string[]) =>
+      autoBuyVerdict({
+        text: event.text,
+        index: bundledVenueIndex(),
+        sender: me.displayName,
+        roster: rosterMembers.map((m) => m.displayName),
+        lane: r.lane,
+        ...(alreadyOut.length > 0 ? { alreadyOut } : {}),
+        ...(event.forwarded === true ? { forwarded: true } : {}),
+        ...(event.replyToMessageId !== undefined ? { quotesMessage: true } : {}),
+      });
+    // T-193 (SC-5): read against the roster of the plan the ask names, so
+    // "us" / "the N of us" are the people still going, and a sender who is
+    // already out never buys "for us" for the others.
     const verdict =
       me.role === 'guest'
         ? undefined
-        : autoBuyVerdict({
-            text: event.text,
-            index: bundledVenueIndex(),
-            sender: me.displayName,
-            roster: r.members
-              .filter((m) => m.active && m.leftAt === undefined && m.role !== 'guest')
-              .map((m) => m.displayName),
-            lane: r.lane,
-            ...(event.forwarded === true ? { forwarded: true } : {}),
-            ...(event.replyToMessageId !== undefined ? { quotesMessage: true } : {}),
-          });
+        : autoBuyVerdictOnRoster(verdictFor, stores.group, r.trip, rosterMembers, r.now);
     const toolCtx: TurnToolContext = {
       ...(verdict?.eligible === true ? { autoBuy: verdict } : {}),
       groupId: r.group.groupId,

@@ -137,6 +137,42 @@ describe('renderProposalText: who approves (T-104 round 2, VOICE §4.1)', () => 
   });
 });
 
+describe('renderProposalText: the T-193 tab cap (D-046)', () => {
+  it("over the group's tab cap on Dean's ask: everyone charged has to 👍, and the card says why", () => {
+    const p = proposal({ requestedBy: 'mem_dean' });
+    const policy = {
+      ...defaultSpendingPolicy('grp_barcelona', 'EUR'),
+      perPersonTabAutoCapMinor: 1500,
+    };
+    const decision = approval.evaluate(p, policy, {
+      now: NOW,
+      members: approval.toMemberViews(members, NOW),
+      prefs: {},
+      spentTodayMinor: 0,
+      spentTripMinor: 0,
+      existingBookingForKey: null,
+      ask: 'explicit',
+    });
+    expect(decision.reasons).toEqual(['over_tab_auto_cap']);
+    const lines = renderProposalText({
+      proposal: p,
+      decision,
+      event,
+      members,
+      excluded: ['mem_henry'],
+      perPerson: money(1800, 'EUR'),
+      now: NOW,
+      tz: 'Europe/Madrid',
+      ruleId: 'C3',
+      capPerPersonMinor: 6000,
+    }).split('\n');
+    expect(lines.slice(-2)).toEqual([
+      "that's over €15 each on Dean's ask, so everyone charged has to 👍",
+      '👍 to book, or say "not me" first. price held for 15 min',
+    ]);
+  });
+});
+
 describe('T-143 helpers: unnamed asks and the closest slot', () => {
   it('categoryOnly: a kind of thing with no venue word', () => {
     expect(categoryOnly('club tickets')).toBe('club');

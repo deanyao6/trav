@@ -598,6 +598,48 @@ describe('(c) lodging and flights keep the explicit approval, even with an eligi
   });
 });
 
+describe('T-193: ticketAsk drops the ask when the requester is not going (SAFETY T17)', () => {
+  it('Henry\'s eligible "for me and chase" on a proposal Dean requested ⇒ no ask, the card', async () => {
+    const h = on();
+    // An eligible verdict (Henry and Chase), attached to a proposal requested by
+    // Dean, who is not in the party: ticketAsk must not carry the ask on, so
+    // the policy never even sees it (C12 would be the second line).
+    const verdict = autoBuyVerdict({
+      text: '@trav get razz tickets for me and chase',
+      index: {
+        venues: [{ key: 'razzmatazz', terms: ['razzmatazz', 'razz'], tierWords: [] }],
+        generic: new Set(),
+      },
+      sender: 'Henry',
+      roster: BARCELONA.members.map((m) => m.name),
+      lane: 'group',
+    });
+    if (!verdict.eligible) throw new Error('setup: the ask should be eligible for Henry');
+    const res = await h.runtime.proposals.propose(
+      {
+        kind: 'ticket',
+        attendeeMemberIds: ['mem_henry', 'mem_chase'],
+        query: 'razzmatazz',
+        activityId: BARCELONA.razzmatazzActivityId,
+      },
+      {
+        groupId: G,
+        tripId: 'trip_barcelona',
+        requestedBy: 'mem_dean',
+        sourceMessageId: 'msg_x',
+        autoBuy: verdict,
+      },
+    );
+    expect(res.kind).toBe('proposal');
+    expect(h.tickets.purchaseCount()).toBe(0);
+    expect(policyEvents(h)[0]!.payload).toMatchObject({
+      outcome: 'needs_confirmation',
+      ask: null,
+      reasons: ['default_confirm'],
+    });
+  });
+});
+
 describe('pickTextIndex: only an exact pick', () => {
   it.each([
     ['1', 1],

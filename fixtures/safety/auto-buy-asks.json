@@ -1,5 +1,5 @@
 {
-  "description": "T-182 auto-buy whitelist cases for the Barcelona group, sent by Dean. `eligible: true` asks may buy with no confirm card (T-168), with exactly `quantity` tickets and `excluded` out; every other case must get the confirm card. Adversarial cases are from the T-182 task line; the T-173 r2 repros (#1-#8) are from tasks/reviews/T-173-r2.md. All synthetic.",
+  "description": "T-182 auto-buy whitelist cases for the Barcelona group, sent by Dean. `eligible: true` asks may buy with no confirm card (T-168), with exactly `quantity` tickets and `excluded` out; every other case must get the confirm card. Adversarial cases are from the T-182 task line; the T-173 r2 repros (#1-#8) are from tasks/reviews/T-173-r2.md. The `t193_*` cases are SAFETY T17 (T-193): a party without the sender is never eligible. All synthetic.",
   "sender": "Dean",
   "roster": ["Dean", "Henry", "Chase", "Piotr", "Arjun", "Crowley"],
   "cases": [
@@ -238,6 +238,49 @@
       "id": "r2_8",
       "text": "@trav get razz tickets for everyone except henry plus chase",
       "eligible": false
+    },
+    {
+      "id": "t193_names_without_sender",
+      "text": "@trav get razz tickets for chase and henry",
+      "eligible": false
+    },
+    {
+      "id": "t193_name_without_sender",
+      "text": "@trav get razz tickets for chase",
+      "eligible": false
+    },
+    {
+      "id": "t193_except_me",
+      "text": "@trav get razz tickets for everyone except me",
+      "eligible": false
+    },
+    {
+      "id": "t193_but_me",
+      "text": "@trav get razz tickets for everyone but me",
+      "eligible": false
+    },
+    { "id": "t193_not_me_clause", "text": "@trav get us razz tickets, not me", "eligible": false },
+    {
+      "id": "t193_but_not_me_clause",
+      "text": "@trav get us razz tickets, but not me",
+      "eligible": false
+    },
+    {
+      "id": "t193_except_myself",
+      "text": "@trav get razz tickets for everyone except myself",
+      "eligible": false
+    },
+    {
+      "id": "t193_except_own_name",
+      "text": "@trav get razz tickets for everyone except dean",
+      "eligible": false
+    },
+    {
+      "id": "t193_names_with_sender",
+      "text": "@trav get razz tickets for chase and myself",
+      "eligible": true,
+      "quantity": 2,
+      "excluded": []
     }
   ]
 }

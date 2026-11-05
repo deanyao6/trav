@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { GroupSpendingPolicy, ReasonCode } from '../domain/approval.js';
+import { DEFAULT_TAB_AUTO_CAP_MINOR, tabAutoCapOf } from '../domain/approval.js';
 import type { BookingProposal } from '../domain/booking.js';
 import { bookingParties, decidingRule, evaluate, POLICY_RULES } from './policy.js';
 import {
@@ -40,6 +41,8 @@ const ALL_REASONS: readonly ReasonCode[] = [
   'card_not_requester',
   'minor_requester',
   'not_general_purpose',
+  'over_tab_auto_cap',
+  'requester_not_attendee',
   'within_all_caps',
 ];
 
@@ -1217,6 +1220,8 @@ describe('POLICY_RULES', () => {
       attendees: ['mem_kid'],
     });
     run({}, { autoApproveCapMinor: 20000 });
+    run({}, { perPersonTabAutoCapMinor: 1000 });
+    run({ requestedBy: 'mem_henry' });
     expect([...fired].sort()).toEqual([...ALL_REASONS].sort());
   });
 });
@@ -1411,5 +1416,128 @@ describe('T-168 approval tiers (D-044)', () => {
       const d = evaluate(nonRef(1000), policy(), noAsk());
       expect(d.reasons).toEqual(['default_confirm', 'non_refundable']);
     });
+  });
+});
+
+describe('T-193 auto tier: the asker is going, and nobody else is put on the tab for much (SAFETY T17, D-046)', () => {
+  const ASKS = ['explicit', 'pick'] as const;
+  // Dean asks; Dean and Chase go; Chase's share is `chaseMinor`, on Dean's card.
+  const pair = (deanMinor: number, chaseMinor: number) =>
+    razzmatazz({
+      totalMinor: deanMinor + chaseMinor,
+      payers: [
+        { memberId: 'mem_dean', shareMinor: deanMinor },
+        { memberId: 'mem_chase', shareMinor: chaseMinor },
+      ],
+      attendees: ['mem_dean', 'mem_chase'],
+    });
+  // Dean asks "for chase and henry": he is not going, the two of them owe €18 each.
+  const forOthers = () =>
+    razzmatazz({
+      totalMinor: 3600,
+      payers: equalShares(['mem_chase', 'mem_henry'], 1800),
+      attendees: ['mem_chase', 'mem_henry'],
+    });
+
+  it('tabAutoCapOf: the group setting, else €100; a broken setting is the default, never unbounded', () => {
+    expect(DEFAULT_TAB_AUTO_CAP_MINOR).toBe(10000);
+    expect(tabAutoCapOf(policy())).toBe(10000);
+    expect(tabAutoCapOf(policy({ perPersonTabAutoCapMinor: 2500 }))).toBe(2500);
+    expect(tabAutoCapOf(policy({ perPersonTabAutoCapMinor: 0 }))).toBe(0);
+    for (const bad of [-1, 12.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(tabAutoCapOf(policy({ perPersonTabAutoCapMinor: bad }))).toBe(10000);
+    }
+  });
+
+  describe.each(ASKS)('C3 tab cap on a %s ask', (ask) => {
+    it('another member’s share exactly at the tab cap (€100) auto-approves', () => {
+      const d = evaluate(pair(1000, 10000), policy(), context({ ask }));
+      expect(d.outcome).toBe('auto_approve');
+      expect(d.reasons).toEqual(['within_all_caps']);
+    });
+
+    it('one cent over the tab cap ⇒ over_tab_auto_cap (C3), each payer 👍s', () => {
+      const d = evaluate(pair(1000, 10001), policy(), context({ ask }));
+      expect(d.outcome).toBe('needs_confirmation');
+      expect(d.reasons).toEqual(['over_tab_auto_cap']);
+      expect(d.ruleIds).toEqual(['C3']);
+      expect(d.approvalMode).toBe('each_payer');
+      expect([...d.requiredApprovers].sort()).toEqual(['mem_chase', 'mem_dean']);
+    });
+
+    it('a group tab cap of €18: the flagship at it buys, €17.99 is the card', () => {
+      expect(
+        evaluate(razzmatazz(), policy({ perPersonTabAutoCapMinor: 1800 }), context({ ask }))
+          .outcome,
+      ).toBe('auto_approve');
+      const d = evaluate(
+        razzmatazz(),
+        policy({ perPersonTabAutoCapMinor: 1799 }),
+        context({ ask }),
+      );
+      expect(d.reasons).toEqual(['over_tab_auto_cap']);
+      expect(d.approvalMode).toBe('each_payer');
+    });
+
+    it('the requester’s own share is not bounded by the tab cap (the total cap is)', () => {
+      expect(evaluate(pair(30000, 5000), policy(), context({ ask })).outcome).toBe('auto_approve');
+    });
+
+    it('€500 for two (€250 on Chase, on Dean’s word) is the card, not a purchase', () => {
+      const d = evaluate(pair(25000, 25000), policy(), context({ ask }));
+      expect(d.outcome).toBe('needs_confirmation');
+      expect(d.reasons).toEqual(['over_tab_auto_cap']);
+    });
+
+    it('the tab cap is separate from the card-flow per-person cap (€60 there, €72 each here)', () => {
+      const six = ['mem_dean', 'mem_crowley', 'mem_ava', 'mem_chase', 'mem_leo', 'mem_henry'];
+      const barca = razzmatazz({
+        refundable: false,
+        totalMinor: 43200,
+        payers: equalShares(six, 7200),
+        attendees: six,
+        ageRestriction: null,
+        contentTags: [],
+      });
+      const d = evaluate(barca, policy({ perPersonAutoCapMinor: 6000 }), context({ ask }));
+      // A pick buys (the options card stated it); an explicit non-refundable ask over €200
+      // keeps the card (C5), as before. Neither is over the tab cap.
+      expect(d.reasons).toEqual(ask === 'pick' ? ['within_all_caps'] : ['non_refundable']);
+    });
+  });
+
+  it('outside the tier the tab cap never fires (the card-flow C3 applies, as before)', () => {
+    const d = evaluate(pair(1000, 10001), policy(), noAsk());
+    expect(d.reasons).toEqual(['default_confirm', 'over_per_person_cap']);
+  });
+
+  describe.each(ASKS)('C12 the asker is going, on a %s ask', (ask) => {
+    it('"for chase and henry" from Dean ⇒ requester_not_attendee, the one-tap card (any_one)', () => {
+      const d = evaluate(forOthers(), policy(), context({ ask }));
+      expect(d.outcome).toBe('needs_confirmation');
+      expect(d.reasons).toEqual(['requester_not_attendee']);
+      expect(d.ruleIds).toEqual(['C12']);
+      expect(d.approvalMode).toBe('any_one');
+      // Dean's card pays, so Dean is a party and can tap.
+      expect(d.requiredApprovers).toContain('mem_dean');
+    });
+
+    it('"everyone but me" (the 4 others) ⇒ requester_not_attendee', () => {
+      const four = FIVE.filter((id) => id !== 'mem_dean');
+      const d = evaluate(
+        razzmatazz({ totalMinor: 7200, payers: equalShares(four, 1800), attendees: four }),
+        policy(),
+        context({ ask }),
+      );
+      expect(d.reasons).toEqual(['requester_not_attendee']);
+    });
+
+    it('the asker going (the flagship) ⇒ no C12', () => {
+      expect(evaluate(razzmatazz(), policy(), context({ ask })).outcome).toBe('auto_approve');
+    });
+  });
+
+  it('with no ask, C12 does not fire (the card says default_confirm, as before)', () => {
+    expect(evaluate(forOthers(), policy(), noAsk()).reasons).toEqual(['default_confirm']);
   });
 });

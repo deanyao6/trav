@@ -154,6 +154,8 @@ const SETUP = {
     object({
       autoApproveCapMinor: opt(nonNegInt),
       perPersonAutoCapMinor: opt(nonNegInt),
+      // T-193 (D-046): the auto tier's cap on a non-asker's share.
+      perPersonTabAutoCapMinor: opt(nonNegInt),
       dailyGroupCapMinor: opt(nonNegInt),
       hardMaxPerBookingMinor: opt(nonNegInt),
     }),

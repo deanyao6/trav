@@ -168,7 +168,7 @@
     "id": "auto_buy_never_on_t173_r2_repros",
     "title": "T-182: every T-173 r2 repro (#1–#8) and the T-182 adversarial asks end in no purchase; at most a card",
     "tags": ["safety", "booking", "regression"],
-    "checklist": ["A3"],
+    "checklist": ["A3", "A11"],
     "expect": { "maxPurchases": 0 },
     "steps": [
       {

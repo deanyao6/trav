@@ -339,3 +339,81 @@ describe('T-182 r1 review repros', () => {
     }
   });
 });
+
+describe('T-193 (SAFETY T17): the asker must be going', () => {
+  it.each([
+    // names-only party without the sender
+    '@trav get razz tickets for chase and henry',
+    '@trav get razz tickets for chase',
+    '@trav get razzmatazz tickets for chase, piotr and henry thanks',
+    '@trav get 2 razz tickets for chase and henry',
+    "@trav get razz tickets for chase and piotr, henry's sick",
+    // the sender excluded inside the party
+    '@trav get razz tickets for everyone except me',
+    '@trav get razz tickets for everyone except for me',
+    '@trav get razz tickets for everyone but me',
+    '@trav get razz tickets for everyone but not me',
+    '@trav get razz tickets for everyone minus me',
+    '@trav get razz tickets for everyone without me',
+    '@trav get razz tickets for everyone excluding me',
+    '@trav get razz tickets for everyone except myself',
+    '@trav get razz tickets for everyone except dean',
+    '@trav get razz tickets for everyone except henry and me',
+    '@trav get everyone except me razz tickets',
+    // the sender excluded as its own clause
+    '@trav get us razz tickets, not me',
+    '@trav get us razz tickets, except me',
+    '@trav get us razz tickets, but not me',
+    '@trav get us razz tickets, not me 🙏',
+    "@trav get us razz tickets, henry's sick, not me",
+    '@trav get razz tickets for all of us, not me',
+  ])('%s ⇒ party (the card)', (text) => {
+    expect(verdict(text), text).toEqual({ eligible: false, reason: 'party' });
+  });
+
+  it('a bare ", but me" clause is outside the grammar (never an exclusion, T-182 r1 #4): still the card', () => {
+    expect(eligible('@trav get us razz tickets, but me')).toBe(false);
+    // An except with no separator after the ask is outside the grammar too.
+    expect(eligible('@trav get us razz tickets except me')).toBe(false);
+  });
+
+  it('the same asks with the sender in them still buy (D-042 "for <names>" with me/myself)', () => {
+    for (const [text, n] of [
+      ['@trav get razz tickets for chase and me', 2],
+      ['@trav get razz tickets for me, chase and henry', 3],
+      ['@trav get razz tickets for chase and myself', 2],
+      ['@trav get razz tickets for dean and chase', 2],
+      ['@trav get razz tickets for me', 1],
+      ['@trav get us razz tickets, not henry', 5],
+      ['@trav get razz tickets for everyone except henry', 5],
+    ] as const) {
+      const v = verdict(text);
+      expect(v, text).toMatchObject({ eligible: true, quantity: n });
+      if (v.eligible) expect(v.attendees[0]).toBe('Dean');
+    }
+  });
+
+  it('the flagship still buys, Dean going', () => {
+    const v = verdict(FLAGSHIP);
+    expect(v).toMatchObject({ eligible: true, quantity: 5 });
+    if (v.eligible) expect(v.attendees).toContain('Dean');
+  });
+
+  it('another sender: Chase asking "for dean and henry" is the card; "for me and dean" buys', () => {
+    expect(verdict('@trav get razz tickets for dean and henry', { sender: 'Chase' })).toEqual({
+      eligible: false,
+      reason: 'party',
+    });
+    expect(verdict('@trav get razz tickets for me and dean', { sender: 'Chase' })).toMatchObject({
+      eligible: true,
+      attendees: ['Chase', 'Dean'],
+    });
+  });
+
+  it('a names party naming the sender who is already out tonight is the card', () => {
+    expect(verdict('@trav get razz tickets for me and chase', { alreadyOut: ['Dean'] })).toEqual({
+      eligible: false,
+      reason: 'party',
+    });
+  });
+});

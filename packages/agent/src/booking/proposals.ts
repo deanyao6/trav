@@ -57,6 +57,7 @@ import {
   money,
   parseIso,
   safety,
+  tabAutoCapOf,
   TravError,
   zonedWallTimeToMs,
   zoneOffsetMinutes,
@@ -1864,7 +1865,8 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
    * - `explicit`: the triggering message's eligible `autoBuyVerdict`, and the
    *   proposal is exactly that ask: the venue it named, the night it named
    *   (tonight when none), exactly the people it named, the regular offer (no
-   *   tier, no offer id, no add-on), requested by the member who said it.
+   *   tier, no offer id, no add-on), requested by the member who said it,
+   *   who is one of the attendees (T-193; the policy's C12 says it again).
    * - `pick`: the asker's own pick on a live options card, at the total the
    *   card showed, for the card's event and party.
    * Anything else (a re-quote, a mismatch anywhere) ⇒ undefined: the card.
@@ -1905,6 +1907,8 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
     }
     const v = ctx.autoBuy;
     if (v === undefined) return undefined;
+    // T-193 (SAFETY T17): an ask buys on its own only for a party the asker is in.
+    if (!attendees.includes(ctx.requestedBy)) return undefined;
     if (input.offerId !== undefined || a.tierAsked || input.time !== undefined) return undefined;
     if (venueKeyOf(event.venue.name) !== v.venueKey) return undefined;
     const wanted =
@@ -2278,6 +2282,93 @@ function findActivity(
     if (hay.includes(short) || hay.includes(venue)) return a;
   }
   return null;
+}
+
+/**
+ * T-193 (SAFETY SC-5): who is already not going to the plan an auto-buy ask
+ * names, as display names for `autoBuyVerdict`'s `alreadyOut`. The plan is the
+ * trip's activity on the ask's night (the night it named, else tonight) whose
+ * name or venue holds the ask's venue, the one `propose` would find; the rows
+ * are the ones `propose` leaves off a party (`out` or `maybe`). No plan, no
+ * rows, or a night that doesn't resolve ⇒ empty.
+ */
+export function notGoingToAskedPlan(
+  group: Stores['group'],
+  trip: Trip,
+  verdict: { readonly venueKey: string; readonly request: { readonly day?: string } },
+  members: readonly Member[],
+  now: IsoDateTime,
+): string[] {
+  const tz = trip.timeZone;
+  const tonight = nightOf(now, tz);
+  const night =
+    verdict.request.day === undefined ? tonight : resolveNight(verdict.request.day, tonight, trip);
+  if (night === undefined || verdict.venueKey.length === 0) return [];
+  const activity = group.trips
+    .listActivities(trip.tripId)
+    .find(
+      (a) =>
+        a.startsAt !== undefined &&
+        nightOf(a.startsAt, tz) === night &&
+        foldText(`${a.name} ${a.venue ?? ''}`).includes(verdict.venueKey),
+    );
+  if (activity === undefined) return [];
+  return notGoingTo(group, activity.activityId, members);
+}
+
+function notGoingTo(
+  group: Stores['group'],
+  activityId: string,
+  members: readonly Member[],
+): string[] {
+  const notIn = new Set(
+    group.trips
+      .listAttendance(activityId)
+      .filter((r) => r.status !== 'in')
+      .map((r) => r.memberId),
+  );
+  return members.filter((m) => notIn.has(m.memberId)).map((m) => m.displayName);
+}
+
+/**
+ * T-193 (SC-5): the auto-buy verdict read against the roster of the plan the
+ * ask names. `verdictFor(alreadyOut)` is `autoBuyVerdict` on the message with
+ * that `alreadyOut`. An eligible verdict is returned only when the
+ * `alreadyOut` it was read with is exactly who isn't going to the plan it
+ * names (`notGoingToAskedPlan`), so "us" / "the 5 of us" mean the people
+ * still going, and a sender already out never buys "for us" for the others.
+ * Anything that doesn't line up is the ineligible verdict: the card.
+ */
+export function autoBuyVerdictOnRoster(
+  verdictFor: (alreadyOut: readonly string[]) => AutoBuyVerdict,
+  group: Stores['group'],
+  trip: Trip | null,
+  members: readonly Member[],
+  now: IsoDateTime,
+): AutoBuyVerdict {
+  const plain = verdictFor([]);
+  if (trip === null) return plain;
+  const planOut = (v: AutoBuyVerdict): string[] | undefined =>
+    v.eligible ? notGoingToAskedPlan(group, trip, v, members, now) : undefined;
+  const same = (a: readonly string[], b: readonly string[]): boolean =>
+    a.length === b.length && a.every((x) => b.includes(x));
+  const plainOut = planOut(plain);
+  if (plainOut !== undefined && plainOut.length === 0) return plain;
+  // Each distinct set of people not going to some plan on this trip.
+  const sets: string[][] = [];
+  for (const a of group.trips.listActivities(trip.tripId)) {
+    const out = notGoingTo(group, a.activityId, members);
+    if (out.length > 0 && !sets.some((s) => same(s, out))) sets.push(out);
+  }
+  for (const out of sets) {
+    const v = verdictFor(out);
+    const named = planOut(v);
+    if (named !== undefined && same(named, out)) return v;
+  }
+  if (plainOut === undefined) return plain;
+  // The words passed, but not against who is actually going to that plan.
+  const narrowed = verdictFor(plainOut);
+  return narrowed.eligible ? { eligible: false, reason: 'party' } : narrowed;
 }
 
 function createActivity(
@@ -2736,7 +2827,10 @@ export function renderProposalText(input: RenderInput): string {
     const who = approvers.length === 1 ? names([approvers[0]!], byId) : 'everyone charged';
     const why = decision.reasons.includes('over_per_person_cap')
       ? `that's over the ${formatMoney(money(input.capPerPersonMinor, p.currency))}/person cap, so ${who} has to 👍`
-      : `${who} has to 👍 this one`;
+      : decision.reasons.includes('over_tab_auto_cap')
+        ? // T-193 (D-046): more than the tab cap on someone else's word.
+          `that's over ${formatMoney(money(tabAutoCapOf(decision.policySnapshot), p.currency))} each on ${names([p.requestedBy], byId)}'s ask, so ${who} has to 👍`
+        : `${who} has to 👍 this one`;
     lines.push(why);
     lines.push(`👍 to book, or say "not me" first. ${held}`);
   } else if (requesterCan) {

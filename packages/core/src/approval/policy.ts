@@ -13,7 +13,7 @@ import type {
   PolicyDecision,
   ReasonCode,
 } from '../domain/approval.js';
-import { AUTO_BUY_KINDS, NON_REFUNDABLE_AUTO_MAX_MINOR } from '../domain/approval.js';
+import { AUTO_BUY_KINDS, NON_REFUNDABLE_AUTO_MAX_MINOR, tabAutoCapOf } from '../domain/approval.js';
 import { addMinutes, parseIso } from '../clock.js';
 import { RESTRICTED_TAGS } from '../safety/index.js';
 
@@ -38,7 +38,7 @@ export const POLICY_RULES: readonly {
   { id: 'D10', stage: 'deny', reasons: ['quote_expired'] },
   { id: 'C1', stage: 'confirm', reasons: ['default_confirm', 'over_auto_cap'] },
   { id: 'C2', stage: 'confirm', reasons: ['kind_requires_each_payer'] },
-  { id: 'C3', stage: 'confirm', reasons: ['over_per_person_cap'] },
+  { id: 'C3', stage: 'confirm', reasons: ['over_per_person_cap', 'over_tab_auto_cap'] },
   { id: 'C4', stage: 'confirm', reasons: ['over_member_share_cap'] },
   { id: 'C5', stage: 'confirm', reasons: ['non_refundable'] },
   { id: 'C6', stage: 'confirm', reasons: ['over_daily_cap'] },
@@ -47,6 +47,7 @@ export const POLICY_RULES: readonly {
   { id: 'C9', stage: 'confirm', reasons: ['payer_not_requester'] },
   { id: 'C10', stage: 'confirm', reasons: ['card_not_requester', 'minor_requester'] },
   { id: 'C11', stage: 'confirm', reasons: ['not_general_purpose'] },
+  { id: 'C12', stage: 'confirm', reasons: ['requester_not_attendee'] },
   { id: 'A1', stage: 'auto', reasons: ['within_all_caps'] },
 ];
 
@@ -67,7 +68,7 @@ function earliest(a: IsoDateTime, b: IsoDateTime | undefined): IsoDateTime {
 }
 
 /**
- * SAFETY §2.1 rules D1..D10 then C1..C9, in order; all rules run so `reasons`
+ * SAFETY §2.1 rules D1..D10 then C1..C12, in order; all rules run so `reasons`
  * is complete. "At the cap" is inside the cap (`>` not `>=`).
  *
  * Approval tiers (T-168, D-044): only a proposal with `ctx.ask` can
@@ -88,9 +89,14 @@ function earliest(a: IsoDateTime, b: IsoDateTime | undefined): IsoDateTime {
  * - Outside the auto tier (no ask, auto-buy off, or over the cap) the card
  *   rules are exactly the pre-T-168 ones: C3 per-person cap, C5 any
  *   non-refundable.
- * - Inside it, C3 (per-person cap) does not fire: an asked-for purchase is
- *   gated by its total (the auto-buy cap) and each member's own share cap (C4).
+ * - Inside it, C3 checks the tab cap instead (T-193, D-046): any share of a
+ *   payer other than the requester over `tabAutoCapOf(policy)` (default €100)
+ *   fires `over_tab_auto_cap` (each_payer). The requester's own share is
+ *   bounded by the total cap and their own share cap (C4).
  * - C11 (`not_general_purpose`): an in-tier ask for anything but tickets/other.
+ * - C12 (`requester_not_attendee`, T-193): an in-tier ask or pick whose
+ *   requester is not one of the attendees ("for chase and henry", "everyone
+ *   but me") gets the one-tap card (any_one).
  * - C9 (`payer_not_requester`): with `paidBy: per_person_cards`, charging a
  *   card other than the requester's needs that card holder's confirmation
  *   (`each_payer`). Under `member_card` the requester's card pays and the others
@@ -187,9 +193,17 @@ export function evaluate(
     fire('C2', 'kind_requires_each_payer', 'each_payer');
   }
   // The per-person cap gates the card flow. An asked-for purchase is gated by
-  // its total (the auto-buy cap) and each member's own share cap (C4).
+  // its total (the auto-buy cap), each member's own share cap (C4), and, for
+  // anyone who didn't ask, the tab cap (T-193, D-046): nobody is put on the
+  // tab for more than it on someone else's word.
   if (tier === undefined && p.payers.some((s) => s.shareMinor > policy.perPersonAutoCapMinor)) {
     fire('C3', 'over_per_person_cap', 'each_payer');
+  }
+  if (tier !== undefined) {
+    const tabCap = tabAutoCapOf(policy);
+    if (p.payers.some((s) => s.memberId !== p.requestedBy && s.shareMinor > tabCap)) {
+      fire('C3', 'over_tab_auto_cap', 'each_payer');
+    }
   }
   const overMemberShareCap = p.payers.some((s) => {
     const cap = ctx.prefs[s.memberId]?.perBookingShareCapMinor;
@@ -230,6 +244,12 @@ export function evaluate(
   // C11 (T-168 c): flights, lodging and transport are never bought on an ask alone.
   if (tier !== undefined && !AUTO_BUY_KINDS.includes(p.kind)) {
     fire('C11', 'not_general_purpose', 'any_one');
+  }
+  // C12 (T-193, SAFETY T17): an ask or a pick buys on its own only when the
+  // asker is one of the people going. "for chase and henry", "everyone but
+  // me" get the one-tap card instead.
+  if (tier !== undefined && !p.attendees.includes(p.requestedBy)) {
+    fire('C12', 'requester_not_attendee', 'any_one');
   }
 
   const base = {

@@ -31,6 +31,7 @@ import {
   money,
   parseIso,
   sum,
+  tabAutoCapOf,
 } from '@trav/core';
 import type { RenderContext } from './common.js';
 import {
@@ -89,6 +90,7 @@ const MAX_TAGGED = 3;
 /** Reasons that change who approves; the default one-tap (C1) needs no explanation. */
 const OVER_CAP_REASONS: readonly ReasonCode[] = [
   'over_per_person_cap',
+  'over_tab_auto_cap',
   'over_member_share_cap',
   'over_daily_cap',
   'over_trip_cap',
@@ -105,6 +107,9 @@ function reasonLine(
     switch (r) {
       case 'over_per_person_cap':
         return `that's over the ${formatMoney(money(policy.perPersonAutoCapMinor, cur))}/person cap`;
+      case 'over_tab_auto_cap':
+        // T-193 (D-046): more than the tab cap on someone else's word.
+        return `that's over ${formatMoney(money(tabAutoCapOf(policy), cur))} each on ${possessive(nameOf(ctx, proposal.requestedBy))} ask`;
       case 'over_member_share_cap':
         return "that's over someone's personal cap";
       case 'over_daily_cap':
