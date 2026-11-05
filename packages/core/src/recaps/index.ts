@@ -112,6 +112,11 @@ export interface NightSignalInput {
   readonly photoTimes: readonly IsoDateTime[];
   /** Members' group-lane message times (never guests, never DMs). */
   readonly chatTimes: readonly IsoDateTime[];
+  /**
+   * When a logged expense was undone or edited (audit `ledger.entry_deleted` /
+   * `ledger.entry_edited`): an overnight undo moves the tab as much as a new one.
+   */
+  readonly ledgerChangeTimes?: readonly IsoDateTime[];
 }
 
 /** The five signals for the recap on `morning` (see the module comment for the windows). */
@@ -129,7 +134,9 @@ export function nightSignals(input: NightSignalInput): NightSignals {
     expenseAfter22: input.expenses.some((e) => inWindow(e.occurredAt, after(22))),
     photoAfter23: input.photoTimes.some((t) => inWindow(t, after(23))),
     chatAfterMidnight: input.chatTimes.some((t) => inWindow(t, after(null))),
-    balancesChanged: input.expenses.some((e) => inWindow(e.createdAt, since)),
+    balancesChanged:
+      input.expenses.some((e) => inWindow(e.createdAt, since)) ||
+      (input.ledgerChangeTimes ?? []).some((t) => inWindow(t, since)),
   };
 }
 

@@ -55,6 +55,8 @@ export interface RecapRenderInput {
        */
       readonly notIn?: readonly MemberId[];
       readonly amount?: Money;
+      /** The single payer: "snorkel tour $260 on Dad" in the daily recap (VOICE §3.4, §4.7 C). */
+      readonly paidBy?: MemberId;
     }[];
     readonly total: Money;
     readonly perPerson?: Money;
@@ -161,7 +163,16 @@ export function renderRecap(
         (prev === undefined || !sameCrew(prev.attendees, e.attendees))
           ? ` (${String(e.attendees.length)} of you${notInText})`
           : '';
-      return `${e.label}${who}${e.amount !== undefined ? ` ${formatMoney(e.amount)}` : ''}`;
+      // "yesterday:" names who paid (VOICE §4.7 C); a minor is never shown as a payer (VOICE §8).
+      const payer =
+        !morningAfter && e.amount !== undefined && e.paidBy !== undefined
+          ? ctx.members.find((m) => m.memberId === e.paidBy)
+          : undefined;
+      const on =
+        payer !== undefined && !safety.isMinor(payer, ctx.now)
+          ? ` on ${nameOf(ctx, payer.memberId)}`
+          : '';
+      return `${e.label}${who}${e.amount !== undefined ? ` ${formatMoney(e.amount)}` : ''}${on}`;
     });
     const more =
       events.length > MAX_INLINE_EVENTS

@@ -159,16 +159,22 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
     payments: options.providers?.payments ?? createMockBookingPayments({ clock }),
   };
   const scheduler = options.scheduler ?? createInMemoryScheduler();
-  if (seeded) {
-    // The seeded trip's Morning Afters (T-015, 10am each morning after a trip
-    // night, from now on) and its end-of-trip Wrapped (T-016, 10am the day after).
-    const trip = stores.group.trips.get(BARCELONA.tripId);
-    if (trip !== undefined) {
-      const now = parseIso(clock.now());
-      for (const job of morningAfterJobsFor(trip))
-        if (parseIso(job.runAt) > now) scheduler.schedule(job);
-      scheduler.schedule(wrappedJobFor(trip));
+  // Every planned or active trip's Morning Afters still ahead (T-015, 10am each
+  // morning after a trip night), whoever seeded the stores; idempotent by jobId.
+  {
+    const now = parseIso(clock.now());
+    for (const g of stores.group.groups.list()) {
+      for (const trip of stores.group.trips.listByGroup(g.groupId)) {
+        if (trip.status !== 'planning' && trip.status !== 'active') continue;
+        for (const job of morningAfterJobsFor(trip))
+          if (parseIso(job.runAt) > now) scheduler.schedule(job);
+      }
     }
+  }
+  if (seeded) {
+    // The seeded trip's end-of-trip Wrapped (T-016, 10am the day after).
+    const trip = stores.group.trips.get(BARCELONA.tripId);
+    if (trip !== undefined) scheduler.schedule(wrappedJobFor(trip));
   }
   const groupMemory = createGroupMemory({ repo: stores.group.groupMemory, ids });
   const memberMemory = createMemberMemory({ store: stores.private, ids });

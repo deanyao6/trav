@@ -1884,7 +1884,27 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
   // ---------- "@trav drop that one" (T-015) ----------
 
   /** The latest recap card with photos Trav posted in this group. */
-  function latestRecapWithPhotos(groupId: GroupId): RecapCard | undefined {
+  /**
+   * The latest recap with photos, or only if it is Trav's most recent card in
+   * the thread when `onlyIfLatestCard` (T-015 review #3: an unreplied "delete
+   * that one" after a logged expense is about the expense).
+   */
+  function latestRecapWithPhotos(
+    groupId: GroupId,
+    onlyIfLatestCard: boolean,
+  ): RecapCard | undefined {
+    if (onlyIfLatestCard) {
+      // Trav's most recent card in the group thread (the lane transcript, not DMs).
+      const thread = recent.get(laneKey(groupId, 'group', null)) ?? [];
+      for (let i = thread.length - 1; i >= 0; i--) {
+        const m = thread[i]!;
+        if (!m.fromTrav) continue;
+        const ref = cards.get(m.messageId);
+        if (ref === undefined) continue;
+        return ref.card.type === 'recap' && ref.card.photos.length > 0 ? ref.card : undefined;
+      }
+      return undefined;
+    }
     let best: PendingCardRef | undefined;
     for (const [id, ref] of cards) {
       if (ref.card.type !== 'recap' || ref.card.photos.length === 0) continue;
@@ -1918,8 +1938,8 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       repliedRecap === undefined
     )
       return undefined;
-    const card = repliedRecap ?? latestRecapWithPhotos(r.group.groupId);
     const mentionsPhoto = /\b(?:photo|pic|picture|shot)\b/i.test(event.text);
+    const card = repliedRecap ?? latestRecapWithPhotos(r.group.groupId, !mentionsPhoto);
     if (card === undefined && !mentionsPhoto) return undefined;
     const before = snapshotAudit(r.group.groupId);
     const out = await dropRecapPhoto({
@@ -2277,6 +2297,19 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     };
     const draft = composed.message;
     const roastLines = composed.kind === 'ok' ? composed.roastLines : [];
+    // SAFETY §2.8: a candidate roast line the gates dropped is audited (cause only, never the line).
+    for (const s of composed.kind === 'ok' ? composed.suppressedRoast : []) {
+      audit(r, {
+        type: 'roast.suppressed',
+        actor: { kind: 'system', id: 'trav' },
+        visibility: 'group',
+        payload: {
+          cause: s.cause,
+          messageDraftId: draft.id,
+          ...(s.topicCategory !== undefined ? { topicCategory: s.topicCategory } : {}),
+        },
+      });
+    }
     const sent = await send(r, [draft], (o) => (o.id === draft.id ? { roastLines } : undefined));
     return {
       outbound: sent,

@@ -142,6 +142,8 @@ export type MorningAfterCompose =
       readonly message: OutboundMessage & { readonly card: RecapCard | SettleUpCard };
       /** Roast lines that survived the gates (declared to the screen, T-028). */
       readonly roastLines: readonly string[];
+      /** One per candidate line the gates dropped, for `roast.suppressed` (SAFETY §2.8). */
+      readonly suppressedRoast: readonly RoastSuppression[];
       readonly facts: MorningAfterFacts;
     }
   | { readonly kind: 'silent'; readonly facts: MorningAfterFacts }
@@ -151,6 +153,32 @@ export type MorningAfterCompose =
       readonly facts: MorningAfterFacts;
     }
   | { readonly kind: 'no_trip' };
+
+export interface RoastSuppression {
+  readonly cause: safety.RoastSuppressedAuditCause;
+  readonly topicCategory?: string;
+}
+
+/** Why `gatedRoastLines` dropped `line` (the line text itself is never audited). */
+function roastSuppression(line: string, ctx: RenderContext, sc: SafetyContext): RoastSuppression {
+  const block = safety.groupRoastBlock(sc.group, ctx.members, sc.trip, ctx.now);
+  if (block !== null) {
+    const known: readonly string[] = ['mode_off', 'minor_in_group', 'age_unconfirmed', 'trip_over'];
+    return {
+      cause: (known.includes(block) ? block : 'minor_in_group') as safety.RoastSuppressedAuditCause,
+    };
+  }
+  const topic = safety.roastTopicBlocked(line);
+  if (topic !== null) return { cause: 'topic_blocked', topicCategory: topic };
+  const named = ctx.members.filter((m) => line.includes(m.displayName));
+  if (
+    named.some(
+      (m) => !safety.roastAllowed(sc.group, ctx.members, m, sc.consent, sc.trip, ctx.now).allowed,
+    )
+  )
+    return { cause: 'member_opted_out' };
+  return { cause: 'line_limit' };
+}
 
 function present(m: Member): boolean {
   return m.active && m.leftAt === undefined && m.role !== 'guest';
@@ -185,6 +213,8 @@ interface RecapEvent {
   readonly amount: Money;
   readonly at: IsoDateTime;
   readonly expenses: readonly Expense[];
+  /** The one member who paid for all of it, if there is one (VOICE §3.4 "on Dad"). */
+  readonly paidBy?: MemberId;
 }
 
 function sumMinor(xs: readonly Expense[]): number {
@@ -207,6 +237,7 @@ function buildEvents(
   };
   const event = (label: string, xs: readonly Expense[]): RecapEvent => {
     const attendees = inOrder(xs.flatMap((e) => participantsOf(e)));
+    const payers = new Set(xs.flatMap((e) => e.paidBy.map((p) => p.memberId)));
     return {
       label,
       attendees,
@@ -214,6 +245,7 @@ function buildEvents(
       amount: money(sumMinor(xs), currency),
       at: xs[0]!.occurredAt,
       expenses: xs,
+      ...(payers.size === 1 ? { paidBy: [...payers][0]! } : {}),
     };
   };
   const rides = expenses.filter((e) => e.category === 'transport');
@@ -273,7 +305,18 @@ function dayBudget(trip: Trip): Money | undefined {
   return undefined;
 }
 
-/** Roast candidates from the tab only (VOICE §7.3); `renderRecap` gates them again per member. */
+/** The only nouns a recap roast line may use for a purchase (VOICE §7.3: spending, trip events). */
+const ROAST_NOUN: Readonly<Partial<Record<Expense['category'], string>>> = {
+  food: 'food',
+  drinks: 'a round',
+  transport: 'a ride',
+  tickets: 'tickets',
+};
+
+/**
+ * Roast candidates from the tab only (VOICE §7.3), built from fixed text,
+ * amounts, times and payer names; `renderRecap` gates them again per member.
+ */
 function roastCandidates(
   events: readonly RecapEvent[],
   members: readonly Member[],
@@ -286,8 +329,11 @@ function roastCandidates(
     .sort((a, b) => parseIso(b.occurredAt) - parseIso(a.occurredAt))[0];
   if (late !== undefined && late.paidBy.length === 1) {
     const payer = members.find((m) => m.memberId === late.paidBy[0]!.memberId);
-    const what = neutralDescription(late.description, members, false);
-    if (payer !== undefined && what !== null) {
+    // Never the member-typed description (T-015 review #1: "condoms",
+    // "pregnancy test", "bail" would be pasted into a roast): a fixed noun
+    // for an allowlisted category, or no line at all.
+    const what = ROAST_NOUN[late.category];
+    if (payer !== undefined && what !== undefined) {
       out.push(
         `${payer.displayName} paid for ${what} at ${formatClockTime(late.occurredAt, trip.timeZone)}. the tab remembers`,
       );
@@ -353,6 +399,7 @@ export async function composeMorningAfter(
   for (const b of bookings) if (b.activityId !== undefined) booked.add(b.activityId);
   for (const e of expenses)
     if (e.source === 'booking' && e.activityId !== undefined) booked.add(e.activityId);
+  for (const a of activities) if (a.bookingId !== undefined) booked.add(a.activityId);
   const bookedNightlifeStarts = activities
     .filter((a) => isNightlife(a) && booked.has(a.activityId) && a.startsAt !== undefined)
     .map((a) => a.startsAt!);
@@ -371,6 +418,15 @@ export async function composeMorningAfter(
     bookedNightlifeStarts,
     photoTimes: albumDay.map((p) => p.takenAt ?? p.addedAt),
     chatTimes: deps.chatTimes?.(groupId) ?? [],
+    // An overnight undo or edit moves the tab too (T-015 review #5).
+    ledgerChangeTimes: stores.group.audit
+      .listByGroup(groupId)
+      .filter(
+        (a) =>
+          (a.type === 'ledger.entry_deleted' || a.type === 'ledger.entry_edited') &&
+          (a.tripId === null || a.tripId === tripId),
+      )
+      .map((a) => a.ts),
   });
   const mode = core.decideRecapMode(signals, familyMode);
 
@@ -458,7 +514,14 @@ export async function composeMorningAfter(
   // Non-family quiet: the running tab on its own (VOICE §4.6 A).
   if (mode === 'quiet' && !familyMode) {
     const message = renderSettleUp({ ...settle.input, dayNumber }, ctx);
-    return { kind: 'ok', mode, message: { ...message, proactive: true }, roastLines: [], facts };
+    return {
+      kind: 'ok',
+      mode,
+      message: { ...message, proactive: true },
+      roastLines: [],
+      suppressedRoast: [],
+      facts,
+    };
   }
 
   const entries = stores.group.expenses.listEntries(tripId);
@@ -492,6 +555,8 @@ export async function composeMorningAfter(
     .filter((a) => a.startsAt !== undefined && localDate(a.startsAt, tz) === date)
     .filter((a) => parseIso(a.startsAt!) >= parseIso(now))
     .filter((a) => !familyMode || !adultsOnly(a))
+    // VOICE §4.7: "today" only for what is booked.
+    .filter((a) => booked.has(a.activityId))
     .sort((a, b) => parseIso(a.startsAt!) - parseIso(b.startsAt!));
   const today = todays.flatMap((a) => {
     const label = sanitizeInline(a.name, 40);
@@ -515,6 +580,8 @@ export async function composeMorningAfter(
   });
 
   const full = mode === 'full';
+  const candidates =
+    full && !familyMode && group.settings.roastMode ? roastCandidates(events, members, trip) : [];
   const input: RecapRenderInput = {
     kind: full ? 'morning_after' : 'daily',
     date,
@@ -525,25 +592,28 @@ export async function composeMorningAfter(
         attendees: e.attendees,
         ...(e.notIn.length > 0 ? { notIn: e.notIn } : {}),
         amount: e.amount,
+        ...(e.paidBy !== undefined ? { paidBy: e.paidBy } : {}),
       })),
       total,
       ...(perPerson !== undefined ? { perPerson } : {}),
       ...(budget !== undefined ? { budget } : {}),
     },
-    ...(full && !familyMode && group.settings.roastMode
-      ? { roastLines: roastCandidates(events, members, trip) }
-      : {}),
+    ...(candidates.length > 0 ? { roastLines: candidates } : {}),
     ...(pending > 0 ? { pendingPrivateCount: pending } : {}),
     settle: { ...settle.input, dayNumber },
     ...(today.length > 0 ? { today } : {}),
     photos: recapPhotos,
   };
   const message = renderRecap(input, ctx, sc);
+  const kept = message.card.roastLines ?? [];
   return {
     kind: 'ok',
     mode,
     message,
-    roastLines: message.card.roastLines ?? [],
+    roastLines: kept,
+    suppressedRoast: candidates
+      .filter((l) => !kept.includes(l))
+      .map((l) => roastSuppression(l, ctx, sc)),
     facts: {
       ...facts,
       photoIds: message.card.photos.flatMap((p) => (p.photoId ? [p.photoId] : [])),

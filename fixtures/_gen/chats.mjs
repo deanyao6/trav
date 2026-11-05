@@ -599,7 +599,7 @@ export function barcelonaChat(opts = {}) {
     strippedFields: ['last4', 'accountId', 'merchantRaw', 'providerTransactionId'],
     groupMessages: 0,
   }, { lane: 'direct' });
-  c.clock(B(15, '10:00'), { scheduledJob: 'morning_after', recapMode: 'full', groundTruth: 'fixtures/recaps/barcelona.json#2026-03-15', roastAllowedTargets: [g.sam, g.jordan], mustNotContain: ['sick', 'garbage', 'girl', '9.80', 'Henry'] });
+  c.clock(B(15, '10:00'), { scheduledJob: 'morning_after', recapMode: 'full', groundTruth: 'fixtures/recaps/barcelona.json#2026-03-15', roastAllowedTargets: [g.sam, g.jordan], mustNotContain: ['sick', 'garbage', 'girl', '9.80', 'Henry was', 'Henry sat', 'Henry is'] }); // "not Henry" is the fact (T-015, T-028 review); a reason never is
   c.say(B(15, '10:20'), s('henry'), 'feeling better!! what did i miss', silent());
   c.say(B(15, '10:22'), s('jordan'), "@trav what did Sam's card get charged last night", {
     addressed: true,

@@ -20,7 +20,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { AlbumAdapter } from '@trav/adapters';
-import { createMockAlbum } from '@trav/adapters';
+import { createMockAlbum, createSimulatorChannel } from '@trav/adapters';
 import type {
   Activity,
   ConsentFlags,
@@ -45,11 +45,11 @@ import {
   safety,
 } from '@trav/core';
 import { createMemoryStores } from '@trav/core/storage';
-import { BARCELONA } from '../compose.js';
+import { BARCELONA, createTravRuntime } from '../compose.js';
 import { repoRoot } from '../model/paths.js';
 import { cardInvariantViolations } from '../render/invariants.js';
 import { voiceViolations } from '../render/lint.js';
-import { harness, type Harness } from '../runtime.testkit.js';
+import { harness, tempStateDir, type Harness } from '../runtime.testkit.js';
 import { parseDropPhoto } from './dropPhoto.js';
 import type { MorningAfterDeps } from './morningAfter.js';
 import {
@@ -614,6 +614,8 @@ describe('Turks and Caicos: family mode never uses night-out framing ("morning, 
       expect(JSON.stringify(card.lastNight)).not.toMatch(/nightcap|rum|drinks/i);
       expect(r.roastLines).toEqual([]);
       expect(m.roast).not.toBe(true);
+      // Who paid is said (VOICE §3.4), but a minor is never shown as a payer (VOICE §8).
+      expect(m.text).not.toMatch(/on Lily/);
       // Family tab: one pot, no transfers (VOICE §4.7 C).
       expect(m.text).toContain("everything's on the family tab, nothing to split");
       expect(card.settle.transfers).toEqual([]);
@@ -635,7 +637,7 @@ describe('Turks and Caicos: family mode never uses night-out framing ("morning, 
     expect(r.facts.mode).toBe('quiet');
     expect(r.message.text).toMatchInlineSnapshot(`
       "morning, day 5 ☀️
-      yesterday: sunset cruise $320
+      yesterday: sunset cruise $320 on Mom
       $320 total, under the $750 day budget
       everything's on the family tab, nothing to split"
     `);
@@ -849,5 +851,237 @@ describe('"@trav drop that one"', () => {
     const r = await h.say('h_dean', '@trav drop that photo');
     expect(r.note).toBe('drop_photo:none');
     expect((r.outbound[0] as { text: string }).text).toBe("i don't see a recap photo to drop");
+  });
+});
+
+describe('T-015 review round 1', () => {
+  const AT = '2026-03-15T10:00:00+01:00';
+  function lateExpense(
+    id: string,
+    description: string,
+    category: Expense['category'],
+    by: MemberId = 'mem_priya',
+  ): Expense {
+    return {
+      expenseId: id,
+      groupId: BARCELONA.groupId,
+      tripId: BARCELONA.tripId,
+      description,
+      category,
+      amount: { amountMinor: 1490, currency: 'EUR' },
+      paidBy: [{ memberId: by, amount: { amountMinor: 1490, currency: 'EUR' } }],
+      split: { method: 'exclude', excluded: [] },
+      source: 'chat',
+      sourceRef: { kind: 'message', id: `msg_${id}` },
+      occurredAt: '2026-03-15T03:40:00+01:00',
+      createdAt: '2026-03-15T03:40:00+01:00',
+      createdBy: by,
+      status: 'logged',
+    };
+  }
+
+  it('#1 a roast line never carries the member-typed description, whatever the category', async () => {
+    const sensitive = [
+      'condoms',
+      'pregnancy test',
+      'pharmacy',
+      'tampons',
+      'plan b',
+      'advil',
+      'bail',
+    ];
+    for (const category of ['other', 'food', 'drinks', 'transport', 'tickets'] as const) {
+      for (const [i, description] of sensitive.entries()) {
+        const w = barcelonaAt(AT, { roast: true });
+        writeExpenses(
+          w.stores,
+          [lateExpense(`exp_s_${category}_${String(i)}`, description, category)],
+          BCN.members,
+        );
+        const r = await recapOn('2026-03-15', w);
+        if (r.kind !== 'ok') throw new Error(r.kind);
+        const roast = r.roastLines.join('\n').toLowerCase();
+        expect(roast, `${category}/${description}`).not.toContain(description);
+        for (const l of r.roastLines) {
+          expect(l).toMatch(
+            /^(?:\S+ paid for (?:food|a round|a ride|tickets) at [\d:]+[ap]m\. the tab remembers|\d+ rides last night, €[\d,.]+\. the metro is right there)$/,
+          );
+        }
+        // An uncategorized late buy gets no "paid for" line at all.
+        if (category === 'other') expect(roast).not.toMatch(/paid for/);
+        else
+          expect(r.roastLines).toContain(
+            `Priya paid for ${{ food: 'food', drinks: 'a round', transport: 'a ride', tickets: 'tickets' }[category]} at 3:40am. the tab remembers`,
+          );
+      }
+    }
+  });
+
+  it('#2 negated asks never drop: parser and loop', async () => {
+    for (const t of [
+      "don't drop the first one",
+      'please don’t delete this pic, i love it',
+      '@trav do NOT drop that one',
+      '@trav never remove photo 2',
+      '@trav no need to drop that one',
+      '@trav dont hide the last photo',
+    ])
+      expect(parseDropPhoto(t), t).toBeUndefined();
+    // A negation in an earlier clause does not cancel a clear ask.
+    expect(parseDropPhoto('not bad, but @trav drop photo 2')).toEqual({ position: 2 });
+
+    const w = barcelonaAt(AT);
+    const job = morningAfterJobFor(w.stores.group.trips.get(BARCELONA.tripId)!, '2026-03-15');
+    const posted = (await w.h.runtime.agent.runScheduled(job)).outbound[0] as { id: string };
+    const reply = await w.h.say('h_jordan', "don't drop the first one", {
+      replyToMessageId: posted.id,
+    });
+    expect(reply.note).not.toMatch(/^drop_photo/);
+    for (const t of ['please don’t delete this pic, i love it', '@trav do NOT drop that one']) {
+      const r = await w.h.say('h_maya', t);
+      expect(r.note, t).not.toMatch(/^drop_photo/);
+    }
+    expect(w.stores.group.groups.get(BARCELONA.groupId)!.settings.droppedPhotoIds ?? []).toEqual(
+      [],
+    );
+  });
+
+  it('#3 an unreplied "delete that one" after a newer Trav card is not about the recap', async () => {
+    const w = barcelonaAt(AT);
+    const job = morningAfterJobFor(w.stores.group.trips.get(BARCELONA.tripId)!, '2026-03-15');
+    await w.h.runtime.agent.runScheduled(job);
+    w.h.clock.set('2026-03-16T13:00:00+01:00');
+    const logged = await w.h.say('h_dean', '@trav i paid €40 for paella, split with everyone');
+    expect(logged.outbound.some((o) => 'card' in o && o.card?.type === 'expense_confirm')).toBe(
+      true,
+    );
+    const r = await w.h.say('h_dean', '@trav delete that one');
+    expect(r.note).not.toMatch(/^drop_photo/);
+    expect(w.stores.group.groups.get(BARCELONA.groupId)!.settings.droppedPhotoIds ?? []).toEqual(
+      [],
+    );
+    // Saying "photo" still reaches the latest recap.
+    expect((await w.h.say('h_dean', '@trav delete that photo')).note).toBe('drop_photo:which');
+  });
+
+  it('#4 "today" lists only booked plans', async () => {
+    const w = barcelonaAt(AT);
+    w.stores.group.trips.upsertActivity({
+      activityId: 'act_bcn_unbooked',
+      tripId: BARCELONA.tripId,
+      groupId: BARCELONA.groupId,
+      kind: 'attraction',
+      name: 'Picasso Museum',
+      startsAt: '2026-03-15T16:00:00+01:00',
+      contentTags: [],
+      ageRestriction: null,
+      createdAt: '2026-03-10T10:00:00+01:00',
+    } as Activity);
+    const r = await recapOn('2026-03-15', w);
+    if (r.kind !== 'ok') throw new Error(r.kind);
+    const card = asRecap(r.message.card);
+    expect((card.today ?? []).map((t) => t.label)).toEqual(['Barça vs Sevilla']);
+    expect(r.message.text).not.toContain('Picasso');
+  });
+
+  it('#5 an overnight undo with nothing new logged is a quiet settle-up, not silence', async () => {
+    const w = barcelonaAt('2026-03-16T10:00:00+01:00');
+    // Drop the 13:45 coffee so nothing new was logged since yesterday's recap…
+    w.stores.group.expenses.replace(
+      {
+        ...w.stores.group.expenses.get('exp_bcn_017')!,
+        status: 'undone',
+        createdAt: '2026-03-14T09:00:00+01:00',
+      },
+      [],
+    );
+    expect((await recapOn('2026-03-16', w)).kind).toBe('silent');
+    // …then someone undoes an older expense overnight.
+    w.h.clock.set('2026-03-15T23:10:00+01:00');
+    w.stores.group.audit.append({
+      groupId: BARCELONA.groupId,
+      tripId: BARCELONA.tripId,
+      type: 'ledger.entry_deleted',
+      actor: { kind: 'member', id: 'mem_sam' },
+      visibility: 'group',
+      payload: { expenseId: 'exp_bcn_014', after: { status: 'undone' } },
+    });
+    w.h.clock.set('2026-03-16T10:00:00+01:00');
+    const r = await recapOn('2026-03-16', w);
+    expect(r.kind).toBe('ok');
+    if (r.kind === 'ok') expect(r.facts.signals.balancesChanged).toBe(true);
+  });
+
+  it('#6 the runtime schedules Morning Afters for every planned or active trip in the stores', () => {
+    const clock = createSimulatedClock('2026-06-20T09:00:00-04:00');
+    const ids = createDeterministicIdGenerator('s');
+    const stores = createMemoryStores({ clock, ids });
+    stores.group.groups.create(TCI.group);
+    for (const m of TCI.members) stores.group.members.upsert(m);
+    stores.group.trips.create(TCI.trip);
+    stores.group.trips.create({ ...TCI.trip, tripId: 'trip_old', status: 'closed' });
+    const rt = createTravRuntime({
+      channel: createSimulatorChannel({
+        clock,
+        conversations: [
+          {
+            conversationId: TCI.group.conversationId,
+            participants: TCI.members.map((m) => ({
+              handle: m.senderId,
+              displayName: m.displayName,
+              memberId: m.memberId,
+            })),
+          },
+        ],
+      }),
+      clock,
+      ids,
+      stores,
+      offline: true,
+      env: { TRAV_OFFLINE: '1', TRAV_STATE_DIR: tempStateDir() },
+    });
+    const jobs = rt.scheduler.list().filter((j) => j.kind === 'morning_after');
+    expect(jobs.map((j) => j.jobId)).toEqual(morningAfterJobsFor(TCI.trip).map((j) => j.jobId));
+    expect(jobs.every((j) => j.tripId === TCI.trip.tripId)).toBe(true);
+    rt.close();
+  });
+
+  it('#7 the family "yesterday" line says who paid', async () => {
+    const clock = createSimulatedClock('2026-06-21T10:00:00-04:00');
+    const ids = createDeterministicIdGenerator('p');
+    const stores = createMemoryStores({ clock, ids });
+    stores.group.groups.create(TCI.group);
+    for (const m of TCI.members) stores.group.members.upsert(m);
+    stores.group.trips.create(TCI.trip);
+    const snorkel: Expense = {
+      ...lateExpense('exp_tci_snork', 'snorkel tour', 'activities', 'mem_tci_dad'),
+      groupId: TCI.group.groupId,
+      tripId: TCI.trip.tripId,
+      amount: { amountMinor: 26000, currency: 'USD' },
+      paidBy: [{ memberId: 'mem_tci_dad', amount: { amountMinor: 26000, currency: 'USD' } }],
+      occurredAt: '2026-06-20T14:00:00-04:00',
+      createdAt: '2026-06-20T14:00:00-04:00',
+    };
+    writeExpenses(stores, [snorkel], TCI.members);
+    const r = await composeMorningAfter(
+      { stores, clock, ids },
+      TCI.group.groupId,
+      TCI.trip.tripId,
+      '2026-06-21',
+    );
+    if (r.kind !== 'ok') throw new Error(r.kind);
+    expect(r.message.text.split('\n')[1]).toBe('yesterday: snorkel tour $260 on Dad');
+  });
+
+  it('SAFETY §2.8: a roast line the gates drop is audited as roast.suppressed, cause only', async () => {
+    const w = barcelonaAt(AT, { roast: true, roastConsent: (id) => id !== 'mem_sam' });
+    const job = morningAfterJobFor(w.stores.group.trips.get(BARCELONA.tripId)!, '2026-03-15');
+    const turn = await w.h.runtime.agent.runScheduled(job);
+    const rows = w.h
+      .audit()
+      .filter((e) => e.type === 'roast.suppressed' && turn.auditEventIds.includes(e.id));
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows[0]!.payload).toMatchObject({ cause: 'member_opted_out' });
+    expect(JSON.stringify(rows.map((x) => x.payload))).not.toMatch(/Sam|tab remembers/);
   });
 });

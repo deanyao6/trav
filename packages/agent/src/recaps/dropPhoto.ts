@@ -6,11 +6,18 @@
  * the album forgets the hide; the album is also asked to hide it group-wide.
  * One `settings.changed` audit row per drop (who, which photo; never the image).
  *
- * Targeting: the recap the message replies to, else the latest recap with
- * photos in this group. "that one" picks the only photo; with several, Trav
- * asks which by position ("@trav drop photo 2", left to right) instead of
- * guessing. Only photo ids Trav itself put on that card can be dropped, so a
- * message can never hide a photo from another group's album.
+ * Targeting: the recap the message replies to; else the latest recap with
+ * photos, but only when that recap is Trav's most recent card in the thread
+ * or the text says photo/pic (so "@trav delete that one" after a logged
+ * expense is about the expense). "that one" picks the only photo; with
+ * several, Trav asks which by position ("@trav drop photo 2", left to right)
+ * instead of guessing. Only photo ids Trav itself put on that card can be
+ * dropped, so a message can never hide a photo from another group's album.
+ *
+ * Drops are permanent by design: there is no "bring it back". The album
+ * interface has no un-hide, and a photo one member wanted gone should not be
+ * restorable by another. So the parser refuses negated asks, and the
+ * confirmation says it won't come back.
  */
 import type { AlbumAdapter } from '@trav/adapters';
 import type { Group, IsoDateTime, Member, RecapCard, Stores } from '@trav/core';
@@ -41,16 +48,34 @@ export interface DropPhotoRequest {
   readonly position?: number | 'last';
 }
 
-/** The "drop that one" family of phrasings, or undefined. Never matches "drop it" (a decline alias). */
+/** A negation in the same clause before the verb ("don't drop", "do NOT delete", "no need to hide"). */
+const NEGATION_RE =
+  /\b(?:don['’]?t|do\s+not|dont|never|no\s+need\s+to|not|shouldn['’]?t|won['’]?t|wouldn['’]?t|please\s+no)\b/i;
+const CLAUSE_BREAK = /[.!?;,\n]|\b(?:but|and then|then)\b/gi;
+
+function negated(text: string, at: number): boolean {
+  const before = text.slice(0, at);
+  let start = 0;
+  for (const m of before.matchAll(CLAUSE_BREAK)) start = (m.index ?? 0) + m[0].length;
+  return NEGATION_RE.test(before.slice(start));
+}
+
+/**
+ * The "drop that one" family of phrasings, or undefined. Never matches "drop
+ * it" (a decline alias) and never a negated ask ("don't drop the first one",
+ * T-015 review #2): a drop is permanent, so doubt means no.
+ */
 export function parseDropPhoto(text: string): DropPhotoRequest | undefined {
   const n = NUMBER_RE.exec(text);
-  if (n?.[1] !== undefined) return { position: Number(n[1]) };
+  if (n?.[1] !== undefined) return negated(text, n.index) ? undefined : { position: Number(n[1]) };
   const o = ORDINAL_RE.exec(text);
   if (o?.[1] !== undefined) {
+    if (negated(text, o.index)) return undefined;
     const p = ORDINALS[o[1].toLowerCase()];
     return p === undefined ? {} : { position: p };
   }
-  return THAT_RE.test(text) ? {} : undefined;
+  const t = THAT_RE.exec(text);
+  return t === null || negated(text, t.index) ? undefined : {};
 }
 
 export const DROPPED_TEXT = "dropped it. it won't come back in a recap or the wrapped";

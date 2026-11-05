@@ -112,6 +112,15 @@ describe('night-out signals', () => {
     ).toBe(false);
   });
 
+  it('balances changed: an undo or edit since the last recap counts, an older one does not', () => {
+    expect(signals({ ledgerChangeTimes: ['2026-03-14T23:10:00+01:00'] }).balancesChanged).toBe(
+      true,
+    );
+    expect(signals({ ledgerChangeTimes: ['2026-03-14T09:59:00+01:00'] }).balancesChanged).toBe(
+      false,
+    );
+  });
+
   it('one signal is not a night out; two are; family mode is never a night out', () => {
     const one: recaps.NightSignals = { ...NONE, chatAfterMidnight: true, balancesChanged: true };
     expect(recaps.decideRecapMode(one, false)).toBe('quiet');
