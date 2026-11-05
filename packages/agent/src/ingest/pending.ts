@@ -71,6 +71,7 @@ import type { InboundEvent } from '@trav/adapters';
 import { renderSharedToTab } from '../render/expenseConfirm.js';
 import type { RenderContext } from '../render/common.js';
 import { plansAt, type ActivityWindow } from './looksShared.js';
+import { parseRiderNames, ridersQuestion, RIDERS_UNCLEAR_TEXT } from './riders.js';
 
 // ---------- the split plan ----------
 
@@ -82,6 +83,11 @@ export interface SharePlan {
   /** A recognizer line: "that the ride back from razzmatazz?". */
   readonly guess?: string;
   readonly activityId?: string;
+  /**
+   * T-135: the receipt's rider count, when it and the plan could not say who
+   * rode (`applyRiders`). `participants` is empty then: the card asks the owner.
+   */
+  readonly askRiders?: number;
 }
 
 /** Active, non-guest members in group order. */
@@ -246,7 +252,8 @@ export function alreadyAskedElsewhere(
 
 // ---------- matching an inbound event to a pending item ----------
 
-export type ShareIntent = 'share' | 'keep';
+/** `riders`: the owner named who rode on a card that asked (T-135). */
+export type ShareIntent = 'share' | 'keep' | 'riders';
 
 export type ShareMatch =
   | {
@@ -258,6 +265,8 @@ export type ShareMatch =
       readonly messageId: MessageId;
       readonly sender: string;
       readonly typed: boolean;
+      /** Intent `riders`: who rode, owner included, group order; empty ⇒ names Trav could not match. */
+      readonly riders?: readonly MemberId[];
     }
   /** A typed answer with several live cards: ask which one. */
   | { readonly kind: 'which' }
@@ -291,10 +300,12 @@ export interface ShareMatchInput {
  * Never reads another member's private store: the lookup is the sender's own.
  */
 export function matchShareAnswer(
-  stores: Pick<Stores, 'private'>,
+  stores: Pick<Stores, 'private' | 'group'>,
   input: ShareMatchInput,
 ): ShareMatch | undefined {
   const { event, me } = input;
+  const riders = matchRidersAnswer(stores, input);
+  if (riders !== undefined) return riders;
   const read = readAnswer(event);
   if (read === undefined) return undefined;
   const { intent, target, value, via } = read;
@@ -347,6 +358,48 @@ export function matchShareAnswer(
   const live = onCard.filter((i) => i.status === 'pending');
   if (live.length === 1) return answer(live[0]!);
   return via === 'text' ? { kind: 'which' } : { kind: 'ignore', note: 'looks_shared:ambiguous' };
+}
+
+/**
+ * T-135: a DM naming who rode, for a card that asked (`item.ridersToName`).
+ * Only the sender's own items; a quote-reply binds to that card, an unquoted
+ * DM to the one card still asking. A plain yes/no is left to `readAnswer`,
+ * and a DM that is not just names (and quotes no asking card) is not an answer.
+ */
+function matchRidersAnswer(
+  stores: Pick<Stores, 'private' | 'group'>,
+  input: ShareMatchInput,
+): ShareMatch | undefined {
+  const { event, me } = input;
+  if (event.type !== 'message' || event.lane !== 'dm' || me === null) return undefined;
+  if (SHARE_TEXT.test(event.text) || KEEP_TEXT.test(event.text)) return undefined;
+  const asking = stores.private
+    .listPendingItems(me.memberId, input.groupId)
+    .filter(
+      (i) =>
+        i.status === 'pending' && i.ridersToName !== undefined && i.cardMessageId !== undefined,
+    );
+  if (asking.length === 0) return undefined;
+  const quoted =
+    event.replyToMessageId === undefined
+      ? undefined
+      : asking.find((i) => i.cardMessageId === event.replyToMessageId);
+  if (event.replyToMessageId !== undefined && quoted === undefined) return undefined;
+  const members = stores.group.members.listByGroup(input.groupId);
+  const target = quoted ?? asking[0]!;
+  const read = parseRiderNames(event.text, members, me.memberId);
+  if (read.kind === 'none' && quoted === undefined) return undefined;
+  if (quoted === undefined && asking.length > 1) return { kind: 'which' };
+  return {
+    kind: 'answer',
+    intent: 'riders',
+    via: 'text',
+    item: target,
+    messageId: event.messageId,
+    sender: event.sender,
+    typed: true,
+    riders: read.kind === 'names' ? read.memberIds : [],
+  };
 }
 
 interface ReadAnswer {
@@ -633,6 +686,19 @@ export function answerShare(
     return { drafts: ack(), note: 'looks_shared:kept_private' };
   }
 
+  // T-135: a card that asked who rode is answered by names, never by a bare 👍 or "yes".
+  if (item.ridersToName !== undefined) {
+    if (match.intent !== 'riders') {
+      return {
+        drafts: [line(ridersQuestion(item.ridersToName))],
+        note: 'looks_shared:needs_riders',
+      };
+    }
+    if ((match.riders ?? []).length === 0) {
+      return { drafts: [line(RIDERS_UNCLEAR_TEXT)], note: 'looks_shared:riders_unclear' };
+    }
+  }
+
   const trip =
     (item.tripId !== null ? stores.group.trips.get(item.tripId) : undefined) ??
     ctx.trip ??
@@ -645,9 +711,17 @@ export function answerShare(
     };
   }
 
-  // The split the DM showed (`sharePlan` at ingestion), minus anyone who left since.
+  // The split the DM showed (`sharePlan` at ingestion), minus anyone who left since;
+  // on a card that asked who rode, exactly the people the owner named (T-135).
   const active = activeMembers(ctx.members).map((m) => m.memberId);
-  const shown = (item.suggestedParticipants ?? []).filter((id) => active.includes(id));
+  const named = item.ridersToName !== undefined;
+  const shown = (named ? (match.riders ?? []) : (item.suggestedParticipants ?? [])).filter((id) =>
+    active.includes(id),
+  );
+  // Named riders who are no longer in the group leave nobody to split with: ask, never guess.
+  if (named && shown.filter((id) => id !== owner.memberId).length === 0) {
+    return { drafts: [line(RIDERS_UNCLEAR_TEXT)], note: 'looks_shared:riders_unclear' };
+  }
   const participants = shown.length >= 1 ? shown : active;
   const source = promotable(stores, item);
   const promoted = promote(
@@ -675,7 +749,7 @@ export function answerShare(
   const expense: Expense =
     item.suggestedActivityId !== undefined &&
     participants === shown &&
-    shown.length === (item.suggestedParticipants ?? []).length
+    (named || shown.length === (item.suggestedParticipants ?? []).length)
       ? { ...promoted, activityId: item.suggestedActivityId }
       : promoted;
   const order = ctx.members.map((m) => m.memberId);
@@ -719,7 +793,12 @@ export function answerShare(
   });
   stores.private.putPendingItem(
     owner.memberId,
-    markPrivate({ ...item, status: 'promoted' as const, promotedExpenseId: expense.expenseId }),
+    markPrivate({
+      ...item,
+      status: 'promoted' as const,
+      promotedExpenseId: expense.expenseId,
+      ...(named ? { suggestedParticipants: participants } : {}),
+    }),
   );
   stores.private.purgeRawInputs(owner.memberId, addMinutes(now, 1));
 

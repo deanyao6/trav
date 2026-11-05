@@ -79,7 +79,6 @@ export const OFFLINE_FALLBACK = "i'm not sure what you mean";
 export const DEMO_NOTES: readonly string[] = [
   "step 2 (flights): v0 has no chat flow that posts group flight options or books flights (`booking/proposals.ts` answers `unsupported_kind` for flights). Trav's chat reply is scripted to say exactly that (it can't line up or book group flights in chat yet) and quotes no optimizer numbers; the step then runs the core multi-origin optimizer (`flights.optimizeGroupFlights`) over the mock flights provider directly, in a labeled block. Nothing is booked.",
   'step 3 (lodging): the real `search_lodging` call; the offline reply text is scripted on its result. No chat flow proposes or books a stay yet, so the step also lists the mock search directly for the check. Nothing is booked.',
-  "step 6 (Uber email), known gap: the email says 4 riders (Priya, Dean, Jordan, Sam; Maya took her own cab), but agent intake splits a confirmed email among all 6, so Maya and Henry are each charged a share they shouldn't be. The demo check pins the current 6-way split so the gap stays visible; the fix is T-075 (agent intake).",
   'step 10 (settle-up): Trav answers "@trav settle now" with the transfers, but the settle-up card\'s [Paid] button and its "i\'ll tick you off" line are not wired yet (no mark-paid flow; T-037), so the demo applies the transfers to the balances itself and checks that everyone ends at €0. No money moves.',
 ];
 
@@ -333,27 +332,41 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
     await clock('2026-03-13T10:00:00+01:00', 'next morning');
 
     // ---------------- 6. Uber email ----------------
-    await section('6. Uber email receipt', '2026-03-14T09:00:00+01:00');
-    emit("- _Priya's Uber receipt email arrives (mock inbox)_");
+    // The El Born night, as the group thread had it (fixtures/chats/barcelona.jsonl
+    // msg_bcn_0094..0102): Henry heads back early, Maya loses the others.
+    await section('6. Uber email receipt', '2026-03-13T23:30:00+01:00');
+    await say('Sam', "bar crawl in el born?? who's in");
+    await say('Maya', 'me', '2026-03-13T23:31:00+01:00');
+    await say('Jordan', 'ya');
+    await say('Henry', 'im beat, heading back', '2026-03-13T23:32:00+01:00');
+    await say('Priya', 'in');
+    await say('Dean', 'in', '2026-03-13T23:33:00+01:00');
+    await say('Maya', 'where r u guys', '2026-03-14T00:40:00+01:00');
+    await say('Priya', 'bar with the green door', '2026-03-14T00:41:00+01:00');
+    await at('2026-03-14T09:00:00+01:00');
+    emit("- _Priya's Uber receipt email arrives (mock inbox): €18.60, 4 riders_");
     await backend.intake!('doc_bcn_priya_email_1');
     const emailPrompt = (flush().dms.get('mem_priya') ?? []).find(isPendingPrompt);
     check('"looks shared?" prompt goes to Priya\'s DM only', emailPrompt !== undefined);
     check('the group sees nothing of the email', !JSON.stringify(view().thread).includes('18.60'));
+    // T-135 / T-075: "Riders on this trip: 4" with that night's thread is Priya,
+    // Dean, Jordan, Sam (Henry went back, Maya lost the group), never all 6.
+    const promptCard = emailPrompt?.card?.type === 'expense_confirm' ? emailPrompt.card : undefined;
+    const proposed = new Set((promptCard?.split.participants ?? []).map((p) => p.memberId));
+    check(
+      "the card proposes the email's 4 riders: Priya, Dean, Jordan, Sam",
+      sameSet(proposed, UBER_RIDERS) && /4 riders/.test(emailPrompt?.text ?? ''),
+      `${[...proposed].map(nameOf).join(', ')} | ${emailPrompt?.text ?? ''}`,
+    );
     if (emailPrompt) await tap('Priya', emailPrompt, 'confirm');
     const uber = expenseWith(rt(), 1860);
     check("Priya's €18.60 Uber is on the tab once she shares it", uber !== undefined);
-    // Known gap (named in DEMO_NOTES and docs/QUESTIONS.md): the email says
-    // "Riders on this trip: 4" (Priya, Dean, Jordan, Sam; Maya took her own
-    // cab), but agent intake splits a confirmed email among everyone. This
-    // check pins what the ledger actually holds today, so a fix flips it.
-    const uberShares = sharesOf(rt(), uber);
+    const uberShares = shareAmounts(rt(), uber);
     check(
-      'KNOWN GAP: the Uber is split among all 6, not the 4 riders on the email',
-      sameSet(uberShares, MEMBER_ORDER) && !sameSet(uberShares, UBER_RIDERS),
-      [...uberShares].map(nameOf).join(', '),
-    );
-    emit(
-      `> **known gap:** the email names 4 riders (${UBER_RIDERS.map(nameOf).join(', ')}; Maya took her own cab), but the €18.60 is split ${String(uberShares.size)} ways: ${[...uberShares].map(nameOf).join(', ')}. See the notes above.`,
+      'the Uber is split among the 4 riders at €4.65 each (Maya and Henry owe nothing)',
+      sameSet(new Set(uberShares.keys()), UBER_RIDERS) &&
+        [...uberShares.values()].every((v) => v === 465),
+      [...uberShares].map(([id, v]) => `${nameOf(id)} ${String(v)}`).join(', '),
     );
     await clock('2026-03-14T10:00:00+01:00', 'next morning');
 
@@ -568,6 +581,21 @@ function expenseWith(rt: TravRuntime, amountMinor: number): { expenseId: string 
   return rt.stores.group.expenses
     .listByTrip(TRIP_ID)
     .find((e) => e.amount.amountMinor === amountMinor);
+}
+
+/** Each member's owed share of one expense, minor units (from the persisted ledger rows). */
+function shareAmounts(
+  rt: TravRuntime,
+  expense: { expenseId: string } | undefined,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  if (expense === undefined) return out;
+  for (const e of rt.stores.group.expenses.listEntries(TRIP_ID)) {
+    if (e.expenseId !== expense.expenseId || e.kind !== 'owes' || e.amount.amountMinor === 0)
+      continue;
+    out.set(e.memberId, (out.get(e.memberId) ?? 0) + e.amount.amountMinor);
+  }
+  return out;
 }
 
 /** Who owes a share of one expense (from the persisted ledger rows). */

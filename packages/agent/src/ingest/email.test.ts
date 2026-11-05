@@ -75,6 +75,45 @@ function setup(at: string, owners: readonly MemberId[] = [PRIYA]): Harness {
   return h;
 }
 
+/**
+ * The El Born night as the group thread had it (fixtures/chats/barcelona.jsonl
+ * msg_bcn_0094..0102, minus the roster line): Henry heads back early, Maya
+ * loses the others. With it, the Uber's "4 riders" is Priya, Dean, Jordan,
+ * Sam (T-135); without it, the card has to ask.
+ */
+const EL_BORN_NIGHT: readonly (readonly [string, string, string])[] = [
+  ['2026-03-13T23:30:00+01:00', 'h_sam', "bar crawl in el born?? who's in"],
+  ['2026-03-13T23:31:00+01:00', 'h_maya', 'me'],
+  ['2026-03-13T23:31:00+01:00', 'h_jordan', 'ya'],
+  ['2026-03-13T23:32:00+01:00', 'h_henry', 'im beat, heading back. feel kinda off'],
+  ['2026-03-13T23:32:00+01:00', 'h_priya', 'in'],
+  ['2026-03-13T23:33:00+01:00', 'h_dean', 'in'],
+  ['2026-03-14T00:40:00+01:00', 'h_maya', 'where r u guys'],
+  ['2026-03-14T00:41:00+01:00', 'h_priya', 'bar with the green door'],
+];
+
+async function replayNight(
+  h: Harness,
+  lines: readonly (readonly [string, string, string])[] = EL_BORN_NIGHT,
+): Promise<void> {
+  for (const [at, from, text] of lines) {
+    h.clock.set(at);
+    await h.say(from, text);
+  }
+}
+
+/** `setup`, after the El Born night was chatted in the group. */
+async function afterNight(at: string, owners: readonly MemberId[] = [PRIYA]): Promise<Harness> {
+  const h = harness();
+  await replayNight(h);
+  h.clock.set(at);
+  for (const o of owners) setConsent(h, o, true);
+  return h;
+}
+
+/** Priya's 4 riders, in group order (the order every split carries). */
+const RIDERS = ['mem_dean', 'mem_jordan', 'mem_priya', 'mem_sam'];
+
 interface CountingSource extends EmailReceiptSource {
   readonly calls: string[];
 }
@@ -210,7 +249,7 @@ describe('email receipts: amounts, time and place on the fixtures', () => {
   });
 
   it("Priya's Uber: the pending item and the DM carry €18.60, 1:52am, El Born → Eixample, 4 riders (VOICE §4.5 C)", async () => {
-    const h = setup(SAT_MORNING);
+    const h = await afterNight(SAT_MORNING);
     const r = await importFor(h, PRIYA);
     expect(r.status).toBe('imported');
     expect(r.prompted).toHaveLength(1);
@@ -222,7 +261,9 @@ describe('email receipts: amounts, time and place on the fixtures', () => {
       merchantDisplay: 'Uber',
       category: 'transport',
       lowConfidence: false,
+      suggestedParticipants: RIDERS,
     });
+    expect(item.ridersToName).toBeUndefined();
     const stored = h.runtime.stores.private.getEmailReceipt(PRIYA, item.sourceItemId)!;
     expect(stored.parsed).toMatchObject({
       total: eur(1860),
@@ -237,7 +278,8 @@ describe('email receipts: amounts, time and place on the fixtures', () => {
     expect(dm.text.split('\n')[0]).toBe(
       'Uber receipt from last night: €18.60, El Born → Eixample, 4 riders',
     );
-    expect(dm.text.split('\n')[1]).toMatch(/^split with .+\? 👍 yes · 👎 just me$/);
+    // T-135: the 4 riders (VOICE §4.5 C), not "everyone".
+    expect(dm.text.split('\n')[1]).toBe('split with Dean, Jordan, Sam? 👍 yes · 👎 just me');
     expect(lintVoice(dm.text, 'dm').violations).toEqual([]);
     expect(dm.card).toMatchObject({
       type: 'expense_confirm',
@@ -302,7 +344,7 @@ describe('email import: consent and eligibility', () => {
   });
 
   it('turning emailImport off drops pending items at the next import; the old card no longer shares', async () => {
-    const h = setup(SAT_MORNING);
+    const h = await afterNight(SAT_MORNING);
     const first = await importFor(h, PRIYA);
     const card = msg(first.outbound[0]);
     setConsent(h, PRIYA, false);
@@ -323,7 +365,7 @@ describe('email import: consent and eligibility', () => {
   });
 
   it('turning emailImport off drops the item at answer time, with one honest DM line', async () => {
-    const h = setup(SAT_MORNING);
+    const h = await afterNight(SAT_MORNING);
     const first = await importFor(h, PRIYA);
     h.clock.set('2026-03-14T10:05:00+01:00');
     setConsent(h, PRIYA, false);
@@ -500,7 +542,7 @@ describe('email import: instruction-like text is data, flagged, never quoted', (
 
 describe('email import: the owner answers', () => {
   it("Priya's Share it puts €18.60 on the tab as an email_receipt expense; the group is not pinged", async () => {
-    const h = setup(SAT_MORNING);
+    const h = await afterNight(SAT_MORNING);
     const r = await importFor(h, PRIYA);
     const groupBefore = h.channel.groupTranscript(BARCELONA.conversationId).length;
     const res = await h.tap('h_priya', msg(r.outbound[0]).id, 'confirm');
@@ -518,6 +560,14 @@ describe('email import: the owner answers', () => {
     const order = BARCELONA.members.map((m) => m.memberId);
     const shares = ledger.computeShares(exp, { memberOrder: order, participantsUniverse: order });
     expect(shares.reduce((s, x) => s + x.amount.amountMinor, 0)).toBe(1860);
+    // T-135: the 4 riders at €4.65 each; Maya and Henry owe nothing.
+    expect(exp.split).toEqual({ method: 'equal', participants: RIDERS });
+    expect(
+      shares
+        .filter((s) => s.amount.amountMinor !== 0)
+        .map((s) => [s.memberId, s.amount.amountMinor])
+        .sort(),
+    ).toEqual(RIDERS.map((id) => [id, 465]).sort());
     expect(h.channel.groupTranscript(BARCELONA.conversationId)).toHaveLength(groupBefore);
     expect(msg(res.outbound[0]).to).toEqual({ kind: 'member', memberId: PRIYA });
     expect(h.audit().find((e) => e.type === 'private.item_promoted')).toBeDefined();
@@ -617,7 +667,7 @@ describe('email import: duplicates and batching', () => {
   });
 
   it('a second, different ride of the same amount after the first was shared is still asked about', async () => {
-    const h = setup(SAT_MORNING);
+    const h = await afterNight(SAT_MORNING);
     const first = await importFor(h, PRIYA);
     expect((await h.tap('h_priya', msg(first.outbound[0]).id, 'confirm')).note).toBe(
       'looks_shared:shared',
@@ -638,10 +688,15 @@ describe('email import: duplicates and batching', () => {
 
   it('two shared receipts from one import go out as one digest, each with its own Share button', async () => {
     const h = setup('2026-03-15T10:00:00+01:00');
+    // No rider counts here (a who-rode card never goes in a digest; tested below).
+    const noRiders = (e: InboundEmail): InboundEmail => ({
+      ...e,
+      textBody: e.textBody!.replace('Riders on this trip: 4\n', ''),
+    });
     const second = priyaRide({
       emailId: 'em_second_ride',
       receivedAt: '2026-03-15T03:30:00+01:00',
-      body: fixture('em_bcn_priya_uber_0314')
+      body: noRiders(fixture('em_bcn_priya_uber_0314'))
         .textBody!.replace(/€18\.60/g, '€24.10')
         .replace('Trip fare            €14.20', 'Trip fare            €19.70')
         .replace('Saturday 14 March 2026', 'Sunday 15 March 2026')
@@ -651,7 +706,7 @@ describe('email import: duplicates and batching', () => {
     const r = await importFor(
       h,
       PRIYA,
-      scriptedSource([fixture('em_bcn_priya_uber_0314'), second]),
+      scriptedSource([noRiders(fixture('em_bcn_priya_uber_0314')), second]),
     );
     expect(r.prompted).toHaveLength(2);
     expect(r.outbound).toHaveLength(1);
@@ -776,6 +831,8 @@ describe('T-012 r1 fixes: card and email copies of one charge are asked about on
 
   it('(c) email shared, then card import: the USD charge is already on the tab', async () => {
     const h = bothSources(SAT_MORNING);
+    await replayNight(h); // so the email's 4 riders are known (T-135)
+    h.clock.set(SAT_MORNING);
     const email = await importFor(h, PRIYA, onlyUber());
     expect((await h.tap('h_priya', msg(email.outbound[0]).id, 'confirm')).note).toBe(
       'looks_shared:shared',
@@ -934,5 +991,163 @@ describe('privacy: another member and the group never see an unconfirmed receipt
       for (const s of secrets) expect(dms, `${m.name} DM leaks ${s}`).not.toContain(s);
     }
     expect(h.runtime.stores.private.listPendingItems(PRIYA, G, 'pending')).toHaveLength(1);
+  });
+});
+
+// ---------- T-135 / T-075: ride receipts split by riders ----------
+
+describe('T-135: a ride receipt is split by its rider count, or the card asks who rode', () => {
+  const ASK_LINE = 'who were the other 3? send me their names, or 👎 to keep it just yours';
+
+  async function priyaCard(h: Harness): Promise<OutboundMessage> {
+    const r = await importFor(h, PRIYA);
+    expect(r.prompted).toHaveLength(1);
+    return msg(r.outbound[0]);
+  }
+
+  it('with the night in the thread, the card proposes the 4 riders and the 👍 logs €4.65 each', async () => {
+    const h = await afterNight(SAT_MORNING);
+    const card = await priyaCard(h);
+    expect(card.card).toMatchObject({
+      split: {
+        participants: RIDERS.map((id) => expect.objectContaining({ memberId: id })),
+      },
+    });
+    expect(card.actions?.map((a) => a.id)).toEqual(['confirm', 'keep_private']);
+    const res = await h.react('h_priya', card.id, '👍');
+    expect(res.note).toBe('looks_shared:shared');
+    const exp = emailExpenses(h)[0]!;
+    expect(exp.split).toEqual({ method: 'equal', participants: RIDERS });
+    expect(msg(res.outbound[0]).text.split('\n')[0]).toBe(
+      'logged: €18.60 Uber on Priya, 4 ways (not Henry, Maya) → €4.65 each',
+    );
+  });
+
+  it('no night in the thread (6 could have ridden, 4 did): the card asks, proposes no split, has no Share button', async () => {
+    const h = setup(SAT_MORNING);
+    const card = await priyaCard(h);
+    const item = items(h, PRIYA, 'pending')[0]!;
+    expect(item.ridersToName).toBe(4);
+    expect(item.suggestedParticipants).toBeUndefined();
+    expect(card.text.split('\n')).toEqual([
+      'Uber receipt from last night: €18.60, El Born → Eixample, 4 riders',
+      ASK_LINE,
+    ]);
+    expect(lintVoice(card.text, 'dm').violations).toEqual([]);
+    expect(card.actions?.map((a) => a.id)).toEqual(['keep_private']);
+    expect(card.card).toMatchObject({ split: { participants: [] } });
+    expect(h.channel.groupTranscript(BARCELONA.conversationId)).toEqual([]);
+  });
+
+  it('a 👍 on the asking card asks again and writes nothing', async () => {
+    const h = setup(SAT_MORNING);
+    const card = await priyaCard(h);
+    const res = await h.react('h_priya', card.id, '👍');
+    expect(res.note).toBe('looks_shared:needs_riders');
+    expect(msg(res.outbound[0]).text).toBe(ASK_LINE);
+    expect(emailExpenses(h)).toEqual([]);
+    expect(items(h, PRIYA, 'pending')).toHaveLength(1);
+  });
+
+  it.each([
+    ['dean, jordan and sam'],
+    ['Dean Jordan Sam'],
+    ['me, dean, jordan & sam'],
+    ['everyone but maya and henry'],
+  ])('Priya names them in her DM ("%s") ⇒ €4.65 each to the 4 who rode', async (text) => {
+    const h = setup(SAT_MORNING);
+    await priyaCard(h);
+    const res = await h.dm('h_priya', text);
+    expect(res.note).toBe('looks_shared:shared');
+    const exp = emailExpenses(h)[0]!;
+    expect(exp.split).toEqual({ method: 'equal', participants: RIDERS });
+    const order = BARCELONA.members.map((m) => m.memberId);
+    const shares = ledger
+      .computeShares(exp, { memberOrder: order, participantsUniverse: order })
+      .filter((s) => s.amount.amountMinor !== 0);
+    expect(shares.map((s) => s.amount.amountMinor)).toEqual([465, 465, 465, 465]);
+    expect(items(h, PRIYA, 'promoted')[0]!.suggestedParticipants).toEqual(RIDERS);
+    // Nothing in the group until the next recap.
+    expect(h.channel.groupTranscript(BARCELONA.conversationId)).toEqual([]);
+  });
+
+  it('a quote-reply naming nobody Trav knows gets one line back and writes nothing', async () => {
+    const h = setup(SAT_MORNING);
+    const card = await priyaCard(h);
+    const res = await h.runtime.agent.handleInbound(
+      await h.channel.injectMessage({
+        from: 'h_priya',
+        text: 'bob and alice',
+        lane: 'dm',
+        replyToMessageId: card.id,
+      }),
+    );
+    expect(res.note).toBe('looks_shared:riders_unclear');
+    expect(lintVoice(msg(res.outbound[0]).text, 'dm').violations).toEqual([]);
+    expect(emailExpenses(h)).toEqual([]);
+  });
+
+  it('an ordinary DM is not taken for names; 👎 keeps it private', async () => {
+    const h = setup(SAT_MORNING);
+    const card = await priyaCard(h);
+    const chat = await h.dm('h_priya', 'what time is dinner tonight');
+    expect(chat.note ?? '').not.toMatch(/^looks_shared:/);
+    expect(emailExpenses(h)).toEqual([]);
+    const keep = await h.react('h_priya', card.id, '👎');
+    expect(keep.note).toBe('looks_shared:kept_private');
+    expect(emailExpenses(h)).toEqual([]);
+  });
+
+  it("another member naming riders in their own DM never touches Priya's card", async () => {
+    const h = setup(SAT_MORNING);
+    await priyaCard(h);
+    const dean = await h.dm('h_dean', 'dean, jordan and sam');
+    expect(dean.note ?? '').not.toBe('looks_shared:shared');
+    expect(emailExpenses(h)).toEqual([]);
+    expect(items(h, PRIYA, 'pending')).toHaveLength(1);
+  });
+
+  it('Maya found the others again ("omw" after "where r u guys"): no guess, the card asks', async () => {
+    const h = harness();
+    await replayNight(h, [...EL_BORN_NIGHT, ['2026-03-14T00:45:00+01:00', 'h_maya', 'omw']]);
+    h.clock.set(SAT_MORNING);
+    setConsent(h, PRIYA, true);
+    await priyaCard(h);
+    expect(items(h, PRIYA, 'pending')[0]!.ridersToName).toBe(4);
+  });
+
+  it('a who-rode card goes on its own, never in a digest with another receipt', async () => {
+    const h = setup('2026-03-15T10:00:00+01:00');
+    const second = priyaRide({
+      emailId: 'em_second_ride',
+      receivedAt: '2026-03-15T03:30:00+01:00',
+      body: fixture('em_bcn_priya_uber_0314')
+        .textBody!.replace('Riders on this trip: 4\n', '')
+        .replace(/€18\.60/g, '€24.10')
+        .replace('Trip fare            €14.20', 'Trip fare            €19.70')
+        .replace('Saturday 14 March 2026', 'Sunday 15 March 2026')
+        .replace('01:52', '03:10')
+        .replace('01:31', '02:50'),
+    });
+    const r = await importFor(
+      h,
+      PRIYA,
+      scriptedSource([fixture('em_bcn_priya_uber_0314'), second]),
+    );
+    expect(r.prompted).toHaveLength(2);
+    expect(r.outbound).toHaveLength(2);
+    const texts = r.outbound.map((o) => msg(o).text);
+    expect(texts.some((t) => t.endsWith(ASK_LINE))).toBe(true);
+    expect(texts.some((t) => /^split with .+\? 👍 yes · 👎 just me$/m.test(t))).toBe(true);
+    for (const t of texts) expect(t).not.toMatch(/receipts that look shared/);
+  });
+
+  it('a flagged email keeps no ride facts, so no rider count is applied or mentioned', async () => {
+    const h = setup(MON_NOON, [MAYA]);
+    const r = await importFor(h, MAYA);
+    const item = items(h, MAYA, 'pending')[0]!;
+    expect(item.lowConfidence).toBe(true);
+    expect(item.ridersToName).toBeUndefined();
+    for (const o of r.outbound) expect(msg(o).text).not.toMatch(/riders|who were the other/);
   });
 });

@@ -1988,35 +1988,32 @@ describe('T-066: agent loop hardening (T-007-b round-3 review)', () => {
     ]);
   });
 
-  it('a leading headcount for tonight plus one attendance clause (T-092, msg_bcn_0100)', () => {
-    // The lead's "tonight" stays on the clause, so it never means another night.
+  it('a leading headcount is a combined roster sentence: the whole message goes to the roster handler (T-082)', () => {
+    // `roster/combined.ts` parses headcount + change + place in one go; the
+    // loop no longer splits the lead off or turns it into an expected count.
     expect(rosterTexts("@trav it's the 5 of us tonight, henry's out")).toEqual([
       "@trav it's the 5 of us tonight, henry's out",
-      "henry's out tonight",
     ]);
-    expect(rosterTexts("@trav it's 5 of us, henry's out")).toEqual([
-      "@trav it's 5 of us, henry's out",
-      "henry's out",
-    ]);
-    expect(rosterFollowUpCount("@trav it's the 5 of us tonight, henry's out")).toBe(5);
-    expect(rosterFollowUpCount("@trav we're five tonight, maya's out")).toBe(5);
-    // Another night, or a second request in the tail: not this form.
-    expect(rosterFollowUpCount("@trav it's the 5 of us tomorrow, henry's out")).toBeUndefined();
+    expect(rosterFollowUpCount("@trav it's the 5 of us tonight, henry's out")).toBeUndefined();
     expect(rosterTexts("@trav it's 5 of us, henry's out, book razz")).toHaveLength(1);
   });
 
-  it('"it\'s the 5 of us tonight, henry\'s out" marks Henry out only when that makes 5 in; a mismatch goes to the model', async () => {
+  it('"it\'s the 5 of us tonight, henry\'s out" marks Henry out when that makes 5 in; a mismatch asks one question, writes nothing (T-082)', async () => {
     const h = harness();
     const henry = (): string | undefined =>
       h.runtime.stores.group.trips
         .listAttendance(BARCELONA.razzmatazzActivityId)
         .find((a) => a.memberId === 'mem_henry')?.status;
     const wrong = await h.say('h_dean', "@trav it's the 4 of us tonight, henry's out");
-    expect(wrong.note).not.toMatch(/^roster:/);
-    expect(h.model.completions.length).toBeGreaterThan(0);
+    expect(wrong.note).toBe('roster:clarify');
+    expect(firstMessage(wrong).text).toBe(
+      "you said 4, but that's 5: Dean, Maya, Jordan, Priya, Sam. who else is out?",
+    );
+    expect(h.model.completions).toHaveLength(0);
     expect(henry()).not.toBe('out');
+    expect(h.audit().filter((e) => e.type === 'roster.changed')).toEqual([]);
     const ok = await h.say('h_sam', "@trav it's the 5 of us tonight, henry's out");
-    expect(ok.note).toBe('roster:changed');
+    expect(ok.note).toBe('roster:party');
     expect(henry()).toBe('out');
     // Trav's line names the count, never the reason.
     expect(firstMessage(ok).text).not.toMatch(/sick|ill/i);

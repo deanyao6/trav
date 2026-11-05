@@ -178,6 +178,12 @@ export type PendingPrivateItem = Private<
     };
     readonly lowConfidence: boolean;
     readonly suggestedParticipants?: readonly MemberId[];
+    /**
+     * T-135: the receipt's rider count when it and the roster could not say who
+     * rode. The card then asks the owner to name them, and there is no
+     * `suggestedParticipants` (no guess); the owner's typed answer is the split.
+     */
+    readonly ridersToName?: number;
     /** The plan `suggestedParticipants` came from (set at ingestion; the expense links to it only when the split still matches). */
     readonly suggestedActivityId?: ActivityId;
     readonly promotedExpenseId?: ExpenseId;

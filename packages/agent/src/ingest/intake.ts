@@ -21,12 +21,14 @@ import type {
   ExpenseCategory,
   Group,
   GroupId,
+  GroupMessageSummary,
   IdGenerator,
   IsoDateTime,
   LineItem,
   Member,
   MemberId,
   OutboundMessage,
+  ParsedReceipt,
   PendingPrivateItem,
   Stores,
   Trip,
@@ -34,7 +36,9 @@ import type {
 import { markPrivate, safety, TravError } from '@trav/core';
 import { renderLooksShared } from '../render/expenseConfirm.js';
 import { sanitizeInline } from '../context/groupContext.js';
+import { rideDetail } from './email.js';
 import { importEligibility, sharePlan } from './pending.js';
+import { applyRiders } from './riders.js';
 import {
   detectInjection,
   stripInvisible,
@@ -51,6 +55,8 @@ export interface ExtractedAmounts {
   readonly occurredAt?: IsoDateTime;
   readonly category?: ExpenseCategory;
   readonly lineItems?: readonly LineItem[];
+  /** A ride receipt's typed ride facts (places, rider count); dropped when a pattern fired. */
+  readonly ride?: ParsedReceipt['ride'];
 }
 
 export interface DocumentIntake {
@@ -72,6 +78,8 @@ export interface DocumentIntakeDeps {
   readonly group: Group;
   readonly members: readonly Member[];
   readonly trip: Trip | null;
+  /** The group thread so far, for a ride's rider count (`applyRiders`, T-135). */
+  readonly groupMessages?: readonly GroupMessageSummary[];
 }
 
 export interface DocumentIntakeOutcome {
@@ -236,15 +244,27 @@ export function intakeDocument(
   const occurredAt = input.extracted.occurredAt ?? now;
   const category = input.extracted.category ?? 'other';
   // T-013: the same split rule the card flow uses (the plan's roster, else everyone), so the
-  // DM says who it would be split with and the owner's 👍 shares exactly that.
-  const plan = sharePlan({
-    trips: stores.group.trips,
-    trip,
-    members,
-    ownerMemberId: owner.memberId,
-    occurredAt,
-    category,
-  });
+  // DM says who it would be split with and the owner's 👍 shares exactly that. T-135: a ride's
+  // rider count next to that roster; when they can't say who rode, the card asks. A flagged
+  // document keeps none of its ride facts (same rule as `email.ts`).
+  const ride = lowConfidence ? undefined : input.extracted.ride;
+  const plan = applyRiders(
+    sharePlan({
+      trips: stores.group.trips,
+      trip,
+      members,
+      ownerMemberId: owner.memberId,
+      occurredAt,
+      category,
+    }),
+    ride?.riders,
+    {
+      ownerMemberId: owner.memberId,
+      occurredAt,
+      ...(deps.groupMessages !== undefined ? { groupMessages: deps.groupMessages } : {}),
+    },
+  );
+  const detail = ride === undefined ? undefined : rideDetail({ ride });
   const drafted: PendingPrivateItem = markPrivate({
     id: deps.ids.next('priv'),
     ownerMemberId: owner.memberId,
@@ -260,7 +280,9 @@ export function intakeDocument(
     category,
     ...(input.extracted.lineItems !== undefined ? { lineItems: input.extracted.lineItems } : {}),
     lowConfidence,
-    suggestedParticipants: plan.participants,
+    ...(plan.askRiders !== undefined
+      ? { ridersToName: plan.askRiders }
+      : { suggestedParticipants: plan.participants }),
     ...(plan.activityId !== undefined ? { suggestedActivityId: plan.activityId } : {}),
   });
   const dm = promptable
@@ -270,6 +292,7 @@ export function intakeDocument(
           items: [
             {
               item: drafted,
+              ...(detail !== undefined ? { detail } : {}),
               ...(plan.guess !== undefined ? { guess: plan.guess } : {}),
               ...(plan.label !== undefined ? { splitWithLabel: plan.label } : {}),
             },

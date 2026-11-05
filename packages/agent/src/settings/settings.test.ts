@@ -529,6 +529,11 @@ describe('consent flags (SAFETY §2.6)', () => {
 
   it('email import off drops pending items at once too: off-then-on before a tap shares nothing (T-013 note)', async () => {
     const h = harness();
+    // The night in the thread, so the Uber's "4 riders" is a Share-able card (T-135).
+    h.clock.set('2026-03-13T23:32:00+01:00');
+    await h.say('h_henry', 'im beat, heading back');
+    h.clock.set('2026-03-14T00:40:00+01:00');
+    await h.say('h_maya', 'where r u guys');
     h.clock.set('2026-03-14T10:00:00+01:00');
     await h.dm('h_priya', 'turn on email import');
     const imported = await h.runtime.agent.importEmailReceipts({

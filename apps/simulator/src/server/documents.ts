@@ -154,6 +154,8 @@ export async function buildIntake(doc: DemoDocument): Promise<DocumentIntake> {
       merchantDisplay: p.merchantName,
       occurredAt: p.occurredAt,
       ...(p.source === 'rideshare' ? { category: 'transport' as const } : {}),
+      // Typed ride facts (places, rider count) so the card can split by riders (T-135).
+      ...(p.ride !== undefined ? { ride: p.ride } : {}),
     },
   };
 }

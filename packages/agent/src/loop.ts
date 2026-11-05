@@ -95,7 +95,7 @@ import {
   TURN_FAILED_TEXT,
 } from './approval/text.js';
 import type { ProposalService, ProposeResult } from './booking/proposals.js';
-import { shortEventName } from './booking/proposals.js';
+import { nightOf, shortEventName } from './booking/proposals.js';
 import type { BookingExecutor, ProviderRegistry } from './booking/executor.js';
 import { buildGroupContext, renderGroupPrompt, sanitizeInline } from './context/groupContext.js';
 import { createChatExpenseFlow } from './ingest/chatExpense.js';
@@ -155,6 +155,8 @@ import {
   type MentionReason,
   type MentionResult,
 } from './mention.js';
+import { bundledVenueIndex } from './model/offline/asks.js';
+import { isKnownPlace, renderVenueCheck, type VenueSearchResult } from './roster/combined.js';
 import { handleRosterMessage, type RosterTurn } from './roster/turn.js';
 import {
   announceFamilyMode,
@@ -523,61 +525,9 @@ const ATTENDANCE_FOLLOW_UP =
  */
 export function rosterTexts(text: string): string[] {
   const out = [text];
-  const lead = headcountLead(text);
-  if (lead !== undefined) {
-    out.push(lead.clause);
-    return out;
-  }
   const split = attendanceClause(text);
   if (split !== undefined && split.clause !== text.trim()) out.push(split.clause);
   return out;
-}
-
-const LEAD_COUNTS: Readonly<Record<string, number>> = {
-  two: 2,
-  three: 3,
-  four: 4,
-  five: 5,
-  six: 6,
-  seven: 7,
-  eight: 8,
-  nine: 9,
-  ten: 10,
-};
-/** "it's the 5 of us tonight", "we're 5 tonight", "just the 5 of us": a headcount for tonight and nothing else. */
-const HEADCOUNT_LEAD =
-  /^(?:(?:so|ok|okay)\s+)?(?:(?:it'?s|its|we'?re|we are|it'?ll be|gonna be)\s+)?(?:just\s+)?(?:the\s+)?(\d{1,2}|two|three|four|five|six|seven|eight|nine|ten)(?:\s+of\s+us)?(?:\s+(?:tonight|tonite|tn))?$/i;
-
-/**
- * "@trav it's the 5 of us tonight, henry's out": a headcount for tonight, then
- * one attendance clause. The clause is offered to the roster handler with the
- * headcount as `expectInCount`, so it is written only when the change makes
- * exactly that many in; a disagreement sends the whole message to the model.
- * The reason in the clause is dropped by `parseRosterUpdate`.
- */
-function headcountLead(text: string): { count: number; clause: string } | undefined {
-  const t = stripInvisible(text)
-    .replace(AT_TRAV_TOKEN, '$1')
-    .replace(/\s+/g, ' ')
-    .replace(TRAV_VOCATIVE_PREFIX, '')
-    .trim();
-  const m = /^(.*?)(?:[,;]+|\s+-\s+)\s*(.*?)[\s!.?]*$/u.exec(t);
-  if (m === null) return undefined;
-  const head = m[1]!.trim();
-  const lead = HEADCOUNT_LEAD.exec(head);
-  const bare = m[2]!.replace(ATTENDANCE_FILLER, '').trim();
-  if (lead === null || bare.length === 0 || /[,;]/.test(bare)) return undefined;
-  const raw = lead[1]!.toLowerCase();
-  const count = /^\d+$/.test(raw) ? Number(raw) : LEAD_COUNTS[raw];
-  if (count === undefined || count < 1) return undefined;
-  // The night the lead named binds the clause: "tonight" never means the next
-  // thing on the plan (an empty Friday must not mark Henry out of Saturday).
-  const tonight = /\b(?:tonight|tonite|tn)$/i.test(head);
-  const clause =
-    tonight && !/\b(?:tonight|tonite|tn|today|tomorrow|tmrw)\b/i.test(bare)
-      ? `${bare} tonight`
-      : bare;
-  return { count, clause };
 }
 
 /**
@@ -585,12 +535,11 @@ function headcountLead(text: string): { count: number; clause: string } | undefi
  * 6), or undefined when the message has no such tail. The loop offers the
  * attendance clause to the roster handler only when N matches the in-count
  * the change would produce; otherwise the whole message goes to the model,
- * which can ask (T-066). A leading headcount counts the same way ("it's the
- * 5 of us tonight, henry's out" ⇒ 5).
+ * which can ask (T-066). A leading headcount ("it's the 5 of us tonight,
+ * henry's out") is a combined roster sentence instead: the roster handler
+ * parses the whole message (`roster/combined.ts`, T-082).
  */
 export function rosterFollowUpCount(text: string): number | undefined {
-  const lead = headcountLead(text);
-  if (lead !== undefined) return lead.count;
   const tail = attendanceClause(text)?.tail ?? '';
   const n = /\bmake it (?:for )?(\d{1,2})\b/i.exec(tail);
   return n === null ? undefined : Number(n[1]);
@@ -1926,10 +1875,13 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
           messageId: event.messageId,
           now: r.now,
           ...(i > 0 && wantCount !== undefined ? { expectInCount: wantCount } : {}),
+          // A place in a combined sentence (T-082) must be a venue the ticket
+          // inventory knows: the same inventory `search_events` searches.
+          isKnownPlace: (hint) => isKnownPlace(bundledVenueIndex(), hint),
         });
         if (roster !== undefined) {
           recordInbound();
-          return rosterTurn(r, roster);
+          return rosterTurn(r, roster, event, me);
         }
       }
     }
@@ -2162,21 +2114,59 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
    * which case that card is the turn's one group message (VOICE §3.7) and
    * its "who" line carries the change.
    */
-  async function rosterTurn(r: Resolved, result: RosterTurn): Promise<TurnResult> {
+  async function rosterTurn(
+    r: Resolved,
+    result: RosterTurn,
+    event: InboundMessage,
+    me: Member,
+  ): Promise<TurnResult> {
     const before = snapshotAudit(r.group.groupId);
-    let drafts: Outbound[] = [message(r, result.text)];
-    if (result.kind === 'changed' && deps.approval !== undefined) {
-      const follow = await deps.approval.handler.rosterChanged(result.notice);
+    const change = result.kind === 'changed' || result.kind === 'party' ? result.notice : undefined;
+    let text = result.text;
+    const toolCalls: string[] = [];
+    // "all 6, henry's back. razzmatazz" with Razzmatazz not on tonight's plan
+    // (T-082): one read-only search, one more line on the same message.
+    if (result.kind === 'party' && result.venue !== undefined && r.trip !== null) {
+      const v = result.venue;
+      let found: VenueSearchResult | undefined;
+      if (tools.get('search_events') !== undefined) {
+        toolCalls.push('search_events');
+        try {
+          found = (await tools.run(
+            'search_events',
+            { query: v.query, quantity: v.quantity },
+            {
+              groupId: r.group.groupId,
+              tripId: r.trip.tripId,
+              senderMemberId: me.memberId,
+              senderId: event.sender,
+              lane: r.lane,
+              now: r.now,
+              clock,
+              ids,
+              stores,
+            },
+          )) as VenueSearchResult;
+        } catch {
+          found = undefined;
+        }
+      }
+      const tz = r.trip.timeZone;
+      text = `${text}\n${renderVenueCheck(v.query, v.night, found, (at) => nightOf(at, tz))}`;
+    }
+    let drafts: Outbound[] = [message(r, text)];
+    if (change !== undefined && deps.approval !== undefined) {
+      const follow = await deps.approval.handler.rosterChanged(change);
       const hasGroup = follow.some((o) => !isReaction(o) && o.to.kind === 'group');
       drafts = hasGroup ? [...follow] : [...drafts, ...follow];
     }
     const sent = await send(r, drafts);
     // After a roster change, the family-mode notice is its own turn (VOICE §8, idempotent).
-    const notice = result.kind === 'changed' && r.lane === 'group' ? await familyNotice(r) : [];
+    const notice = change !== undefined && r.lane === 'group' ? await familyNotice(r) : [];
     const all = [...sent, ...notice];
     return {
       outbound: all,
-      toolCalls: [],
+      toolCalls,
       auditEventIds: auditIdsSince(r.group.groupId, before),
       silent: all.length === 0,
       modelSources: [],
@@ -2821,6 +2811,9 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       group,
       members,
       trip,
+      // The group thread (members' own words, markers for pasted/guest text): a ride's
+      // rider count leaves out who said they had left that night (T-135).
+      groupMessages: recent.get(laneKey(group.groupId, 'group', null)) ?? [],
     });
     const r: Resolved = {
       group,
@@ -2927,7 +2920,16 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     }
     const before = snapshotAudit(group.groupId);
     const trip = stores.group.trips.current(group.groupId, now) ?? null;
-    const outcome = await importEmails(input, { stores, clock, ids, model, group, members, trip });
+    const outcome = await importEmails(input, {
+      stores,
+      clock,
+      ids,
+      model,
+      group,
+      members,
+      trip,
+      groupMessages: recent.get(laneKey(group.groupId, 'group', null)) ?? [],
+    });
     const r: Resolved = {
       group,
       members,

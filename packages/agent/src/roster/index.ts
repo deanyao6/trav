@@ -192,6 +192,20 @@ export function setAttendance(
 export type RosterWhen = 'tonight' | 'tomorrow';
 
 /**
+ * Activities that are not over yet (an `endsAt` still ahead, or started less
+ * than an hour ago when no end is known), earliest start first.
+ */
+export function upcomingActivities(activities: readonly Activity[], now: IsoDateTime): Activity[] {
+  const nowMs = parseIso(now);
+  const stillOn = (a: Activity): boolean =>
+    a.startsAt !== undefined &&
+    (a.endsAt !== undefined
+      ? parseIso(a.endsAt) > nowMs
+      : parseIso(a.startsAt) > nowMs - 60 * 60_000);
+  return activities.filter(stillOn).sort((a, b) => parseIso(a.startsAt!) - parseIso(b.startsAt!));
+}
+
+/**
  * The activity a roll call or "I'm out" refers to: by name/venue when a hint
  * is given; else by the night the message names ("tonight", "tomorrow"),
  * with nothing planned that night ⇒ `undefined`, never the other night; else
@@ -206,15 +220,7 @@ export function resolveActivity(
   hint?: string,
   when?: RosterWhen,
 ): Activity | undefined {
-  const nowMs = parseIso(now);
-  const stillOn = (a: Activity): boolean =>
-    a.startsAt !== undefined &&
-    (a.endsAt !== undefined
-      ? parseIso(a.endsAt) > nowMs
-      : parseIso(a.startsAt) > nowMs - 60 * 60_000);
-  const upcoming = activities
-    .filter(stillOn)
-    .sort((a, b) => parseIso(a.startsAt!) - parseIso(b.startsAt!));
+  const upcoming = upcomingActivities(activities, now);
   const h = hint
     ?.trim()
     .toLowerCase()

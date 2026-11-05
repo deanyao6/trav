@@ -267,6 +267,20 @@ export interface LooksSharedItem {
   readonly splitWithLabel?: string;
 }
 
+/**
+ * T-135, VOICE §4.11: the question a ride card ends on when the receipt's
+ * rider count and the roster can't say who rode (`item.ridersToName`).
+ */
+export function ridersQuestion(riders: number): string {
+  const ask =
+    riders >= 3
+      ? `who were the other ${String(riders - 1)}?`
+      : riders === 2
+        ? 'who was the other rider?'
+        : "who's splitting it with you?";
+  return `${ask} send me their ${riders === 2 ? 'name' : 'names'}, or 👎 to keep it just yours`;
+}
+
 const SOURCE: Readonly<Record<PendingPrivateItem['source'], ExpenseSource>> = {
   card: 'card_transaction',
   email: 'email_receipt',
@@ -278,9 +292,13 @@ const MAX_DIGEST_LINES = 4;
 
 function itemCard(entry: LooksSharedItem, ctx: RenderContext, text: string): ExpenseConfirmCard {
   const { item } = entry;
-  const participants = inMemberOrder(ctx, entry.splitWith ?? item.suggestedParticipants ?? []).map(
-    (id): Participant => ({ memberId: id, name: nameOf(ctx, id) }),
-  );
+  // A card that asks who rode proposes no split (no guess, T-135).
+  const ids =
+    item.ridersToName !== undefined ? [] : (entry.splitWith ?? item.suggestedParticipants ?? []);
+  const participants = inMemberOrder(ctx, ids).map((id): Participant => ({
+    memberId: id,
+    name: nameOf(ctx, id),
+  }));
   return {
     cardId: ctx.ids.next('card'),
     type: 'expense_confirm',
@@ -327,7 +345,9 @@ function singleLines(entry: LooksSharedItem, ctx: RenderContext): string[] {
     lines.push(
       `${item.merchantDisplay} receipt from ${day}: ${amount}${entry.detail !== undefined ? `, ${entry.detail}` : ''}`,
     );
-    lines.push(`split with ${splitWithText(entry, ctx)}? 👍 yes · 👎 just me`);
+    if (item.ridersToName === undefined) {
+      lines.push(`split with ${splitWithText(entry, ctx)}? 👍 yes · 👎 just me`);
+    }
   } else {
     // VOICE §4.5 "at 2:14am"; an older charge keeps its day after the time ("at 2:14am on sun mar 15").
     const time = formatClockTime(item.occurredAt, ctx.timeZone);
@@ -341,9 +361,17 @@ function singleLines(entry: LooksSharedItem, ctx: RenderContext): string[] {
     lines.push(
       `saw ${amount} from ${item.merchantDisplay} at ${when}${entry.guess !== undefined ? `, ${entry.guess}` : ''}`,
     );
-    lines.push(
-      `looks shared. 👍 to split with ${splitWithText(entry, ctx)}, 👎 to keep it off the tab`,
-    );
+    if (item.ridersToName === undefined) {
+      lines.push(
+        `looks shared. 👍 to split with ${splitWithText(entry, ctx)}, 👎 to keep it off the tab`,
+      );
+    }
+  }
+  if (item.ridersToName !== undefined) {
+    // The question is the last line (VOICE §4.11).
+    if (item.lowConfidence) lines.push('double-check the amount first');
+    lines.push(ridersQuestion(item.ridersToName));
+    return lines;
   }
   if (item.lowConfidence) lines.push('double-check the amount before you 👍');
   return lines;
@@ -385,12 +413,21 @@ export function renderLooksShared(
     const lines = singleLines(entry, ctx);
     const text = lines.join('\n');
     const { cardId: _cardId, fallbackText: _fb, ...card } = itemCard(entry, ctx, text);
+    // Asking who rode: the answer is typed names, so there is nothing to "Share" yet (T-135).
+    const asking = entry.item.ridersToName !== undefined;
     return cardMessage<ExpenseConfirmCard>(ctx, to, lines, card, {
       actions: [
-        action('confirm', { allowedMemberIds: owners }),
+        ...(asking ? [] : [action('confirm', { allowedMemberIds: owners })]),
         action('keep_private', { allowedMemberIds: owners }),
       ],
     });
+  }
+  if (input.items.some((e) => e.item.ridersToName !== undefined)) {
+    // A digest line can't carry the question; callers send those cards on their own.
+    throw new TravError(
+      'invalid_argument',
+      'renderLooksShared: a who-rode card never goes in a digest',
+    );
   }
 
   const items = input.items;

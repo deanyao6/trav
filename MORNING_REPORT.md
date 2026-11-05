@@ -17,9 +17,8 @@ The full walkthrough transcript is in `docs/DEMO_TRANSCRIPT.md`; it's regenerate
 
 **The Razzmatazz moment** runs through the real runtime: "@trav get the 5 of us Razzmatazz tickets, Henry's sick" → one proposal naming the 5 → ApprovalPolicy → 👍 → mock purchase → receipt in the group → 5 different QR codes, each sent by DM (none to Henry) → €90 split among exactly those 5. The audit order is policy.evaluated → approval.granted → booking.attempted → booking.completed → ledger.written. A double 👍 buys once.
 
-Three steps are honestly labelled in the transcript as not fully in chat yet:
+Two steps are honestly labelled in the transcript as not fully in chat yet (the Uber email now splits among the 4 riders, T-075):
 - Flights: Trav says it can't book group flights in chat yet, and the demo runs the real optimizer directly (T-074).
-- The Uber email is split among all 6 instead of the 4 riders (T-075).
 - The settle-up [Paid] button isn't wired (T-037).
 
 **Not verified in a browser:** the sandbox blocks local port binding, so `pnpm sim` was exercised only through its in-process backend. To click through it yourself, run `TRAV_OFFLINE=1 pnpm sim` outside the sandbox, or set `sandbox.network.allowLocalBinding: true`.

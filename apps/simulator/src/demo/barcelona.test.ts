@@ -44,11 +44,16 @@ describe('pnpm demo:barcelona (T-021)', () => {
       /not the offline fallback/,
     );
 
-    // Step 6: the Uber's 6-way split is named as a known gap (check, transcript notes), not hidden.
-    expect(result.checks.some((c) => c.step.startsWith('6.') && /^KNOWN GAP/.test(c.name))).toBe(
-      true,
-    );
-    expect(result.notes.some((n) => /4 riders/.test(n) && /T-075/.test(n))).toBe(true);
+    // Step 6 (T-135 / T-075): the Uber goes to the email's 4 riders, card and ledger both.
+    const step6 = result.checks.filter((c) => c.step.startsWith('6.'));
+    expect(step6.find((c) => /proposes the email's 4 riders/.test(c.name))?.ok).toBe(true);
+    expect(step6.find((c) => /4 riders at €4\.65 each/.test(c.name))?.ok).toBe(true);
+    expect(step6.some((c) => /^KNOWN GAP/.test(c.name))).toBe(false);
+    expect(result.notes.some((n) => /T-075/.test(n))).toBe(false);
+    // Priya's DM lines ("- 🔒 dm → Priya · **trav**: ...") and their continuations.
+    const step6Text = chat.split('\n### ').find((s) => s.startsWith('6.')) ?? '';
+    expect(step6Text).toMatch(/El Born → Eixample, 4 riders/);
+    expect(step6Text).toMatch(/split with Dean, Jordan,? (?:and )?Sam\?/);
     expect(result.notes.some((n) => /\[Paid\]/.test(n) && /T-037/.test(n))).toBe(true);
   }, 60_000);
 

@@ -30,8 +30,10 @@
  *     plus the rider count (one rider ⇒ personal; several ⇒ more shared).
  *     Parsed facts are kept only for trip data (inside the trip window ±1 day,
  *     or classified shared); the rest is a seen row with `parsed: null`.
- *  6. A shared receipt becomes a `PendingPrivateItem` (split by `sharePlan`)
- *     unless it is already on the tab (same payer, amount and currency within
+ *  6. A shared receipt becomes a `PendingPrivateItem` (split by `sharePlan`,
+ *     then the receipt's rider count, `applyRiders` in `riders.ts`: when the
+ *     count and the roster can't say who rode, the card asks the owner and
+ *     proposes no split, T-135) unless it is already on the tab (same payer, amount and currency within
  *     48h of a logged expense; an expense from a DIFFERENT email never
  *     counts; a shared card charge for the same ride in another currency
  *     does), already asked about as a card charge (waiting, shared, kept
@@ -41,7 +43,8 @@
  *     within 10 minutes; never the display name, which a flagged forward
  *     replaces with the neutral one).
  *  7. DMs to the owner only (never a minor): one card per receipt, or one
- *     digest when two or more land together (VOICE §2: "two email receipts").
+ *     digest when two or more land together (VOICE §2: "two email receipts");
+ *     a card asking who rode always goes on its own.
  *     The group sees nothing until the owner confirms, not even a count
  *     (T-112, SAFETY §2.3).
  *
@@ -53,6 +56,7 @@ import type {
   EmailReceipt,
   ExpenseCategory,
   Group,
+  GroupMessageSummary,
   IdGenerator,
   IsoDateTime,
   Member,
@@ -96,6 +100,7 @@ import {
   type ChargeFacts,
   type SharePlan,
 } from './pending.js';
+import { applyRiders, validRiders } from './riders.js';
 
 /** Two or more receipts from one import go out as one digest (VOICE §2 "two email receipts"). */
 export const EMAIL_DIGEST_MIN = 2;
@@ -118,6 +123,11 @@ export interface EmailImportDeps {
   readonly group: Group;
   readonly members: readonly Member[];
   readonly trip: Trip | null;
+  /**
+   * The group thread so far (the loop's transcript), so a ride's rider count
+   * can leave out who said they had left that night (`applyRiders`, T-135).
+   */
+  readonly groupMessages?: readonly GroupMessageSummary[];
 }
 
 export interface EmailImportInput {
@@ -253,7 +263,9 @@ export function safeReceipt(parsed: ParsedEmailReceipt, flagged: boolean): Parse
 }
 
 /** VOICE §4.5 C detail: "El Born → Eixample, 4 riders". Undefined when nothing safe to say. */
-export function rideDetail(receipt: ParsedReceipt): string | undefined {
+export function rideDetail(
+  receipt: ParsedReceipt | { readonly ride: ParsedReceipt['ride'] },
+): string | undefined {
   const ride = receipt.ride;
   if (ride === undefined) return undefined;
   const place = (s: string | undefined): string | undefined => {
@@ -266,7 +278,7 @@ export function rideDetail(receipt: ParsedReceipt): string | undefined {
   const parts: string[] = [];
   if (from !== undefined && to !== undefined) parts.push(`${from} → ${to}`);
   const n = ride.riders;
-  if (n !== undefined && Number.isSafeInteger(n) && n >= 1 && n <= 12) {
+  if (validRiders(n)) {
     parts.push(`${String(n)} ${n === 1 ? 'rider' : 'riders'}`);
   }
   return parts.length === 0 ? undefined : parts.join(', ');
@@ -499,14 +511,23 @@ export async function importEmailReceipts(
       duplicates += 1;
       continue;
     }
-    const plan = sharePlan({
-      trips: stores.group.trips,
-      trip,
-      members,
-      ownerMemberId: owner.memberId,
-      occurredAt: receipt.occurredAt,
-      category,
-    });
+    // T-135: the receipt's rider count next to that night's roster (a flagged email has no ride facts).
+    const plan = applyRiders(
+      sharePlan({
+        trips: stores.group.trips,
+        trip,
+        members,
+        ownerMemberId: owner.memberId,
+        occurredAt: receipt.occurredAt,
+        category,
+      }),
+      receipt.ride?.riders,
+      {
+        ownerMemberId: owner.memberId,
+        occurredAt: receipt.occurredAt,
+        ...(deps.groupMessages !== undefined ? { groupMessages: deps.groupMessages } : {}),
+      },
+    );
     const item: PendingPrivateItem = markPrivate({
       id: ids.next('priv'),
       ownerMemberId: owner.memberId,
@@ -522,7 +543,9 @@ export async function importEmailReceipts(
       category,
       classifier: { looksShared: true, confidence: verdict.score, reason: verdict.reason },
       lowConfidence: flagged || receipt.confidence < LOW_CONFIDENCE_BELOW,
-      suggestedParticipants: plan.participants,
+      ...(plan.askRiders !== undefined
+        ? { ridersToName: plan.askRiders }
+        : { suggestedParticipants: plan.participants }),
       ...(plan.activityId !== undefined ? { suggestedActivityId: plan.activityId } : {}),
     });
     stores.private.putPendingItem(owner.memberId, item);
@@ -561,7 +584,13 @@ export async function importEmailReceipts(
       ...(c.detail !== undefined ? { detail: c.detail } : {}),
       ...(c.plan.label !== undefined ? { splitWithLabel: c.plan.label } : {}),
     });
-    const batches = created.length >= EMAIL_DIGEST_MIN ? [created] : created.map((c) => [c]);
+    // A card that asks who rode always goes on its own: a digest line can't carry the question.
+    const asks = created.filter((c) => c.plan.askRiders !== undefined);
+    const rest = created.filter((c) => c.plan.askRiders === undefined);
+    const batches = [
+      ...(rest.length >= EMAIL_DIGEST_MIN ? [rest] : rest.map((c) => [c])),
+      ...asks.map((c) => [c]),
+    ];
     for (const batch of batches) {
       const msg = renderLooksShared(
         { ownerMemberId: owner.memberId, items: batch.map(entry) },
