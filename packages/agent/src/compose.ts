@@ -39,10 +39,16 @@ import {
   TravError,
 } from '@trav/core';
 import { createMemoryStores } from '@trav/core/storage';
-import type { AlbumAdapter, ChannelAdapter, TransactionsAdapter } from '@trav/adapters';
+import type {
+  AlbumAdapter,
+  ChannelAdapter,
+  FxRatesAdapter,
+  TransactionsAdapter,
+} from '@trav/adapters';
 import {
   createMockBookingPayments,
   createMockFlights,
+  createMockFxRates,
   createMockLodging,
   createMockTickets,
   createMockTransactions,
@@ -103,6 +109,12 @@ export interface TravRuntimeOptions {
    * scheduled card imports (callers that drive imports themselves).
    */
   readonly transactions?: TransactionsAdapter | false;
+  /**
+   * Reference FX rates for chat expenses in another currency (T-084). Default:
+   * the mock table (`fixtures/fx/rates.json`) on this runtime's clock; never a
+   * live API. `false` ⇒ none (Trav asks for the trip-currency amount).
+   */
+  readonly fx?: FxRatesAdapter | false;
   readonly scheduler?: Scheduler;
   /** Default: `outbound/send.ts` (screen → voice lint → lane → audit). */
   readonly sendTurn?: TurnSender;
@@ -199,6 +211,7 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
     options.transactions === false
       ? undefined
       : (options.transactions ?? createMockTransactions({ clock }));
+  const fx = options.fx === false ? undefined : (options.fx ?? createMockFxRates({ clock }));
   // Every planned or active trip's Morning Afters (T-015, 10am each morning
   // after a trip night) and end-of-trip Wrapped (T-016/T-142, 10am the day
   // after) still ahead, whoever seeded the stores (the demo seed, the evals,
@@ -248,6 +261,7 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
     ...(options.album !== undefined ? { album: options.album } : {}),
     ...(options.maxToolRounds !== undefined ? { maxToolRounds: options.maxToolRounds } : {}),
     ...(transactions !== undefined ? { transactions } : {}),
+    ...(fx !== undefined ? { fx } : {}),
   };
   const agent = createTravAgent(deps);
 

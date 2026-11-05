@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { FxRatesAdapter } from '@trav/adapters';
 import type { Expense, ExpenseConfirmCard, Member, OutboundMessage } from '@trav/core';
 import { isReaction, ledger, safety } from '@trav/core';
 import { BARCELONA } from '../compose.js';
@@ -211,8 +212,142 @@ describe('exactly one clarifying question when a money fact is missing (VOICE §
     expect(logged(h)[0]!.amount).toEqual({ amountMinor: 6000, currency: 'EUR' });
   });
 
-  it('a foreign amount is not converted: one question for the trip-currency amount', async () => {
+  it('T-084: a foreign amount is converted at the mock rate for its date, no question', async () => {
     const h = harness();
+    // sat 14 mar: the table has no weekend rows, so friday 13 mar (1.0840 USD per EUR) is used
+    const turn = await h.say('h_dean', '@trav $40 USD for the museum, everyone', {
+      messageId: 'm_museum',
+    });
+    expect(turn.note).toBe('expense:logged');
+    expect(questionsAsked(h)).toBe(0);
+    const msg = only(turn);
+    // 4000 / 1.0840 = 3690.04… ⇒ €36.90; 6 ways ⇒ €6.15 each
+    expect(msg.text).toBe(
+      'logged: $40 museum (≈€36.90) on Dean, 6 ways → €6.15 each\n👎 to undo or tell me what to change',
+    );
+    expectVoice(msg.text, 'expense');
+    const card = msg.card as ExpenseConfirmCard;
+    expect(card.amount).toEqual({ amountMinor: 3690, currency: 'EUR' });
+    expect(card.original).toEqual({ amountMinor: 4000, currency: 'USD' });
+    expect(card.title).toBe('museum, $40 ≈ €36.90');
+    const [e] = logged(h);
+    expect(e!.amount).toEqual({ amountMinor: 3690, currency: 'EUR' });
+    expect(e!.paidBy).toEqual([{ memberId: 'mem_dean', amount: e!.amount }]);
+    expect(e!.original).toEqual({
+      amount: { amountMinor: 4000, currency: 'USD' },
+      rate: '1.0840',
+      rateDate: '2026-03-13',
+      source: 'mock-fx',
+    });
+    // the ledger is in EUR and sums to the converted total exactly
+    const b = balances(h);
+    expect(Object.values(b).reduce((x, y) => x + y, 0)).toBe(0);
+    expect(b['mem_dean']).toBe(3690 - 615);
+    const audit = h.runtime.stores.group.audit
+      .listByGroup(G)
+      .find((a) => a.type === 'ledger.entry_created');
+    expect(audit?.payload).toMatchObject({
+      fx: { originalMinor: 4000, originalCurrency: 'USD', rate: '1.0840', rateSource: 'mock-fx' },
+    });
+    // a replay says it already has it, in both amounts
+    const again = await h.say('h_dean', '@trav $40 USD for the museum, everyone', {
+      messageId: 'm_museum',
+    });
+    expect(again.outbound).toHaveLength(0);
+    expect(logged(h)).toHaveLength(1);
+  });
+
+  it('T-084 acceptance: msg_bcn_0063 logs 3294 EUR minor split Priya/Jordan/Sam at the 2026-03-10 mock rate', async () => {
+    const h = harness();
+    h.clock.set('2026-03-10T12:50:00-04:00');
+    const turn = await h.say(
+      'h_priya',
+      '@trav i got esims for me jordan and sam before we fly, $36 total',
+      { messageId: 'msg_bcn_0063' },
+    );
+    expect(turn.note).toBe('expense:logged');
+    expect(questionsAsked(h)).toBe(0);
+    const msg = only(turn);
+    expect(msg.text).toContain('$36');
+    expect(msg.text.split('\n')[0]).toBe(
+      'logged: $36 esims (≈€32.94) on Priya, 3 ways (not Dean, Henry, Maya) → €10.98 each',
+    );
+    expectVoice(msg.text, 'expense');
+    const [e] = logged(h);
+    expect(e!.amount).toEqual({ amountMinor: 3294, currency: 'EUR' });
+    expect(e!.original).toEqual({
+      amount: { amountMinor: 3600, currency: 'USD' },
+      rate: '1.0928',
+      rateDate: '2026-03-10',
+      source: 'mock-fx',
+    });
+    const order = h.runtime.stores.group.members.listByGroup(G).map((m) => m.memberId);
+    const shares = ledger.computeShares(e!, { memberOrder: order, participantsUniverse: order });
+    expect(
+      Object.fromEntries(
+        shares
+          .filter((s) => s.amount.amountMinor !== 0)
+          .map((s) => [s.memberId, s.amount.amountMinor]),
+      ),
+    ).toEqual({ mem_priya: 1098, mem_jordan: 1098, mem_sam: 1098 });
+  });
+
+  it('T-084: no rate for that date ⇒ the one question, never a guess; the lookup is EUR→USD on the trip-local date', async () => {
+    const calls: [string, string, string | undefined][] = [];
+    const noRate: FxRatesAdapter = {
+      info: { provider: 'mock-fx', mode: 'mock' },
+      getRate: (base, quote, on) => {
+        calls.push([base, quote, on]);
+        return Promise.resolve({
+          ok: false,
+          error: { code: 'not_found', message: 'no rate', retryable: false },
+        });
+      },
+    };
+    const h = harness({ runtime: { fx: noRate } });
+    const ask = await h.say('h_dean', '@trav $40 USD for the museum, everyone');
+    expect(ask.note).toBe('expense:clarify:trip_currency');
+    expect(only(ask).text).toBe(
+      "what was the museum in euros? the tab's in EUR and i can't convert $40 yet",
+    );
+    expect(expenses(h)).toEqual([]);
+    expect(calls).toEqual([['EUR', 'USD', '2026-03-14']]);
+    // the answer in euros is used as is
+    expect((await h.say('h_dean', '37')).note).toBe('expense:logged:answer');
+    expect(logged(h)[0]!.amount).toEqual({ amountMinor: 3700, currency: 'EUR' });
+    expect(logged(h)[0]!.original).toBeUndefined();
+  });
+
+  it('T-084: a rate lookup that throws is no rate (the question), not a failed turn', async () => {
+    const broken: FxRatesAdapter = {
+      info: { provider: 'mock-fx', mode: 'mock' },
+      getRate: () => Promise.reject(new Error('fx down')),
+    };
+    const h = harness({ runtime: { fx: broken } });
+    const ask = await h.say('h_dean', '@trav $40 USD for the museum, everyone');
+    expect(ask.note).toBe('expense:clarify:trip_currency');
+    expect(expenses(h)).toEqual([]);
+  });
+
+  it('T-084: a euro amount never looks up a rate', async () => {
+    const calls: string[] = [];
+    const spy: FxRatesAdapter = {
+      info: { provider: 'mock-fx', mode: 'mock' },
+      getRate: (base, quote) => {
+        calls.push(`${base}/${quote}`);
+        return Promise.reject(new Error('should not be called'));
+      },
+    };
+    const h = harness({ runtime: { fx: spy } });
+    expect((await h.say('h_dean', '@trav i paid €84 for dinner, everyone')).note).toBe(
+      'expense:logged',
+    );
+    expect(calls).toEqual([]);
+    expect(logged(h)[0]!.original).toBeUndefined();
+  });
+
+  it('a foreign amount with no FX: one question for the trip-currency amount, the answer used as is', async () => {
+    const h = harness({ runtime: { fx: false } });
     const ask = await h.say('h_dean', '@trav $40 USD for the museum, everyone');
     expect(only(ask).text).toBe(
       "what was the museum in euros? the tab's in EUR and i can't convert $40 yet",

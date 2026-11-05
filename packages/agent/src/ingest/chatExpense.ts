@@ -39,10 +39,12 @@
  * appends `ledger.entry_created`. Several expenses post as ONE message whose
  * card carries every expense in `digestItems`; one 👎 undoes them all.
  */
+import type { FxRatesAdapter } from '@trav/adapters';
 import type {
   Clock,
   Expense,
   ExpenseConfirmCard,
+  FxQuote,
   Group,
   IdGenerator,
   IsoDateTime,
@@ -53,7 +55,7 @@ import type {
   Stores,
   Trip,
 } from '@trav/core';
-import { formatMoney, isReaction, ledger, parseIso } from '@trav/core';
+import { formatMoney, isReaction, ledger, localDate, parseIso } from '@trav/core';
 import { buildGroupContext, sanitizeInline } from '../context/groupContext.js';
 import type { ModelClient, ResponseSource } from '../model/client.js';
 import {
@@ -61,7 +63,7 @@ import {
   EXPENSE_TEXT_SCHEMA,
   expenseTextSystemPrompt,
 } from '../prompts/expenseText.js';
-import { renderExpenseLogged } from '../render/expenseConfirm.js';
+import { foreignOriginal, renderExpenseLogged } from '../render/expenseConfirm.js';
 import type { RenderContext } from '../render/common.js';
 import {
   askedFacts,
@@ -91,6 +93,56 @@ export interface ChatExpenseDeps {
   readonly model: ModelClient;
   readonly ids: IdGenerator;
   readonly clock: Clock;
+  /**
+   * T-084: reference rates for an amount in another currency (the runtime's
+   * is the mock table, never a live API). Absent ⇒ no conversion: Trav asks
+   * for the amount in the trip currency.
+   */
+  readonly fx?: FxRatesAdapter;
+}
+
+/**
+ * T-084: the reference rate into the trip currency for each other currency the
+ * drafts use, on the statement's date in the trip's time zone. A lookup that
+ * fails leaves that currency out, so it is asked about, never guessed.
+ */
+export async function ratesFor(
+  fx: FxRatesAdapter | undefined,
+  drafts: readonly ExpenseDraft[],
+  ctx: ExpenseTextContext,
+  trip: Trip,
+  at: IsoDateTime,
+): Promise<ExpenseTextContext> {
+  const tripCurrency = ctx.tripCurrency;
+  if (fx === undefined || tripCurrency === null) return ctx;
+  const others = [
+    ...new Set(
+      drafts
+        .map((d) => d.amount?.currency)
+        .filter((c): c is string => c !== undefined && c !== tripCurrency),
+    ),
+  ];
+  if (others.length === 0) return ctx;
+  let on: string;
+  try {
+    on = localDate(at, trip.timeZone);
+  } catch {
+    return ctx;
+  }
+  const quotes = new Map<string, FxQuote>(ctx.fx ?? []);
+  for (const cur of others) {
+    if (quotes.has(cur)) continue;
+    // base = trip currency: the table's own "units of `cur` per 1 trip unit" (no inverse rounding)
+    let res: Awaited<ReturnType<FxRatesAdapter['getRate']>>;
+    try {
+      res = await fx.getRate(tripCurrency, cur, on);
+    } catch {
+      continue; // a failed lookup is no rate: the amount is asked about
+    }
+    if (!res.ok) continue;
+    quotes.set(cur, { rate: res.value.rate, rateDate: res.value.asOf, source: res.value.source });
+  }
+  return quotes.size === 0 ? ctx : { ...ctx, fx: quotes };
 }
 
 export interface ChatExpenseInput {
@@ -234,6 +286,7 @@ export function createChatExpenseFlow(deps: ChatExpenseDeps): ChatExpenseFlow {
         description: p.description,
         category: p.category,
         amount: p.amount,
+        ...(p.original !== undefined ? { original: p.original } : {}),
         paidBy: [{ memberId: p.payer, amount: p.amount }],
         split: p.split,
         source: 'chat',
@@ -258,6 +311,17 @@ export function createChatExpenseFlow(deps: ChatExpenseDeps): ChatExpenseFlow {
           amounts: shares.map((s) => ({ memberId: s.memberId, amountMinor: s.amount.amountMinor })),
           sourceMessageId: source.messageId,
           sourceRef: sourceRef.id,
+          ...(expense.original !== undefined
+            ? {
+                fx: {
+                  originalMinor: expense.original.amount.amountMinor,
+                  originalCurrency: expense.original.amount.currency,
+                  rate: expense.original.rate,
+                  rateDate: expense.original.rateDate,
+                  rateSource: expense.original.source ?? null,
+                },
+              }
+            : {}),
         },
       });
       logged.push(expense);
@@ -265,11 +329,15 @@ export function createChatExpenseFlow(deps: ChatExpenseDeps): ChatExpenseFlow {
 
     if (logged.length === 0) {
       const first = already[0]!;
+      const paid = foreignOriginal(first);
+      const desc = sanitizeInline(first.description, 40).toLowerCase();
       return {
         drafts: [
           question(
             input,
-            `already got that one: ${formatMoney(first.amount)} ${sanitizeInline(first.description, 40).toLowerCase()}`,
+            paid === undefined
+              ? `already got that one: ${formatMoney(first.amount)} ${desc}`
+              : `already got that one: ${formatMoney(paid)} ${desc} (≈${formatMoney(first.amount)})`,
           ),
         ],
         note: 'expense:already_logged',
@@ -455,7 +523,8 @@ export function createChatExpenseFlow(deps: ChatExpenseDeps): ChatExpenseFlow {
         const askedNow = open.missing.map((m) => m.filter((f) => open.asked.includes(f)));
         const merged = mergeAnswer(open.drafts, askedNow, input.text, ctx);
         if (merged !== undefined) {
-          const ev = evaluateDrafts(merged, ctx);
+          const rctx = await ratesFor(deps.fx, merged, ctx, input.trip, open.at);
+          const ev = evaluateDrafts(merged, rctx);
           if (ev.kind === 'clarify' && ev.missing.flat().some((f) => open.asked.includes(f))) {
             // Still missing something already asked about: wait, never ask twice.
             pending.set(key, { ...open, drafts: merged, missing: ev.missing });
@@ -473,7 +542,7 @@ export function createChatExpenseFlow(deps: ChatExpenseDeps): ChatExpenseFlow {
                 };
           }
           // ready, or a fact not asked yet (who's in, once the payer is known)
-          return act(input, ctx, merged, ev, open, sources, ':answer', open.asked, true);
+          return act(input, rctx, merged, ev, open, sources, ':answer', open.asked, true);
         }
       }
     }
@@ -487,14 +556,16 @@ export function createChatExpenseFlow(deps: ChatExpenseDeps): ChatExpenseFlow {
       return { drafts: [reaction(input, '👍')], note: 'expense:no_log', modelSources: [] };
     }
     if (parsed.kind === 'drafts') {
-      const ev = evaluateDrafts(parsed.drafts, ctx);
-      if (ev.kind !== 'unsure') return act(input, ctx, parsed.drafts, ev, source, sources, '');
+      const rctx = await ratesFor(deps.fx, parsed.drafts, ctx, input.trip, input.at);
+      const ev = evaluateDrafts(parsed.drafts, rctx);
+      if (ev.kind !== 'unsure') return act(input, rctx, parsed.drafts, ev, source, sources, '');
     }
 
     // 3. the extraction call, for what the parser could not settle
     const drafts = await extract(input, ctx, sources);
     if (drafts === undefined) return undefined;
-    return act(input, ctx, drafts, evaluateDrafts(drafts, ctx), source, sources, ':model');
+    const mctx = await ratesFor(deps.fx, drafts, ctx, input.trip, input.at);
+    return act(input, mctx, drafts, evaluateDrafts(drafts, mctx), source, sources, ':model');
   }
 
   return {

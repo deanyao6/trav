@@ -82,8 +82,19 @@ export interface Expense {
   readonly merchantDisplay?: string;
   readonly category: ExpenseCategory;
   readonly amount: Money;
-  /** Original amount when the expense was in another currency (T-031). */
-  readonly original?: { readonly amount: Money; readonly rate: string; readonly rateDate: string };
+  /**
+   * Original amount when the expense was in another currency (T-031, T-084).
+   * `rate` = units of `original.amount.currency` per 1 unit of `amount.currency`
+   * (decimal string, as in `fixtures/fx/rates.json`); `rateDate` = the table
+   * date used; `source` = who published the rate (`mock-fx`). Optional on rows
+   * written before T-084 (D-036). `amount` = `convertMoney(original.amount, …, rate)`.
+   */
+  readonly original?: {
+    readonly amount: Money;
+    readonly rate: string;
+    readonly rateDate: string;
+    readonly source?: string;
+  };
   /** One or more payers; shares of `paidBy` must sum to `amount`. Usually one. */
   readonly paidBy: readonly { readonly memberId: MemberId; readonly amount: Money }[];
   readonly split: SplitSpec;

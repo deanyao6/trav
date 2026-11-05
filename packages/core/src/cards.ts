@@ -207,6 +207,8 @@ export interface ExpenseConfirmCard extends CardBase {
   readonly description: string;
   readonly occurredAt?: IsoDateTime;
   readonly amount: Money;
+  /** What was actually paid, when it was in another currency (T-084): shown as "$36 ≈ €32.94". */
+  readonly original?: Money;
   readonly paidBy: MemberId;
   readonly split: {
     readonly method: SplitMethod;

@@ -78,6 +78,7 @@ import type {
   AlbumAdapter,
   ChannelAdapter,
   ChannelHandle,
+  FxRatesAdapter,
   InboundEvent,
   InboundMessage,
   TransactionsAdapter,
@@ -241,6 +242,11 @@ export interface AgentDeps {
    * `importCardTransactions` needs an explicit `adapter`.
    */
   readonly transactions?: TransactionsAdapter;
+  /**
+   * Reference FX rates (T-084; the runtime's is the mock table, never live).
+   * Absent ⇒ an amount in another currency is asked about in the trip currency.
+   */
+  readonly fx?: FxRatesAdapter;
 }
 
 export interface TurnResult {
@@ -671,7 +677,13 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     chatTimes.set(groupId, list.slice(-CHAT_TIMES_CAP));
   };
   /** Expense from chat text (T-010): parser first, one question when a money fact is missing. */
-  const chatExpenses = createChatExpenseFlow({ stores, model, ids, clock });
+  const chatExpenses = createChatExpenseFlow({
+    stores,
+    model,
+    ids,
+    clock,
+    ...(deps.fx !== undefined ? { fx: deps.fx } : {}),
+  });
   /** Receipt photo → "who had what?" → itemized split on the poster's 👍 (T-011). */
   const receipts = createReceiptFlow({
     stores,

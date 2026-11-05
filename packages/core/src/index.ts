@@ -7,6 +7,7 @@ export const PACKAGE_NAME = '@trav/core';
 export * from './primitives.js';
 export * from './errors.js';
 export * from './money.js';
+export * from './fx.js';
 export * from './ids.js';
 export * from './clock.js';
 export * from './domain/index.js';

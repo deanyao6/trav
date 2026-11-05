@@ -314,7 +314,11 @@ function ExpenseItem({ card, group }: { card: ExpenseConfirmCard; group: SimGrou
       <div className="card-item">
         {card.description} <span className="badge">{SOURCE_BADGE[card.source] ?? card.source}</span>
       </div>
-      <div className="amount">{formatMoney(card.amount)}</div>
+      <div className="amount">
+        {card.original !== undefined
+          ? `${formatMoney(card.original)} ≈ ${formatMoney(card.amount)}`
+          : formatMoney(card.amount)}
+      </div>
       <Row label="paid by" value={<Chip group={group} memberId={card.paidBy} />} />
       <div className="chips">
         {card.split.participants.map((p) => (

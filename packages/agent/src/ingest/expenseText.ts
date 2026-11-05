@@ -33,8 +33,10 @@
  * currency (the trip has one by construction, VOICE §3.4); with no trip
  * currency, or when the message points elsewhere ("venmo", "zelle", "cash
  * app" on a non-USD trip), the currency is a missing fact. An amount in a
- * currency other than the trip's is never converted here (no FX until T-031):
- * Trav asks for the amount in the trip currency.
+ * currency other than the trip's is converted at the reference rate the flow
+ * looked up for the statement's date (`ctx.fx`, T-084) and keeps what was
+ * said as `original`; with no rate for that currency and date, Trav asks for
+ * the amount in the trip currency (never a guessed rate).
  *
  * Payer. "i paid / i got / on me / on my card / venmo me / X owes me" ⇒ the
  * sender; "Jordan paid / got / covered" ⇒ Jordan; "i owe Dean €20 for X" ⇒
@@ -103,9 +105,10 @@ import type {
   IsoDateTime,
   MemberId,
   Money,
+  FxQuote,
   SplitSpec,
 } from '@trav/core';
-import { formatMoney, ledger, money, parseDecimal } from '@trav/core';
+import { convertMoney, convertParts, formatMoney, ledger, money, parseDecimal } from '@trav/core';
 import { stripInvisible } from '../untrusted.js';
 
 // ---------- inputs and outputs ----------
@@ -135,6 +138,13 @@ export interface ExpenseTextContext {
   readonly rosters?: readonly ParseRoster[];
   /** For "the only roster around now" (±18h). */
   readonly now?: IsoDateTime;
+  /**
+   * T-084: reference rates into the trip currency, keyed by the other
+   * currency (rate = units of that currency per 1 trip-currency unit), for the
+   * statement's date. Looked up by the flow before evaluating (the parser does
+   * no I/O). A currency with no entry is asked about ("what was it in euros?").
+   */
+  readonly fx?: ReadonlyMap<CurrencyCode, FxQuote>;
 }
 
 export type ParticipantSpec =
@@ -193,6 +203,8 @@ export interface ParsedExpense {
   readonly payer: MemberId;
   readonly amount: Money;
   readonly split: SplitSpec;
+  /** T-084: what was said, when it was in another currency; `amount` is the converted total. */
+  readonly original?: NonNullable<Expense['original']>;
 }
 
 export type MissingFact =
@@ -1620,7 +1632,12 @@ function missingOf(d: ExpenseDraft, ctx: ExpenseTextContext): MissingFact[] {
   if (d.amount === undefined) out.push('amount');
   else if (d.amount.currency === undefined) {
     if (ctx.tripCurrency === null || d.currencyDoubt !== undefined) out.push('currency');
-  } else if (ctx.tripCurrency !== null && d.amount.currency !== ctx.tripCurrency) {
+  } else if (
+    ctx.tripCurrency !== null &&
+    d.amount.currency !== ctx.tripCurrency &&
+    ctx.fx?.get(d.amount.currency) === undefined
+  ) {
+    // no reference rate for that currency and date: ask, never guess (T-084)
     out.push('trip_currency');
   }
   if (
@@ -1654,8 +1671,60 @@ function participantsOf(d: ExpenseDraft, ctx: ExpenseTextContext): MemberId[] {
   return [];
 }
 
-/** One settled expense, or why not. Shares are computed exactly as the ledger will. */
+/**
+ * One settled expense, or why not. Shares are computed exactly as the ledger
+ * will. An amount in another currency is settled in that currency first, then
+ * carried into the trip currency at `ctx.fx` (T-084): the total by
+ * `convertMoney` (half away from zero), fixed shares and line items in
+ * proportion so they still sum exactly to the converted total. Equal, exclude
+ * and weighted splits carry no money, so the ledger splits the converted total.
+ */
 function settle(d: ExpenseDraft, ctx: ExpenseTextContext): ParsedExpense | { unsure: string } {
+  const s = settleAsSaid(d, ctx);
+  if ('unsure' in s) return s;
+  const trip = ctx.tripCurrency;
+  const said = s.amount.currency;
+  if (trip === null || said === trip) return s;
+  const quote = ctx.fx?.get(said);
+  if (quote === undefined) return { unsure: 'no_rate' };
+  let amount: Money;
+  try {
+    amount = convertMoney(s.amount, trip, quote.rate);
+  } catch {
+    return { unsure: 'no_rate' };
+  }
+  if (amount.amountMinor <= 0) return { unsure: 'zero_amount' };
+  const original = {
+    amount: s.amount,
+    rate: quote.rate,
+    rateDate: quote.rateDate,
+    source: quote.source,
+  };
+  const split = s.split;
+  if (split.method === 'exact') {
+    const parts = convertParts(
+      split.amounts.map((a) => a.amount),
+      amount,
+    );
+    const amounts = split.amounts.map((a, i) => ({ memberId: a.memberId, amount: parts[i]! }));
+    return { ...s, amount, original, split: { method: 'exact', amounts } };
+  }
+  if (split.method === 'itemized') {
+    const parts = convertParts(
+      split.lineItems.map((l) => l.amount),
+      amount,
+    );
+    const lineItems = split.lineItems.map((l, i) => ({ ...l, amount: parts[i]! }));
+    return { ...s, amount, original, split: { ...split, lineItems } };
+  }
+  return { ...s, amount, original };
+}
+
+/** `settle` in the currency the sender used. */
+function settleAsSaid(
+  d: ExpenseDraft,
+  ctx: ExpenseTextContext,
+): ParsedExpense | { unsure: string } {
   if (d.payer.kind !== 'member' || d.amount === undefined) return { unsure: 'incomplete' };
   const currency = d.amount.currency ?? ctx.tripCurrency;
   if (currency === null) return { unsure: 'incomplete' };

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { Expense, Member, Money, SplitSpec } from '@trav/core';
-import { ledger, safety } from '@trav/core';
+import { ledger, localDate, safety } from '@trav/core';
 import { repoRoot } from '../model/paths.js';
 import {
   centsToDecimal,
@@ -151,17 +151,18 @@ interface Phrasing {
  *  - A bare number is in the trip currency (orchestrator's T-010 rule: the
  *    currency is a question only when the trip has no default or the message
  *    points elsewhere, e.g. "venmo"); the label asked about currency.
- *  - Foreign currencies are not converted before T-031 (FX), so a USD amount
- *    on a EUR trip is one question for the euro amount, not a USD expense.
+ *  - The tab is in the trip currency, never a USD expense on a EUR trip. These
+ *    rows give the parser no rate (`ctx.fx` unset), so a USD amount is one
+ *    question for the euro amount; with a rate it is converted (T-084 tests).
  */
 const DEVIATIONS: Readonly<Record<string, { readonly action: string; readonly why: string }>> = {
   ex_006: {
     action: 'clarify',
-    why: 'USD on a EUR trip: asks for the euro amount (no FX until T-031)',
+    why: 'USD on a EUR trip with no rate given: asks for the euro amount',
   },
   ex_021: {
     action: 'clarify',
-    why: 'USD on a EUR trip: asks for the euro amount (no FX until T-031)',
+    why: 'USD on a EUR trip with no rate given: asks for the euro amount',
   },
   ex_025: { action: 'log_expense', why: 'bare 84 on a EUR trip is €84 (trip default currency)' },
 };
@@ -237,9 +238,20 @@ interface ChatLine {
       readonly paidBy: string;
       readonly amount: Money;
       readonly shares: readonly { readonly memberId: string; readonly amount: Money }[];
+      readonly original?: {
+        readonly amount: Money;
+        readonly rate: string;
+        readonly rateDate: string;
+      };
     };
   };
 }
+
+/** `fixtures/fx/rates.json`: the mock FX table (units of quote per 1 EUR). */
+const FX_TABLE = readJson<{
+  readonly source: string;
+  readonly rates: Readonly<Record<string, Readonly<Record<string, string>>>>;
+}>('fx/rates.json');
 
 describe('fixtures/chats/barcelona.jsonl: every chat-text expense line', () => {
   const lines = readFileSync(join(repoRoot(), 'fixtures', 'chats', 'barcelona.jsonl'), 'utf8')
@@ -279,8 +291,18 @@ describe('fixtures/chats/barcelona.jsonl: every chat-text expense line', () => {
   });
   for (const line of chatLines) {
     it(`${line.id}: ${line.text}`, () => {
-      const ctx = BCN(senderOf(line.senderId), { rosters, now: line.ts });
       const want = line.expect!.expense!;
+      // T-084: the flow looks up the mock table's rate for the statement's
+      // trip-local date; here the table row is read straight from the fixture.
+      const day = localDate(line.ts, 'Europe/Madrid');
+      const row = FX_TABLE.rates[day];
+      const fx = new Map(
+        Object.entries(row ?? {}).map(([cur, rate]) => [
+          cur,
+          { rate, rateDate: day, source: FX_TABLE.source },
+        ]),
+      );
+      const ctx = BCN(senderOf(line.senderId), { rosters, now: line.ts, fx });
       let r = run(line.text, ctx);
       // msg_bcn_0089 answers the question msg_bcn_0088 asked ("@trav log 30 for the cava")
       if (r.kind === 'none') {
@@ -292,15 +314,21 @@ describe('fixtures/chats/barcelona.jsonl: every chat-text expense line', () => {
         expectVoice(q.question);
         r = evaluateDrafts(mergeAnswer(p.drafts, q.missing, line.text, ctx)!, ctx);
       }
-      if (want.amount.currency !== 'EUR' || line.id === 'msg_bcn_0063') {
-        // "$36 total" on a EUR trip: one question for the euro amount (no FX until T-031)
-        expect(r.kind).toBe('clarify');
-        return;
-      }
       expect(r.kind, JSON.stringify(r)).toBe('ready');
       const [e] = (r as Extract<DraftsEvaluation, { kind: 'ready' }>).expenses;
       expect(e!.payer).toBe(want.paidBy);
       expect(e!.amount).toEqual(want.amount);
+      if (want.original !== undefined) {
+        // msg_bcn_0063 "$36 total": $36 / 1.0928 (2026-03-10) = €32.94, split 3 ways
+        expect(e!.original).toEqual({
+          amount: want.original.amount,
+          rate: want.original.rate,
+          rateDate: want.original.rateDate,
+          source: 'mock-fx',
+        });
+      } else {
+        expect(e!.original).toBeUndefined();
+      }
       const shares: Record<string, number> = {};
       for (const s of want.shares)
         if (s.amount.amountMinor !== 0) shares[s.memberId] = s.amount.amountMinor;
@@ -772,5 +800,115 @@ describe('T-017 r2: "on X\'s card" names the payer, not who\'s in', () => {
         ctx,
       ).kind,
     ).toBe('unsure');
+  });
+});
+
+// ---------- T-084: FX for chat expenses ----------
+
+describe('T-084: an amount in another currency is converted at the rate for its date', () => {
+  // fixtures/fx/rates.json, fri 13 mar 2026 (units per 1 EUR)
+  const FRI = new Map([
+    ['USD', { rate: '1.0840', rateDate: '2026-03-13', source: 'mock-fx' }],
+    ['GBP', { rate: '0.8611', rateDate: '2026-03-13', source: 'mock-fx' }],
+  ]);
+  const eur = (amountMinor: number): Money => ({ amountMinor, currency: 'EUR' });
+
+  it('msg_bcn_0063 on its rate-table date (2026-03-10, 1.0928): $36 ⇒ 3294 EUR minor, 3 ways', () => {
+    const day = localDate('2026-03-10T12:50:00-04:00', 'Europe/Madrid');
+    expect(day).toBe('2026-03-10');
+    const rate = FX_TABLE.rates[day]!['USD']!;
+    expect(rate).toBe('1.0928');
+    const ctx = BCN('mem_priya', {
+      fx: new Map([['USD', { rate, rateDate: day, source: 'mock-fx' }]]),
+    });
+    const all = ready('@trav i got esims for me jordan and sam before we fly, $36 total', ctx);
+    expect(all).toHaveLength(1);
+    const e = all[0]!;
+    expect(e.amount).toEqual(eur(3294));
+    expect(e.split.method).toBe('equal');
+    const split = e.split as Extract<SplitSpec, { method: 'equal' }>;
+    expect([...split.participants].sort()).toEqual(['mem_jordan', 'mem_priya', 'mem_sam']);
+    expect(sharesOf(e, ctx)).toEqual({ mem_priya: 1098, mem_jordan: 1098, mem_sam: 1098 });
+    expect(e.original).toEqual({
+      amount: { amountMinor: 3600, currency: 'USD' },
+      rate: '1.0928',
+      rateDate: '2026-03-10',
+      source: 'mock-fx',
+    });
+  });
+
+  it('odd cents: the converted total is split exactly (the payer gets a remainder cent)', () => {
+    const ctx = BCN('mem_dean', { fx: FRI });
+    const [e] = ready('@trav i paid $10 for snacks, me maya and sam', ctx);
+    expect(e!.amount).toEqual(eur(923)); // 1000 / 1.0840 = 922.5… ⇒ 923
+    const shares = sharesOf(e!, ctx);
+    expect(Object.values(shares).reduce((a, b) => a + b, 0)).toBe(923);
+    expect(shares['mem_dean']).toBe(308);
+    expect(Object.values(shares).sort()).toEqual([307, 308, 308]);
+  });
+
+  it('fixed shares carry over in proportion and sum to the converted total', () => {
+    const ctx = BCN('mem_maya', { fx: FRI });
+    const [e] = ready('trav the taxi was $32, me and Sam, Sam had the suitcase so he pays 20', ctx);
+    expect(e!.amount).toEqual(eur(2952));
+    expect(e!.split).toEqual({
+      method: 'exact',
+      amounts: [
+        { memberId: 'mem_maya', amount: eur(1107) },
+        { memberId: 'mem_sam', amount: eur(1845) },
+      ],
+    });
+  });
+
+  it('itemized lines carry over and still sum to the total', () => {
+    const ctx = BCN('mem_dean', { fx: FRI });
+    const [e] = ready(
+      '@trav dinner was $90: i had the steak ($30), maya and priya split the paella ($40), wine $20 for the three of us',
+      ctx,
+    );
+    expect(e!.amount).toEqual(eur(8303));
+    const split = e!.split as Extract<SplitSpec, { method: 'itemized' }>;
+    expect(split.lineItems.map((l) => l.amount.amountMinor)).toEqual([2768, 3690, 1845]);
+    expect(split.lineItems.reduce((a, l) => a + l.amount.amountMinor, 0)).toBe(8303);
+    expect(Object.values(sharesOf(e!, ctx)).reduce((a, b) => a + b, 0)).toBe(8303);
+  });
+
+  it('per person: the total is multiplied first, then converted once', () => {
+    const ctx = BCN('mem_sam', { fx: FRI });
+    const [e] = ready('@trav venmo me $20 each for the cab, me maya and dean', ctx);
+    expect(e!.original?.amount).toEqual({ amountMinor: 6000, currency: 'USD' });
+    expect(e!.amount).toEqual(eur(5535));
+  });
+
+  it('pounds use their own rate; a euro amount next to a dollar one is left as is', () => {
+    const ctx = BCN('mem_dean', { fx: FRI });
+    expect(ready('@trav i paid £12 for coffee, everyone', ctx)[0]!.amount).toEqual(eur(1394));
+    const [cab, snacks] = ready('@trav i paid $40 for the cab and €20 for snacks, everyone', ctx);
+    expect(cab!.amount).toEqual(eur(3690));
+    expect(snacks!.amount).toEqual(eur(2000));
+    expect(snacks!.original).toBeUndefined();
+  });
+
+  it('no rate for that currency: the one question, never a guess', () => {
+    const ctx = BCN('mem_priya', {
+      fx: new Map([['GBP', { rate: '0.8611', rateDate: '2026-03-13', source: 'mock-fx' }]]),
+    });
+    const q = clarify('@trav i got esims for me jordan and sam before we fly, $36 total', ctx);
+    expect(q.missing).toEqual([['trip_currency']]);
+    expect(q.question).toMatch(/in euros\? the tab's in EUR and i can't convert \$36 yet$/);
+  });
+
+  it('a bad rate string is never used (unsure, not a made-up amount)', () => {
+    const ctx = BCN('mem_dean', {
+      fx: new Map([['USD', { rate: '0', rateDate: '2026-03-13', source: 'mock-fx' }]]),
+    });
+    expect(run('@trav i paid $10 for snacks, me maya and sam', ctx).kind).toBe('unsure');
+  });
+
+  it('above the sanity bound the amount is still said again first', () => {
+    const ctx = BCN('mem_dean', { fx: FRI });
+    expect(clarify('@trav i paid $2500 for the villa, everyone', ctx).missing).toEqual([
+      ['confirm_amount'],
+    ]);
   });
 });

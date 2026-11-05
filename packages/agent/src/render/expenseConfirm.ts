@@ -100,6 +100,12 @@ export function unequalShares(participants: readonly Participant[], payer: Membe
   return ordered.map((p) => `${p.name} ${formatMoney(p.share!)}`).join(' · ');
 }
 
+/** The amount as paid, when it was in a currency other than the tab's (T-084). */
+export function foreignOriginal(expense: Expense): Money | undefined {
+  const o = expense.original;
+  return o !== undefined && o.amount.currency !== expense.amount.currency ? o.amount : undefined;
+}
+
 export function renderExpenseLogged(
   input: ExpenseLoggedRenderInput,
   ctx: RenderContext,
@@ -152,15 +158,19 @@ export function renderExpenseLogged(
           expense.paidBy.map((p) => p.memberId),
         );
   const amount = formatMoney(expense.amount);
+  // VOICE §3.4: another currency shows what was paid, then the trip amount ("$36 eSIMs (≈€32.94)").
+  const original = foreignOriginal(expense);
+  const said = original === undefined ? amount : formatMoney(original);
+  const approx = original === undefined ? '' : ` (≈${amount})`;
   const merchant = expense.merchantDisplay;
   const fromPhoto = expense.source === 'receipt_photo';
   const head = fromPhoto
-    ? `read it: ${merchant ?? expense.description}, ${amount} on ${payerText}`
-    : `logged: ${amount} ${expense.description} on ${payerText}`;
+    ? `read it: ${merchant ?? expense.description}, ${said}${approx} on ${payerText}`
+    : `logged: ${said} ${expense.description}${approx} on ${payerText}`;
 
   const lines: string[] = [];
   if (expense.status === 'undone') {
-    lines.push(`undone: ${amount} ${expense.description} on ${payerText}, it's off the tab`);
+    lines.push(`undone: ${said} ${expense.description}${approx} on ${payerText}, it's off the tab`);
   } else {
     const isEqual = expense.split.method === 'equal' || expense.split.method === 'exclude';
     const nonPayer = participants.filter((p) => p.memberId !== payer);
@@ -209,7 +219,7 @@ export function renderExpenseLogged(
     lines,
     {
       type: 'expense_confirm',
-      title: `${expense.description}, ${amount}`,
+      title: `${expense.description}, ${original === undefined ? amount : `${said} ≈ ${amount}`}`,
       expenseId: expense.expenseId,
       status: expense.status === 'undone' ? 'undone' : 'logged',
       source: expense.source,
@@ -218,6 +228,7 @@ export function renderExpenseLogged(
       description: expense.description,
       occurredAt: expense.occurredAt,
       amount: expense.amount,
+      ...(original !== undefined ? { original } : {}),
       paidBy: payer,
       split: {
         method: expense.split.method,
