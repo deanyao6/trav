@@ -98,7 +98,9 @@ describe('applyPayments (T-141)', () => {
     );
     expect(after.reduce((a, b) => a + b.net.amountMinor, 0)).toBe(0);
     expect(input).toEqual(VOICE_FINAL);
-    expect(settle(after)).toEqual(incrementalTransfers(VOICE_FINAL, [{ from: MAYA, to: DEAN, amount: eur(3160) }]));
+    expect(settle(after)).toEqual(
+      incrementalTransfers(VOICE_FINAL, [{ from: MAYA, to: DEAN, amount: eur(3160) }]),
+    );
   });
 
   it('no payments is the identity; bad payments throw', () => {

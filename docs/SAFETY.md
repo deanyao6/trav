@@ -272,6 +272,7 @@ The hash commits to the payload only through its digest (D-016), so a §2.9 tomb
 | `booking.cancelled` / `booking.refunded` | `providerRef, refundMinor, requestedBy` |
 | `ledger.entry_created` | `expenseId, bookingId?, splitMethod, participants, amounts` |
 | `ledger.entry_edited` / `ledger.entry_deleted` | `expenseId, memberId, before, after` (T-067: a shared card charge that posted at another amount adds `cause: 'card_posted'`, actor `system`) |
+| `settlement.marked_paid` | `paymentId, from, to, amountMinor, currency, via: 'reaction' \| 'button', cardMessageId, messageId, moneyMoved: false` (T-141, D-034: the payer said they paid a settle-up transfer; actor is the payer; nothing moved through Trav) |
 | `card_import.ran` (owner) | `jobId, slot, status` (`imported` \| `consent_off` \| `minor` \| `not_eligible` \| `no_trip` \| `not_linked` \| `sync_failed` \| `stale` \| `failed`), plus counts only: `stored, prompted, updated, ledgerUpdated, expired, dropped, messages`. Never an amount, merchant or descriptor (T-067) |
 | `private.item_ingested` (owner) | `source: 'card' \| 'email' \| 'photo_receipt', itemId, amountMinor, currency, classifierLabel, classifierScore` |
 | `private.item_promoted` (group) | `itemId, expenseId, strippedFields: string[]` |

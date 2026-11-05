@@ -54,7 +54,11 @@ describe('pnpm demo:barcelona (T-021)', () => {
     const step6Text = chat.split('\n### ').find((s) => s.startsWith('6.')) ?? '';
     expect(step6Text).toMatch(/El Born → Eixample, 4 riders/);
     expect(step6Text).toMatch(/split with Dean, Jordan,? (?:and )?Sam\?/);
-    expect(result.notes.some((n) => /\[Paid\]/.test(n) && /T-037/.test(n))).toBe(true);
+    expect(result.notes.some((n) => /\[Paid\]/.test(n) && /T-141/.test(n))).toBe(true);
+    // Step 10 (T-141): Maya's 👍 on the final settle card ticks her row, audited.
+    const step10 = result.checks.filter((c) => c.step.startsWith('10.'));
+    expect(step10.find((c) => /Maya's 👍 ticks her transfer paid/.test(c.name))?.ok).toBe(true);
+    expect(step10.find((c) => /marking paid is audited/.test(c.name))?.ok).toBe(true);
   }, 60_000);
 
   it('is deterministic: two runs give the same transcript', async () => {

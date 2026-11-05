@@ -129,7 +129,8 @@ export function renderWrappedForSend(
     { ...input.finalSettle, mode: 'final', ...(familyTab ? { familyTab: true } : {}) },
     ctx,
   );
-  const transfers = settle.card.transfers;
+  // What is still owed: transfers already marked paid (T-141) are done.
+  const transfers = settle.card.transfers.filter((t) => t.paid !== true);
   if (familyTab) {
     // VOICE §4.8 C: a family tab has nothing to settle, so no settle line (T-065).
   } else if (transfers.length === 0) {

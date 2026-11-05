@@ -560,8 +560,10 @@ export async function runBarcelonaDemo(options: DemoOptions = {}): Promise<DemoR
       check(
         "Maya's 👍 ticks her transfer paid and leaves the rest owed",
         tcard !== undefined &&
-          tcard.transfers.filter((t) => t.paid === true).map((t) => t.from).join() ===
-            'mem_maya' &&
+          tcard.transfers
+            .filter((t) => t.paid === true)
+            .map((t) => t.from)
+            .join() === 'mem_maya' &&
           (ticked?.text.includes(
             `${nameOf(mayaRow.from)} → ${nameOf(mayaRow.to)} ${formatMoney(mayaRow.amount)} · paid`,
           ) ??
@@ -877,7 +879,9 @@ function formatSettleCard(card: SettleUpCard): string {
     '>',
   ];
   for (const t of card.transfers) {
-    lines.push(`> - ${nameOf(t.from)} → ${nameOf(t.to)} ${formatMoney(t.amount)}`);
+    lines.push(
+      `> - ${nameOf(t.from)} → ${nameOf(t.to)} ${formatMoney(t.amount)}${t.paid === true ? ' · paid' : ''}`,
+    );
   }
   return lines.join('\n');
 }

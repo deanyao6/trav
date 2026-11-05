@@ -6,7 +6,9 @@
  * (VOICE §8): balances from `ledger.tripLedger` are already folded; any minor
  * row passed here anyway is folded into the guardian (see `foldMinorBalances`),
  * and a supplied transfer naming a minor is an invariant violation. A family
- * tab (`familyTab`) shows zero nets and no transfers.
+ * tab (`familyTab`) shows zero nets and no transfers. A final card lists the
+ * transfers members said they paid (`paid`, T-141) as "· paid" rows next to
+ * the open ones; [Paid] is offered to debtors with an open row only.
  */
 import type {
   Balance,
@@ -190,7 +192,9 @@ export function buildSettleUp(
     // Every transfer ticked off (T-141): the paid rows stay as the record.
     const n = rows.length;
     lines.push(
-      n === 1 ? `final settle, it's paid and everyone's square` : `final settle, all ${String(n)} paid and everyone's square`,
+      n === 1
+        ? `final settle, it's paid and everyone's square`
+        : `final settle, all ${String(n)} paid and everyone's square`,
     );
     pushRows();
   } else if (nonZero.length === 0) {

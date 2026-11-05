@@ -868,7 +868,7 @@ describe('tripLedger: payments marked paid (T-141)', () => {
     expect(after.balances.every((b) => b.net.amountMinor === 0)).toBe(true);
   });
 
-  it("a payment naming a minor is carried by the guardian (minors never pay or receive)", () => {
+  it('a payment naming a minor is carried by the guardian (minors never pay or receive)', () => {
     const expenses = twoExpenses();
     const viaGuardian = tripLedger({
       trip: splitTrip,
@@ -903,15 +903,17 @@ describe('tripLedger: payments marked paid (T-141)', () => {
     });
     expect(fam.paid).toEqual([]);
     expect(fam.balances.every((b) => b.net.amountMinor === 0)).toBe(true);
-    const bad = (amount: ReturnType<typeof usd>, from: MemberId = DAD) => () =>
-      tripLedger({
-        trip: splitTrip,
-        members: FAMILY,
-        expenses,
-        ctx: FAMILY_CTX,
-        now: NOW,
-        payments: [{ from, to: MOM, amount }],
-      });
+    const bad =
+      (amount: ReturnType<typeof usd>, from: MemberId = DAD) =>
+      () =>
+        tripLedger({
+          trip: splitTrip,
+          members: FAMILY,
+          expenses,
+          ctx: FAMILY_CTX,
+          now: NOW,
+          payments: [{ from, to: MOM, amount }],
+        });
     expectTravError(bad(usd(0)), 'invalid_argument');
     expectTravError(bad(money(100, 'EUR')), 'currency_mismatch');
     expectTravError(bad(usd(100), MOM), 'invalid_argument');

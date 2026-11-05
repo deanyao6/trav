@@ -177,7 +177,9 @@ describe('👍 on the final settle card (T-141)', () => {
     }
     const { msg, card: done } = settleCard(last!);
     const n = card.transfers.length;
-    expect(msg.text.split('\n')[0]).toBe(`final settle, all ${String(n)} paid and everyone's square`);
+    expect(msg.text.split('\n')[0]).toBe(
+      `final settle, all ${String(n)} paid and everyone's square`,
+    );
     expect(msg.text).not.toContain('👍 on this message');
     expect(done.transfers.every((t) => t.paid === true)).toBe(true);
     expect(done.balances.every((b) => b.net.amountMinor === 0)).toBe(true);
