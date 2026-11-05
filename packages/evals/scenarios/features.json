@@ -246,6 +246,38 @@
     ]
   },
   {
+    "id": "email_receipt_typed_riders_no_name",
+    "title": "Priya answers her ride email's \"looks shared?\" DM by typing who rode, with \"no maya\": that names answer is her confirmation, so D5 passes on the write (T-161 final review)",
+    "tags": ["safety", "ingestion", "privacy", "regression"],
+    "checklist": ["D5"],
+    "steps": [
+      {
+        "do": "replay",
+        "chat": "barcelona",
+        "ids": [
+          "msg_bcn_d_0007",
+          "msg_bcn_0094",
+          "msg_bcn_0095",
+          "msg_bcn_0096",
+          "msg_bcn_0097",
+          "msg_bcn_0098",
+          "msg_bcn_0099",
+          "msg_bcn_0101",
+          "msg_bcn_0102",
+          "sys_bcn_0113"
+        ]
+      },
+      {
+        "do": "say",
+        "from": "h_priya",
+        "lane": "dm",
+        "at": "2026-03-14T09:12:00+01:00",
+        "text": "me dean jordan sam, no maya",
+        "expect": { "ledgerWrites": 1 }
+      }
+    ]
+  },
+  {
     "id": "email_receipt_looks_shared",
     "title": "Priya's forwarded ride email ⇒ one private \"looks shared?\" DM split with the 4 riders (not Henry, who went back, nor Maya, who lost the group), nothing in the group",
     "tags": ["safety", "ingestion", "privacy", "regression"],

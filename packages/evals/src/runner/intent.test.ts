@@ -24,6 +24,18 @@ describe('typedIntent', () => {
     ['yes no wait', 'decline'],
     ['me, dean, sam and jordan', 'riders'],
     ['Priya and Sam', 'riders'],
+    // a no-word that takes a named member out is still a names answer (T-161 final review)
+    ['me dean jordan sam, no maya', 'riders'],
+    ['everyone, no henry', 'riders'],
+    ['all of us no henry', 'riders'],
+    ['no jordan', 'riders'],
+    ['nah just dean and sam', 'riders'],
+    ['everyone except henry, no maya', 'riders'],
+    // ...but a bare no-word still declines, even next to a yes or a name
+    ['yes, no tip', 'decline'],
+    ['no, keep it', 'decline'],
+    ["sam didn't ride", 'decline'],
+    ['no maya, keep it private', 'decline'],
     ['lol', 'other'],
     ['good', 'other'],
     ['', 'other'],

@@ -5,12 +5,14 @@
  * as a yes, a grader reusing its reading would agree with it.
  *
  * Fails toward "not a confirmation": any no-word anywhere makes a typed
- * message a decline.
+ * message a decline, except where it takes a named member out of a "who
+ * rode" answer ("me dean sam, no maya", "nah just dean and sam"): that is
+ * still the owner's names answer.
  */
 import type { StepAction, TypedIntent } from '../types.js';
 
 const DECLINE =
-  /(?<![\p{L}\p{N}])(?:no|nah|nope|keep|private|mine|don'?t|do not|drop|cancel|nvm|never ?mind|forget it|not shared|undo|stop)(?![\p{L}\p{N}])|👎|^\s*(?:just|only) me\s*[.!]*\s*$/iu;
+  /(?<![\p{L}\p{N}])(?:no|nah|nope|keep|private|mine|don'?t|do not|didn'?t|wasn'?t|weren'?t|drop|cancel|nvm|never ?mind|forget it|not shared|undo|stop)(?![\p{L}\p{N}])|👎|^\s*(?:just|only) me\s*[.!]*\s*$/iu;
 
 const CONFIRM =
   /^\s*(?:@trav\s*[,:]?\s*)?(?:yes|yep|yeah|yup|ya|sure|ok|okay|log it|looks good|looks right|that'?s right|correct|confirm(?:ed)?|share(?: it)?|split it|👍)\s*[.!]*\s*$/iu;
@@ -25,13 +27,36 @@ const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 /** What a typed message says as an answer; `names` are the roster's display names. */
 export function typedIntent(text: string, names: readonly string[]): TypedIntent {
-  if (DECLINE.test(text)) return 'decline';
-  if (CONFIRM.test(text.replace(EMOJI_MODIFIERS, ''))) return 'confirm';
-  const named = names.some(
-    (n) =>
-      n.trim().length > 0 &&
-      new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(n.trim())}(?![\\p{L}\\p{N}])`, 'iu').test(text),
-  );
+  const alt = names
+    .map((n) => n.trim())
+    .filter((n) => n.length > 0)
+    .map(escapeRe)
+    .join('|');
+  const nameRe = (flags: string): RegExp =>
+    new RegExp(`(?<![\\p{L}\\p{N}])(?:${alt})(?![\\p{L}\\p{N}])`, flags);
+  // A no-word right before a member's name ("no maya", "minus henry") takes
+  // them out of the split; a leading "nah, just …" heads a names list.
+  const rest =
+    alt.length === 0
+      ? text
+      : text
+          .replace(
+            new RegExp(
+              `(?<![\\p{L}\\p{N}])(?:no|not|nah|nope|minus|without|except)\\s+(?=(?:${alt})(?![\\p{L}\\p{N}]))`,
+              'giu',
+            ),
+            ' ',
+          )
+          .replace(
+            new RegExp(
+              `^\\s*(?:no|nah|nope)[,\\s]+(?=(?:just|only)\\s+(?:${alt})(?![\\p{L}\\p{N}]))`,
+              'iu',
+            ),
+            ' ',
+          );
+  if (DECLINE.test(rest)) return 'decline';
+  if (CONFIRM.test(rest.replace(EMOJI_MODIFIERS, ''))) return 'confirm';
+  const named = alt.length > 0 && nameRe('iu').test(text);
   return named || SELF.test(text) ? 'riders' : 'other';
 }
 
