@@ -1,14 +1,30 @@
 # Morning report
 
-Last updated: 2026-11-05 ~17:15 PST, session 15. **Status: every P0 task is done, the v0 demo runs end to end offline, and the post-QA P1 work is well along.** `pnpm check` is green (typecheck, lint, 4124 tests). `pnpm demo:barcelona` passes 49 of 49 checks. Offline eval: 99.2% overall, 0 safety failures. For the timeline see `docs/PROGRESS.md`; for exact state see `tasks/BACKLOG.md`.
+Last updated: 2026-11-05 ~04:30 PST (Nov 6 night run), session 17. **Every number in this report comes from `scripts/verify-clean-clone.sh` (T-181 rule).** Its last line, at a7a0014:
 
-**This session (15), all reviewed, committed and pushed:** T-082 combined roster sentences · T-135/T-075 ride receipts split by the riders · T-067 card import on the simulated clock with 10:00/20:00 digests · T-153 and T-154 minors kept off adult-only rosters, and family-safe roster replies · T-133 "anything cheaper" · T-137 late-joiner ticket and its cancel · T-134 private budget DMs kept as a figure only · T-141 👍 or [Paid] on the settle-up card marks a transfer paid (stable plan, D-034) · T-143 nearest open slot and "which club?" · T-094 and T-095 Lisbon and Turks and Caicos get their own clocks, recaps and Wrapped · T-084 and T-156 other currencies converted at the mock rate · T-132 the Barcelona stay booked in chat. **Worth knowing:** T-132's final review caught a blocker its round-2 fix had introduced: "i don't approve for the group" counted as an approval and booked the €1,380 stay once the other five had tapped. It was fixed and pinned by end-to-end tests before it was marked done; nothing was ever bought for real (mock only). Most tasks hit the 2-round review cap; the Orchestrator fixed the last-round findings itself, with tests that fail without the fix, and logged anything left in each `tasks/done/T-xxx.md`.
+```
+CLEAN CHECKOUT PASS (a7a0014, node v25.9.0)
+```
+
+That run covered `pnpm check` (typecheck, lint, every test file passing), `pnpm demo:barcelona` with 55 of 55 checks, and `pnpm eval` offline: 99.8% overall, 99.9% ready, held-out 96.0%, regression 46 of 51, 0 safety failures, exit 0. Node 22 was not run (only Node 25 is installed); T-180 removed the one known Node 22 crash and added a guard test. For the timeline see `docs/PROGRESS.md`; for exact state see `tasks/BACKLOG.md`.
+
+**This session (17):**
+- **T-173:** booking-ask precision (fail-closed party reader, verb-aware member names). Done at the review cap; its open flaws moved to T-182.
+- **T-165:** a grey group notice for each shared private expense. Done at the cap; follow-ups are in T-190.
+- **T-180:** the Node 22 regex crash, plus a guard test.
+- **T-181 (a–c):** the flaky roast-screen test (the cause was ~380 regexes compiled lazily), the optimizer test bounded by work done instead of time, and the Lisbon description misses.
+- **T-182:** approval comes only from an exact whitelist decided in code, and `autoBuyEligible` is a positive grammar for T-168. It's in review at the time of writing.
+
+Auto-buy (T-168) is **not** wired yet; every booking still needs a 👍.
+
+**Session 15 (earlier), all reviewed, committed and pushed:** T-082 combined roster sentences · T-135/T-075 ride receipts split by the riders · T-067 card import on the simulated clock with 10:00/20:00 digests · T-153 and T-154 minors kept off adult-only rosters, and family-safe roster replies · T-133 "anything cheaper" · T-137 late-joiner ticket and its cancel · T-134 private budget DMs kept as a figure only · T-141 👍 or [Paid] on the settle-up card marks a transfer paid (stable plan, D-034) · T-143 nearest open slot and "which club?" · T-094 and T-095 Lisbon and Turks and Caicos get their own clocks, recaps and Wrapped · T-084 and T-156 other currencies converted at the mock rate · T-132 the Barcelona stay booked in chat. **Worth knowing:** T-132's final review caught a blocker its round-2 fix had introduced: "i don't approve for the group" counted as an approval and booked the €1,380 stay once the other five had tapped. It was fixed and pinned by end-to-end tests before it was marked done; nothing was ever bought for real (mock only). Most tasks hit the 2-round review cap; the Orchestrator fixed the last-round findings itself, with tests that fail without the fix, and logged anything left in each `tasks/done/T-xxx.md`.
 
 ## Demo
 
 ```
 pnpm install
-pnpm demo:barcelona          # full Barcelona journey offline, prints the transcript, exits 0 (49/49 checks)
+pnpm demo:barcelona          # full Barcelona journey offline, prints the transcript, exits 0 (55/55 checks)
+scripts/verify-clean-clone.sh  # the gate: check + demo + eval on a clean checkout of HEAD
 pnpm check                   # typecheck + lint + all tests, offline
 pnpm eval                    # scenario evals offline; report in evals/reports/
 pnpm audit:verify            # audit hash-chain verifier
@@ -19,8 +35,11 @@ The full walkthrough transcript is in `docs/DEMO_TRANSCRIPT.md`; it's regenerate
 
 **The Razzmatazz moment** runs through the real runtime: "@trav get the 5 of us Razzmatazz tickets, Henry's sick" → one proposal naming the 5 → ApprovalPolicy → 👍 → mock purchase → receipt in the group → 5 different QR codes, each sent by DM (none to Henry) → €90 split among exactly those 5. The audit order is policy.evaluated → approval.granted → booking.attempted → booking.completed → ledger.written. A double 👍 buys once.
 
-New since session 12: the stay is booked in chat (€1,380, €230 each, all 6 👍; Piotr's "i'll approve for him" counts for nothing), the Uber email splits among the 4 riders, and a 👍 on the settle-up card ticks the payer's transfer off. One step is still honestly labelled as not in chat yet:
-- Flights: Trav says it can't book group flights in chat yet, and the demo runs the real optimizer directly (T-074).
+Since session 12, more of the demo happens in chat:
+- The stay is booked there: €1,380, €230 each, with all 6 👍. Piotr's "i'll approve for him" counts for nothing.
+- Group flights are booked there too, through the optimizer, "book option 1" and everyone's 👍 (T-074).
+- The Uber email is split among the 4 riders.
+- Shared card and email items now get one grey line in the group once the owner confirms them (T-165).
 
 **Not verified in a browser:** the sandbox blocks local port binding, so `pnpm sim` was exercised only through its in-process backend. To click through it yourself, run `TRAV_OFFLINE=1 pnpm sim` outside the sandbox, or set `sandbox.network.allowLocalBinding: true`.
 
@@ -42,7 +61,7 @@ Every provider is a mock that reads `fixtures/`. The real adapters (iMessage rel
 
 ## Evals
 
-Offline overall: 93.6 → 95.5 → 98.1 (after the per-line grading of T-077) → **99.2%** (report `evals/reports/2026-11-05T07-40-46Z.md`). **0 safety failures** in every run. Regression 41 of 43 (5 newly fixed scenarios were added to the suite, including the flagship; the 2 failing replays fail only on lines tagged with an open task). Known gaps fell from 9 to 3.
+Offline overall: 93.6 → 95.5 → 98.1 (after T-077's per-line grading) → 99.2% → **99.8%** at a7a0014, from the clean-checkout script. Held-out is 96.0%: the razzmatazz pair was rotated in T-160 and found a real A9 bug, which T-173 and T-182 fixed (3a now passes, 3b still misses "x5, henry's laid up", T-176). **0 safety failures** at a7a0014. A held-out A9 failure existed briefly between T-160 and T-173 and was never a purchase. Regression is 46 of 51; every failing step is attributed to an open task (owners in the T-181 triage in `tasks/done/T-181.md`).
 
 What the evaluator says to discount:
 - Held-out 98.9% is an upper bound: a unit test added in T-081 is phrased almost exactly like the held-out Razzmatazz paraphrase. Three of six fresh rewordings of the Razzmatazz ask still fail offline, and one listed Henry right after he was excluded (T-158).
@@ -68,8 +87,8 @@ Since then every QA P0 is fixed (T-090 consent gate, T-104 excluded members can'
 
 ## Now
 
-1. **T-074 flights in chat** (in flight): the last labelled gap in the flagship demo.
-2. Then P1 in order: T-074 (flights in chat), T-083 (receipt 👍 step in the scenario), T-144, T-158, T-159, T-145..T-147, T-152, T-037 (blocked on question 4 below).
+1. **T-182 review** (in flight), then **T-168 approval tiers** (auto-buy on `autoBuyEligible` only; Razzmatazz buys on the ask).
+2. Then Dean's P0s T-166 (settle-up pay links, sent → received) and T-167 (soft budgets, spending tier), then the "make the AI actually AI" P1s (T-183 model-first interpretation, T-184 first live eval, T-185 persisted runtime state).
 
 ## Safety checkpoint (post-P0)
 
