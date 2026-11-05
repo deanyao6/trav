@@ -221,10 +221,12 @@ describe('roastTopicBlocked (gate 2 blocklist)', () => {
     for (const fine of [
       '1 charge that looks shared is waiting on a tap in dms',
       '2 charges that look shared are waiting on a tap in dms',
-      'looks shared?',
     ]) {
       expect(roastTopicBlocked(fine), fine).toBeNull();
     }
+    // The carve-out is the recap's exact wording, never a bare "looks shared".
+    expect(roastTopicBlocked("Sam's looks shared the spotlight with his €90 tab")).toBe('body');
+    expect(roastTopicBlocked('her looks shared?')).toBe('body');
     expect(roastTopicBlocked("Sam's looks cost him €40 at the door")).toBe('body');
     expect(roastTopicBlocked('looks shared, and so does his ugly shirt')).toBe('body');
     expect(roastTopicBlocked('Jordan looks rough after €90 of rounds')).toBe('body');

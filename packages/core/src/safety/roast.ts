@@ -177,8 +177,10 @@ function personTargeting(noun: string): string[] {
 export const ROAST_IDIOMS: readonly string[] = [
   'asleep at the wheel',
   'face value',
-  'looks shared',
-  'look shared',
+  // Only the recap's exact "charge(s) that look(s) shared" wording: a bare
+  // "looks shared" would also blank "Sam's looks shared the spotlight".
+  'charge that looks shared',
+  'charges that look shared',
 ];
 
 const BLOCKLIST_TERMS: Readonly<Record<RoastTopicCategory, readonly string[]>> = {
