@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { TravError, equals, money } from '@trav/core';
-import { TICKET_INVENTORY_NAMES, loadTicketInventory, parseTicketInventory } from './inventory.js';
+import {
+  TICKET_INVENTORY_NAMES,
+  loadAllTicketInventories,
+  loadTicketInventory,
+  parseTicketInventory,
+} from './inventory.js';
 
 describe('ticket inventory fixtures', () => {
   it('bundles barcelona and loads deterministically', () => {
@@ -197,5 +202,89 @@ describe('parseTicketInventory mapper', () => {
       offers: [{ ...baseOffer, offerId: 'off_x', eventId: 'evt_nope', unitPriceMinor: 1 }],
     };
     expect(() => parseTicketInventory(json)).toThrow(/unknown event/);
+  });
+});
+
+describe('per-trip inventories (T-080)', () => {
+  it('bundles Lisbon and Turks and Caicos next to Barcelona', () => {
+    expect(TICKET_INVENTORY_NAMES).toEqual(['barcelona', 'lisbon', 'turks-and-caicos']);
+    expect(loadAllTicketInventories().map((i) => i.name)).toEqual([
+      'barcelona',
+      'lisbon',
+      'turks-and-caicos',
+    ]);
+  });
+
+  it('parses Lisbon: the Benfica vs Porto match and fado, in EUR and in Lisbon', () => {
+    const lis = loadTicketInventory('lisbon');
+    expect(lis.currency).toBe('EUR');
+    // Mostly Lisbon; FC Porto's home match (Porto) and Pena Palace (Sintra) are out-of-city decoys.
+    expect(
+      lis.events.filter((e) => e.event.venue.city !== 'Lisbon').map((e) => e.event.eventId),
+    ).toEqual(['evt_lis_porto_vitoria', 'evt_lis_pena_0417']);
+    const match = lis.events.find((e) => e.event.eventId === 'evt_lis_benfica_porto');
+    expect(match?.event.name).toBe('SL Benfica vs FC Porto');
+    expect(match?.event.category).toBe('sports');
+    // Flat offers[] are attached to their event.
+    expect(match?.offers.map((o) => o.offer.offerId)).toEqual([
+      'off_lis_benfica_porto_std',
+      'off_lis_benfica_porto_premium',
+    ]);
+    const std = match?.offers[0]?.offer;
+    expect(std && equals(std.unitPrice, money(5000, 'EUR'))).toBe(true);
+    expect(std && equals(std.unitFees, money(500, 'EUR'))).toBe(true);
+    const fado = lis.events.find((e) => /fado/i.test(e.event.name));
+    expect(fado?.event.contentFlags).toEqual(expect.arrayContaining(['alcohol']));
+    expect(fado?.offers).toHaveLength(1);
+    // The club night stays 18+ and flagged for the minors rule.
+    const club = lis.events.find((e) => e.event.eventId === 'evt_lis_club_0417');
+    expect(club?.event.minimumAge).toBe(18);
+    expect(club?.event.contentFlags).toEqual(expect.arrayContaining(['nightlife', '18+']));
+  });
+
+  it('parses Turks and Caicos: the family snorkel tour in USD, adult events flagged', () => {
+    const tci = loadTicketInventory('turks-and-caicos');
+    expect(tci.currency).toBe('USD');
+    expect(tci.events.every((e) => e.event.venue.city === 'Providenciales')).toBe(true);
+    const snorkel = tci.events.find((e) => e.event.eventId === 'evt_tci_snorkel_0622');
+    expect(snorkel?.event.name).toBe('reef snorkel tour');
+    expect(snorkel?.event.contentFlags).toEqual(['family']);
+    const offer = snorkel?.offers[0]?.offer;
+    expect(offer?.offerId).toBe('off_tci_snorkel_0622');
+    expect(offer && equals(offer.unitPrice, money(6000, 'USD'))).toBe(true);
+    expect(offer?.purchaseMode).toBe('api');
+    expect(offer?.deliveryMethod).toBe('per_person_qr');
+    // Family events carry the family flag; adult events never do.
+    for (const e of tci.events) {
+      const flags = e.event.contentFlags;
+      if (flags.includes('family')) {
+        expect(
+          flags.some((f) => ['alcohol', 'nightlife', 'gambling', '18+', '21+'].includes(f)),
+        ).toBe(false);
+      }
+    }
+    const casino = tci.events.find((e) => e.event.eventId === 'evt_tci_casino_0624');
+    expect(casino?.event.minimumAge).toBe(21);
+    expect(casino?.event.contentFlags).toEqual(expect.arrayContaining(['gambling', '21+']));
+  });
+
+  it('keeps event and offer ids unique across every bundled inventory', () => {
+    const all = loadAllTicketInventories();
+    const eventIds = all.flatMap((i) => i.events.map((e) => e.event.eventId));
+    const offerIds = all.flatMap((i) =>
+      i.events.flatMap((e) => e.offers.map((o) => o.offer.offerId)),
+    );
+    expect(new Set(eventIds).size).toBe(eventIds.length);
+    expect(new Set(offerIds).size).toBe(offerIds.length);
+  });
+
+  it('stores every bundled price as integer minor units in its inventory currency', () => {
+    for (const inv of loadAllTicketInventories()) {
+      for (const o of inv.events.flatMap((e) => e.offers)) {
+        expect(Number.isSafeInteger(o.offer.unitPrice.amountMinor)).toBe(true);
+        expect(o.offer.unitPrice.currency).toBe(inv.currency);
+        expect(o.offer.unitFees.currency).toBe(inv.currency);
+      }
+    }
   });
 });

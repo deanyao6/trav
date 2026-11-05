@@ -44,7 +44,7 @@ import {
   createMockFlights,
   createMockLodging,
   createMockTickets,
-  loadTicketInventory,
+  loadAllTicketInventories,
 } from '@trav/adapters';
 import type { ApprovalHandler } from './approval/events.js';
 import { normalizeApprovalEvent } from './approval/events.js';
@@ -161,7 +161,9 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
   const providers: ProviderRegistry = {
     tickets:
       options.providers?.tickets ??
-      createMockTickets({ clock, ids, inventory: loadTicketInventory('barcelona') }),
+      // Every bundled trip's inventory (T-093): search filters by the trip's
+      // city, so each group finds its own trip's events.
+      createMockTickets({ clock, ids, inventory: loadAllTicketInventories() }),
     flights: options.providers?.flights ?? createMockFlights({ clock }),
     lodging: options.providers?.lodging ?? createMockLodging({ clock }),
     payments: options.providers?.payments ?? createMockBookingPayments({ clock }),

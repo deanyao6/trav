@@ -32,6 +32,7 @@ import {
 import { createMemoryStores } from '@trav/core/storage';
 import type { SimulatorChannel } from '@trav/adapters';
 import {
+  createMockAlbum,
   createMockBookingPayments,
   createMockFlights,
   createMockLodging,
@@ -269,7 +270,10 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
       },
     ],
   });
-  const tickets = createMockTickets({ clock, ids, inventory: loadTicketInventory('barcelona') });
+  // The scenario's own trip inventory (T-079), and the mock shared album so
+  // recaps and Wrapped exercise the photo consent gate.
+  const tickets = createMockTickets({ clock, ids, inventory: loadTicketInventory(trip) });
+  const album = createMockAlbum({ clock });
   const flightsMock = createMockFlights({ clock });
   const lodging = createMockLodging({ clock });
   const payments = createMockBookingPayments({ clock });
@@ -291,6 +295,7 @@ export async function runScenario(scenario: Scenario, opts: RunOptions): Promise
     offline: opts.mode === 'offline',
     env: { TRAV_OFFLINE: opts.mode === 'offline' ? '1' : undefined, TRAV_STATE_DIR: stateDir },
     providers: { tickets, flights: flightsMock, lodging, payments },
+    album,
     voice: 'log',
     onLintViolation: (o, violations) => {
       lint.push({

@@ -58,6 +58,53 @@ describe('runScenario', () => {
     expect(ep.steps[1]?.turn).toBeDefined();
   });
 
+  it("loads the scenario's own trip inventory (T-079): TCI finds the snorkel tour, Lisbon the Benfica match", async () => {
+    const tci = await runScenario(
+      scenario({
+        setup: { group: 'turks-and-caicos' },
+        steps: [
+          {
+            do: 'say',
+            at: '2026-06-20T18:05:00-04:00',
+            from: 'h_dad',
+            text: '@trav get the 4 of us snorkel tour tickets',
+          },
+        ],
+      }),
+      { mode: 'offline' },
+    );
+    expect(tci.snapshot.proposals).toHaveLength(1);
+    expect(tci.snapshot.proposals[0]).toMatchObject({
+      itemRef: expect.stringContaining('tci_snorkel_0622'),
+      city: 'Providenciales',
+      currency: 'USD',
+      totalMinor: 26000,
+    });
+    expect(tci.snapshot.proposals[0]?.attendees).toHaveLength(4);
+    expect(tci.purchases).toBe(0);
+
+    const lis = await runScenario(
+      scenario({
+        setup: { group: 'lisbon' },
+        steps: [
+          {
+            do: 'say',
+            at: '2026-04-16T10:00:00+01:00',
+            from: 'h_dean',
+            text: '@trav get the 2 of us benfica vs porto tickets for saturday apr 18',
+          },
+        ],
+      }),
+      { mode: 'offline' },
+    );
+    expect(lis.snapshot.proposals).toHaveLength(1);
+    expect(lis.snapshot.proposals[0]).toMatchObject({
+      itemRef: expect.stringContaining('benfica_porto'),
+      currency: 'EUR',
+    });
+    expect(lis.purchases).toBe(0);
+  });
+
   it('never puts DM text into step labels', async () => {
     const ep = await runScenario(
       scenario({

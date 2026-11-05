@@ -19,6 +19,8 @@ import type {
   TicketOffer,
 } from '../../interfaces/tickets.js';
 import barcelonaJson from '../../../../../fixtures/tickets/barcelona.json' with { type: 'json' };
+import lisbonJson from '../../../../../fixtures/tickets/lisbon.json' with { type: 'json' };
+import turksAndCaicosJson from '../../../../../fixtures/tickets/turks-and-caicos.json' with { type: 'json' };
 
 /** Fixed seating block; seats are assigned consecutively from `firstSeat`. */
 export interface InventorySeating {
@@ -337,6 +339,8 @@ export function parseTicketInventory(json: unknown): TicketInventory {
 
 const BUNDLED: Readonly<Record<string, unknown>> = {
   barcelona: barcelonaJson,
+  lisbon: lisbonJson,
+  'turks-and-caicos': turksAndCaicosJson,
 };
 
 /** Names of the bundled ticket fixtures (`fixtures/tickets/<name>.json`). */
@@ -349,4 +353,9 @@ export function loadTicketInventory(name: string): TicketInventory {
     throw new TravError('not_found', `no ticket inventory fixture "${name}"`, { name });
   }
   return parseTicketInventory(raw);
+}
+
+/** Every bundled fixture, parsed, in `TICKET_INVENTORY_NAMES` order (one city each). */
+export function loadAllTicketInventories(): readonly TicketInventory[] {
+  return TICKET_INVENTORY_NAMES.map(loadTicketInventory);
 }

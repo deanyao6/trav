@@ -74,14 +74,25 @@ export type {
   InventorySeating,
   TicketInventory,
 } from './inventory.js';
-export { TICKET_INVENTORY_NAMES, loadTicketInventory, parseTicketInventory } from './inventory.js';
+export {
+  TICKET_INVENTORY_NAMES,
+  loadAllTicketInventories,
+  loadTicketInventory,
+  parseTicketInventory,
+} from './inventory.js';
 export { MOCK_BARCODE_PREFIX, mockBarcodePayload, mockQrDataUrl } from './qr.js';
 
 export interface MockTicketsOptions {
   readonly clock: Clock;
   /** Issues `tkt_` ticket ids (deterministic generator in tests). */
   readonly ids: IdGenerator;
-  readonly inventory: TicketInventory;
+  /**
+   * One inventory, or several (one per trip city; `searchEvents` filters by
+   * venue city, so each group sees its own trip's events). Event and offer ids
+   * must be unique across inventories. Order numbers count per inventory, so a
+   * purchase in one trip never shifts another trip's receipt numbers.
+   */
+  readonly inventory: TicketInventory | readonly TicketInventory[];
   /** First receipt/order number (default 48213, so the demo reads "RZ-48213"). */
   readonly orderNumberStart?: number;
 }
@@ -106,9 +117,16 @@ export interface MockTickets extends TicketsAdapter {
   setUnitPrice(offerId: string, unitPrice: Money, unitFees?: Money): void;
 }
 
+interface InventoryState {
+  readonly inventory: TicketInventory;
+  /** Orders created from this inventory (drives its receipt numbers). */
+  orders: number;
+}
+
 interface OfferState {
   readonly inv: InventoryOffer;
   readonly event: InventoryEvent;
+  readonly source: InventoryState;
   available: number;
   unitPrice: Money;
   unitFees: Money;
@@ -202,6 +220,12 @@ function isMoneyValue(value: unknown): value is Money {
   );
 }
 
+function isInventoryList(
+  value: TicketInventory | readonly TicketInventory[],
+): value is readonly TicketInventory[] {
+  return Array.isArray(value);
+}
+
 /** Calendar date the event "belongs to" in its venue's zone (after-midnight club nights roll back a day). */
 export function eventNightOf(event: TicketEvent): string {
   const tz = event.venue.timeZone ?? 'UTC';
@@ -210,26 +234,49 @@ export function eventNightOf(event: TicketEvent): string {
 }
 
 export function createMockTickets(options: MockTicketsOptions): MockTickets {
-  const { clock, ids, inventory } = options;
+  const { clock, ids } = options;
+  const inventories: readonly TicketInventory[] = isInventoryList(options.inventory)
+    ? options.inventory
+    : [options.inventory];
+  const first = inventories[0];
+  if (first === undefined) {
+    throw new TravError('invalid_argument', 'mock-tickets needs at least one inventory');
+  }
   const orderNumberStart = options.orderNumberStart ?? DEFAULT_ORDER_NUMBER_START;
   if (!Number.isSafeInteger(orderNumberStart) || orderNumberStart < 0) {
     throw new TravError('invalid_argument', 'orderNumberStart must be a non-negative integer');
   }
-  const info: AdapterInfo = { provider: inventory.provider, mode: 'mock' };
+  const info: AdapterInfo = { provider: first.provider, mode: 'mock' };
 
   const events = new Map<string, InventoryEvent>();
   const offers = new Map<string, OfferState>();
-  for (const ev of inventory.events) {
-    events.set(ev.event.eventId, ev);
-    for (const inv of ev.offers) {
-      offers.set(inv.offer.offerId, {
-        inv,
-        event: ev,
-        available: inv.offer.available,
-        unitPrice: inv.offer.unitPrice,
-        unitFees: inv.offer.unitFees,
-        nextSeat: inv.seating?.firstSeat ?? 1,
-      });
+  for (const inventory of inventories) {
+    const source: InventoryState = { inventory, orders: 0 };
+    for (const ev of inventory.events) {
+      if (events.has(ev.event.eventId)) {
+        throw new TravError(
+          'invalid_argument',
+          `mock-tickets: event ${ev.event.eventId} is in more than one inventory`,
+        );
+      }
+      events.set(ev.event.eventId, ev);
+      for (const inv of ev.offers) {
+        if (offers.has(inv.offer.offerId)) {
+          throw new TravError(
+            'invalid_argument',
+            `mock-tickets: offer ${inv.offer.offerId} is in more than one inventory`,
+          );
+        }
+        offers.set(inv.offer.offerId, {
+          inv,
+          event: ev,
+          source,
+          available: inv.offer.available,
+          unitPrice: inv.offer.unitPrice,
+          unitFees: inv.offer.unitFees,
+          nextSeat: inv.seating?.firstSeat ?? 1,
+        });
+      }
     }
   }
 
@@ -471,7 +518,10 @@ export function createMockTickets(options: MockTicketsOptions): MockTickets {
       const fees = multiply(state.unitFees, quantity);
       const taxes = zero(state.unitPrice.currency);
       const now = clock.now();
-      const expiresAt = addMinutes(now, state.inv.holdMinutes ?? inventory.holdMinutes);
+      const expiresAt = addMinutes(
+        now,
+        state.inv.holdMinutes ?? state.source.inventory.holdMinutes,
+      );
       const hold: TicketHold = {
         holdId: `hold_mock_${String(holdCounter).padStart(6, '0')}`,
         offerId,
@@ -599,7 +649,13 @@ export function createMockTickets(options: MockTicketsOptions): MockTickets {
       }
 
       orderCounter += 1;
-      const orderId = `${state.event.orderPrefix}-${orderNumberStart + orderCounter - 1}`;
+      // Numbered per inventory; two inventories sharing a prefix (both default
+      // "TK") skip past each other's numbers so order ids stay unique.
+      let orderId: string;
+      do {
+        state.source.orders += 1;
+        orderId = `${state.event.orderPrefix}-${orderNumberStart + state.source.orders - 1}`;
+      } while (orders.has(orderId));
       const now = clock.now();
       const offer = state.inv.offer;
       const lines: ReceiptLine[] = [
