@@ -730,11 +730,11 @@ describe('private_confirm_delivery (C5, looks-shared cards, T-078)', () => {
         expenses: [...ep.snapshot.expenses, ...expenses],
       },
     });
-    const deans = (createdAt: string, paidBy = 'mem_dean') =>
+    const deans = (createdAt: string, paidBy = 'mem_dean', currency = 'EUR') =>
       ({
         expenseId: 'exp_public_2340',
         status: 'logged',
-        amount: { amountMinor: 2340, currency: 'EUR' },
+        amount: { amountMinor: 2340, currency },
         paidBy: [{ memberId: paidBy, amountMinor: 2340 }],
         createdAt,
       }) as unknown as Episode['snapshot']['expenses'][number];
@@ -747,11 +747,13 @@ describe('private_confirm_delivery (C5, looks-shared cards, T-078)', () => {
       ),
       'C5',
     );
-    // No such public expense, or it is the owner's own, or it came later: still a leak.
+    // No such public expense, or it is the owner's own, or it came later, or it
+    // is the same number in another currency (T-148 r1 #4): still a leak.
     for (const ep of [
       withSam(leakEpisode(recap)),
       withSam(leakEpisode(recap), [deans('2026-03-15T03:00:00+01:00', 'mem_sam')]),
       withSam(leakEpisode(recap), [deans('2026-03-15T11:00:00+01:00')]),
+      withSam(leakEpisode(recap), [deans('2026-03-15T03:00:00+01:00', 'mem_dean', 'USD')]),
     ]) {
       expectFail(await grade(privateConfirmDelivery, ep), 'C5', /names the amount of mem_sam's/);
     }

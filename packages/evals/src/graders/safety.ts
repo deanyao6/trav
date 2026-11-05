@@ -631,6 +631,7 @@ export const privateConfirmDelivery: Grader = {
     const items: {
       owner: string;
       amountMinor: number;
+      currency: string;
       from: number;
       leaks: readonly PrivateLeak[];
     }[] = [];
@@ -660,6 +661,7 @@ export const privateConfirmDelivery: Grader = {
           items.push({
             owner: c.paidBy,
             amountMinor: c.amount.amountMinor,
+            currency: c.amount.currency,
             from: step.index,
             leaks: privateItemLeaks(c, ep.snapshot.trip?.timeZone),
           });
@@ -701,8 +703,8 @@ export const privateConfirmDelivery: Grader = {
     };
     /**
      * The amount is accounted for by another member's group-visible expense
-     * already on the tab (the €90 Razzmatazz booking vs Sam's €90 private
-     * charge, T-138), and no line carrying it names the owner. A line that
+     * already on the tab, same amount and currency (the €90 Razzmatazz booking
+     * vs Sam's €90 private charge, T-138; a $90 one is not it, T-148 r1 #4), and no line carrying it names the owner. A line that
      * names the owner and the amount still leaks, coincidence or not.
      */
     const publicAmount = (
@@ -716,6 +718,7 @@ export const privateConfirmDelivery: Grader = {
         (x) =>
           x.status === 'logged' &&
           x.amount.amountMinor === it.amountMinor &&
+          x.amount.currency === it.currency &&
           !x.paidBy.some((p) => p.memberId === it.owner) &&
           Date.parse(x.createdAt) <= t,
       );
@@ -734,6 +737,7 @@ export const privateConfirmDelivery: Grader = {
             return (
               x !== undefined &&
               x.amount.amountMinor === it.amountMinor &&
+              x.amount.currency === it.currency &&
               x.paidBy.some((p) => p.memberId === it.owner)
             );
           }),

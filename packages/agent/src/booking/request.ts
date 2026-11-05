@@ -354,15 +354,16 @@ const APPROVAL_CLAIM =
 const CANCEL_CUE = /\b(?:cancel|drop|nvm|never ?mind|don'?t book|scrap|forget)\b/;
 /**
  * Not asking for anything (T-081 r1 #3): "don't get razz tickets", "hold off
- * on razz". Only counts when it comes before the booking verb (or the venue)
- * in the booking's own clause (T-148 #3): "get razz tickets, don't count
- * henry" and "…, henry doesn't want to come" are still asks.
+ * on razz", and anywhere else in the message too (T-148 r1 #1): "…, but don't
+ * buy them yet", "…, hold off till henry confirms", "…, not yet though". The
+ * one exemption is a negation that governs a member's name ("don't count
+ * henry", "henry doesn't want to come"): that is an exclusion, and it is
+ * removed (`withoutNameNegations`) before this is tested.
  */
 const NEGATION_CUE =
   /\b(?:don'?t|dont|do not|doesn'?t|no need|not (?:yet|now|getting|buying|booking)|hold off|wait on|no (?:tickets|tix)|never)\b/;
-/** A later clause that takes the whole ask back: "get razz tickets… actually don't". */
-const RETRACTION =
-  /^(?:(?:actually|nah|no|wait|jk|hmm|or|ok|okay)\s+)*(?:don'?t|dont|do not)(?:\s+(?:do it|bother|(?:get|book|buy|grab) (?:them|those|it|any)))?$/;
+/** "never been (here)": about the venue, not the booking (T-148 #3). A whole clause only. */
+const NEVER_BEEN = /(?:^|[,.;!?]\s*)never been(?:\s+(?:here|there|before))?\s*(?=[,.;!?]|$)/g;
 /**
  * A question about tickets, not an ask for them: "how much are razz tickets",
  * "did anyone get razz tickets". Checked on the booking's own sentence
@@ -430,6 +431,82 @@ const NOT_NAME = new Set([
   'one',
 ]);
 
+/** Short words a "don't count X" / "but not X" pattern can catch that are never names. */
+const NOT_NAME_FILLER = new Set([
+  'on',
+  'in',
+  'at',
+  'to',
+  'for',
+  'out',
+  'up',
+  'yet',
+  'now',
+  'any',
+  'those',
+  'these',
+  'anyone',
+  'anybody',
+  'everybody',
+  'nobody',
+  'night',
+  'morning',
+  'afternoon',
+  'evening',
+  'weekend',
+  'week',
+]);
+
+const NAME = String.raw`([a-z][a-z'-]{1,29})`;
+
+/**
+ * Could `word` (folded) be a member's name in an exclusion (T-148 r1 #2)?
+ * Never a pronoun, a list stop, a day word ("but not tonight", "but not
+ * friday") or a filler ("dont count on it"). "me" is the sender's own name.
+ */
+function exclusionName(word: string | undefined, sender: string | undefined): string | undefined {
+  const w = word?.trim().toLowerCase();
+  if (w === undefined || w.length < 2) return undefined;
+  if (w === 'me' || w === 'myself') return sender;
+  if (NOT_NAME.has(w) || LIST_STOP.has(w) || NOT_NAME_FILLER.has(w)) return undefined;
+  if (
+    parseDayWord(w) !== undefined ||
+    /^(?:sun|mon|tue|tues|wed|thu|thur|thurs|fri|sat)$/.test(w)
+  ) {
+    return undefined;
+  }
+  return w;
+}
+
+/** Negations that govern a name: "don't count henry (or maya)", "henry doesn't want to come". */
+const NAME_NEGATIONS: readonly string[] = [
+  String.raw`\b(?:don'?t|dont|do not)\s+(?:count|include|add)\s+${NAME}(?:\s+(?:and|or|&)\s+${NAME})?(?:\s+(?:in|out))?`,
+  String.raw`\bnot\s+(?:counting|including)\s+${NAME}(?:\s+(?:and|or|&)\s+${NAME})?`,
+  String.raw`\b${NAME}\s+(?:doesn'?t|does not|won'?t|will not|can'?t|cannot|isn'?t)\s+(?:want to\s+|wanna\s+|going to\s+|gonna\s+)?(?:come|go|join|make it|coming|going|joining)\b`,
+];
+
+/**
+ * `folded` without the negations that govern a real name (and a whole-clause
+ * "never been"), so any `NEGATION_CUE` left is about the booking itself.
+ * Only spans whose every captured word is a name are removed: "dont count on
+ * it" stays, so it still reads as a no.
+ */
+function withoutNameNegations(folded: string, sender: string | undefined): string {
+  let out = folded.replace(NEVER_BEEN, ' ');
+  for (const re of NAME_NEGATIONS) {
+    out = out.replace(new RegExp(re, 'g'), (span: string, ...args: unknown[]) => {
+      // The capture groups come before the numeric offset.
+      const groups = args.slice(
+        0,
+        args.findIndex((x) => typeof x === 'number'),
+      );
+      const names = groups.filter((g): g is string => typeof g === 'string');
+      return names.every((w) => exclusionName(w, sender ?? 'me') !== undefined) ? ' ' : span;
+    });
+  }
+  return out;
+}
+
 function termRe(term: string): RegExp {
   const esc = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
   return new RegExp(`(?:^|[^a-z0-9])${esc}(?:$|[^a-z0-9])`);
@@ -489,7 +566,6 @@ function exclusions(original: string, folded: string, sender: string | undefined
   )) {
     if (!/^(?:It|That|He|She|There|What|Who|This|Everyone|Everybody)$/.test(m[1]!)) add(m[1]);
   }
-  const NAME = String.raw`([a-z][a-z'-]{1,29})`;
   for (const m of folded.matchAll(
     new RegExp(
       // "but" excludes only after a whole-group word ("everyone but Henry");
@@ -508,17 +584,20 @@ function exclusions(original: string, folded: string, sender: string | undefined
   }
   // T-148: "for us but not henry", "don't count henry", "leave henry out",
   // "henry doesn't want to come" (the reason is never kept, only the name).
+  // T-148 r1 #2: day words and fillers are never names ("but not tonight",
+  // "dont count on it"); "dont count me" / "leave me out" is the sender.
   const OUT_PATTERNS = [
     String.raw`\bbut\s+not\s+${NAME}(?:\s+(?:and|or|&)\s+${NAME})?`,
-    String.raw`\b(?:don'?t|dont|do not)\s+(?:count|include|add)\s+${NAME}(?:\s+(?:and|or|&)\s+${NAME})?`,
-    String.raw`\bnot\s+(?:counting|including)\s+${NAME}(?:\s+(?:and|or|&)\s+${NAME})?`,
+    ...NAME_NEGATIONS,
     String.raw`\b(?:leave|leaving|count)\s+${NAME}\s+out\b`,
-    String.raw`\b${NAME}\s+(?:doesn'?t|does not|won'?t|will not|can'?t|cannot|isn'?t)\s+(?:want to\s+|wanna\s+|going to\s+|gonna\s+)?(?:come|go|join|make it|coming|going|joining)\b`,
   ];
   for (const re of OUT_PATTERNS) {
     for (const m of folded.matchAll(new RegExp(re, 'g'))) {
-      add(m[1]);
-      add(m[2]);
+      for (const w of [m[1], m[2]]) {
+        const lower = w?.toLowerCase();
+        if (lower === 'me' || lower === 'myself') add(sender);
+        else if (exclusionName(w, sender) !== undefined) add(w);
+      }
     }
   }
   // Names keep the member's own capitalization when they typed one.
@@ -641,20 +720,12 @@ function firstIndex(re: RegExp, s: string): number {
 /**
  * The booking's own clause and sentence (T-148 #3): the first clause with a
  * booking verb and the venue or a ticket word, else the first with a verb,
- * else the first naming the venue. `at` is where the verb (else the venue
- * term, else the ticket word) starts in that clause.
+ * else the first naming the venue. Questions are judged on its sentence.
  */
 function anchorOf(
   t: string,
   terms: readonly string[],
-):
-  | {
-      readonly sentence: string;
-      readonly clause: string;
-      readonly at: number;
-      readonly later: readonly string[];
-    }
-  | undefined {
+): { readonly sentence: string; readonly clause: string } | undefined {
   const rows: { sentence: string; clause: string; verb: number; thing: number }[] = [];
   for (const sentence of t.split(SENTENCE_SPLIT)) {
     for (const raw of sentence.split(CLAUSE_SPLIT)) {
@@ -679,12 +750,7 @@ function anchorOf(
         : rows.findIndex((r) => r.thing >= 0);
   const row = rows[pick];
   if (row === undefined) return undefined;
-  return {
-    sentence: row.sentence,
-    clause: row.clause,
-    at: row.verb >= 0 ? row.verb : row.thing,
-    later: rows.slice(pick + 1).map((r) => r.clause),
-  };
+  return { sentence: row.sentence, clause: row.clause };
 }
 
 function isQuestion(sentence: string): boolean {
@@ -749,14 +815,13 @@ export function parseBookingRequest(
   const { venue, terms } = v;
 
   // ---- questions and negations (r1 #3, T-148 #3) ----
-  // Only the booking's own sentence can make it a question, and only a
-  // negation ahead of the verb in its own clause, or a later "actually
-  // don't", takes it back; "don't count henry" is an exclusion, not a no.
+  // Only the booking's own sentence can make it a question. Any negation
+  // anywhere takes it back ("…, but don't buy them yet", "…, not yet
+  // though", T-148 r1 #1) unless it governs a name: "don't count henry" is
+  // an exclusion, not a no. Missing an ask is safe; booking a "not yet" isn't.
   const anchor = anchorOf(t, terms);
   if (anchor === undefined || isQuestion(anchor.sentence)) return undefined;
-  const neg = firstIndex(NEGATION_CUE, anchor.clause);
-  if (neg >= 0 && neg < anchor.at) return undefined;
-  if (anchor.later.some((c) => RETRACTION.test(c))) return undefined;
+  if (NEGATION_CUE.test(withoutNameNegations(t, sender))) return undefined;
 
   // ---- a booking signal ----
   // A booking verb, a headcount, "for all of us" or "for me (and X)": a

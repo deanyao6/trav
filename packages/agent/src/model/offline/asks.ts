@@ -66,6 +66,9 @@ export const CANCEL_GONE_TEXT = "that one's not waiting anymore, so there's noth
 export const NOTHING_LIKE_THAT_TEXT =
   "nothing like that is waiting on a 👍, so i didn't drop anything";
 export const VENUE_OFFER_TEXT = "want me to grab them? tell me who's in";
+/** A price question about an adults-only venue in a family group (T-148 r1 #3, VOICE §8). */
+export const VENUE_NOT_ALL_AGES_TEXT =
+  "that one's not all-ages, so i won't price it in this chat. ask me about something all-ages and i'll look it up";
 export const VENUE_NOT_BOOKABLE_TEXT =
   "i can't book that one from the chat on the trip dates, so nothing's booked";
 
@@ -274,9 +277,21 @@ export function createVenueQuestionResponder(
         );
       });
       if (hit === undefined) return response(req, VENUE_NOT_BOOKABLE_TEXT, []);
+      // A family group never sees an adults-only venue named or priced (its
+      // name alone trips the screen, and the reply would be silence): one
+      // all-ages line that names neither the venue nor the minor (T-148 r1 #3).
+      const family = isRecord(round.result) && round.result['familyMode'] === true;
+      if (family && hit['adultsOnly'] === true) return response(req, VENUE_NOT_ALL_AGES_TEXT, []);
       const from = hit['from'] as { amountMinor: number; currency: string };
+      // All-ages wording (T-148 r1 #3, VOICE §8): "18+"/"21+" would get the
+      // whole reply dropped by a family group's screen; under 18 the real age.
+      const minAge = hit['minimumAge'];
       const age =
-        typeof hit['minimumAge'] === 'number' ? `, ${String(hit['minimumAge'])}+ only` : '';
+        typeof minAge !== 'number'
+          ? ''
+          : minAge < 18
+            ? `, ${String(minAge)} and up`
+            : ', not all-ages';
       const refund = hit['fromRefundable'] === true ? 'refundable' : 'non-refundable';
       return response(
         req,

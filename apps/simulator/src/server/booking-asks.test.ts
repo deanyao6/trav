@@ -149,6 +149,71 @@ describe('a minor asks for a family booking (T-081 r1 #4)', () => {
   });
 });
 
+describe('a later "not yet" takes the ask back, even under raised caps (T-148 r1 #1)', () => {
+  const BCN = 'grp_barcelona';
+  const bcnTrav = (b: SimulatorBackend) =>
+    b
+      .state()
+      .groups.find((g) => g.group.groupId === BCN)!
+      .thread.filter((e) => e.kind === 'message' && e.isTrav);
+
+  it('Dean raises the caps; three retracted asks buy nothing, a plain ask does (control)', async () => {
+    const { b, purchases } = await countingBackend();
+    const say = (text: string) => b.inject({ type: 'message', from: 'h_dean', text, groupId: BCN });
+    await say('@trav set the auto-approve cap to €200');
+    await say('yes');
+    await say('@trav set the per-person cap to €100');
+    await say('yes');
+    for (const ask of [
+      // "for all of us": with no one out, each would go straight to a purchase.
+      "@trav get razz tickets for all of us, but don't buy them yet",
+      '@trav get razz tickets for all of us, hold off till henry confirms',
+      '@trav get razz tickets for all of us, not yet though',
+    ]) {
+      const before = bcnTrav(b).length;
+      await say(ask);
+      expect(purchases(), ask).toBe(0);
+      const lines = bcnTrav(b).slice(before);
+      expect(
+        lines.some((e) => e.kind === 'message' && e.card !== undefined),
+        ask,
+      ).toBe(false);
+      const text = lines.map((e) => (e.kind === 'message' ? e.text : '')).join('\n');
+      expect(text, ask).not.toMatch(/^booked/m);
+    }
+    // Control: the same caps do auto-book an ask nobody took back.
+    await say("@trav get the 5 of us razz tickets, henry's sick");
+    expect(purchases()).toBe(1);
+  });
+});
+
+describe('a price question in a family group always gets a delivered line (T-148 r1 #3)', () => {
+  // VENUE_NOT_ALL_AGES_TEXT (offline/asks.ts, not a package export): no venue name, no minor.
+  const NOT_ALL_AGES = /^that one's not all-ages, so i won't price it in this chat\./;
+  it.each([
+    ['h_tci_dad', 'how much is the casino night', NOT_ALL_AGES],
+    ['h_tci_lily', 'how much is the casino night', NOT_ALL_AGES],
+    ['h_tci_dad', 'how much is the trivia night', NOT_ALL_AGES],
+    [
+      'h_tci_dad',
+      'how much is the jet ski',
+      /^jet ski rental, 1 hour is \$\d+ each, .*16 and up\n/,
+    ],
+  ] as const)('%s: %s', async (from, ask, want) => {
+    const { b, purchases } = await countingBackend();
+    const before = tciThread(b).length;
+    await b.inject({ type: 'message', from, text: `@trav ${ask}`, groupId: TCI });
+    const trav = tciThread(b)
+      .slice(before)
+      .filter((e) => e.kind === 'message' && e.isTrav)
+      .map((e) => e.text);
+    expect(trav).toHaveLength(1);
+    expect(trav[0]).toMatch(want);
+    expect(trav[0]).not.toMatch(/Lily|18\+|21\+/);
+    expect(purchases()).toBe(0);
+  });
+});
+
 describe('the family tab is one pot for an adults-only booking too (T-148 #2, VOICE §8)', () => {
   it('Dad: snorkel tour for me and mom ⇒ all on Dad, no split, only Dad approves', async () => {
     const { b, purchases } = await countingBackend();

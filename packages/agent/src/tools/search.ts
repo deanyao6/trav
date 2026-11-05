@@ -4,7 +4,7 @@
  * refund summaries never enters a tool-enabled call; SAFETY §2.4).
  */
 import type { IsoDate, MemberId } from '@trav/core';
-import { formatMoney, localDate, TravError } from '@trav/core';
+import { formatMoney, localDate, safety, TravError } from '@trav/core';
 import type { FlightsAdapter, LodgingAdapter, TicketsAdapter, EventCategory } from '@trav/adapters';
 import { sanitizeInline } from '../context/groupContext.js';
 import { refundableNow } from '../booking/proposals.js';
@@ -52,6 +52,8 @@ export interface EventResult {
   readonly startsAt: string;
   readonly category: string;
   readonly minimumAge: number | null;
+  /** 18+ or restricted content (nightlife, bar, gambling…): never named in a family group (T-148 r1 #3). */
+  readonly adultsOnly: boolean;
   readonly from: {
     readonly amountMinor: number;
     readonly currency: string;
@@ -64,11 +66,14 @@ export interface EventResult {
   readonly bookable: boolean;
 }
 
-export function createSearchEventsTool(
-  tickets: TicketsAdapter,
-): ToolDefinition<
+export function createSearchEventsTool(tickets: TicketsAdapter): ToolDefinition<
   SearchEventsInput,
-  { readonly events: readonly EventResult[]; readonly note?: string }
+  {
+    readonly events: readonly EventResult[];
+    readonly note?: string;
+    /** A minor is on the trip (or it's forced): adults-only events go unnamed (VOICE §8). */
+    readonly familyMode?: boolean;
+  }
 > {
   return {
     name: 'search_events',
@@ -140,6 +145,7 @@ export function createSearchEventsTool(
           startsAt: ev.startsAt,
           category: ev.category,
           minimumAge: ev.minimumAge ?? null,
+          adultsOnly: (ev.minimumAge ?? 0) >= 18 || safety.isRestrictedContent(ev.contentFlags),
           from,
           refundableOption: api.some((o) => refundableNow(o, ctx.now)),
           fromTier: cheapest === undefined ? null : sanitizeInline(cheapest.tierName, 40),
@@ -147,7 +153,11 @@ export function createSearchEventsTool(
           bookable: api.length > 0,
         });
       }
-      return { events };
+      const group = ctx.stores.group.groups.get(ctx.groupId);
+      const familyMode =
+        group !== undefined &&
+        safety.isFamilyMode(group, ctx.stores.group.members.listByGroup(ctx.groupId), ctx.now);
+      return familyMode ? { events, familyMode } : { events };
     },
   };
 }

@@ -19,6 +19,7 @@ import {
   OPTION_NUMBER_TEXT,
   RESTAURANT_TEXT,
   cancelResponder as rawCancel,
+  VENUE_NOT_ALL_AGES_TEXT,
   VENUE_NOT_BOOKABLE_TEXT,
   VENUE_OFFER_TEXT,
   cancelMatches,
@@ -462,8 +463,25 @@ describe('T-148 (T-081 r2 review repros, agent)', () => {
       }),
     )!;
     expect(aged.text).toBe(
-      `jet ski rental, 1 hour is $120 each, non-refundable, 16+ only\n${VENUE_OFFER_TEXT}`,
+      `jet ski rental, 1 hour is $120 each, non-refundable, 16 and up\n${VENUE_OFFER_TEXT}`,
     );
+    // T-148 r1 #3: an adults-only venue is named and priced in an adult group,
+    // never in a family group (one all-ages line instead, so a line is delivered).
+    const casino = {
+      name: 'casino night + $40 play voucher',
+      bookable: true,
+      minimumAge: 21,
+      adultsOnly: true,
+      fromRefundable: false,
+      from: { amountMinor: 6500, currency: 'USD' },
+    };
+    const adults = r.complete(after(first, c1, { events: [casino] }))!;
+    expect(adults.text).toBe(
+      `casino night + $40 play voucher is $65 each, non-refundable, not all-ages\n${VENUE_OFFER_TEXT}`,
+    );
+    const family = r.complete(after(first, c1, { events: [casino], familyMode: true }))!;
+    expect(family.text).toBe(VENUE_NOT_ALL_AGES_TEXT);
+    expect(family.toolCalls).toEqual([]);
   });
 });
 

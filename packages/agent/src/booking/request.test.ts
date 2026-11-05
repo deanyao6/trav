@@ -175,6 +175,42 @@ describe('T-081 r1 review repros', () => {
     expect(parse(text)).toBeUndefined();
   });
 
+  it.each([
+    "get razz tickets for all of us, but don't buy them yet",
+    'get razz tickets for all of us but dont buy them yet',
+    'get the 5 of us razz tickets, hold off till henry confirms',
+    'get razz tickets for all of us, not yet though',
+    'not yet, but get razz tickets for all of us',
+    'get razz tickets for 5. no need to rush, wait on maya',
+    'get razz tickets for all of us, dont count on it',
+    "get razz tickets for all of us, he doesn't want to come",
+  ])('T-148 r1 #1 a negation in any clause takes the ask back: %s', (text) => {
+    expect(parse(text)).toBeUndefined();
+  });
+
+  it.each([
+    ["henry doesn't want to come, get the 5 of us razz tickets", ['Henry']],
+    ["get razz tickets for all of us, don't include henry or maya", ['Henry', 'Maya']],
+    ['get razz tickets for all of us, not counting henry', ['Henry']],
+  ] as const)('T-148 r1 #1 a negation that governs a name is an exclusion: %s', (text, out) => {
+    expect(parse(text)?.excludedNames).toEqual(out);
+  });
+
+  it('T-148 r1 #2 day words and fillers are never names; "me" is the sender', () => {
+    expect(parse('get razz tickets for us but not tonight')?.excludedNames).toEqual([]);
+    expect(parse('get razz tickets for 5 but not friday')?.excludedNames).toEqual([]);
+    expect(parse('get razz tickets for 5 but not fri')?.excludedNames).toEqual([]);
+    expect(parse("get razz tickets for 5 but not henry, he's sick")?.excludedNames).toEqual([
+      'Henry',
+    ]);
+    expect(parse('get razz tickets for everyone, dont count me', 'Sam')?.excludedNames).toEqual([
+      'Sam',
+    ]);
+    expect(parse('get razz tickets for everyone, leave me out', 'Sam')?.excludedNames).toEqual([
+      'Sam',
+    ]);
+  });
+
   it('T-148 #6 not/my/our/his/her/their are never names; "but not X" excludes X', () => {
     expect(parse('get razz tickets for us but not henry')?.excludedNames).toEqual(['Henry']);
     expect(parse('get razz tickets for 5 but not henry or maya')?.excludedNames).toEqual([
