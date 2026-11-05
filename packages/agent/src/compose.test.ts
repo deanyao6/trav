@@ -170,3 +170,53 @@ describe('recap scheduling: every planning or active trip gets its Morning After
     rt.close();
   });
 });
+
+describe('scheduleTripJobs: groups seeded after the runtime was built (T-094)', () => {
+  const fixture = (name: string): { group: Group; members: Member[]; trip: Trip } =>
+    JSON.parse(readFileSync(join(repoRoot(), 'fixtures', 'groups', `${name}.json`), 'utf8')) as {
+      group: Group;
+      members: Member[];
+      trip: Trip;
+    };
+  const seedLate = (stores: Stores, name: string): string => {
+    const f = fixture(name);
+    stores.group.groups.create(f.group);
+    for (const m of f.members) stores.group.members.upsert(m);
+    stores.group.trips.create(f.trip);
+    return f.group.groupId;
+  };
+
+  it("adds the late group's Morning Afters and Wrapped, only that group, once", () => {
+    const h = harness();
+    const before = h.runtime.scheduler.list().map((j) => j.jobId);
+    const lisbon = seedLate(h.runtime.stores, 'lisbon');
+    const tci = seedLate(h.runtime.stores, 'turks-and-caicos');
+    // Not scheduled until asked (the runtime only saw Barcelona when built).
+    expect(h.runtime.scheduler.list().some((j) => j.groupId === lisbon)).toBe(false);
+
+    const added = h.runtime.scheduleTripJobs([lisbon]);
+    const lisTrip = fixture('lisbon').trip;
+    expect([...added].sort()).toEqual(
+      [...morningAfterJobsFor(lisTrip), wrappedJobFor(lisTrip)].map((j) => j.jobId).sort(),
+    );
+    expect(h.runtime.scheduler.list().some((j) => j.groupId === tci)).toBe(false);
+    // Again (or naming an already-scheduled group) adds nothing; Barcelona's jobs untouched.
+    expect(h.runtime.scheduleTripJobs([lisbon, BARCELONA.groupId])).toEqual([]);
+    const after = h.runtime.scheduler.list().map((j) => j.jobId);
+    expect(after.filter((id) => before.includes(id))).toEqual(before);
+    expect(new Set(after).size).toBe(after.length);
+    // An empty list schedules nothing.
+    expect(h.runtime.scheduleTripJobs([])).toEqual([]);
+  });
+
+  it('never re-adds a job whose time already passed (it ran, so it cannot post twice)', async () => {
+    const h = harness();
+    const lisbon = seedLate(h.runtime.stores, 'lisbon');
+    h.runtime.scheduleTripJobs([lisbon]);
+    h.clock.set('2026-04-21T10:00:00+01:00');
+    const first = (await h.runtime.drain()).filter((t) => t.note === 'scheduled:wrapped');
+    expect(first).toHaveLength(2); // Barcelona's and Lisbon's
+    expect(h.runtime.scheduleTripJobs([lisbon])).toEqual([]);
+    expect(await h.runtime.drain()).toEqual([]);
+  });
+});

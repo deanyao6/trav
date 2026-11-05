@@ -146,6 +146,16 @@ export interface TravRuntime {
   /** Run every due scheduled job (`scheduler.drain(clock.now())`) through the agent. */
   drain(): Promise<readonly TurnResult[]>;
   /**
+   * T-094: schedule the recap jobs (Morning After + daily settle-up, Wrapped)
+   * still ahead for the given groups' planning or active trips. For groups a
+   * caller wrote into the stores after the runtime was built (the simulator's
+   * Lisbon and Turks and Caicos fixtures). A job already queued is left as is,
+   * and a job whose time has passed (it ran, or was skipped) is never added, so
+   * calling this again, or for an already-scheduled group, never double-posts.
+   * Returns the jobIds added.
+   */
+  scheduleTripJobs(groupIds: readonly string[]): readonly string[];
+  /**
    * VOICE §8: post the family-mode notice once, as its own message, when the
    * group is in family mode and has not been told yet (`announceFamilyMode`
    * in `settings/flow.ts`). Call after seeding a group or changing its roster.
@@ -273,6 +283,16 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
       }
       return out;
     },
+    scheduleTripJobs(groupIds) {
+      const queued = new Set(scheduler.list().map((j) => j.jobId));
+      const added: string[] = [];
+      for (const job of recapJobsFor(stores, clock.now(), groupIds)) {
+        if (queued.has(job.jobId)) continue;
+        scheduler.schedule(job);
+        added.push(job.jobId);
+      }
+      return added;
+    },
     announceFamilyMode(groupId) {
       return announceFamilyMode({ stores, clock, ids, sendTurn }, groupId);
     },
@@ -288,12 +308,18 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
 /**
  * The recap jobs still ahead of `now` for every planning or active trip in the
  * stores: each Morning After, then the trip's Wrapped. Pure over the stores;
- * one entry per jobId.
+ * one entry per jobId. `groupIds` limits it to those groups (default: all).
  */
-export function recapJobsFor(stores: Stores, now: IsoDateTime): ScheduledJob[] {
+export function recapJobsFor(
+  stores: Stores,
+  now: IsoDateTime,
+  groupIds?: readonly string[],
+): ScheduledJob[] {
   const t = parseIso(now);
+  const only = groupIds === undefined ? undefined : new Set(groupIds);
   const out = new Map<string, ScheduledJob>();
   for (const g of stores.group.groups.list()) {
+    if (only !== undefined && !only.has(g.groupId)) continue;
     for (const trip of stores.group.trips.listByGroup(g.groupId)) {
       if (trip.status !== 'planning' && trip.status !== 'active') continue;
       for (const job of [...morningAfterJobsFor(trip), wrappedJobFor(trip)])

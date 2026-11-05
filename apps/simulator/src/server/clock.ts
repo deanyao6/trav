@@ -11,7 +11,7 @@
  * The clock only ever moves forward, so a scheduled job can never fire twice
  * and a replayed script cannot rewind the agent's stores.
  */
-import type { IsoDateTime, ScheduledJob, ScheduledJobKind } from '@trav/core';
+import type { IsoDateTime, ScheduledJob } from '@trav/core';
 import {
   addDays,
   formatClockTime,
@@ -24,7 +24,7 @@ import {
   zonedWallTimeToMs,
 } from '@trav/core';
 import type { TurnResult } from '@trav/agent';
-import type { ClockRequest, ClockStep, SimGroup } from '../shared/types.js';
+import type { ClockRequest, SimGroup } from '../shared/types.js';
 
 /**
  * `sun mar 15 · 10am · day 4`; `· trip over` after the last day. Same format
@@ -76,21 +76,6 @@ export function clockTarget(
   return target > nowMs ? inZone(target, group) : undefined;
 }
 
-/** The job kinds a step exists to show (VOICE §9.5 states 5 and 6). */
-const EXPECTED_KIND: Readonly<Partial<Record<ClockStep, ScheduledJobKind>>> = {
-  morning: 'morning_after',
-  end_of_trip: 'wrapped',
-};
-
-/**
- * What the demo is waiting on when an expected job never ran (backlog task
- * ids). The Morning After (T-015) is built: a morning with no job is simply a
- * morning with nothing scheduled, and a quiet recap reports its own note.
- */
-const NOT_BUILT: Readonly<Partial<Record<ScheduledJobKind, string>>> = {
-  wrapped: 'no Wrapped yet: the Wrapped job lands with T-016',
-};
-
 export interface ClockOutcomeInput {
   readonly request: ClockRequest;
   readonly group: SimGroup;
@@ -141,18 +126,10 @@ export function clockStatus(raw: ClockOutcomeInput): string | undefined {
         (notes.length > 0 ? ` (${[...new Set(notes)].join(', ')})` : ''),
     );
   }
-  const expected = replayLine ? request.expectJob : EXPECTED_KIND[request.step];
-  let missing = false;
-  if (expected !== undefined) {
-    const ran = input.jobs.some((j) => j.kind === expected);
-    const unhandled = input.results.some((r) => r.note === `scheduled:${expected}:not_handled`);
-    const note = NOT_BUILT[expected];
-    if ((!ran || unhandled) && note !== undefined) {
-      parts.push(note);
-      missing = true;
-    }
-  }
   // A replay line that moved the clock with nothing to report stays quiet.
-  if (replayLine && input.jobs.length === 0 && !missing) return undefined;
+  // (Every recap job kind is built: T-015 Morning After, T-016 Wrapped, and
+  // T-094 schedules them for every seeded trip, so there is no "not built yet"
+  // placeholder to name.)
+  if (replayLine && input.jobs.length === 0) return undefined;
   return parts.join(' · ');
 }

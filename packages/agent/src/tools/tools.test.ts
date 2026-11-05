@@ -584,7 +584,11 @@ describe('booking tools stop at a proposal', () => {
       { query: 'sagrada familia', quantity: 6 },
       ctx(h),
     )) as { events: EventResult[]; calendar: unknown };
-    expect(res.calendar).toEqual({ tonight: '2026-03-10', tripStart: '2026-03-12', tripEnd: '2026-03-17' });
+    expect(res.calendar).toEqual({
+      tonight: '2026-03-10',
+      tripStart: '2026-03-12',
+      tripEnd: '2026-03-17',
+    });
     expect(res.events.map((e) => [e.night, e.when])).toEqual([
       ['2026-03-13', 'friday mar 13 10am'],
     ]);

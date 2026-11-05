@@ -70,6 +70,8 @@ export interface SimRuntimeOutput {
   close?(): void;
   /** The runtime's stores: the simulator seeds the non-Barcelona groups into them (`seed.ts`). */
   readonly stores?: Pick<Stores, 'group'>;
+  /** T-094: schedules the recap jobs for groups seeded after the runtime was built (`seed.ts`). */
+  scheduleTripJobs?(groupIds: readonly string[]): readonly unknown[];
   /** VOICE §8: posts the family-mode notice once if the group has a minor and wasn't told yet. */
   announceFamilyMode?(groupId: string): Promise<readonly unknown[]>;
 }
@@ -150,7 +152,14 @@ export async function loadAgentBackend(options: LoadAgentOptions): Promise<Simul
       services: servicesOf(runtime, clock),
     });
     // Lisbon and Turks and Caicos come from fixtures/groups (the runtime seeds Barcelona).
-    if (runtime.stores) seedFixtureGroups(runtime.stores, groups);
+    // T-094: the runtime scheduled recap jobs for what was in its stores when
+    // it was built (Barcelona); the fixture trips get theirs here (Morning
+    // After + daily settle-up, Wrapped). Only the groups just seeded, and a
+    // queued job is never replaced, so Barcelona's jobs are scheduled once.
+    if (runtime.stores) {
+      const seededIds = seedFixtureGroups(runtime.stores, groups);
+      if (seededIds.length > 0) runtime.scheduleTripJobs?.(seededIds);
+    }
     // The family-mode notice posts once per group with a minor (Turks and Caicos):
     // first thing in that chat, before its seed lines, or right away unseeded.
     const announce = async (groupId: string): Promise<void> => {

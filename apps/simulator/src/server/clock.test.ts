@@ -78,7 +78,9 @@ describe('clockLabel', () => {
     }
     expect(clockLabel('2026-03-14T21:41:00+01:00', BARCELONA)).toBe('sat mar 14 · 9:41pm · day 3');
     expect(clockLabel('2026-03-17T23:00:00+01:00', BARCELONA)).toBe('tue mar 17 · 11pm · day 6');
-    expect(clockLabel('2026-03-18T10:00:00+01:00', BARCELONA)).toBe('wed mar 18 · 10am · trip over');
+    expect(clockLabel('2026-03-18T10:00:00+01:00', BARCELONA)).toBe(
+      'wed mar 18 · 10am · trip over',
+    );
     // Before the trip: no day counter.
     expect(clockLabel('2026-02-04T02:00:00+01:00', BARCELONA)).toBe('wed feb 4 · 2am');
   });
@@ -121,16 +123,16 @@ describe('clockStatus', () => {
     expect(s).not.toContain('T-015');
   });
 
-  it('end of trip without Wrapped names T-016; already over says so and moves nothing', () => {
-    expect(
-      clockStatus({
-        ...base,
-        now: '2026-03-18T10:00:00+01:00',
-        request: { step: 'end_of_trip' },
-        jobs: [],
-        results: [],
-      }),
-    ).toContain('no Wrapped yet: the Wrapped job lands with T-016');
+  it('end of trip with no job says nothing was scheduled (no stale T-016 placeholder); already over moves nothing', () => {
+    const none = clockStatus({
+      ...base,
+      now: '2026-03-18T10:00:00+01:00',
+      request: { step: 'end_of_trip' },
+      jobs: [],
+      results: [],
+    });
+    expect(none).toBe('clock → wed mar 18 · 10am · trip over · nothing was scheduled');
+    expect(none).not.toMatch(/T-0|not built|lands with/i);
     expect(
       clockStatus({
         ...base,
@@ -174,14 +176,13 @@ describe('clockStatus', () => {
     ).toContain('1 job ran');
   });
 
-  it('a replay clock line that expects Wrapped names the missing task; Morning After is built', () => {
+  it('a replay clock line that expects a recap job names no backlog task (T-015 and T-016 are built)', () => {
     const morning = clockStatus({
       ...base,
       request: { to: base.now, expectJob: 'morning_after' },
       jobs: [],
       results: [],
     });
-    // T-015 is built: a 10am line with nothing scheduled has nothing to name.
     expect(morning).toBeUndefined();
     expect(
       clockStatus({
@@ -191,7 +192,7 @@ describe('clockStatus', () => {
         jobs: [],
         results: [],
       }),
-    ).toContain('T-016');
+    ).toBeUndefined();
     // Once the job runs and Trav posts, the line goes away.
     expect(
       clockStatus({
@@ -203,7 +204,12 @@ describe('clockStatus', () => {
     ).toBeUndefined();
     // An expected job with no placeholder text (e.g. daily_settle) stays quiet.
     expect(
-      clockStatus({ ...base, request: { to: base.now, expectJob: 'daily_settle' }, jobs: [], results: [] }),
+      clockStatus({
+        ...base,
+        request: { to: base.now, expectJob: 'daily_settle' },
+        jobs: [],
+        results: [],
+      }),
     ).toBeUndefined();
   });
 

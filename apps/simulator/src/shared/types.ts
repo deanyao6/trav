@@ -148,7 +148,8 @@ export type ClockRequest =
       readonly groupId?: string;
       /**
        * The job a replay clock line exists to show (its fixture
-       * `expect.scheduledJob`), so the status line can say when it is not built yet.
+       * `expect.scheduledJob`). Informational: every recap job kind is built
+       * (T-015, T-016) and scheduled for every seeded trip (T-094).
        */
       readonly expectJob?: ScheduledJobKind;
     };
