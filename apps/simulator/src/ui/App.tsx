@@ -131,7 +131,8 @@ function TopBar({
   return (
     <header className="topbar">
       <span className="clock" data-testid="clock">
-        {clockLabel(state.now, view.group)}
+        {/* Each chat has its own clock (T-095). */}
+        {clockLabel(view.now, view.group)}
       </span>
       {state.controls.clock && onClock ? (
         <span className="clock-buttons" data-testid="clock-buttons">

@@ -352,7 +352,11 @@ export interface BookingRequest {
 export function askedTime(folded: string): string | undefined {
   const m =
     /\b(\d{1,2})(?::(\d{2}))?\s?(am|pm)\b/.exec(folded) ??
-    /\bat (\d{1,2})(?::(\d{2}))?\b(?!\s*(?:of us|people|tickets|tix|each))/.exec(folded);
+    // "at 3" is a time unless a price, a per-person phrase or a date follows it
+    // ("at 3€ each", "at 3 per person", "at 3/14"); "10.30" is 10:30 (T-143 r2 #2).
+    /\bat (\d{1,2})(?:[:.](\d{2}))?\b(?![.,/]\d)(?!\s*(?:of us|of them|people|ppl|tickets|tix|each|per\b|a head|a pop|apiece|€|eur\b|euros?\b|\$|usd\b|dollars?\b|bucks\b|£|gbp\b|pounds?\b|quid\b))/.exec(
+      folded,
+    );
   if (m === null) return undefined;
   const h = Number(m[1]);
   const min = m[2] === undefined ? 0 : Number(m[2]);

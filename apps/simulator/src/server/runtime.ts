@@ -25,6 +25,7 @@ import type { TravAgent, TurnResult } from '@trav/agent';
 import type { SimGroup } from '../shared/types.js';
 import type { ChannelBackend, ResetOptions, SimulatorBackend } from './backend.js';
 import { createAgentBackend, createSessionBackend, servicesOf } from './backend.js';
+import { createGroupClocks } from './groupClocks.js';
 import { SIM_GROUPS, toConversations } from './groups.js';
 import { SEED_START, seedChat, seedFixtureGroups } from './seed.js';
 
@@ -64,8 +65,11 @@ export interface SimRuntimeOutput {
   readonly model?: { readonly mode: 'live' | 'offline' };
   /** The runtime's scheduler (read-only use: which jobs are due, for the status line). */
   readonly scheduler?: { list(): readonly ScheduledJob[] };
-  /** `scheduler.drain(clock.now())` through `agent.runScheduled` (the top-bar clock). */
-  drain?(): Promise<readonly TurnResult[]>;
+  /**
+   * `scheduler.drain(clock.now())` through `agent.runScheduled` (the top-bar
+   * clock); `groupId` limits it to that chat's jobs (D-035).
+   */
+  drain?(options?: { readonly groupId?: string }): Promise<readonly TurnResult[]>;
   /** Close the stores (called when the simulator starts over). */
   close?(): void;
   /** The runtime's stores: the simulator seeds the non-Barcelona groups into them (`seed.ts`). */
@@ -102,7 +106,10 @@ export interface LoadAgentOptions {
   /** Force offline mode. Default false: the runtime decides (env + key). */
   readonly offline?: boolean;
   readonly groups?: readonly SimGroup[];
-  /** Simulated trip time to start at. Default: Barcelona, sat mar 14, 9:39pm. */
+  /**
+   * Simulated time the first chat starts at. Default: Barcelona, sat mar 14,
+   * 9:39pm. The other chats start at their `opensAt` (T-095), else here too.
+   */
   readonly startAt?: string;
   /**
    * Open on demo state 1 (`seed.ts`): the seed lines go through the channel
@@ -131,6 +138,16 @@ export async function loadAgentBackend(options: LoadAgentOptions): Promise<Simul
     const seed = options.seed === true && reset.seed !== false;
     // Seeding starts the clock at the first seed line; the session then sits at `startAt`.
     const clock = createSimulatedClock(seed ? SEED_START : startAt);
+    // T-095 (D-035): one clock per chat over the runtime's clock. The first
+    // chat (Barcelona) starts at `startAt`; the others on their own trip
+    // (`SimGroup.opensAt`), so no chat has to step through another trip's days.
+    const clocks = createGroupClocks(
+      clock,
+      groups.map((g, i) => [g.groupId, i === 0 ? startAt : (g.opensAt ?? startAt)] as const),
+    );
+    const firstGroupId = groups[0]!.groupId;
+    // While the session is built, turns run on the clock as the seed lines set it.
+    clocks.pin();
     const channel = createSimulatorChannel({ clock, conversations: toConversations(groups) });
     // The one call into the real runtime. Adjust the input/output mapping
     // here (and only here) if compose.ts changes.
@@ -150,15 +167,19 @@ export async function loadAgentBackend(options: LoadAgentOptions): Promise<Simul
       groups,
       offline,
       services: servicesOf(runtime, clock),
+      clocks,
     });
     // Lisbon and Turks and Caicos come from fixtures/groups (the runtime seeds Barcelona).
     // T-094: the runtime scheduled recap jobs for what was in its stores when
     // it was built (Barcelona); the fixture trips get theirs here (Morning
     // After + daily settle-up, Wrapped). Only the groups just seeded, and a
     // queued job is never replaced, so Barcelona's jobs are scheduled once.
+    // T-095: each from its own chat's opening time, so a job before the chat
+    // opens is never queued to fire late on its first clock step.
     if (runtime.stores) {
-      const seededIds = seedFixtureGroups(runtime.stores, groups);
-      if (seededIds.length > 0) runtime.scheduleTripJobs?.(seededIds);
+      for (const id of seedFixtureGroups(runtime.stores, groups)) {
+        clocks.within(id, () => runtime.scheduleTripJobs?.([id]));
+      }
     }
     // The family-mode notice posts once per group with a minor (Turks and Caicos):
     // first thing in that chat, before its seed lines, or right away unseeded.
@@ -176,11 +197,15 @@ export async function loadAgentBackend(options: LoadAgentOptions): Promise<Simul
           if (g !== undefined) await announce(g.groupId);
         },
       );
-      // Groups without seed lines still get their notice.
-      for (const g of groups) await announce(g.groupId);
-    } else {
-      for (const g of groups) await announce(g.groupId);
     }
+    // Groups without seed lines (or an unseeded session) get their notice
+    // too, at their own chat's time (T-095).
+    for (const g of groups) {
+      clocks.activate(g.groupId);
+      await announce(g.groupId);
+    }
+    clocks.activate(firstGroupId);
+    clocks.unpin();
     return backend;
   };
 

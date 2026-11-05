@@ -52,6 +52,8 @@ export const LISBON: SimGroup = {
     ['mem_lis_dad', 'Dad', 'h_lis_dad'],
   ]),
   hints: [],
+  // T-095: opens on trip day 2, thu apr 16 9am, as Dad's conference starts.
+  opensAt: '2026-04-16T09:00:00+01:00',
 };
 
 export const TURKS_AND_CAICOS: SimGroup = {
@@ -69,6 +71,8 @@ export const TURKS_AND_CAICOS: SimGroup = {
     ['mem_tci_lily', 'Lily', 'h_tci_lily'],
   ]),
   hints: [],
+  // T-095: opens on trip day 2, sun jun 21 9am, the first full day on the island.
+  opensAt: '2026-06-21T09:00:00-04:00',
 };
 
 /** Barcelona first: it is the flagship and the default selection. */

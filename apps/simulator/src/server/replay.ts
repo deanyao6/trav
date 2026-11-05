@@ -277,7 +277,7 @@ export function withReplay(
     if (
       line.kind !== 'clock' &&
       backend.advanceClock &&
-      parseIso(line.ts) > parseIso(backend.now())
+      parseIso(line.ts) > parseIso(backend.now(group.groupId))
     ) {
       await backend.advanceClock({ to: line.ts, groupId: group.groupId });
     }
@@ -332,7 +332,7 @@ export function withReplay(
       case 'clock': {
         if (!backend.advanceClock) throw new Skip('this backend has no clock');
         const to = line.advanceTo ?? line.ts;
-        if (parseIso(to) <= parseIso(backend.now())) {
+        if (parseIso(to) <= parseIso(backend.now(group.groupId))) {
           return `${label} (clock already past it)`;
         }
         await backend.advanceClock({
@@ -448,7 +448,7 @@ export function withReplay(
     inject: (input) => backend.inject(input),
     transcript: (groupId) => backend.transcript(groupId),
     dms: (memberId) => backend.dms(memberId),
-    now: () => backend.now(),
+    now: (groupId) => backend.now(groupId),
     state() {
       const s = backend.state();
       return { ...s, controls: { ...s.controls, replay: true }, replay: view() };

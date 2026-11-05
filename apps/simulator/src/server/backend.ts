@@ -33,6 +33,8 @@ import type {
 import { clockStatus, clockTarget } from './clock.js';
 import type { DemoDocument } from './documents.js';
 import { DEMO_DOCUMENTS, buildIntake } from './documents.js';
+import type { GroupClocks } from './groupClocks.js';
+import { sharedClocks } from './groupClocks.js';
 import { buildDmThread, buildState } from './state.js';
 
 /** How a backend starts over (`POST /api/reset`, or the replay's first step). */
@@ -61,14 +63,18 @@ export interface SimulatorBackend {
   dms(memberId: string): readonly ThreadEntry[];
   /** The full UI payload. Group threads are filtered server-side (no private cards). */
   state(): SimState;
-  /** Current simulated time. */
-  now(): IsoDateTime;
+  /**
+   * A chat's simulated time (default: the first group's). Each chat has its
+   * own clock (T-095): Lisbon can be on its trip while Barcelona is on its.
+   */
+  now(groupId?: string): IsoDateTime;
   /** Called after every change (inbound recorded, typing on/off, Trav's reply). */
   subscribe(listener: () => void): Unsubscribe;
   /** Start over. Optional. */
   reset?(options?: ResetOptions): Promise<void>;
   /**
-   * Move the simulated clock forward, then run every due scheduled job through
+   * Move the chat's own clock forward (`request.groupId`, default the first
+   * chat; T-095), then run that chat's due scheduled jobs through
    * Trav (`scheduler.drain(now)` → `agent.runScheduled`); whatever that sends
    * goes through the channel like any other turn. Throws `TravError`
    * `not_implemented` when the backend has no clock services.
@@ -104,8 +110,11 @@ export interface SimServices {
   readonly clock: SimulatedClock;
   /** For the status line: which jobs were due (read before draining). */
   readonly scheduler?: { list(): readonly ScheduledJob[] };
-  /** `runtime.drain()`: every due job through `agent.runScheduled`. */
-  readonly drain?: () => Promise<readonly TurnResult[]>;
+  /**
+   * `runtime.drain()`: every due job through `agent.runScheduled`. With a
+   * `groupId`, only that chat's jobs (D-035); a runtime that ignores it drains all.
+   */
+  readonly drain?: (groupId?: string) => Promise<readonly TurnResult[]>;
   readonly intakeDocument?: (input: DocumentIntake) => Promise<DocumentIntakeResult>;
   /**
    * T-067: sync one owner's card now through the runtime's own provider (on
@@ -124,7 +133,7 @@ export interface ServiceSource {
   readonly agent: Pick<TravAgent, 'intakeDocument'> &
     Partial<Pick<TravAgent, 'importCardTransactions'>>;
   readonly scheduler?: { list(): readonly ScheduledJob[] };
-  drain?(): Promise<readonly TurnResult[]>;
+  drain?(options?: { readonly groupId?: string }): Promise<readonly TurnResult[]>;
 }
 
 /** The simulator services a runtime lends (clock, scheduler drain, document intake, card sync). */
@@ -135,7 +144,12 @@ export function servicesOf(runtime: ServiceSource, clock: SimulatedClock): SimSe
     ...(runtime.scheduler !== undefined && typeof runtime.scheduler.list === 'function'
       ? { scheduler: runtime.scheduler }
       : {}),
-    ...(typeof runtime.drain === 'function' ? { drain: () => runtime.drain!() } : {}),
+    ...(typeof runtime.drain === 'function'
+      ? {
+          drain: (groupId?: string) =>
+            runtime.drain!(groupId !== undefined ? { groupId } : undefined),
+        }
+      : {}),
     ...(typeof agent.intakeDocument === 'function'
       ? { intakeDocument: (input: DocumentIntake) => agent.intakeDocument(input) }
       : {}),
@@ -160,6 +174,11 @@ export interface ChannelBackendOptions {
   readonly services?: SimServices;
   /** Default `DEMO_DOCUMENTS`. */
   readonly documents?: readonly DemoDocument[];
+  /**
+   * One clock per chat over `clock` (T-095, `groupClocks.ts`). Default: one
+   * clock shared by every chat.
+   */
+  readonly clocks?: Omit<GroupClocks, 'clock'>;
 }
 
 export interface ChannelBackend extends SimulatorBackend {
@@ -183,6 +202,8 @@ export interface ChannelBackend extends SimulatorBackend {
 export function createChannelBackend(options: ChannelBackendOptions): ChannelBackend {
   const { channel, clock, groups, services } = options;
   if (groups.length === 0) throw new Error('simulator backend: at least one group is required');
+  const clocks = options.clocks ?? sharedClocks(clock);
+  const firstGroupId = groups[0]!.groupId;
   const documents = options.documents ?? DEMO_DOCUMENTS;
   const listeners = new Set<() => void>();
   const typing = new Set<string>();
@@ -212,6 +233,13 @@ export function createChannelBackend(options: ChannelBackendOptions): ChannelBac
     return undefined;
   }
 
+  /** The chat a tapback or tap happens in: the target's group thread, else the sender's chat. */
+  function groupOfTap(messageId: string, from: string): string | undefined {
+    const target = channel.sentMessage(messageId);
+    const direct = target ? groupByConversation.get(target.conversationId) : undefined;
+    return (direct ?? groupOfHandle.get(from))?.groupId;
+  }
+
   function setStatus(group: SimGroup | undefined, status: string | undefined): void {
     if (!group) return;
     if (status === undefined) statusByGroup.delete(group.groupId);
@@ -236,6 +264,8 @@ export function createChannelBackend(options: ChannelBackendOptions): ChannelBac
     group: SimGroup | undefined,
   ): Promise<void> => {
     try {
+      // The shared clock shows this chat's time for the whole turn (T-095).
+      clocks.enterTurn(group?.groupId);
       const outcome = await work();
       lastError = undefined;
       setStatus(group, outcome ? outcome.status : undefined);
@@ -285,7 +315,7 @@ export function createChannelBackend(options: ChannelBackendOptions): ChannelBac
   const canFeed = (d: DemoDocument): boolean =>
     d.kind === 'card'
       ? services?.syncCard !== undefined &&
-        (d.availableAt === undefined || parseIso(d.availableAt) <= parseIso(clock.now()))
+        (d.availableAt === undefined || parseIso(d.availableAt) <= parseIso(clocks.now(d.groupId)))
       : services?.intakeDocument !== undefined;
   const feeds = services?.intakeDocument !== undefined || services?.syncCard !== undefined;
 
@@ -319,37 +349,54 @@ export function createChannelBackend(options: ChannelBackendOptions): ChannelBac
     members: allMembers,
 
     async inject(input) {
+      // The channel stamps the event synchronously, in the chat's own time
+      // (T-095). A DM, tapback or tap belongs to the sender's chat (every
+      // handle is in exactly one), a group message to the named chat.
+      const stampIn = (groupId: string | undefined, send: () => Promise<InboundEvent>) =>
+        clocks.within(groupId, send);
       switch (input.type) {
         case 'message': {
           const lane = input.lane ?? 'group';
-          return channel.injectMessage({
-            from: input.from,
-            text: input.text,
-            lane,
-            ...(lane === 'group'
-              ? { conversationId: requireGroup(input.groupId).conversationId }
-              : {}),
-          });
+          const group =
+            lane === 'group' ? requireGroup(input.groupId) : groupOfHandle.get(input.from);
+          return stampIn(group?.groupId, () =>
+            channel.injectMessage({
+              from: input.from,
+              text: input.text,
+              lane,
+              ...(lane === 'group' && group !== undefined
+                ? { conversationId: group.conversationId }
+                : {}),
+            }),
+          );
         }
         case 'reaction':
-          return channel.injectReaction({
-            from: input.from,
-            targetMessageId: input.targetMessageId,
-            reaction: input.reaction,
-            ...(input.removed !== undefined ? { removed: input.removed } : {}),
-          });
+          return stampIn(groupOfTap(input.targetMessageId, input.from), () =>
+            channel.injectReaction({
+              from: input.from,
+              targetMessageId: input.targetMessageId,
+              reaction: input.reaction,
+              ...(input.removed !== undefined ? { removed: input.removed } : {}),
+            }),
+          );
         case 'button_tap':
-          return channel.injectButtonTap({
-            from: input.from,
-            cardMessageId: input.cardMessageId,
-            actionId: input.actionId,
-            ...(input.value !== undefined ? { value: input.value } : {}),
-          });
-        case 'member_joined':
-          return channel.injectMemberJoined({
-            conversationId: requireGroup(input.groupId).conversationId,
-            participant: { handle: input.handle, displayName: input.displayName },
-          });
+          return stampIn(groupOfTap(input.cardMessageId, input.from), () =>
+            channel.injectButtonTap({
+              from: input.from,
+              cardMessageId: input.cardMessageId,
+              actionId: input.actionId,
+              ...(input.value !== undefined ? { value: input.value } : {}),
+            }),
+          );
+        case 'member_joined': {
+          const group = requireGroup(input.groupId);
+          return stampIn(group.groupId, () =>
+            channel.injectMemberJoined({
+              conversationId: group.conversationId,
+              participant: { handle: input.handle, displayName: input.displayName },
+            }),
+          );
+        }
       }
     },
 
@@ -360,7 +407,12 @@ export function createChannelBackend(options: ChannelBackendOptions): ChannelBac
     dms(memberId) {
       const member = allMembers.find((m) => m.memberId === memberId);
       if (!member) throw new Error(`unknown member ${memberId}`);
-      return buildDmThread(groupById.get(member.groupId)!, member, channel, clock.now());
+      return buildDmThread(
+        groupById.get(member.groupId)!,
+        member,
+        channel,
+        clocks.now(member.groupId),
+      );
     },
 
     state() {
@@ -368,7 +420,8 @@ export function createChannelBackend(options: ChannelBackendOptions): ChannelBac
         version,
         backend: options.kind,
         offline: options.offline,
-        now: clock.now(),
+        now: clocks.now(firstGroupId),
+        nowOf: (groupId) => clocks.now(groupId),
         groups,
         channel,
         typing,
@@ -379,7 +432,7 @@ export function createChannelBackend(options: ChannelBackendOptions): ChannelBac
       });
     },
 
-    now: () => clock.now(),
+    now: (groupId) => clocks.now(requireGroup(groupId).groupId),
 
     subscribe(listener) {
       listeners.add(listener);
@@ -393,14 +446,18 @@ export function createChannelBackend(options: ChannelBackendOptions): ChannelBac
           async advanceClock(request: ClockRequest): Promise<void> {
             const group = requireGroup(request.groupId);
             await enqueue(group, async () => {
+              // The turn put this chat's time on the shared clock: the move
+              // and the drain are this chat's alone (T-095, D-035). Another
+              // trip's jobs stay queued for its own clock, and the status
+              // line counts only this chat's jobs.
               const before = services.clock.now();
               const target = clockTarget(request, before, group);
               if (target !== undefined) services.clock.set(target);
               const now = services.clock.now();
               const due = (services.scheduler?.list() ?? []).filter(
-                (j) => parseIso(j.runAt) <= parseIso(now),
+                (j) => j.groupId === group.groupId && parseIso(j.runAt) <= parseIso(now),
               );
-              const results = services.drain ? await services.drain() : [];
+              const results = services.drain ? await services.drain(group.groupId) : [];
               const status = clockStatus({
                 request,
                 group,
@@ -512,7 +569,7 @@ export function createSessionBackend(
     inject: (input: SimInbound) => session.inject(input),
     transcript: (groupId?: string) => session.transcript(groupId),
     dms: (memberId: string) => session.dms(memberId),
-    now: () => session.now(),
+    now: (groupId?: string) => session.now(groupId),
     state(): SimState {
       const s = session.state();
       return { ...s, version, controls: { ...s.controls, reset: true } };
@@ -566,6 +623,8 @@ export interface AgentBackendParts {
   readonly offline: boolean;
   /** Clock, scheduler drain and intake from the runtime (top-bar clock, DM-rail documents). */
   readonly services?: SimServices;
+  /** One clock per chat over `clock` (T-095). Default: one shared clock. */
+  readonly clocks?: Omit<GroupClocks, 'clock'>;
 }
 
 /**
@@ -640,6 +699,7 @@ export function createAgentBackend(parts: AgentBackendParts): ChannelBackend {
     clock: parts.clock,
     offline: parts.offline,
     ...(parts.services !== undefined ? { services: parts.services } : {}),
+    ...(parts.clocks !== undefined ? { clocks: parts.clocks } : {}),
     respond: async (event) => {
       const result: TurnResult | undefined = await parts.agent.handleInbound(event);
       const status = silentTurnStatus(event, result, targetCardOf(parts.channel, event));

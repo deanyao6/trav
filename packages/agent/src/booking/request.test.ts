@@ -381,6 +381,19 @@ describe('the asked time (T-143 r1 #3)', () => {
     expect(askedTime('sagrada at 3 of us')).toBeUndefined();
     expect(askedTime('razz tickets for 5')).toBeUndefined();
     expect(askedTime('at 13')).toBeUndefined();
+    // T-143 r2 #2: prices, per-person phrases and dates after "at N" are not times.
+    for (const text of [
+      'tickets at 3€ each',
+      'tickets at 3 euros each',
+      'at 3 per person',
+      'at 2 a head',
+      'tix at 4 bucks',
+      'at 3 of them',
+      '6 at 3/14',
+    ]) {
+      expect(askedTime(text)).toBeUndefined();
+    }
+    expect(askedTime('sagrada at 10.30')).toBe('10:30');
   });
 
   it('askedMinutes: am/pm is one reading, a bare hour is both', () => {

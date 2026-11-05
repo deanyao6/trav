@@ -801,7 +801,7 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
         kind: 'clarify',
         question: familyMode
           ? `i can't see ${thing} i can book ${when}\nwhich ${said} did you mean?`
-          : `i can't see ${thing} i can book ${when}\nwhich ${said} did you mean, and ${whoIsInThat(group, trip, night, order, byId)}`,
+          : `i can't see ${thing} i can book ${when}\nwhich ${said} did you mean, and ${whoIsInThat(group, trip, night, order, byId, /\b(?:club|clubs|bar|bars|party|nightlife|rave|disco)\b/.test(noun) ? 'nightlife' : undefined)}`,
         problems: ['unnamed_venue'],
       };
     }
@@ -1428,11 +1428,14 @@ function whoIsInThat(
   night: IsoDate,
   order: readonly MemberId[],
   byId: ReadonlyMap<MemberId, Member>,
+  /** The plan kind the ask is about ("club tickets" ⇒ nightlife): only that plan's roster counts (T-143 r2 #1). */
+  kind?: string,
 ): string {
   const tz = trip.timeZone;
   const rows = group.trips
     .listActivities(trip.tripId)
     .filter((a) => a.startsAt !== undefined && nightOf(a.startsAt, tz) === night)
+    .filter((a) => kind === undefined || a.kind === kind)
     .map((a) => group.trips.listAttendance(a.activityId))
     .find((r) => r.length > 0);
   if (rows === undefined) return `is it ${names([...order], byId)}?`;

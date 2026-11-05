@@ -8,9 +8,9 @@
  * Morning After / running settle-up and "end of trip" posts that trip's
  * Wrapped, in that trip's own thread, exactly once.
  *
- * One global clock starts in Barcelona (T-095 is separate), so the tests set
- * the clock straight to each trip's dates with a replay-style `to` move.
- * Offline throughout (`demoBackend` forces it).
+ * Each chat has its own clock (T-095), so a move in one chat never runs
+ * another trip's jobs. The tests set a chat's clock to its trip's dates with
+ * a replay-style `to` move. Offline throughout (`demoBackend` forces it).
  */
 import { describe, expect, it } from 'vitest';
 import type { SimState, ThreadEntry, ThreadMessage } from '../shared/types.js';
@@ -73,14 +73,14 @@ describe('T-094: Lisbon and Turks and Caicos get their recap and Wrapped jobs', 
 
     // The repro: "next morning" used to say "nothing was scheduled".
     const morning = await post(b, '/api/clock', { step: 'morning', groupId: LISBON.groupId });
-    expect(morning.now).toBe('2026-04-17T10:00:00+01:00');
+    expect(view(morning, LISBON.groupId).now).toBe('2026-04-17T10:00:00+01:00');
     const recap = travPosts(morning, LISBON.groupId).slice(before);
     expect(recap.length).toBeGreaterThan(0);
     expect(recap.some((m) => m.card?.type === 'recap' || m.card?.type === 'settle_up')).toBe(true);
     expect(view(morning, LISBON.groupId).status ?? '').not.toContain('nothing was scheduled');
 
     const end = await post(b, '/api/clock', { step: 'end_of_trip', groupId: LISBON.groupId });
-    expect(end.now).toBe('2026-04-21T10:00:00+01:00');
+    expect(view(end, LISBON.groupId).now).toBe('2026-04-21T10:00:00+01:00');
     const wrapped = wrappedIn(end, LISBON.groupId);
     expect(wrapped).toHaveLength(1);
     expect(wrapped[0]!.isTrav).toBe(true);
@@ -96,13 +96,15 @@ describe('T-094: Lisbon and Turks and Caicos get their recap and Wrapped jobs', 
     expect(lisbonGroup).not.toMatch(/€\s?95\b|\b95(?:[.,]\d+)?\b/);
     expect(lisbonGroup).not.toMatch(/tight/i);
 
-    // Each trip's Wrapped lands in its own thread only, once (no double posts).
-    expect(wrappedIn(end, BARCELONA.groupId)).toHaveLength(1);
+    // Lisbon's clock is Lisbon's alone (T-095): Barcelona's Wrapped stays
+    // queued for Barcelona's own end of trip, and nothing posts in TCI.
+    expect(wrappedIn(end, BARCELONA.groupId)).toHaveLength(0);
     expect(wrappedIn(end, TURKS_AND_CAICOS.groupId)).toHaveLength(0);
+    expect(b.now(BARCELONA.groupId)).toBe('2026-03-14T21:39:30+01:00');
 
     // Pressing it again moves nothing and posts nothing.
     const again = await post(b, '/api/clock', { step: 'end_of_trip', groupId: LISBON.groupId });
-    expect(again.now).toBe(end.now);
+    expect(view(again, LISBON.groupId).now).toBe(view(end, LISBON.groupId).now);
     expect(wrappedIn(again, LISBON.groupId)).toHaveLength(1);
   });
 
@@ -120,7 +122,7 @@ describe('T-094: Lisbon and Turks and Caicos get their recap and Wrapped jobs', 
       step: 'morning',
       groupId: TURKS_AND_CAICOS.groupId,
     });
-    expect(morning.now).toBe('2026-06-25T10:00:00-04:00');
+    expect(view(morning, TURKS_AND_CAICOS.groupId).now).toBe('2026-06-25T10:00:00-04:00');
     const recap = travPosts(morning, TURKS_AND_CAICOS.groupId).slice(before);
     expect(recap.length).toBeGreaterThan(0);
 
@@ -128,7 +130,7 @@ describe('T-094: Lisbon and Turks and Caicos get their recap and Wrapped jobs', 
       step: 'end_of_trip',
       groupId: TURKS_AND_CAICOS.groupId,
     });
-    expect(end.now).toBe('2026-06-28T10:00:00-04:00');
+    expect(view(end, TURKS_AND_CAICOS.groupId).now).toBe('2026-06-28T10:00:00-04:00');
     const wrapped = wrappedIn(end, TURKS_AND_CAICOS.groupId);
     expect(wrapped).toHaveLength(1);
     expect(wrapped[0]!.isTrav).toBe(true);
@@ -150,9 +152,9 @@ describe('T-094: Lisbon and Turks and Caicos get their recap and Wrapped jobs', 
     expect(recapCard?.text).not.toMatch(/last night/i);
     expect(scheduled.find((m) => m.card?.type === 'wrapped')?.text).not.toMatch(/last night/i);
 
-    // Every trip's Wrapped posted exactly once, each in its own thread.
-    for (const g of [BARCELONA, LISBON, TURKS_AND_CAICOS])
-      expect(wrappedIn(end, g.groupId), g.groupId).toHaveLength(1);
+    // Only this trip's Wrapped posted (T-095): the other chats' clocks never moved.
+    expect(wrappedIn(end, BARCELONA.groupId)).toHaveLength(0);
+    expect(wrappedIn(end, LISBON.groupId)).toHaveLength(0);
   });
 
   it('end of trip in each chat posts that trip’s Wrapped there', async () => {

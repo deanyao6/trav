@@ -382,7 +382,10 @@ export interface BuildStateInput {
   readonly version: number;
   readonly backend: BackendKind;
   readonly offline: boolean;
+  /** The first group's time (`SimState.now`). */
   readonly now: IsoDateTime;
+  /** Each chat's own time (T-095). Default: `now` for every chat. */
+  readonly nowOf?: (groupId: string) => IsoDateTime;
   readonly groups: readonly SimGroup[];
   readonly channel: ChannelView;
   readonly typing: ReadonlySet<string>;
@@ -425,6 +428,7 @@ export function buildGroupView(
   const last = [...thread].reverse().find((e): e is ThreadMessage => e.kind === 'message');
   return {
     group,
+    now,
     thread,
     dms,
     typing,
@@ -452,7 +456,8 @@ export function buildState(input: BuildStateInput): SimState {
     groups: input.groups.map((g) => {
       const status = input.status?.get(g.groupId);
       const intake = input.intake?.get(g.groupId);
-      return buildGroupView(g, input.channel, input.now, input.typing.has(g.groupId), {
+      const now = input.nowOf?.(g.groupId) ?? input.now;
+      return buildGroupView(g, input.channel, now, input.typing.has(g.groupId), {
         ...(status !== undefined ? { status } : {}),
         ...(intake !== undefined ? { intake } : {}),
       });

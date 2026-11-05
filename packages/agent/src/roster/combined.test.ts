@@ -696,6 +696,26 @@ describe('combined sentences through the loop (offline, no model)', () => {
     expect(h.tickets.purchaseCount()).toBe(0);
   });
 
+  it('T-143 r2 #1: with a dinner and a club that night, the club question reads the club plan', async () => {
+    const h = monday();
+    const dinner = {
+      ...CLUB_D5,
+      activityId: 'act_bcn_dinner_d5',
+      kind: 'dinner' as const,
+      name: 'monday dinner',
+      venue: 'el xampanyet',
+      startsAt: '2026-03-16T21:00:00+01:00',
+      contentTags: [],
+      ageRestriction: null,
+    };
+    h.runtime.stores.group.trips.upsertActivity(dinner);
+    mark(h.runtime.stores, dinner.activityId, 'mem_maya', 'out');
+    for (const id of NOT_HENRY) mark(h.runtime.stores, CLUB_D5.activityId, id, 'in');
+    mark(h.runtime.stores, CLUB_D5.activityId, 'mem_henry', 'out');
+    const ask = await h.say('h_sam', '@trav get us club tickets tonight');
+    expect(messages(ask)[0]!.text).toContain("is it Dean, Maya, Jordan, Priya, Sam? Henry's out");
+  });
+
   it('T-143 r1 #1: with nothing planned that night the question falls back to everyone; a plan nobody is in asks who', async () => {
     const none = harness();
     none.clock.advanceMs(Date.parse(MON_1702) - Date.parse(BARCELONA_NOW));

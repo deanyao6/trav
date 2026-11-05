@@ -113,6 +113,21 @@ async function state3() {
 }
 
 describe('top bar: clock and replay', () => {
+  it('shows the selected chat’s own clock (T-095): Lisbon opens on thu apr 16 9am', async () => {
+    const b = await demoBackend();
+    const s = b.state();
+    const lisbon = s.groups.find((g) => g.group.groupId === 'grp_lisbon')!;
+    const dean = lisbon.group.members.find((m) => m.name === 'Dean')!;
+    const markup = html({
+      ...props(s, 'h_dean'),
+      groupId: lisbon.group.groupId,
+      meHandle: dean.handle,
+      dmMemberId: dean.memberId,
+    });
+    expect(markup).toContain('data-testid="clock">thu apr 16 · 9am · day 2<');
+    expect(html(props(s, 'h_dean'))).toContain('data-testid="clock">sat mar 14 · 9:39pm · day 3<');
+  });
+
   it('renders the clock label and the three clock buttons; each sends its step', async () => {
     const b = await state3();
     const s = b.state();

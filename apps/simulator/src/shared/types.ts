@@ -47,6 +47,12 @@ export interface SimGroup {
   /** In group member order (VOICE §3.5). */
   readonly members: readonly SimMember[];
   readonly hints: readonly SimHint[];
+  /**
+   * Where this chat's own clock starts (T-095): on its trip, so a chat opens
+   * on its trip days without stepping through another trip's. Unset: the
+   * simulator's start time (Barcelona's demo moment).
+   */
+  readonly opensAt?: IsoDateTime;
 }
 
 export interface ReactionSummary {
@@ -108,6 +114,11 @@ export type ThreadEntry = ThreadMessage | ThreadMembership;
 
 export interface GroupView {
   readonly group: SimGroup;
+  /**
+   * This chat's simulated time (T-095): each chat has its own clock, so the
+   * top bar shows the selected trip's day and a clock step moves only it.
+   */
+  readonly now: IsoDateTime;
   /** Group lane only, DM-only cards removed. */
   readonly thread: readonly ThreadEntry[];
   /** Each member's private thread with Trav, keyed by memberId. */

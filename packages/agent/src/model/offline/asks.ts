@@ -42,6 +42,7 @@ import type {
   ToolCall,
 } from '../client.js';
 import {
+  askedMinutes,
   CATEGORY_WORDS,
   foldText,
   parseBookingRequest,
@@ -376,7 +377,8 @@ function closestSlotFromSearch(r: BookingRequest, result: unknown): string | und
       night: String(e['night']),
       startsAt: String(e['startsAt']),
       when: String(e['when']),
-      minute: 0,
+      // Local minutes from the ISO string's own wall clock (it carries the offset).
+      minute: localMinute(String(e['startsAt'])),
       each: money(tier.amountMinor, tier.currency as CurrencyCode),
       refundable: tier.refundable,
     });
@@ -390,8 +392,14 @@ function closestSlotFromSearch(r: BookingRequest, result: unknown): string | und
     ),
     on: onNight(night, tonight, r.time),
     named: noun === undefined,
-    ranked: rankSlots(slots, night, []),
+    ranked: rankSlots(slots, night, r.time === undefined ? [] : askedMinutes(r.time)),
   });
+}
+
+/** "2026-03-14T15:00:00+01:00" ⇒ 900: the wall-clock minutes the ISO string states. */
+function localMinute(iso: string): number {
+  const m = /T(\d{2}):(\d{2})/.exec(iso);
+  return m === null ? 0 : Number(m[1]) * 60 + Number(m[2]);
 }
 
 interface SlotTier {

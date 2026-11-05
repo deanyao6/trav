@@ -219,4 +219,28 @@ describe('scheduleTripJobs: groups seeded after the runtime was built (T-094)', 
     expect(h.runtime.scheduleTripJobs([lisbon])).toEqual([]);
     expect(await h.runtime.drain()).toEqual([]);
   });
+
+  it('drain({ groupId }) runs only that group’s due jobs; the others stay queued (T-095, D-035)', async () => {
+    const h = harness();
+    const lisbon = seedLate(h.runtime.stores, 'lisbon');
+    h.runtime.scheduleTripJobs([lisbon]);
+    h.clock.set('2026-04-21T10:00:00+01:00');
+    const barcelonaQueued = h.runtime.scheduler
+      .list()
+      .filter((j) => j.groupId === BARCELONA.groupId);
+    expect(barcelonaQueued.some((j) => j.kind === 'wrapped')).toBe(true);
+
+    const lis = await h.runtime.drain({ groupId: lisbon });
+    expect(lis.filter((t) => t.note === 'scheduled:wrapped')).toHaveLength(1);
+    // Barcelona's due jobs (its Wrapped among them) were not touched.
+    const left = h.runtime.scheduler.list();
+    expect(left.filter((j) => j.groupId === lisbon && j.kind === 'wrapped')).toEqual([]);
+    expect(left.filter((j) => j.groupId === BARCELONA.groupId).map((j) => j.jobId)).toEqual(
+      expect.arrayContaining(barcelonaQueued.map((j) => j.jobId)),
+    );
+    // An unknown group drains nothing; the unfiltered drain still runs the rest.
+    expect(await h.runtime.drain({ groupId: 'grp_nobody' })).toEqual([]);
+    const rest = await h.runtime.drain();
+    expect(rest.filter((t) => t.note === 'scheduled:wrapped')).toHaveLength(1);
+  });
 });

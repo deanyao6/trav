@@ -143,8 +143,13 @@ export interface TravRuntime {
   readonly transactions?: TransactionsAdapter;
   /** Turns produced by the channel subscription and `drain()`, in order. */
   readonly turns: readonly TurnResult[];
-  /** Run every due scheduled job (`scheduler.drain(clock.now())`) through the agent. */
-  drain(): Promise<readonly TurnResult[]>;
+  /**
+   * Run every due scheduled job (`scheduler.drain(clock.now())`) through the
+   * agent. `groupId` limits it to that group's jobs (D-035: the simulator
+   * keeps one clock per chat, so one chat's clock step never runs another
+   * trip's jobs); every other job stays queued.
+   */
+  drain(options?: { readonly groupId?: string }): Promise<readonly TurnResult[]>;
   /**
    * T-094: schedule the recap jobs (Morning After + daily settle-up, Wrapped)
    * still ahead for the given groups' planning or active trips. For groups a
@@ -273,9 +278,9 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
     proposals,
     ...(transactions !== undefined ? { transactions } : {}),
     turns,
-    async drain() {
+    async drain(drainOptions) {
       const out: TurnResult[] = [];
-      for (const job of scheduler.drain(clock.now())) {
+      for (const job of dueJobs(scheduler, clock.now(), drainOptions?.groupId)) {
         const result = await agent.runScheduled(job);
         turns.push(result);
         options.onTurn?.(result);
@@ -304,6 +309,19 @@ export function createTravRuntime(options: TravRuntimeOptions): TravRuntime {
 }
 
 // ---------- recap scheduling ----------
+
+/**
+ * The jobs due at `now`, removed from the queue, in drain order. With a
+ * `groupId`, only that group's (D-035); every other job stays queued.
+ */
+export function dueJobs(scheduler: Scheduler, now: IsoDateTime, groupId?: string): ScheduledJob[] {
+  if (groupId === undefined) return scheduler.drain(now);
+  const t = parseIso(now);
+  // `list()` is in drain order (runAt, then scheduling order).
+  const due = scheduler.list().filter((j) => j.groupId === groupId && parseIso(j.runAt) <= t);
+  for (const j of due) scheduler.cancel(j.jobId);
+  return due;
+}
 
 /**
  * The recap jobs still ahead of `now` for every planning or active trip in the
