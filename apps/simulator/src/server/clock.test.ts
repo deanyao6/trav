@@ -202,7 +202,7 @@ describe('clockStatus', () => {
         results: [{ silent: false, note: 'scheduled:morning_after' }],
       }),
     ).toBeUndefined();
-    // An expected job with no placeholder text (e.g. daily_settle) stays quiet.
+    // `expectJob` is informational only: a named job that didn't run says nothing.
     expect(
       clockStatus({
         ...base,

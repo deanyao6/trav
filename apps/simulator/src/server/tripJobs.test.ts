@@ -88,8 +88,12 @@ describe('T-094: Lisbon and Turks and Caicos get their recap and Wrapped jobs', 
     expect(view(end, LISBON.groupId).status ?? '').not.toContain('T-016');
 
     // Dad's private budget (figure and reason) never reaches the group thread.
-    const lisbonGroup = groupPayload(end, LISBON.groupId);
-    expect(lisbonGroup).not.toContain('95');
+    // Visible text and card values only: ids are random and may contain "95".
+    const lisbonGroup = groupPayload(end, LISBON.groupId).replace(
+      /"(?:id|[a-zA-Z]*Id|[a-zA-Z]*Ids)":(?:"[^"]*"|\[[^\]]*\])/g,
+      '',
+    );
+    expect(lisbonGroup).not.toMatch(/€\s?95\b|\b95(?:[.,]\d+)?\b/);
     expect(lisbonGroup).not.toMatch(/tight/i);
 
     // Each trip's Wrapped lands in its own thread only, once (no double posts).
