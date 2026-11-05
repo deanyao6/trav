@@ -111,6 +111,36 @@ export interface ExactResult {
   readonly leaves: Leaf[];
   /** False when `nodeBudget` ran out; `leaves` are then the best seen so far. */
   readonly complete: boolean;
+  /** Partial assignments expanded; never more than `nodeBudget`. */
+  readonly nodes: number;
+}
+
+/**
+ * Work done by the searches of one optimizer run, counted in units the search
+ * controls (T-181): tests bound the worst case by these, not by wall clock.
+ * Every field only ever grows.
+ */
+export interface SearchWork {
+  /** Branch-and-bound runs, and partial assignments they expanded in total. */
+  exactRuns: number;
+  exactNodes: number;
+  /** Beam runs, and (state, candidate) extensions they evaluated in total. */
+  beamRuns: number;
+  beamExtensions: number;
+  /** Exhaustive runs, and complete combinations they scored in total. */
+  exhaustiveRuns: number;
+  exhaustiveLeaves: number;
+}
+
+export function newSearchWork(): SearchWork {
+  return {
+    exactRuns: 0,
+    exactNodes: 0,
+    beamRuns: 0,
+    beamExtensions: 0,
+    exhaustiveRuns: 0,
+    exhaustiveLeaves: 0,
+  };
 }
 
 /**
@@ -124,6 +154,7 @@ export function exactSearch(
   active: OptimizerConstraints,
   k: number,
   nodeBudget = Infinity,
+  work?: SearchWork,
 ): ExactResult {
   const n = lists.length;
   const order = memberOrder(lists);
@@ -167,7 +198,13 @@ export function exactSearch(
   };
 
   rec(0, EMPTY_AGG);
-  return { leaves: top, complete: !exhausted };
+  // The expansion that tripped the budget was counted but not done.
+  const expanded = exhausted ? nodes - 1 : nodes;
+  if (work !== undefined) {
+    work.exactRuns += 1;
+    work.exactNodes += expanded;
+  }
+  return { leaves: top, complete: !exhausted, nodes: expanded };
 }
 
 interface BeamState {
@@ -194,6 +231,7 @@ export function beamSearch(
   k: number,
   width: number,
   seeds: readonly Leaf[] = [],
+  work?: SearchWork,
 ): Leaf[] {
   const n = lists.length;
   const order = memberOrder(lists);
@@ -202,11 +240,13 @@ export function beamSearch(
   const w = p.input.weights;
   const exponent = p.exponent;
 
+  if (work !== undefined) work.beamRuns += 1;
   let states: BeamState[] = [{ agg: EMPTY_AGG, picks: [], lowerBound: 0, key: '' }];
   for (let depth = 0; depth < n; depth += 1) {
     const list = lists[order[depth] ?? 0] ?? [];
     const remaining = sufMin[depth + 1] ?? 0;
     const next: BeamState[] = [];
+    if (work !== undefined) work.beamExtensions += states.length * list.length;
     for (const s of states) {
       for (const cand of list) {
         const agg = extendAgg(s.agg, cand);
@@ -260,14 +300,17 @@ export function exhaustiveSearch(
   lists: readonly (readonly Cand[])[],
   active: OptimizerConstraints,
   k: number,
+  work?: SearchWork,
 ): Leaf[] {
   const n = lists.length;
   const checks = groupChecks(active);
   const all: Leaf[] = [];
+  if (work !== undefined) work.exhaustiveRuns += 1;
   const idx = new Array<number>(n).fill(0);
   for (;;) {
     const picks = lists.map((list, i) => list[idx[i] ?? 0] as Cand);
     const leaf = leafOf(picks, p);
+    if (work !== undefined) work.exhaustiveLeaves += 1;
     const arrivalOk =
       checks.maxArrival === undefined || leaf.terms.arrivalSpreadMinutes <= checks.maxArrival;
     if (arrivalOk && fairnessOk(picks, p, checks)) all.push(leaf);

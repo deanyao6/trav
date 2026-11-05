@@ -281,7 +281,9 @@ const CATEGORY_WORDS: readonly (readonly [ExpenseCategory, RegExp])[] = [
   ],
   [
     'food',
-    /\b(dinner|lunch|breakfast|brunch|food|kebabs?|tapas|paella|pizza|ice cream|gelato|coffees?|snacks?|burgers?|churros|meal|smoothies?|sushi|tacos?|bakery|pastries|croissants?)\b/,
+    // Dishes, meals, and the kinds of place you eat at (T-181: "the restaurant",
+    // "the tasca" read as food, not other).
+    /\b(dinner|lunch|breakfast|brunch|food|kebabs?|tapas|paella|pizza|ice cream|gelato|coffees?|snacks?|burgers?|churros|meal|smoothies?|sushi|tacos?|bakery|pastries|croissants?|restaurants?|tascas?|tabernas?|bistros?|trattorias?|osterias?|brasseries?|cafes?|diners?|marisqueiras?|churrasqueiras?|pastelarias?|takeaway|takeout)\b/,
   ],
 ];
 
@@ -1052,6 +1054,8 @@ function phraseAt(text: string): string | undefined {
   if (count !== null) t = t.slice(count[0].length);
   const stop = DESC_STOP.exec(` ${t}`);
   let phrase = (stop === null ? t : ` ${t}`.slice(1, stop.index)).trim();
+  // "for the afternoon", "for 2 nights": how long, not what it was (T-181)
+  if (DURATION.test(phrase)) return undefined;
   // "dinner at 9", "the uber tonight": no dangling preposition or time word
   for (;;) {
     const trimmed = phrase.replace(DESC_TAIL, '').trim();
@@ -1063,6 +1067,10 @@ function phraseAt(text: string): string | undefined {
   if (words.length === 0 || /^\d/.test(words[0]!)) return undefined;
   return `${count !== null ? `${count[1]!} ` : ''}${words.join(' ')}`;
 }
+
+/** A stretch of time on its own ("afternoon", "whole day", "nights"); never a description. */
+const DURATION =
+  /^(?:(?:the|a|an|\d{1,2}|two|three|four|five|six|seven)\s+)?(?:(?:whole|entire|full|half|half a|half the)\s+)?(?:mornings?|afternoons?|evenings?|nights?|days?|weekends?|weeks?|hours?|trip)$/;
 
 const DESC_TAIL =
   /\s+(?:at|in|on|from|to|of|the|a|an|by|near|tonight|today|yesterday|last|night|earlier|this|morning|afternoon|evening|again|too)$/;
@@ -1088,14 +1096,17 @@ function describe(low: string, scan: Scan): string | undefined {
       low,
     );
   if (was !== null) {
-    const p = was[1]!
-      .replace(ARTICLE, '')
-      .trim()
+    let subject = was[1]!.replace(ARTICLE, '').trim();
+    // "the hotel for the night was €120" → "hotel" (T-181)
+    const forTail = /\s+for\s+(.+)$/.exec(subject);
+    if (forTail !== null && DURATION.test(forTail[1]!)) subject = subject.slice(0, forTail.index);
+    const p = subject
       .split(/\s+/)
-      .slice(/^\d/.test(was[1]!.replace(ARTICLE, '')) ? 0 : -4)
+      .slice(/^\d/.test(subject) ? 0 : -4)
       .slice(0, 5)
       .join(' ');
-    const cleaned = p.replace(/^(?:and|so|then|ok|okay|yeah)\s+/, '');
+    let cleaned = p.replace(/^(?:and|so|then|ok|okay|yeah)\s+/, '');
+    if (DURATION.test(cleaned)) cleaned = '';
     tries.push(cleaned.length > 0 && !NOT_DESC.test(cleaned) ? cleaned : undefined);
   }
   // "kebabs on me", "dinner's on my card"
@@ -1143,7 +1154,7 @@ function describe(low: string, scan: Scan): string | undefined {
         break;
       kept.unshift(w);
     }
-    if (kept.length > 0) tries.push(kept.join(' '));
+    if (kept.length > 0 && !DURATION.test(kept.join(' '))) tries.push(kept.join(' '));
   }
   for (const p of tries) if (p !== undefined && !isMember(p)) return p;
   return undefined;

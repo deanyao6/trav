@@ -160,6 +160,9 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+const TERM_BEFORE = '(?<![\\p{L}\\p{N}])';
+const TERM_AFTER = '(?![\\p{L}\\p{N}])';
+
 /**
  * Case-insensitive whole-term matcher. Terms may be phrases ("can't afford");
  * whitespace inside a term matches any run of whitespace or hyphens. A term
@@ -168,13 +171,35 @@ function escapeRegExp(s: string): string {
  * alphabetic terms also match a plural `s`/`es` suffix.
  */
 export function termRegex(term: string): RegExp {
+  return new RegExp(`${TERM_BEFORE}${termBody(term)}${TERM_AFTER}`, 'iu');
+}
+
+/** The pattern for one term between the two boundary checks (see `termRegex`). */
+function termBody(term: string): string {
   const t = normalizeText(term).trim().toLowerCase();
   const body = t
     .split(/\s+/)
     .map((part) => escapeRegExp(part))
     .join('[\\s\\-]+');
   const plural = /^[a-z]+$/.test(t.split(/\s+/).at(-1) ?? '') ? '(?:e?s)?' : '';
-  return new RegExp(`(?<![\\p{L}\\p{N}])${body}${plural}(?![\\p{L}\\p{N}])`, 'iu');
+  return `${body}${plural}`;
+}
+
+/**
+ * One matcher for a whole list of terms: it matches exactly where at least one
+ * `termRegex(term)` would match (same boundaries, plurals and flags), so
+ * `termsRegex(ts).test(x) === ts.some((t) => termRegex(t).test(x))`.
+ *
+ * Why it exists (T-181): each `termRegex` carries two Unicode `\p{L}\p{N}`
+ * lookarounds, which V8 compiles lazily on first use at about 1 ms per regex.
+ * The roast blocklist alone has ~380 terms, so the first screened roast line
+ * paid ~0.5 s, enough to time out a test under full-suite load. One
+ * alternation per list puts the boundary classes in the pattern once.
+ * Returns null for an empty list (nothing can match).
+ */
+export function termsRegex(terms: readonly string[]): RegExp | null {
+  if (terms.length === 0) return null;
+  return new RegExp(`${TERM_BEFORE}(?:${terms.map(termBody).join('|')})${TERM_AFTER}`, 'iu');
 }
 
 /** First term (in list order) found in `text`, or null. */

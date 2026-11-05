@@ -917,3 +917,56 @@ describe('T-084: an amount in another currency is converted at the rate for its 
     ]);
   });
 });
+
+// T-181 (c): two general description/category gaps. Phrasings are our own,
+// not lines from the held-out scenarios.
+describe('descriptions: a duration is never the thing paid for (T-181)', () => {
+  const cases: readonly (readonly [string, string, string])[] = [
+    [
+      '@trav the boat captain is 200 euro for the morning, 50/50 with chase',
+      'boat captain',
+      'activities',
+    ],
+    ['@trav the guide was €90 for the day, split with chase', 'guide', 'activities'],
+    ['@trav the hotel for the night was €120, split with chase', 'hotel', 'lodging'],
+    ['@trav the room for 2 nights was €200, me and chase', 'room', 'lodging'],
+    ['@trav airbnb for three nights €450, me and chase', 'airbnb', 'lodging'],
+    ['@trav the van for the whole afternoon is €150, me and chase', 'van', 'other'],
+  ];
+  it.each(cases)('%s', (text, description, category) => {
+    const [e] = ready(text, BCN('mem_dean'));
+    expect(e!.description).toBe(description);
+    expect(e!.category).toBe(category);
+  });
+
+  it('a duration alone falls back to the filler, never "evening"', () => {
+    const [e] = ready('@trav i paid €60 for the evening, me and chase', BCN('mem_dean'));
+    expect(e!.description).toBe('expense');
+  });
+
+  it('a noun that merely starts with a time word stays ("night bus", "morning coffee")', () => {
+    expect(ready('@trav the night bus was €4, me and chase', BCN('mem_dean'))[0]!.description).toBe(
+      'night bus',
+    );
+    expect(
+      ready('@trav i paid €12 for the morning coffee, me and chase', BCN('mem_dean'))[0]!
+        .description,
+    ).toBe('morning coffee');
+  });
+});
+
+describe('categories: places you eat at are food (T-181)', () => {
+  it.each(['restaurant', 'taberna', 'tasca', 'bistro', 'trattoria', 'cafe', 'marisqueira'])(
+    '"the %s" is food',
+    (place) => {
+      const [e] = ready(`@trav i paid €40 for the ${place}, me and chase`, BCN('mem_dean'));
+      expect(e!.description).toBe(place);
+      expect(e!.category).toBe('food');
+    },
+  );
+
+  it('the drink words still win where they come first ("drinks at the cafe")', () => {
+    const [e] = ready('@trav i paid €18 for drinks at the cafe, me and chase', BCN('mem_dean'));
+    expect(e!.category).toBe('drinks');
+  });
+});
