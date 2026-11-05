@@ -243,6 +243,12 @@ export type ProposeResult =
       readonly kind: 'clarify';
       readonly question: string;
       readonly problems: readonly string[];
+      /**
+       * T-198: the question is the "who's in? i've got … 👍 if that's right"
+       * check, and these are the people it listed. A 👍 from the asker
+       * re-runs the ask for exactly them (`booking/rosterCheck.ts`).
+       */
+      readonly confirmable?: { readonly attendees: readonly MemberId[] };
     }
   | {
       readonly kind: 'denied';
@@ -2437,6 +2443,7 @@ export function resolveParty(a: {
       kind: 'clarify',
       question: whoIsInQuestion(ids, byId),
       problems,
+      ...(ids.length > 0 ? { confirmable: { attendees: [...ids] } } : {}),
     }) as const;
   const byName = (raw: string): Member | undefined => {
     const hits = active.filter((m) => m.displayName.toLowerCase() === raw.trim().toLowerCase());

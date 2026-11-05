@@ -8,8 +8,11 @@
  *           card, kind `morning_after` ("morning after, day 4 ☀️"), with last
  *           night's events, the total (and the day budget), up to 2 gated
  *           roast lines, the running tab, today's plans and up to 3 opt-in
- *           photos
- *   quiet   the ledger changed since the last recap: the running `settle_up`
+ *           photos. A booked ticket night for ≥2 people is read as spend
+ *           at its doors time (`bookedGroupNightTimes`, T-196), so a booked
+ *           midnight club night counts as a late spend as well as a
+ *           nightlife booking
+ *   quiet  the ledger changed since the last recap: the running `settle_up`
  *           (VOICE §4.6 A); in family mode the `daily` recap instead
  *           ("morning, day 2 ☀️ / yesterday: …", VOICE §4.7 C, §8)
  *   silent  nothing happened: no message (silence is a feature)
@@ -33,6 +36,7 @@
 import type { AlbumAdapter, Photo } from '@trav/adapters';
 import type {
   Activity,
+  Booking,
   Clock,
   ConsentLookup,
   Expense,
@@ -216,6 +220,48 @@ function adultsOnly(a: Activity): boolean {
   );
 }
 
+/** A booked group event counts as a night out from this many people on it (T-196). */
+export const NIGHT_OUT_MIN_ATTENDEES = 2;
+
+/**
+ * T-196 (QA-01): when the tickets for a booked group night were "spent", by
+ * the booking's ledger expense id: the event's start, not the moment someone
+ * tapped buy. The recap uses this one time for both the night-out signal
+ * (doors 22:00–06:00 is a late spend) and the "last night" list, so a club
+ * night booked a day ahead shows up on the morning after the club (once),
+ * never on the morning after the purchase, and never as a signal with
+ * nothing listed (round 2 #1).
+ *
+ * Only confirmed ticket bookings with ≥2 distinct attendees, a ledger
+ * expense and a dated activity count; flights, stays and rides are never a
+ * night out. A booked midnight club night for 5 is then two signals (the
+ * nightlife booking and the late spend), so the Morning After posts without
+ * anyone chatting after midnight.
+ */
+export function bookedGroupNightTimes(
+  bookings: readonly Pick<Booking, 'kind' | 'status' | 'activityId' | 'attendees' | 'expenseId'>[],
+  activities: readonly Pick<Activity, 'activityId' | 'startsAt'>[],
+  timeZone?: string,
+): ReadonlyMap<string, IsoDateTime> {
+  const startOf = new Map(activities.map((a) => [a.activityId, a.startsAt] as const));
+  const out = new Map<string, IsoDateTime>();
+  for (const b of bookings) {
+    if (b.kind !== 'ticket' || b.activityId === undefined || b.expenseId === undefined) continue;
+    if (b.status !== 'confirmed' && b.status !== 'partially_refunded') continue;
+    if (new Set(b.attendees).size < NIGHT_OUT_MIN_ATTENDEES) continue;
+    const startsAt = startOf.get(b.activityId);
+    if (startsAt === undefined) continue;
+    // Only a start inside a "last night" window (local 12:00–06:00) moves; a
+    // 9:30am tour keeps its purchase time, so it is still listed once.
+    if (timeZone !== undefined) {
+      const h = localHour(startsAt, timeZone);
+      if (h >= 6 && h < 12) continue;
+    }
+    out.set(b.expenseId, startsAt);
+  }
+  return out;
+}
+
 const CATEGORY_LABEL: Readonly<Record<Expense['category'], string>> = {
   tickets: 'tickets',
   flights: 'flights',
@@ -343,10 +389,13 @@ function roastCandidates(
   events: readonly RecapEvent[],
   members: readonly Member[],
   trip: Trip,
+  /** Booked group nights listed at their doors time (T-196): nobody paid then, so never "paid … at 12am". */
+  movedToNight: ReadonlySet<string> = new Set(),
 ): string[] {
   const out: string[] = [];
   const all = events.flatMap((e) => e.expenses);
   const late = all
+    .filter((e) => !movedToNight.has(e.expenseId))
     .filter((e) => localHour(e.occurredAt, trip.timeZone) < 6)
     .sort((a, b) => parseIso(b.occurredAt) - parseIso(a.occurredAt))[0];
   if (late !== undefined && late.paidBy.length === 1) {
@@ -412,11 +461,23 @@ export async function composeMorningAfter(
   const dayNumber = daysBetween(trip.startDate, date) + 1;
 
   // --- signals
-  const expenses = stores.group.expenses.listByTrip(tripId).filter((e) => e.status === 'logged');
   const activities = stores.group.trips.listActivities(tripId);
   const bookings = stores.group.bookings
     .listByTrip(tripId)
     .filter((b) => b.status === 'confirmed' || b.status === 'partially_refunded');
+  // T-196: a booked group night's tickets count as spent at its doors time,
+  // for the signals and the list alike (`bookedGroupNightTimes`).
+  const nightTimes = bookedGroupNightTimes(bookings, activities, trip.timeZone);
+  const movedToNight = new Set<string>();
+  const expenses = stores.group.expenses
+    .listByTrip(tripId)
+    .filter((e) => e.status === 'logged')
+    .map((e) => {
+      const at = nightTimes.get(e.expenseId);
+      if (at === undefined || at === e.occurredAt) return e;
+      movedToNight.add(e.expenseId);
+      return { ...e, occurredAt: at };
+    });
   const booked = new Set<string>();
   for (const b of bookings) if (b.activityId !== undefined) booked.add(b.activityId);
   for (const e of expenses)
@@ -599,7 +660,9 @@ export async function composeMorningAfter(
 
   const full = mode === 'full';
   const candidates =
-    full && !familyMode && group.settings.roastMode ? roastCandidates(events, members, trip) : [];
+    full && !familyMode && group.settings.roastMode
+      ? roastCandidates(events, members, trip, movedToNight)
+      : [];
   const input: RecapRenderInput = {
     kind: full ? 'morning_after' : 'daily',
     date,

@@ -226,16 +226,19 @@ describe('demo states 4–6 on the real runtime, opened on demo state 1, in orde
     ).toEqual([]);
     const s5 = await post(b, '/api/clock', { step: 'morning', groupId: BARCELONA.groupId });
     expect(s5.now).toBe('2026-03-15T10:00:00+01:00');
-    // T-015: the Razzmatazz booking is the only thing on the tab overnight (Crowley's card was
-    // never read, so his Uber is not on it), so the Morning After posts the quiet running
-    // tab: Dean is owed the 4 × €18. Never the private €23.40. A Trav post needs no status line.
-    const posted = messages(bcn(s5).thread).filter((m) => m.isTrav && m.card?.type === 'settle_up');
-    expect(posted).toHaveLength(1);
-    expect(posted[0]!.text.split('\n').slice(0, 2)).toEqual([
-      'running tab, day 4',
-      'Dean is owed €72',
-    ]);
-    expect(posted[0]!.text).not.toContain('Henry');
+    // T-015 / T-196 (QA-01): the Razzmatazz booking is the only thing on the tab overnight
+    // (Crowley's card was never read, so his Uber is not on it). A booked midnight club
+    // night for 5 is a night out on its own, so the full Morning After posts (not just the
+    // running tab), with nobody chatting after midnight. Never the private €23.40. A Trav
+    // post needs no status line.
+    const trav = messages(bcn(s5).thread).filter((m) => m.isTrav);
+    const posted = trav.filter((m) => m.card?.type === 'recap');
+    expect(posted, trav.map((m) => m.text.split('\n')[0]).join(' | ')).toHaveLength(1);
+    expect(trav.filter((m) => m.card?.type === 'settle_up')).toEqual([]);
+    const [head, lastNight] = posted[0]!.text.split('\n');
+    expect(head).toBe('morning after, day 4 ☀️');
+    expect(lastNight).toMatch(/^last night: Razzmatazz.* \(5 of you, not Henry\) €90$/);
+    expect(posted[0]!.text).not.toMatch(/sick/i);
     expect(JSON.stringify(bcn(s5).thread)).not.toContain('23.40');
     expect(bcn(s5).status).toBeUndefined();
 

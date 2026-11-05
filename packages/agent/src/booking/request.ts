@@ -720,6 +720,14 @@ const EXCLUSION_NOT_NAME: ReadonlySet<string> = new Set([
   'tell',
   'ask',
   'let',
+  // "book it without asking anyone" (QA-03): a verb, never a member named out.
+  'asking',
+  'checking',
+  'telling',
+  'waiting',
+  'confirming',
+  'approval',
+  'permission',
   'except',
   'excepting',
   'excl',
@@ -2632,11 +2640,21 @@ export function parseBookingRequest(
  * "chase" (never "@trav"), brackets are spaces ("except (henry)"), "w/o" is
  * "without", "excl." doesn't end a sentence, and a dash is a clause break.
  */
+/**
+ * "without asking anyone", "without waiting for henry", "without checking
+ * with chase" (T-198 r2 #2): how to go about it, never who is going. The whole
+ * phrase (the verb, its preposition and its one object) is dropped before the
+ * party is read, so it neither excludes nor names anyone.
+ */
+const WITHOUT_VERB_PHRASE =
+  /\bwithout\s+(?:asking|checking(?:\s+in)?|telling|waiting|confirming|bothering)(?:\s+(?:for|on|with|to|about|around|up))?(?:\s+(?!(?:tonight|tonite|today|tomorrow|tmrw|mon|tue|wed|thu|fri|sat|sun)[\p{L}]*\b)(?:the group|[\p{L}][\p{L}'’-]*))?/giu;
+
 function prepared(raw: string): string {
   return raw
     .replace(/(^|[^\w@])@(?!trav(?![\w-]))(?=[\p{L}])/giu, '$1')
     .replace(/[()[\]{}]/g, ' ')
     .replace(/\bw\/o\b/gi, 'without')
+    .replace(WITHOUT_VERB_PHRASE, ' ')
     .replace(/\b(excl|incl)\./gi, '$1')
     .replace(/\s*[—–]\s*/g, ' - ')
     .replace(/\s+/g, ' ')

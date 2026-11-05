@@ -109,10 +109,23 @@ import {
 } from './approval/text.js';
 import { autoBuyVerdict } from './booking/autoBuy.js';
 import { pickTextIndex, planLive } from './booking/choice.js';
-import type { ProposalService, ProposeResult } from './booking/proposals.js';
+import type { ProposalService, ProposeInput, ProposeResult } from './booking/proposals.js';
 import { autoBuyVerdictOnRoster, bookingHeadline, nightOf } from './booking/proposals.js';
 import { optionIndexOf } from './booking/flights.js';
 import { parseBookingRequest } from './booking/request.js';
+import {
+  ROSTER_CHECK_DECLINED_TEXT,
+  ROSTER_CHECK_STALE_TEXT,
+  ROSTER_CHECK_STUCK_TEXT,
+  confirmedRosterInput,
+  createRosterCheckStore,
+  isRosterConfirmText,
+  optionsPickStyle,
+  rosterCheckLive,
+  whichOptionText,
+  type RosterCheck,
+} from './booking/rosterCheck.js';
+import { parseProposeInput } from './tools/proposeBooking.js';
 import type { BookingExecutor, ProviderRegistry } from './booking/executor.js';
 import { buildGroupContext, renderGroupPrompt, sanitizeInline } from './context/groupContext.js';
 import { createChatExpenseFlow } from './ingest/chatExpense.js';
@@ -721,6 +734,10 @@ export function createTravAgent(input: AgentDeps): TravAgent {
   const newestGroupCard = new Map<GroupId, PendingCardRef>();
   /** Which group each card was sent in: the index never answers across groups. */
   const cardGroup = new Map<MessageId, GroupId>();
+  /** T-198: open "who's in? … 👍 if that's right" checks, by question message id. */
+  const rosterChecks = createRosterCheckStore();
+  /** T-198: options cards already answered with "which one?" (asked once, VOICE §2). */
+  const optionsNudged = new Set<string>();
   const guestsTold = new Set<string>();
   /**
    * When members spoke in each group thread (T-015's "chat after midnight"
@@ -1565,7 +1582,7 @@ export function createTravAgent(input: AgentDeps): TravAgent {
     const toolCalls: string[] = [];
     const sources: ResponseSource[] = [];
     const results: { name: string; value: unknown }[] = [];
-    let terminal: { name: string; value: unknown } | undefined;
+    let terminal: { name: string; value: unknown; input: unknown } | undefined;
     let modelText = '';
 
     for (let round = 0; round < maxRounds && terminal === undefined; round += 1) {
@@ -1603,7 +1620,7 @@ export function createTravAgent(input: AgentDeps): TravAgent {
           typeof value['kind'] === 'string' &&
           TERMINAL_KINDS.has(value['kind'])
         ) {
-          terminal = { name: call.name, value };
+          terminal = { name: call.name, value, input: call.input };
         }
         toolResults.push({
           type: 'tool_result',
@@ -1705,6 +1722,7 @@ export function createTravAgent(input: AgentDeps): TravAgent {
 
     const sent = await send(r, drafts);
     settingsOutcome?.afterSend?.(sent);
+    if (terminal !== undefined) noteRosterCheck(r, me, terminal, sent);
     return {
       outbound: sent,
       toolCalls,
@@ -1712,6 +1730,131 @@ export function createTravAgent(input: AgentDeps): TravAgent {
       silent: sent.length === 0,
       modelSources: sources,
       note,
+    };
+  }
+
+  /**
+   * T-198: a `propose_booking` that stopped on the "who's in? … 👍 if that's
+   * right" check keeps its ask, keyed by the question that actually went out
+   * in the group, so the asker's 👍 can carry on (`rosterCheckTurn`).
+   */
+  function noteRosterCheck(
+    r: Resolved,
+    me: Member,
+    terminal: { readonly name: string; readonly value: unknown; readonly input: unknown },
+    sent: readonly Outbound[],
+  ): void {
+    if (r.lane !== 'group' || terminal.name !== 'propose_booking') return;
+    const v = terminal.value;
+    if (!isRecord(v) || v['kind'] !== 'clarify') return;
+    const res = v as Extract<ProposeResult, { kind: 'clarify' }>;
+    const listed = res.confirmable?.attendees ?? [];
+    if (listed.length === 0) return;
+    const question = sent.find(
+      (o): o is OutboundMessage =>
+        !isReaction(o) && o.to.kind === 'group' && o.text === res.question,
+    );
+    if (question === undefined) return;
+    let input: ProposeInput;
+    try {
+      input = parseProposeInput(terminal.input);
+    } catch {
+      return;
+    }
+    rosterChecks.save({
+      messageId: question.id,
+      groupId: r.group.groupId,
+      tripId: r.trip?.tripId ?? null,
+      askedBy: me.memberId,
+      input,
+      attendees: [...listed],
+      askedAt: r.now,
+    });
+  }
+
+  /**
+   * T-198 (QA-03): the asker's 👍 / 👎 on Trav's "who's in?" check. A 👍
+   * re-runs the ask for exactly the people listed, with no auto-buy verdict
+   * (so the policy fires C1: an options card or a proposal card that needs
+   * its own 👍, never a purchase). A 👎 drops it and asks who's going. A
+   * stale check says so. Anyone else's tap is ignored silently (VOICE §6.2).
+   * One answer per check: it is taken before anything runs.
+   */
+  async function rosterCheckTurn(
+    r: Resolved,
+    check: RosterCheck,
+    intent: 'approve' | 'decline',
+    messageId: MessageId,
+  ): Promise<TurnResult> {
+    const me = r.me;
+    if (me === null || me.role === 'guest' || r.lane !== 'group')
+      return silent('roster_check:not_member');
+    if (me.memberId !== check.askedBy) return silent('roster_check:not_asker');
+    if (check.groupId !== r.group.groupId) return silent('roster_check:other_group');
+    // Taken before anything runs: a concurrent second answer finds nothing (r2 #5).
+    if (rosterChecks.take(check.messageId) === undefined) return silent('roster_check:taken');
+    const before = snapshotAudit(r.group.groupId);
+    const reply = async (text: string, note: string): Promise<TurnResult> => {
+      const sent = await send(r, [message(r, text)]);
+      return {
+        outbound: sent,
+        toolCalls: [],
+        auditEventIds: auditIdsSince(r.group.groupId, before),
+        silent: sent.length === 0,
+        modelSources: [],
+        note,
+      };
+    };
+    if (intent === 'decline') return reply(ROSTER_CHECK_DECLINED_TEXT, 'roster_check:declined');
+    if (!rosterCheckLive(check, r.now) || (r.trip?.tripId ?? null) !== check.tripId)
+      return reply(ROSTER_CHECK_STALE_TEXT, 'roster_check:stale');
+    // No `autoBuy`: the verdict only ever comes from the member's own ask (D-044).
+    const res = await deps.proposals.propose(confirmedRosterInput(check.input, check.attendees), {
+      groupId: r.group.groupId,
+      tripId: check.tripId,
+      requestedBy: me.memberId,
+      sourceMessageId: messageId,
+    });
+    // The same question again would be the same dead end: say what's blocking instead.
+    if (res.kind === 'clarify' && res.confirmable !== undefined)
+      return reply(ROSTER_CHECK_STUCK_TEXT, 'roster_check:stuck');
+    const sent = await send(r, await renderTerminal(r, res, me, messageId, before));
+    return {
+      outbound: sent,
+      toolCalls: [],
+      auditEventIds: auditIdsSince(r.group.groupId, before),
+      silent: sent.length === 0,
+      modelSources: [],
+      note: `roster_check:${res.kind}`,
+    };
+  }
+
+  /**
+   * T-198 (QA-03): a 👍 (or "yes") on an options card is not a pick. One
+   * "which one?" line per card, from a member in the group; a card already
+   * picked, or asked about once, gets silence. Nothing is held or booked.
+   */
+  async function whichOptionTurn(r: Resolved, ref: PendingCardRef): Promise<TurnResult> {
+    const me = r.me;
+    if (me === null || me.role === 'guest' || r.lane !== 'group' || ref.card.type !== 'options')
+      return silent('options:not_member');
+    const plan = deps.proposals.ticketChoice(ref.cardId);
+    if (plan !== undefined && plan.status === 'picked') return silent('options:already_picked');
+    if (ref.card.status !== 'pending') return silent('options:closed');
+    if (optionsNudged.has(ref.cardId)) return silent('options:asked_once');
+    optionsNudged.add(ref.cardId);
+    // How the card itself says to pick (r2 #4): number aliases ⇒ tap or a
+    // bare number; none (group flights, T-074) ⇒ "@trav book option N".
+    const sent = await send(r, [
+      message(r, whichOptionText(optionsPickStyle(ref.card), ref.card.options.length)),
+    ]);
+    return {
+      outbound: sent,
+      toolCalls: [],
+      auditEventIds: [],
+      silent: sent.length === 0,
+      modelSources: [],
+      note: 'options:which_one',
     };
   }
 
@@ -1967,6 +2110,67 @@ export function createTravAgent(input: AgentDeps): TravAgent {
       if (plan !== undefined) {
         recordInbound();
         return pickTicketTurn(r, plan.planId, pickIndex, event.messageId);
+      }
+    }
+
+    // 0c. T-198 (QA-03): the asker's "yes" / "no" to Trav's "who's in? … 👍
+    // if that's right": quoting that question, or bare while it is still
+    // Trav's latest question in the group and inside the reply window.
+    // Anyone else's "yes" is not an answer to it and goes on as before.
+    // Here only, short confirmations ("yep", "that's right", "correct") count
+    // as the asker's 👍 too (r2 #6): the answer is a re-run of the ask with no
+    // auto-buy verdict, never an approval of anything.
+    const rosterIntent: 'approve' | 'decline' | undefined =
+      intent === 'approve' || intent === 'decline'
+        ? intent
+        : isRosterConfirmText(rawText)
+          ? 'approve'
+          : undefined;
+    const answerable =
+      r.lane === 'group' &&
+      me !== null &&
+      canRequest(r.identity) &&
+      event.forwarded !== true &&
+      rosterIntent !== undefined;
+    if (answerable) {
+      const quoted =
+        event.replyToMessageId === undefined ? undefined : rosterChecks.get(event.replyToMessageId);
+      const latest =
+        event.replyToMessageId === undefined ? rosterChecks.latest(r.group.groupId) : undefined;
+      const bare =
+        latest !== undefined &&
+        lastQuestionAt.get(groupKey) === latest.askedAt &&
+        parseIso(r.now) - parseIso(latest.askedAt) <= REPLY_WINDOW_MS
+          ? latest
+          : undefined;
+      const check = quoted ?? bare;
+      // A short confirmation that isn't an exact approval word binds only inside the window.
+      const exact = intent === 'approve' || intent === 'decline';
+      const inWindow =
+        check !== undefined && parseIso(r.now) - parseIso(check.askedAt) <= REPLY_WINDOW_MS;
+      if (check !== undefined && check.askedBy === me.memberId && (exact || inWindow)) {
+        recordInbound();
+        return rosterCheckTurn(r, check, rosterIntent, event.messageId);
+      }
+    }
+    // 0d. T-198: a "yes" to an options card is not a pick: "which one?". It
+    // binds when it quotes the card, or bare while that card is the group's
+    // last message, inside the reply window, with no proposal card pending.
+    if (answerable && intent === 'approve') {
+      const newest =
+        event.replyToMessageId === undefined ? newestGroupCard.get(r.group.groupId) : undefined;
+      const bareOptions =
+        newest !== undefined &&
+        newest.card.type === 'options' &&
+        (recent.get(groupKey) ?? []).at(-1)?.messageId === newest.messageId &&
+        parseIso(r.now) - parseIso(newest.sentAt) <= REPLY_WINDOW_MS &&
+        pendingFor(r).length === 0
+          ? newest
+          : undefined;
+      const optionsRef = boundRef?.card.type === 'options' ? boundRef : bareOptions;
+      if (optionsRef !== undefined) {
+        recordInbound();
+        return whichOptionTurn(r, optionsRef);
       }
     }
 
@@ -3482,6 +3686,12 @@ export function createTravAgent(input: AgentDeps): TravAgent {
           const action: SettleAction = intent === 'decline' ? 'undo' : thumbsUpAction(r, ref);
           return settleTurn(r, ref, action, 'reaction', event.messageId);
         }
+        // T-198: 👍 / 👎 on the "who's in? … 👍 if that's right" check.
+        const check = rosterChecks.get(event.targetMessageId);
+        if (check !== undefined && (intent === 'approve' || intent === 'decline'))
+          return rosterCheckTurn(r, check, intent, event.messageId);
+        // T-198: a 👍 on an options card is not a pick: ask which one, once.
+        if (intent === 'approve' && ref?.card.type === 'options') return whichOptionTurn(r, ref);
         if (intent === undefined || ref?.proposalId === undefined)
           return silent('reaction:not_approval');
         return routeApproval(r, event, intent, '', 'reaction', ref.proposalId, event.messageId);
