@@ -42,7 +42,10 @@ export function Avatar({
   }
   return (
     <span className="avatar" style={{ background: avatarColor(group, handle) }} aria-label={name}>
-      {initials(name)}
+      {initials(
+        name,
+        group.members.map((m) => m.name),
+      )}
     </span>
   );
 }

@@ -209,7 +209,10 @@ function LeftRail(props: AppViewProps & { view: GroupView; me: SimMember }) {
               className="avatar small"
               style={{ background: avatarColor(view.group, m.handle) }}
             >
-              {initials(m.name)}
+              {initials(
+                m.name,
+                view.group.members.map((x) => x.name),
+              )}
             </span>
             {m.name}
           </button>
@@ -363,7 +366,10 @@ export function AppView(props: AppViewProps) {
                     className="avatar small"
                     style={{ background: avatarColor(view.group, m.handle) }}
                   >
-                    {initials(m.name)}
+                    {initials(
+                      m.name,
+                      view.group.members.map((x) => x.name),
+                    )}
                   </span>
                 ))}
               </div>
@@ -410,7 +416,10 @@ export function AppView(props: AppViewProps) {
                 className="avatar small"
                 style={{ background: avatarColor(view.group, me.handle) }}
               >
-                {initials(me.name)}
+                {initials(
+                  me.name,
+                  view.group.members.map((x) => x.name),
+                )}
               </span>
               <input
                 className="composer-input"

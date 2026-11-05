@@ -26,12 +26,18 @@ export function avatarColor(group: SimGroup, handle: string): string {
   return PASTELS[(i < 0 ? 0 : i) % PASTELS.length]!;
 }
 
-export function initials(name: string): string {
+/** Avatar label. Pass the group's names so two single-name members sharing an initial get two letters ("Ch", "Cr"). */
+export function initials(name: string, groupNames: readonly string[] = []): string {
   const parts = name.trim().split(/\s+/);
-  return parts
+  const label = parts
     .slice(0, 2)
     .map((p) => p[0]?.toUpperCase() ?? '')
     .join('');
+  if (parts.length > 1 || label === '') return label;
+  const clash = groupNames.some(
+    (n) => n.trim() !== name.trim() && n.trim()[0]?.toUpperCase() === label,
+  );
+  return clash ? label + (parts[0]![1]?.toLowerCase() ?? '') : label;
 }
 
 export interface ButtonPlan {

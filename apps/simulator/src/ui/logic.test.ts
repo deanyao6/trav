@@ -58,7 +58,11 @@ describe('planButtons (VOICE §9.3: buttons only for members allowed to act)', (
 
   it('a single approver reads "waiting on Dean"', () => {
     const one: Action[] = actions.map((a) => ({ ...a, allowedMemberIds: ['mem_dean'] }));
-    const plan = planButtons(proposal({ actions: one }, ['mem_dean']), member('h_crowley'), BARCELONA);
+    const plan = planButtons(
+      proposal({ actions: one }, ['mem_dean']),
+      member('h_crowley'),
+      BARCELONA,
+    );
     expect(plan.waitingOn).toBe('waiting on Dean');
   });
 
@@ -90,7 +94,11 @@ describe('planButtons (VOICE §9.3: buttons only for members allowed to act)', (
 
   it('approvers none of whom are charged are still named', () => {
     const open = actions.map(({ allowedMemberIds: _a, ...rest }) => rest);
-    const plan = planButtons(proposal({ actions: open }, ['mem_henry']), member('h_henry'), BARCELONA);
+    const plan = planButtons(
+      proposal({ actions: open }, ['mem_henry']),
+      member('h_henry'),
+      BARCELONA,
+    );
     expect(plan.waitingOn).toBe('waiting on Henry');
   });
 });
@@ -141,6 +149,10 @@ describe('avatars', () => {
   it('initials and stable per-member colors', () => {
     expect(initials('Dean')).toBe('D');
     expect(initials('Mary Ann Lee')).toBe('MA');
+    const bcn = ['Dean', 'Chase', 'Piotr', 'Arjun', 'Henry', 'Crowley'];
+    const labels = bcn.map((n) => initials(n, bcn));
+    expect(labels).toEqual(['D', 'Ch', 'P', 'A', 'H', 'Cr']);
+    expect(new Set(labels).size).toBe(6);
     expect(avatarColor(BARCELONA, 'h_dean')).toBe(avatarColor(BARCELONA, 'h_dean'));
     expect(avatarColor(BARCELONA, 'h_dean')).not.toBe(avatarColor(BARCELONA, 'h_henry'));
   });
