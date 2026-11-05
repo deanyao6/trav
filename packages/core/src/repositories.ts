@@ -96,6 +96,15 @@ export interface ExpenseRepository {
   replace(expense: Expense, entries: readonly LedgerEntry[]): void;
   listByTrip(tripId: TripId, opts?: { readonly includeUndone?: boolean }): readonly Expense[];
   listEntries(tripId: TripId): readonly LedgerEntry[];
+  /**
+   * T-165: subscribe to committed `create`s (after the write; never for a
+   * `duplicate` or a failed write; `replace` is not a create). Listeners run
+   * synchronously in subscription order; one that throws neither undoes the
+   * write nor stops the others. This is the single hook the agent's group
+   * expense notices hang off, so a new ingestion path cannot forget to
+   * announce itself. Returns the unsubscribe function.
+   */
+  onCreate(listener: (expense: Expense) => void): () => void;
 }
 
 /**

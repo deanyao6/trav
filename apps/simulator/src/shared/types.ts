@@ -97,6 +97,11 @@ export interface ThreadMessage {
   readonly replyToMessageId?: string;
   readonly renderedAsCard: boolean;
   readonly degraded: boolean;
+  /**
+   * T-165: a ledger notice ("Chase added Uber €18.60 · 4 ways (not Henry,
+   * Crowley)") the channel renders as a centered grey subscript, not a bubble.
+   */
+  readonly systemNotice?: boolean;
   readonly reactions: readonly ReactionSummary[];
   readonly cardState?: CardStateView;
 }

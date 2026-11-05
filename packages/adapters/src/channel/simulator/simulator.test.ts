@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { InboundEvent } from '../../interfaces/channel.js';
 import { createSimulatorChannel, dmConversationId } from './index.js';
+import { printTranscript } from '../transcript.js';
 import {
   BCN_CONVERSATION,
   PROPOSAL_ACTIONS,
@@ -439,5 +440,63 @@ describe('simulator channel: lanes', () => {
     expect(sim.dmTranscript('h_henry')).toHaveLength(0);
     expect(sim.dmTranscript('h_crowley')).toHaveLength(2);
     expect(sim.transcript()).toHaveLength(8);
+  });
+});
+
+// ---------- T-165: system notices ----------
+
+describe('simulator channel: system notices (T-165)', () => {
+  const LINE = 'Chase added Uber €18.60 · 4 ways (not Henry, Crowley)';
+  const notice = (extra = {}) => groupMsg(LINE, { kind: 'system_notice', ...extra });
+
+  it('advertises the capability by default and renders the notice as a subscript, not a bubble', async () => {
+    const { sim } = setup();
+    expect(sim.capabilities.systemNotices).toBe(true);
+    const res = await sim.sendGroup(BCN_CONVERSATION, notice());
+    expect(res.ok && res.value.degraded).toBe(false);
+    const [entry] = sim.groupTranscript();
+    expect(entry).toMatchObject({
+      type: 'message',
+      systemNotice: true,
+      text: LINE,
+      degraded: false,
+    });
+    expect(printTranscript(sim.groupTranscript())).toContain(`(notice) ${LINE}`);
+    expect(printTranscript(sim.groupTranscript())).not.toContain('trav:');
+  });
+
+  it('an ordinary message is never a notice', async () => {
+    const { sim } = setup();
+    await sim.sendGroup(BCN_CONVERSATION, groupMsg('dinner logged'));
+    expect(sim.groupTranscript()[0]).toMatchObject({ systemNotice: false });
+  });
+
+  it('with the capability off, a notice that still reaches the channel posts as an ordinary bubble, flagged degraded', async () => {
+    const { sim } = setup({ systemNotices: false });
+    expect(sim.capabilities.systemNotices).toBe(false);
+    const res = await sim.sendGroup(BCN_CONVERSATION, notice());
+    expect(res.ok && res.value.degraded).toBe(true);
+    expect(sim.groupTranscript()[0]).toMatchObject({ systemNotice: false, text: LINE });
+    expect(printTranscript(sim.groupTranscript())).not.toContain('(notice)');
+  });
+
+  it('refuses a notice with anything attached, or in a DM', async () => {
+    const { sim } = setup();
+    for (const extra of [
+      { actions: [{ id: 'undo' as const, label: 'Undo' }] },
+      { mentions: ['mem_chase'] },
+      { card: receiptCard() },
+    ]) {
+      const res = await sim.sendGroup(BCN_CONVERSATION, notice(extra));
+      expect(res.ok ? 'ok' : res.error.code).toBe('invalid_request');
+    }
+    const multi = await sim.sendGroup(
+      BCN_CONVERSATION,
+      groupMsg('a\nb', { kind: 'system_notice' }),
+    );
+    expect(multi.ok ? 'ok' : multi.error.code).toBe('invalid_request');
+    const dm = await sim.sendDirect('h_chase', dmMsg('mem_chase', LINE, { kind: 'system_notice' }));
+    expect(dm.ok ? 'ok' : dm.error.code).toBe('invalid_request');
+    expect(sim.transcript()).toEqual([]);
   });
 });

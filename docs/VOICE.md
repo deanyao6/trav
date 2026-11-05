@@ -61,7 +61,7 @@ Silence rules:
 
 Batching rules:
 - Multiple pending items (three "looks shared?" charges, two email receipts) go in **one** DM digest, at most twice a day (10:00 and 20:00 local trip time), unless an item is time-sensitive (a hold expiring, a refund window).
-- Multiple group updates that land within 60 seconds are merged into one message.
+- Multiple group updates that land within 60 seconds are merged into one message. Ledger notices (§4.13) follow the same rule: shares that land together become one notice line.
 - Cap on unsolicited group messages: **2 per day** (the scheduled recap counts as one). Budget warnings share this cap: one per threshold per day.
 - If something is pending and Trav already asked once, it does not ask again. It waits, then expires the item quietly (§6.4).
 
@@ -122,7 +122,7 @@ Trav **sends** tapbacks instead of messages when a message would add nothing: �
 ### 3.7 Private vs group
 - **Group thread:** bookings, shared expenses, balances, recaps, anything about group money.
 - **Private DM (Trav ↔ one member):** that person's QR ticket, their card transactions, their email receipts, "looks shared?" prompts, their personal budget, anything they asked Trav privately.
-- When a private confirmation turns into a shared expense, it shows up in the group **in the next recap or settle-up**, not as an immediate group ping. Exception: the owner asks Trav to post it now.
+- When a private confirmation turns into a shared expense, the group gets **one ledger notice line** (§4.13: who, what, how much, the split, nothing else) right after the owner's 👍, and it shows up in the next recap or settle-up. Never before the owner's 👍, and never with anything from the card or email itself (no time, route, statement text, card digits). (T-165 replaced the earlier "recap only" rule: the group should see every expense land, whatever its source.)
 - A booking turn can produce one group message plus N private DMs (tickets). That's the only sanctioned multi-message turn.
 
 ### 3.8 Links and images
@@ -315,7 +315,7 @@ Card: `expense_confirm` with `status: "logged"`. Notes: the arrow `→ €16.80 
 > uber receipt from last night: €18.60, Eixample → Poblenou, 4 riders
 > split with Dean, Piotr, Crowley? 👍 yes · 👎 just me
 
-Card: `expense_confirm` with `status: "pending"`, `source: "card_transaction" | "email_receipt"`. Notes: Trav names the merchant and time so the owner can recognize it. "probably just you" items are listed but default to private. Nothing becomes shared without the owner's explicit 👍. Once confirmed, it shows up in the next group recap, not as an immediate group ping.
+Card: `expense_confirm` with `status: "pending"`, `source: "card_transaction" | "email_receipt"`. Notes: Trav names the merchant and time so the owner can recognize it. "probably just you" items are listed but default to private. Nothing becomes shared without the owner's explicit 👍. Once confirmed, the owner's DM gets the §4.4 logged line plus "the group sees one line about it, nothing else", and the group gets the one §4.13 notice line built from the tab entry. It also shows up in the next recap.
 
 ### 4.6 Daily settle-up
 
@@ -535,6 +535,28 @@ Card: none. Notes: the question is the last line or the only line. Money facts (
 
 Card: none. Notes: no emoji, no lecture, no "i'm not able to". State the rule in plain words once, pivot to something useful if there is one, stop.
 
+### 4.13 Ledger notice (any expense that lands on the tab, T-165)
+
+**Trigger:** an expense lands on the ledger and the group has not already seen it in a group card. In practice: a card transaction or email receipt the owner just shared (after their 👍, never before), or any future source that writes the tab without a group card. Chat text and receipt photos already post the §4.4 "logged:" card in the group, and a booking posts its §4.2 receipt card; those cards **are** the announcement, so they get no notice on top (§2: never a second message to say the first one is done). Every expense reaches the group exactly once.
+
+**Format:** one line, no card, no buttons, no @tags, no emoji, no line break:
+
+> Chase added Uber €18.60 · 4 ways (not Henry, Crowley)
+
+- `<who> added <description> <amount>`: who put it on the tab (the owner who shared it). A foreign amount shows the original first: `Lyft $40 (≈€36.90)`. If someone else paid: `… €18.60 on Arjun`.
+- `· <split>`: `6 ways` when everyone's in; `5 ways (not Henry)` names who is out, in member order; when more are out than in, it names who is in: `2 ways (Dean, Chase)`; one person: `all on Piotr`; custom shares: `3 ways, custom shares`; itemized: `5 ways by item`. Never a reason someone is out.
+- Built from the group tab entry only (the stripped, group-safe record). Nothing from the private source: no pickup time, route, rider count, statement descriptor, card digits or inbox.
+
+**Batched (within ~60s):** shares that land together are one line, grouped by who added them, splits without the parenthesis, at most 3 named, the rest counted, under 240 characters:
+
+> Crowley added Uber €23.40 (5 ways) and groceries €47.20 (6 ways) · Arjun added Uber €18.60 (4 ways)
+
+> Dean added ride 1 €12 (4 ways), ride 2 €9 (4 ways) and ride 3 €14 (4 ways) · +2 more on the tab
+
+An owner answering a "looks shared?" digest line by line gets one line for the whole digest, sent after their last answer on it (or once 60s have passed, with the next thing that happens in the chat).
+
+**Rendering:** `OutboundMessage{ kind: "system_notice" }`, group lane only. Channels with `capabilities.systemNotices` (the simulator) draw it like iMessage's centered grey "Dean added Chase to the conversation" subscript: no bubble, no avatar, no name label (§9.2). Every other channel (iMessage relays, WhatsApp, Telegram, SMS) gets the same text as an ordinary short Trav message. A notice follows a member's action, so it does not count against the unsolicited-message cap (§2).
+
 ---
 
 ## 5. Rich cards: machine-readable shapes
@@ -558,6 +580,8 @@ interface OutboundMessage {
   actions?: Action[];           // buttons in the simulator; tapback/text aliases elsewhere
   expiresAt?: string;           // ISO; actions stop working after this
   roast?: boolean;              // true if any line came from roast mode (evals assert off → never true)
+  kind?: "system_notice";       // §4.13 ledger notice: group lane, one line, no card/actions/images/mentions
+  noticeExpenseIds?: ExpenseId[]; // system_notice only: the expenses the line announces (audited)
 }
 
 interface OutboundReaction {
@@ -865,6 +889,7 @@ The simulator exists to make the in-chat moment feel real on a laptop screen. It
 - Other members: `#E9E9EB` background, black text, left-aligned, sender's first name in 11px gray above the first bubble of a run, avatar circle (initials, per-member pastel) to the left of the last bubble of a run.
 - **Trav:** same gray bubble as any member (Trav is a member, not a system). Name label "Trav". Avatar: a `#1C8C7A` teal circle with a white "t" in lowercase. No bot badge, no sparkle.
 - Timestamps: centered gray 11px separators ("Today 10:02 AM") on gaps over 15 min, and the day counter badge next to it.
+- Ledger notices (§4.13): the same centered gray 11px subscript as "Henry joined the conversation", padded off the edges for long lines. Not a bubble: no avatar, no name, no tapbacks, and it ends a run of bubbles.
 - Typing indicator: three-dot gray bubble with Trav's avatar while Trav is working. Never a "thinking..." message.
 - Tapbacks: a small white pill with the emoji on the top-right corner of the bubble, with a count if more than one. Clicking a bubble opens the tapback picker (❤️ 👍 👎 😂 ‼️ ❓). A member's 👍 on a proposal triggers the same event as the Approve button.
 - Mentions: `@trav` and `@Dean` render as blue text (outgoing: white, bold).
@@ -903,13 +928,13 @@ Buttons emit the same inbound events as tapbacks/text (`{ kind: "action", action
                 ...
                 [card: ticket · qr: data:image/png;base64,...]
 ```
-Cards print as `[card: type id · actions]` plus the QR data URL's first 40 chars. Private messages are marked `→ Name (private)`.
+Cards print as `[card: type id · actions]` plus the QR data URL's first 40 chars. Private messages are marked `→ Name (private)`. Ledger notices print without a speaker: `[9:20 am] (notice) Crowley added Uber €23.40 · 5 ways (not Henry)`.
 
 ### 9.5 States the demo must show
 1. Six members chatting, Trav silent.
 2. "@trav get the 5 of us Razzmatazz tickets, Henry's sick" → typing indicator → proposal card.
 3. Switch "send as" to Dean → Approve → receipt card in the group, 5 ticket cards in 5 DM tabs, Henry's DM tab empty.
-4. Switch to Crowley → Crowley's DM shows the "looks shared?" uber prompt → Share it.
+4. Switch to Crowley → Crowley's DM shows the "looks shared?" uber prompt → Share it → the group gets one grey notice line, "Crowley added Uber €23.40 · 5 ways (not Henry)".
 5. **next morning** → Morning After card with the kebab line and the settle section.
 6. **end of trip** → Wrapped card.
 

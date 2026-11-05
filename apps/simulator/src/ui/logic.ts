@@ -110,16 +110,20 @@ export function separatorLabel(at: string, group: SimGroup): string {
 }
 
 /** Bubble runs and 15-minute timestamp separators (VOICE §9.2). */
+/** A message drawn as a bubble or card (not a membership line or a system notice). */
+export function isBubble(e: ThreadEntry | undefined): e is ThreadMessage {
+  return e !== undefined && e.kind === 'message' && e.systemNotice !== true;
+}
+
 export function layoutThread(entries: readonly ThreadEntry[], group: SimGroup): RunInfo[] {
   return entries.map((e, i) => {
     const prev = entries[i - 1];
     const next = entries[i + 1];
     const gapBefore = prev === undefined || parseIso(e.at) - parseIso(prev.at) > RUN_GAP_MS;
     const gapAfter = next === undefined || parseIso(next.at) - parseIso(e.at) > RUN_GAP_MS;
-    const sameAsPrev =
-      !gapBefore && prev?.kind === 'message' && e.kind === 'message' && prev.from === e.from;
-    const sameAsNext =
-      !gapAfter && next?.kind === 'message' && e.kind === 'message' && next.from === e.from;
+    // A system notice (T-165) is a centered subscript, like a membership line: it ends a bubble run.
+    const sameAsPrev = !gapBefore && isBubble(prev) && isBubble(e) && prev.from === e.from;
+    const sameAsNext = !gapAfter && isBubble(next) && isBubble(e) && next.from === e.from;
     return {
       first: !sameAsPrev,
       last: !sameAsNext,

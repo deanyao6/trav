@@ -239,10 +239,14 @@ describe('T-135: a ride document is split by its rider count, or the card asks',
       'Uber receipt from last night: €18.60, El Born → Eixample, 4 riders',
       'split with Dean, Piotr, Crowley? 👍 yes · 👎 just me · or tell me who rode',
     ]);
+    expect(groupOutbound(h)).toEqual([]);
     await h.tap('h_arjun', card.id, 'confirm');
     const [exp] = h.runtime.stores.group.expenses.listByTrip(T);
     expect(exp?.split).toEqual({ method: 'equal', participants: FOUR });
-    expect(groupOutbound(h)).toEqual([]);
+    // T-165: nothing in the group before the share; after it, one notice line.
+    expect(
+      groupOutbound(h).map((e) => (e.type === 'message' ? [e.systemNotice, e.text] : e.type)),
+    ).toEqual([[true, 'Arjun added Uber €18.60 · 4 ways (not Henry, Chase)']]);
   });
 
   it('without it: the card asks who rode and offers no Share button', async () => {

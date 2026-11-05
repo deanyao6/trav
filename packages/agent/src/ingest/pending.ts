@@ -23,8 +23,10 @@
  * `sharePlan` when the item was ingested), the expense goes on the ledger with
  * `sourceRef: { kind: 'private_item' }`, `ledger.entry_created` +
  * `private.item_promoted` are written, the raw descriptor is purged, and the
- * owner gets the VOICE §4.4 logged line in their DM. Per VOICE §3.7 the group
- * sees it in the next recap or settle-up, never as an immediate ping.
+ * owner gets the VOICE §4.4 logged line in their DM. The group then gets the
+ * one T-165 ledger notice (VOICE §4.13), sent by `notices/expenseNotices.ts`
+ * off the repository write, never before the owner's share; it also shows
+ * in the next recap.
  * Keep private ⇒ the item is dismissed (`private.item_dismissed`), raw input
  * purged, and nothing is said (a typed "keep private" gets a 👍 tapback).
  *

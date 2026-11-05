@@ -208,6 +208,12 @@ button {
   margin: 12px 0 6px;
 }
 
+/* T-165 ledger notice: the same subscript, kept off the bubble edges on long lines. */
+.system-line.system-notice {
+  padding: 0 24px;
+  line-height: 1.35;
+}
+
 .msg-row {
   display: flex;
   align-items: flex-end;

@@ -493,3 +493,40 @@ describe('Card renders every RichCard type', () => {
     expect(html).not.toContain('action-undo');
   });
 });
+
+describe('AppView: ledger notices (T-165)', () => {
+  it('a system notice renders as the centered grey subscript, not a Trav bubble', async () => {
+    const { s1 } = await states();
+    const thread = s1.groups[0]!.thread;
+    const last = thread[thread.length - 1]!;
+    const notice: ThreadMessage = {
+      kind: 'message',
+      seq: last.seq + 1,
+      at: last.at,
+      lane: 'group',
+      messageId: 'msg_notice_ui',
+      direction: 'outbound',
+      from: 'trav',
+      fromName: 'trav',
+      isTrav: true,
+      text: 'Crowley added Uber €23.40 · 5 ways (not Henry)',
+      actions: [],
+      attachments: [],
+      renderedAsCard: false,
+      degraded: false,
+      systemNotice: true,
+      reactions: [],
+    };
+    const withNotice: SimState = {
+      ...s1,
+      groups: s1.groups.map((g, i) => (i === 0 ? { ...g, thread: [...g.thread, notice] } : g)),
+    };
+    const html = render(withNotice, 'h_dean');
+    expect(html).toContain(
+      '<div class="system-line system-notice" data-testid="system-notice" data-message-id="msg_notice_ui">Crowley added Uber €23.40 · 5 ways (not Henry)</div>',
+    );
+    expect(html).not.toContain('class="msg-row out" data-message-id="msg_notice_ui"');
+    expect(count(html, 'data-testid="system-notice"')).toBe(1);
+    expect(count(render(s1, 'h_dean'), 'data-testid="system-notice"')).toBe(0);
+  });
+});

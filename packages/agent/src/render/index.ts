@@ -12,6 +12,13 @@ export type { ReceiptRenderInput } from './receipt.js';
 export { renderTicket } from './ticket.js';
 export type { TicketRenderInput } from './ticket.js';
 export { renderExpenseLogged, renderLooksShared } from './expenseConfirm.js';
+export {
+  NOTICE_BATCH_WINDOW_MS,
+  batchByWindow,
+  expenseNoticeText,
+  renderExpenseNotice,
+} from './expenseNotice.js';
+export type { NoticeRenderInput, SystemNoticeMessage } from './expenseNotice.js';
 export type { ExpenseLoggedRenderInput, LooksSharedItem } from './expenseConfirm.js';
 export { buildSettleUp, renderSettleUp } from './settleUp.js';
 export type { SettleUpRenderInput } from './settleUp.js';

@@ -318,6 +318,7 @@ function toThreadMessage(
     ...(msg.replyToMessageId !== undefined ? { replyToMessageId: msg.replyToMessageId } : {}),
     renderedAsCard: msg.renderedAsCard,
     degraded: msg.degraded,
+    ...(msg.systemNotice ? { systemNotice: true } : {}),
     reactions: summarizeReactions(ctx.taps.reactions.get(msg.messageId)),
     ...(cardState ? { cardState } : {}),
   };

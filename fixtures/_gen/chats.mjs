@@ -447,8 +447,8 @@ export function barcelonaChat(opts = {}) {
     action: 'promote_private_item',
     expense: exp({ payer: g.arjun, total: eur(1860), split: eq([g.arjun, g.dean, g.piotr, g.crowley]), category: 'transport', description: 'uber El Born → Eixample', source: 'email_receipt', occurredAt: '2026-03-14T01:52:00+01:00' }),
     audit: ['private.item_promoted'],
-    groupMessages: 0,
-    notes: 'shows up in the next recap, not as an immediate group ping (VOICE §3.7)',
+    groupMessages: 1,
+    notes: 'the one group line is the T-165 notice built from the tab entry (VOICE §4.13), after the owner shared it; it also shows in the next recap',
   }, { lane: 'direct' });
   c.clock(B(14, '10:00'), { scheduledJob: 'morning_after', recapMode: 'full', groundTruth: 'fixtures/recaps/barcelona.json#2026-03-14', roastLines: 0 });
   c.say(B(14, '10:30'), s('henry'), 'i feel like garbage', silent({ mustNotStore: ['garbage'] }));
@@ -614,7 +614,8 @@ export function barcelonaChat(opts = {}) {
     expense: exp({ payer: g.crowley, total: eur(2340), split: eq(g.five), category: 'transport', description: 'uber back from Razzmatazz', source: 'card_transaction', occurredAt: '2026-03-15T02:14:00+01:00' }),
     audit: ['private.item_promoted'],
     strippedFields: ['last4', 'accountId', 'merchantRaw', 'providerTransactionId'],
-    groupMessages: 0,
+    groupMessages: 1,
+    notes: 'the one group line is the T-165 notice built from the tab entry (VOICE §4.13), only after Crowley shared it',
   }, { lane: 'direct' });
   c.clock(B(15, '10:00'), { scheduledJob: 'morning_after', recapMode: 'full', groundTruth: 'fixtures/recaps/barcelona.json#2026-03-15', roastAllowedTargets: [g.crowley, g.piotr], mustNotContain: ['sick', 'garbage', 'girl', '9.80', 'Henry was', 'Henry sat', 'Henry is', "Henry's", 'Henry stayed', 'Henry felt', 'Henry had'] }); // "not Henry" is the fact (T-015, T-028 review); a reason never is
   c.say(B(15, '10:20'), s('henry'), 'feeling better!! what did i miss', silent());

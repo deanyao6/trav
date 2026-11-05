@@ -697,6 +697,50 @@ export function runRepositorySuite(name: string, factory: StoresFactory): void {
         );
         expect(stores.group.expenses.get('exp_b')?.sourceRef).toEqual(b.sourceRef);
       });
+
+      it('onCreate (T-165): fires once per committed create, never for duplicates, replace or after unsubscribe', () => {
+        const seen: string[] = [];
+        const other: string[] = [];
+        const off = stores.group.expenses.onCreate((e) => seen.push(e.expenseId));
+        stores.group.expenses.onCreate((e) => other.push(e.expenseId));
+        const a = makeExpense('exp_a', { sourceRef: { kind: 'booking', id: 'bk_1' } });
+        stores.group.expenses.create(a, entriesFor(a));
+        // duplicate sourceRef and duplicate id: nothing written, nothing announced
+        const retry = makeExpense('exp_b', { sourceRef: { kind: 'booking', id: 'bk_1' } });
+        expectTravError(() => stores.group.expenses.create(retry, []), 'duplicate');
+        expectTravError(
+          () =>
+            stores.group.expenses.create(
+              makeExpense('exp_a', { sourceRef: { kind: 'message', id: 'msg_x' } }),
+              [],
+            ),
+          'duplicate',
+        );
+        // invalid entries: rejected before the write
+        const bad = makeExpense('exp_bad');
+        expectTravError(() => stores.group.expenses.create(bad, entriesFor(a)), 'invalid_argument');
+        // replace (undo/edit) is not a create
+        stores.group.expenses.replace({ ...a, status: 'undone' }, entriesFor(a));
+        expect(seen).toEqual(['exp_a']);
+        off();
+        off();
+        const c = makeExpense('exp_c');
+        stores.group.expenses.create(c, entriesFor(c));
+        expect(seen).toEqual(['exp_a']);
+        expect(other).toEqual(['exp_a', 'exp_c']);
+      });
+
+      it('onCreate (T-165): a throwing listener neither undoes the write nor stops the others', () => {
+        const seen: string[] = [];
+        stores.group.expenses.onCreate(() => {
+          throw new Error('listener boom');
+        });
+        stores.group.expenses.onCreate((e) => seen.push(e.expenseId));
+        const e = makeExpense('exp_1');
+        expect(() => stores.group.expenses.create(e, entriesFor(e))).not.toThrow();
+        expect(stores.group.expenses.get('exp_1')).toEqual(e);
+        expect(seen).toEqual(['exp_1']);
+      });
     });
 
     // ---------- bookings ----------

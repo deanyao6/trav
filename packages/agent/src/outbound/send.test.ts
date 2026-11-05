@@ -605,3 +605,85 @@ describe('T-026 review round 2 (send path)', () => {
     ]);
   });
 });
+
+// ---------- T-165: system notices and the `systemNotices` capability ----------
+
+describe('system_notice through the send path (T-165)', () => {
+  function notice(over: Partial<OutboundMessage> = {}): OutboundMessage {
+    return {
+      kind: 'system_notice',
+      noticeExpenseIds: ['exp_uber'],
+      id: 'msg_notice_1',
+      groupId: GROUP_ID,
+      to: { kind: 'group' },
+      text: 'Chase added Uber €18.60 · 4 ways (not Henry, Crowley)',
+      ...over,
+    };
+  }
+
+  function withCapability(systemNotices: boolean): Harness {
+    const base = harness();
+    const channel = createSimulatorChannel({
+      clock: createSimulatedClock(NOW),
+      conversations: [
+        {
+          conversationId: 'conv_barcelona',
+          participants: base.members.map((m) => ({
+            handle: m.senderId,
+            displayName: m.displayName,
+            memberId: m.memberId,
+          })),
+        },
+      ],
+      capabilities: { systemNotices },
+    });
+    return { ...base, channel, deps: { ...base.deps, channel } };
+  }
+
+  it('a channel with the capability gets the notice as is: rendered as the grey subscript, audited with its expenses', async () => {
+    const h = withCapability(true);
+    const out = await sendOutbound(notice(), h.deps);
+    expect(out.sent).not.toBeNull();
+    expect(out.degraded).toBe(false);
+    const [entry] = h.channel.groupTranscript('conv_barcelona');
+    expect(entry?.type === 'message' && entry.systemNotice).toBe(true);
+    expect(entry?.type === 'message' && entry.outbound?.kind).toBe('system_notice');
+    const sent = h.stores.group.audit.listByGroup(GROUP_ID).find((e) => e.type === 'message.sent')!;
+    expect(sent.payload).toMatchObject({ systemNotice: true, expenseIds: ['exp_uber'] });
+    expect(sent.payload['noticeDowngraded']).toBeUndefined();
+    // Screened and linted like every other message.
+    expect(screenSpy).toHaveBeenCalled();
+    expect(lintSpy).toHaveBeenCalled();
+  });
+
+  it('a channel without it (iMessage relay, WhatsApp, Telegram) gets the same text as an ordinary message', async () => {
+    const h = withCapability(false);
+    expect(h.channel.capabilities.systemNotices).toBe(false);
+    const out = await sendOutbound(notice(), h.deps);
+    expect(out.sent).not.toBeNull();
+    const [entry] = h.channel.groupTranscript('conv_barcelona');
+    if (entry?.type !== 'message') throw new Error('expected a message');
+    expect(entry.systemNotice).toBe(false);
+    expect(entry.degraded).toBe(false);
+    expect(entry.text).toBe('Chase added Uber €18.60 · 4 ways (not Henry, Crowley)');
+    // The wire message carries no kind: the channel never sees a notice it can't draw.
+    expect(entry.outbound?.kind).toBeUndefined();
+    const sent = h.stores.group.audit.listByGroup(GROUP_ID).find((e) => e.type === 'message.sent')!;
+    expect(sent.payload).toMatchObject({ systemNotice: true, noticeDowngraded: true });
+  });
+
+  it('a malformed notice (DM, card, buttons, @tag, two lines) is refused before anything is sent', async () => {
+    const h = withCapability(true);
+    const bad: OutboundMessage[] = [
+      notice({ to: { kind: 'member', memberId: 'mem_chase' } }),
+      notice({ actions: [{ id: 'undo', label: 'Undo', style: 'secondary', textAliases: [] }] }),
+      notice({ mentions: ['mem_chase'] }),
+      notice({ text: 'Chase added Uber €18.60\nand more' }),
+    ];
+    for (const m of bad) {
+      await expect(sendOutbound(m, h.deps)).rejects.toThrow(TravError);
+    }
+    expect(h.channel.transcript()).toEqual([]);
+    expect(auditTypes(h)).not.toContain('message.sent');
+  });
+});

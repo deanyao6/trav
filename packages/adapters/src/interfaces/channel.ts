@@ -43,6 +43,14 @@ export interface ChannelCapabilities {
   readonly threadedReplies: boolean;
   /** Can add members to the group directly (WhatsApp requires invite links instead). */
   readonly canAddMembers: boolean;
+  /**
+   * T-165: can render an `OutboundMessage{ kind: 'system_notice' }` as a
+   * centered grey subscript, like iMessage's "Dean added Chase to the
+   * conversation". Only the simulator can: iMessage relays (Sendblue), WhatsApp,
+   * Telegram and SMS bots can only post ordinary messages, so for them the send
+   * path strips the kind and the notice goes out as a normal short message.
+   */
+  readonly systemNotices: boolean;
   /** Maximum group size including Trav, if the platform caps it. */
   readonly maxGroupSize?: number;
 }
