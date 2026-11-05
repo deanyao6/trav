@@ -80,8 +80,8 @@ const NOT_A_SUGGESTION =
  * "i got the bill at the tapas place, 96 euros" (T-222): a written amount plus
  * a payment shape is a payment being stated, the expense flow's. The shape is
  * "(i|we|<name>) got|grabbed|picked up the|our <bill, meal, round, ride…>"
- * (never "i got the kids"), or the message opening
- * with the verb), or "<thing> came to <amount>". A bare word is never enough:
+ * (never "i got the kids"; the verb may also open the message), or "<thing>
+ * came to <amount>". A bare word is never enough:
  * "got any dinner spots under €30?", "what have you got under €30", "we got
  * €40 left each, ideas?" and "where the bill won't be crazy" stay asks, and
  * so does anything with a question mark.

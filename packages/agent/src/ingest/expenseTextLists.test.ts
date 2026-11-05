@@ -435,6 +435,9 @@ describe('T-222: "not including" is an except list, never a list', () => {
     'i paid €80 for lunch, the 3 of us, not counting bea or rafa',
     'i paid €80 for lunch, split 4 ways, leaving out ines',
     'i paid €80 for lunch, split 3 ways, excluding me',
+    // r2 #3: "2 x €40" reads as a count too, and two tickets split five ways
+    // was never the safe reading, so it asks
+    'i paid €80 for 2 x €40 tickets, everyone except luca',
   ]) {
     it(`asks: ${text}`, () => expectQuestion(text, ctx('Maya')));
   }
