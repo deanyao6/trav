@@ -53,6 +53,7 @@ import {
   localHour,
   money,
   parseIso,
+  safety,
   TravError,
   zonedWallTimeToMs,
   zoneOffsetMinutes,
@@ -481,6 +482,7 @@ async function otherNightText(
   now: IsoDateTime,
   tz: string,
   quantity: number,
+  familyMode: boolean,
 ): Promise<string> {
   const on = onNight(night, nightOf(now, tz));
   const sorted = [...upcoming].sort(
@@ -490,8 +492,10 @@ async function otherNightText(
       parseIso(a.startsAt) - parseIso(b.startsAt),
   );
   // The closest night Trav could actually book for this many (T-081 r1 #5):
-  // a sold-out or site-only night is never offered as the alternative.
+  // a sold-out or site-only night is never offered as the alternative, nor
+  // an adults-only one in a family group (VOICE §8, T-143).
   for (const alt of sorted) {
+    if (familyMode && adultsOnlyEvent(alt)) continue;
     const res = await tickets.getOffers(alt.eventId, quantity);
     if (!res.ok) continue;
     const best = rankOffers(res.value, quantity, now)[0];
@@ -588,6 +592,7 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
     const order = active.map((m) => m.memberId);
     const byId = new Map(members.map((m) => [m.memberId, m] as const));
     const tz = trip.timeZone;
+    const familyMode = safety.isFamilyMode(grp, members, now);
 
     // ---- 1. the event ----
     const searched = await tickets.searchEvents({
@@ -642,12 +647,30 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
               input.attendeeNames?.length ??
               input.attendeeMemberIds?.length ??
               Math.max(1, active.length - (input.excludedNames?.length ?? 0)),
+            familyMode,
           ),
         };
       }
     }
     candidates = [...candidates].sort((a, b) => parseIso(a.startsAt) - parseIso(b.startsAt));
     const event = candidates[0];
+    const noun = input.eventId === undefined ? categoryOnly(input.query) : undefined;
+    if (event === undefined && noun !== undefined) {
+      // "club tickets tonight" names no place and nothing like it is on sale
+      // (T-143, VOICE §4.11): one question, which place and who's in. No
+      // hold. A family group's question names no nightlife (VOICE §8) and
+      // asks no headcount for it.
+      const said = familyMode && safety.isRestrictedText(noun) ? 'one' : noun;
+      const thing = said === 'one' ? 'one' : `a ${said}`;
+      const when = onNight(namedNight ?? tonight, tonight);
+      return {
+        kind: 'clarify',
+        question: familyMode
+          ? `i can't see ${thing} i can book ${when}\nwhich ${said} did you mean?`
+          : `i can't see ${thing} i can book ${when}\nwhich ${said} did you mean, and is it ${names(order, byId)}?`,
+        problems: ['unnamed_venue'],
+      };
+    }
     if (event === undefined) {
       const what =
         input.query === undefined ? 'that' : sanitizeInline(input.query, 40).toLowerCase();
@@ -659,13 +682,23 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
     }
     // A generic ask ("club tickets") that fits two venues that night: ask, never pick one.
     if (input.eventId === undefined && input.query !== undefined && input.day !== undefined) {
-      const venues = [
-        ...new Set(
-          candidates
-            .filter((e) => nightOf(e.startsAt, tz) === nightOf(event.startsAt, tz))
-            .map((e) => sanitizeInline(e.venue.name, 40)),
-        ),
+      const thatNight = candidates.filter(
+        (e) => nightOf(e.startsAt, tz) === nightOf(event.startsAt, tz),
+      );
+      const venuesOf = (evs: readonly TicketEvent[]): string[] => [
+        ...new Set(evs.map((e) => sanitizeInline(e.venue.name, 40))),
       ];
+      // A family group never sees an adults-only venue named (VOICE §8, T-143).
+      const venues = venuesOf(
+        familyMode ? thatNight.filter((e) => !adultsOnlyEvent(e)) : thatNight,
+      );
+      if (venues.length <= 1 && venuesOf(thatNight).length > 1) {
+        return {
+          kind: 'clarify',
+          question: "which one did you mean? name it and i'll check",
+          problems: ['ambiguous_venue'],
+        };
+      }
       if (venues.length > 1) {
         const list = `${venues.slice(0, -1).join(', ')} or ${venues[venues.length - 1]!}`;
         return {

@@ -42,15 +42,6 @@ export const LINE_PENDING: Readonly<Record<string, LinePending>> = Object.fromEn
     'msg_bcn_0036',
     'msg_bcn_0037',
   ]),
-  ...gap('T-143', 'a sold-out slot or an unnamed venue gets no alternatives or question', [
-    'msg_bcn_0052',
-    'msg_bcn_0056',
-    'msg_bcn_0163',
-  ]),
-  // The combined roster sentence itself is handled (T-082, roster/combined.ts),
-  // but this line is addressed only by the 2-minute reply window after Trav's
-  // question on msg_bcn_0163, which offline asks none until T-143.
-  ...gap('T-143', 'reply to msg_bcn_0163: no Trav question, so no reply window', ['msg_bcn_0164']),
   ...gap('T-084', 'no FX for chat expenses', ['msg_bcn_0063']),
   ...gap('T-083', 'receipt photo waits for the payer 👍 (SAFETY D5) the fixture lacks', [
     'msg_bcn_0093',

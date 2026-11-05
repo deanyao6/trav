@@ -575,6 +575,109 @@ describe('booking tools stop at a proposal', () => {
     expect(h.pending()).toEqual([]);
     expect(h.tickets.purchaseCount()).toBe(0);
   });
+
+  it('T-143: search_events says which night each event is and when, plus tonight and the searched nights', async () => {
+    const h = harness();
+    h.clock.set('2026-03-10T12:05:00-04:00');
+    const res = (await h.runtime.tools.run(
+      'search_events',
+      { query: 'sagrada familia', quantity: 6 },
+      ctx(h),
+    )) as { events: EventResult[]; calendar: unknown };
+    expect(res.calendar).toEqual({ tonight: '2026-03-10', tripStart: '2026-03-12', tripEnd: '2026-03-17' });
+    expect(res.events.map((e) => [e.night, e.when])).toEqual([
+      ['2026-03-13', 'friday mar 13 10am'],
+    ]);
+    // A 12am club start belongs to the night before; within 48 hours it's said relative.
+    h.clock.set('2026-03-14T21:40:00+01:00');
+    const razz = (await h.runtime.tools.run('search_events', { query: 'razzmatazz' }, ctx(h))) as {
+      events: EventResult[];
+    };
+    const sat = razz.events.find((e) => e.eventId === 'evt_rzm_20260314')!;
+    expect([sat.night, sat.when]).toEqual(['2026-03-14', 'tonight 12am']);
+  });
+});
+
+describe('propose_booking with no venue named (T-143)', () => {
+  const minor = (h: Harness): void => {
+    const sam = h.runtime.stores.group.members
+      .listByGroup(G)
+      .find((m) => m.memberId === 'mem_sam')!;
+    h.runtime.stores.group.members.upsert({ ...sam, birthDate: '2010-05-01', ageBand: 'under18' });
+  };
+  const clarify = (res: ProposeResult): string => {
+    if (res.kind !== 'clarify') throw new Error(`expected clarify, got ${res.kind}`);
+    return res.question;
+  };
+
+  it('nothing like it on sale: one question, which club and who is in; nothing held', async () => {
+    const h = harness();
+    h.clock.set('2026-03-16T17:00:00+01:00');
+    const res = (await h.runtime.tools.run(
+      'propose_booking',
+      { kind: 'ticket', query: 'club tickets', day: 'tonight' },
+      ctx(h),
+    )) as ProposeResult;
+    const q = clarify(res);
+    expect(q).toBe(
+      "i can't see a club i can book tonight\nwhich club did you mean, and is it Dean, Henry, Maya, Jordan, Priya, Sam?",
+    );
+    expect(res.kind === 'clarify' && res.problems).toEqual(['unnamed_venue']);
+    expect(h.tickets.holdCount()).toBe(0);
+    expect(h.pending()).toEqual([]);
+  });
+
+  it('a family group: no nightlife word, no headcount for it', async () => {
+    const h = harness();
+    minor(h);
+    h.clock.set('2026-03-16T17:00:00+01:00');
+    const res = (await h.runtime.tools.run(
+      'propose_booking',
+      { kind: 'ticket', query: 'club tickets', day: 'tonight' },
+      ctx(h),
+    )) as ProposeResult;
+    expect(clarify(res)).toBe("i can't see one i can book tonight\nwhich one did you mean?");
+    // A match isn't nightlife: the noun stays.
+    const match = (await h.runtime.tools.run(
+      'propose_booking',
+      { kind: 'ticket', query: 'match tickets', day: 'tonight' },
+      ctx(h),
+    )) as ProposeResult;
+    expect(clarify(match)).toBe(
+      "i can't see a match i can book tonight\nwhich match did you mean?",
+    );
+    expect(h.tickets.holdCount()).toBe(0);
+  });
+
+  it('two clubs that night: the which-one names both; a family group never sees adults-only venues named', async () => {
+    const adults = harness();
+    const both = (await adults.runtime.tools.run(
+      'propose_booking',
+      { kind: 'ticket', query: 'club tickets', day: 'saturday', quantity: 6 },
+      ctx(adults),
+    )) as ProposeResult;
+    expect(clarify(both)).toBe('which one, Razzmatazz or Sala Apolo? both have tickets tonight');
+    const family = harness();
+    minor(family);
+    const res = (await family.runtime.tools.run(
+      'propose_booking',
+      { kind: 'ticket', query: 'club tickets', day: 'saturday', quantity: 6 },
+      ctx(family),
+    )) as ProposeResult;
+    expect(clarify(res)).toBe("which one did you mean? name it and i'll check");
+    expect(adults.tickets.holdCount() + family.tickets.holdCount()).toBe(0);
+  });
+
+  it('a named venue never gets the which question, even with nothing on', async () => {
+    const h = harness();
+    h.clock.set('2026-03-16T17:00:00+01:00');
+    const res = (await h.runtime.tools.run(
+      'propose_booking',
+      { kind: 'ticket', query: 'razzmatazz tickets', day: 'tonight' },
+      ctx(h),
+    )) as ProposeResult;
+    expect(res.kind).toBe('unavailable');
+  });
 });
 
 describe('get_my_pending_items (DM only)', () => {

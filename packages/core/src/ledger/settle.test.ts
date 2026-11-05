@@ -136,12 +136,64 @@ describe('settleAfterPayments (T-141 r2: a stable plan)', () => {
     expect([...applyTransfers(owing, open).values()].every((v) => v === 0)).toBe(true);
   });
 
-  it('an over-payment comes back as a transfer to the payer', () => {
+  it('an over-payment comes back to the payer (from whoever still owes, not as a payee refund)', () => {
     const { owing, open } = settleAfterPayments(VOICE_FINAL, [
       { from: MAYA, to: DEAN, amount: eur(4000) },
     ]);
-    expect(open).toContainEqual({ from: DEAN, to: MAYA, amount: eur(840) });
+    const toMaya = open.filter((t) => t.to === MAYA).reduce((a, t) => a + t.amount.amountMinor, 0);
+    expect(toMaya).toBe(840);
+    expect(open.some((t) => t.from === MAYA)).toBe(false);
     expect([...applyTransfers(owing, open).values()].every((v) => v === 0)).toBe(true);
+  });
+
+  // T-141 r2 review #1: a payment from a card older than the latest expense,
+  // to a creditor the new plan no longer routes to, never makes the payee refund it.
+  it('an old-card payment to a different creditor is folded in: no row asks the payee to pay it back', () => {
+    // Nets: Maya owes 1017 overall once her 2070 to Dean counts; Sam is now the creditor.
+    const nets = [
+      { memberId: DEAN, net: eur(2070) },
+      { memberId: MAYA, net: eur(-3087) },
+      { memberId: SAM, net: eur(1017) },
+    ];
+    const { owing, open } = settleAfterPayments(nets, [
+      { from: MAYA, to: DEAN, amount: eur(2070) },
+    ]);
+    expect(open).toEqual([{ from: MAYA, to: SAM, amount: eur(1017) }]);
+    expect([...applyTransfers(owing, open).values()].every((v) => v === 0)).toBe(true);
+  });
+
+  // r2 review #1 fuzz: with old-card payments folded in, paying rows straight
+  // off `open` never reroutes anyone else's row.
+  it('fuzz: after unmatched payments, paying open rows one by one leaves the other rows as they were', () => {
+    const ids = [DEAN, MAYA, SAM, 'mem_jordan', 'mem_priya'];
+    let seed = 7;
+    const rnd = (n: number): number => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed % n;
+    };
+    for (let run = 0; run < 400; run += 1) {
+      const raw = ids.map(() => rnd(3000) - 1500);
+      const sum = raw.reduce((a, b) => a + b, 0);
+      raw[0] = raw[0]! - sum;
+      const nets = ids.map((memberId, i) => ({ memberId, net: eur(raw[i]!) }));
+      const payments: { from: string; to: string; amount: ReturnType<typeof eur> }[] = [];
+      for (let k = 0; k < 1 + rnd(3); k += 1) {
+        const a = ids[rnd(ids.length)]!;
+        const b = ids[rnd(ids.length)]!;
+        if (a !== b) payments.push({ from: a, to: b, amount: eur(1 + rnd(900)) });
+      }
+      let { open } = settleAfterPayments(nets, payments);
+      while (open.length > 0) {
+        const [paid, ...rest] = open;
+        payments.push(paid!);
+        const next = settleAfterPayments(nets, payments);
+        expect(next.open.map(key).sort()).toEqual(rest.map(key).sort());
+        expect([...applyTransfers(next.owing, next.open).values()].every((v) => v === 0)).toBe(
+          true,
+        );
+        open = next.open;
+      }
+    }
   });
 });
 

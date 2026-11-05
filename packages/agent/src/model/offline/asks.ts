@@ -22,8 +22,9 @@
  * tool result from anything else is never theirs to answer. Each returns
  * `undefined` to pass.
  */
-import { formatMoney, money } from '@trav/core';
+import { daysBetween, formatMoney, money } from '@trav/core';
 import type { CurrencyCode } from '@trav/core';
+import { bestMatchesBy, closestSlotText, onNight } from '../../booking/proposals.js';
 import { loadAllTicketInventories } from '@trav/adapters';
 import type {
   CompletionRequest,
@@ -37,9 +38,11 @@ import {
   foldText,
   parseBookingRequest,
   parseVenueQuestion,
+  resolveNight,
   splitSender,
   TIER_NOISE,
   venueIndexFrom,
+  type BookingRequest,
   type VenueIndex,
 } from '../../booking/request.js';
 import {
@@ -232,28 +235,165 @@ export function bundledVenueIndex(): VenueIndex {
 export function createBookingRequestResponder(
   index: () => VenueIndex = bundledVenueIndex,
 ): FallbackResponder {
+  const lookPrefix = 'toolu_offline_booklook_';
+  const proposeInput = (r: BookingRequest): Record<string, unknown> => ({
+    kind: r.kind,
+    query: r.query,
+    ...(r.quantity !== undefined ? { quantity: r.quantity } : {}),
+    ...(r.excludedNames.length > 0 ? { excludedNames: r.excludedNames } : {}),
+    ...(r.attendeeNames !== undefined ? { attendeeNames: r.attendeeNames } : {}),
+    ...(r.day !== undefined ? { day: r.day } : {}),
+    ...(r.tier !== undefined ? { tier: r.tier } : {}),
+    // No `requestText`: the member's words can carry a reason ("Henry's
+    // sick") and the tool input must not (SAFETY privacy, T-081).
+  });
+  const propose = (req: CompletionRequest, r: BookingRequest, step: number): CompletionResponse =>
+    response(req, '', [call(req, 'toolu_offline_book_', step, 'propose_booking', proposeInput(r))]);
   return {
     id: 'booking_request_v1',
     complete(req) {
       if (!offered(req, 'propose_booking')) return undefined;
       const ask = freshAsk(req);
-      if (ask === undefined) return undefined;
-      const r = parseBookingRequest(ask.text, index(), ask.sender);
+      if (ask !== undefined) {
+        const r = parseBookingRequest(ask.text, index(), ask.sender);
+        if (r === undefined) return undefined;
+        // A weekday or a date (T-143): look before proposing, so a night with
+        // nothing on gets the closest slot from a read-only search, never a hold.
+        const quantity = partySize(req, r);
+        if (
+          r.day !== undefined &&
+          !NEAR_DAYS.has(r.day) &&
+          quantity !== undefined &&
+          offered(req, 'search_events')
+        ) {
+          return response(req, '', [
+            call(req, lookPrefix, 1, 'search_events', { query: r.query, quantity }),
+          ]);
+        }
+        return propose(req, r, 1);
+      }
+      const round = myLatestRound(req, lookPrefix);
+      if (round?.name !== 'search_events') return undefined;
+      const asked = theAsk(req);
+      const r =
+        asked === undefined ? undefined : parseBookingRequest(asked.text, index(), asked.sender);
       if (r === undefined) return undefined;
-      const input = {
-        kind: r.kind,
-        query: r.query,
-        ...(r.quantity !== undefined ? { quantity: r.quantity } : {}),
-        ...(r.excludedNames.length > 0 ? { excludedNames: r.excludedNames } : {}),
-        ...(r.attendeeNames !== undefined ? { attendeeNames: r.attendeeNames } : {}),
-        ...(r.day !== undefined ? { day: r.day } : {}),
-        ...(r.tier !== undefined ? { tier: r.tier } : {}),
-        // No `requestText`: the member's words can carry a reason ("Henry's
-        // sick") and the tool input must not (SAFETY privacy, T-081).
-      };
-      return response(req, '', [call(req, 'toolu_offline_book_', 1, 'propose_booking', input)]);
+      const text = closestSlotFromSearch(r, round.result);
+      return text === undefined ? propose(req, r, 2) : response(req, text, []);
     },
   };
+}
+
+/** Nights the proposal service reads against now itself (no look-first round). */
+const NEAR_DAYS: ReadonlySet<string> = new Set(['tonight', 'today', 'tomorrow']);
+
+/**
+ * How many tickets the ask is for: the stated headcount or named people,
+ * else everyone active on the prompt's member list less who's out (the
+ * proposal service's own default). Undefined when the list can't be read.
+ */
+function partySize(req: CompletionRequest, r: BookingRequest): number | undefined {
+  if (r.quantity !== undefined) return r.quantity;
+  if (r.attendeeNames !== undefined) return r.attendeeNames.length;
+  const lines = req.system.split('\n');
+  const start = lines.findIndex((l) => /^members \(\d+\):$/.test(l.trim()));
+  if (start < 0) return undefined;
+  let n = 0;
+  for (const l of lines.slice(start + 1)) {
+    if (!l.startsWith('- ')) break;
+    const tags = l.split(' · ').slice(1);
+    if (tags.includes('guest') || tags.includes('left the group')) continue;
+    n++;
+  }
+  return n === 0 ? undefined : Math.max(1, n - r.excludedNames.length);
+}
+
+/**
+ * VOICE §4.10 B from a `search_events` result (T-143): the asked night has
+ * nothing that matches the ask, so the closest night Trav could book for the
+ * party, with its price (refundable first, like `rankOffers`). Undefined ⇒
+ * hand the ask to `propose_booking`: something matches that night (it
+ * proposes, or says sold out / site-only / which one), the night can't be
+ * read, or nothing bookable is on at all. A family group's alternative is
+ * never an adults-only event (VOICE §8).
+ */
+function closestSlotFromSearch(r: BookingRequest, result: unknown): string | undefined {
+  if (!isRecord(result) || !Array.isArray(result['events']) || r.day === undefined)
+    return undefined;
+  const cal = result['calendar'];
+  if (
+    !isRecord(cal) ||
+    typeof cal['tonight'] !== 'string' ||
+    typeof cal['tripStart'] !== 'string' ||
+    typeof cal['tripEnd'] !== 'string'
+  ) {
+    return undefined;
+  }
+  const tonight = cal['tonight'];
+  // The same night `propose_booking` would resolve (booking/proposals.ts).
+  const night = resolveNight(r.day, tonight, {
+    startDate: cal['tripStart'],
+    endDate: cal['tripEnd'],
+  });
+  if (night === undefined) return undefined;
+  const family = result['familyMode'] === true;
+  const events = bestMatchesBy(
+    (result['events'] as unknown[])
+      .filter(isRecord)
+      .filter(
+        (e) =>
+          typeof e['name'] === 'string' &&
+          typeof e['night'] === 'string' &&
+          typeof e['when'] === 'string',
+      ),
+    r.query,
+    (e) => `${String(e['name'])} ${typeof e['venue'] === 'string' ? e['venue'] : ''}`,
+  );
+  if (events.some((e) => e['night'] === night)) return undefined;
+  const alt = events
+    .filter((e) => e['bookable'] === true && !(family && e['adultsOnly'] === true))
+    .map((e) => ({ e, tier: pickTier(e) }))
+    .filter((x): x is { e: Record<string, unknown>; tier: SlotTier } => x.tier !== undefined)
+    .sort(
+      (a, b) =>
+        Math.abs(daysBetween(night, String(a.e['night']))) -
+          Math.abs(daysBetween(night, String(b.e['night']))) ||
+        Date.parse(String(a.e['startsAt'])) - Date.parse(String(b.e['startsAt'])),
+    )[0];
+  if (alt === undefined) return undefined;
+  return closestSlotText({
+    what: shortName(String(alt.e['name'])),
+    on: onNight(night, tonight),
+    when: String(alt.e['when']),
+    each: money(alt.tier.amountMinor, alt.tier.currency as CurrencyCode),
+    refundable: alt.tier.refundable,
+  });
+}
+
+interface SlotTier {
+  readonly amountMinor: number;
+  readonly currency: string;
+  readonly refundable: boolean;
+}
+
+/** The tier a re-ask would get (`rankOffers`: refundable first, then cheapest); tiers come cheapest first. */
+function pickTier(e: Record<string, unknown>): SlotTier | undefined {
+  const tiers = (Array.isArray(e['tiers']) ? (e['tiers'] as unknown[]) : [])
+    .filter(isRecord)
+    .flatMap((t): SlotTier[] =>
+      typeof t['amountMinor'] === 'number' &&
+      t['amountMinor'] > 0 &&
+      typeof t['currency'] === 'string'
+        ? [
+            {
+              amountMinor: t['amountMinor'],
+              currency: t['currency'],
+              refundable: t['refundable'] === true,
+            },
+          ]
+        : [],
+    );
+  return tiers.find((t) => t.refundable) ?? tiers[0];
 }
 
 // ---------- "how much is the snorkel tour" (T-148 #8) ----------

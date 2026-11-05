@@ -179,23 +179,18 @@ describe('👍 on the final settle card (T-141)', () => {
     expect(payments(h)).toHaveLength(1);
   });
 
-  it('a card behind a payment they made since records nothing; the current card goes out once', async () => {
+  it('the same row already paid on a newer card: already paid, never "the tab changed" (r2 review #3)', async () => {
     const h = harness();
     const { id: oldId } = await finalCard(h);
     // A newer card, and Maya ticks herself off on it.
     const { msg: newer } = settleCard(await h.say('h_jordan', '@trav settle now'));
     expect((await h.react('h_maya', newer.id, '👍')).note).toBe('settle:marked_paid');
-    await h.say('h_dean', '@trav I paid €30 for snacks, split with everyone');
-    const turn = await h.react('h_maya', oldId, '👍');
-    expect(turn.note).toBe('settle:stale');
-    const { msg } = settleCard(turn);
-    expect(msg.text.split('\n')[0]).toBe("tab changed since that card, here's where it stands now");
-    expect(payments(h)).toHaveLength(1);
-    // Every later 👍 on that old card is silent (no repost per tap).
     expect(await h.react('h_maya', oldId, '👍')).toMatchObject({
       silent: true,
-      note: 'settle:stale_repeat',
+      note: 'settle:already_paid',
     });
+    await h.say('h_dean', '@trav I paid €30 for snacks, split with everyone');
+    expect((await h.react('h_maya', oldId, '👍')).note).toBe('settle:already_paid');
     expect(payments(h)).toHaveLength(1);
   });
 
@@ -243,6 +238,22 @@ describe('[Paid] on a transfer row (T-141, the T-037 button)', () => {
     expect(turn.note).toBe('settle:marked_paid');
     expect(payments(h)).toMatchObject([{ from: 'mem_maya', to: 'mem_dean', via: 'button' }]);
     expect(settleCard(turn).card.transfers.find((t) => t.from === 'mem_maya')?.paid).toBe(true);
+  });
+
+  // T-141 r2 review #2: a payment on one row since the card never blocks another row of theirs.
+  it('a payer with two rows: one ticked, a later expense, then the other row on the old card still counts', async () => {
+    const h = harness();
+    const { id, card } = await finalCard(h);
+    const henryRows = card.transfers.filter((t) => t.from === 'mem_henry');
+    expect(henryRows.length).toBeGreaterThanOrEqual(2);
+    const [first, second] = henryRows;
+    expect((await h.tap('h_henry', id, 'paid', `mem_henry:${first!.to}`)).note).toBe(
+      'settle:marked_paid',
+    );
+    await h.say('h_sam', '@trav I paid €61 for tapas, split with everyone');
+    const turn = await h.tap('h_henry', id, 'paid', `mem_henry:${second!.to}`);
+    expect(turn.note).toBe('settle:marked_paid');
+    expect(payments(h).filter((p) => p.from === 'mem_henry')).toHaveLength(2);
   });
 });
 

@@ -152,42 +152,61 @@ export function settleAfterPayments(
   const owing = applyPayments(balances, payments);
   const plan = settle(balances, options);
   if (payments.length === 0) return { owing, open: plan };
-  const remaining = [...plan];
-  const unmatched: Transfer[] = [];
-  for (const p of payments) {
-    const i = remaining.findIndex(
-      (t) => t.from === p.from && t.to === p.to && t.amount.amountMinor === p.amount.amountMinor,
-    );
-    if (i >= 0) remaining.splice(i, 1);
-    else unmatched.push(p);
-  }
-  if (unmatched.length === 0) return { owing, open: remaining };
-
-  const currency = balances[0]?.net.currency ?? '';
-  const zero = balances.map((b) => ({ memberId: b.memberId, net: money(0, currency) }));
-  const correction = settle(applyPayments(zero, unmatched), options);
+  // First, per pair: each payment comes off its own (from → to) row of the
+  // plan. Paying a row exactly clears it and touches nothing else, and a part
+  // payment leaves the rest on that row. Used whenever no pair goes negative.
   const index = new Map(balances.map((b, i) => [b.memberId, i] as const));
   const idx = (id: MemberId): number => index.get(id) ?? Number.MAX_SAFE_INTEGER;
-  // Signed amount per unordered pair: + means lower-index member pays the higher one.
-  const pairs = new Map<string, { a: MemberId; b: MemberId; minor: number }>();
-  for (const t of [...remaining, ...correction]) {
-    const [a, b, sign] = idx(t.from) < idx(t.to) ? [t.from, t.to, 1] : [t.to, t.from, -1];
-    const key = `${a}|${b}`;
-    const row = pairs.get(key) ?? { a, b, minor: 0 };
-    row.minor += sign * t.amount.amountMinor;
-    pairs.set(key, row);
+  const pair = new Map<string, { from: MemberId; to: MemberId; minor: number }>();
+  for (const t of plan) pair.set(`${t.from}|${t.to}`, { ...t, minor: t.amount.amountMinor });
+  let negative = false;
+  for (const p of payments) {
+    const row = pair.get(`${p.from}|${p.to}`);
+    if (row === undefined || row.minor < p.amount.amountMinor) {
+      negative = true;
+      break;
+    }
+    row.minor -= p.amount.amountMinor;
   }
-  const open: Transfer[] = [];
-  for (const { a, b, minor } of pairs.values()) {
-    if (minor === 0) continue;
-    open.push(
-      minor > 0
-        ? { from: a, to: b, amount: money(minor, currency) }
-        : { from: b, to: a, amount: money(-minor, currency) },
-    );
+  if (!negative) {
+    const currency = balances[0]?.net.currency ?? '';
+    const open = [...pair.values()]
+      .filter((r) => r.minor > 0)
+      .map((r) => ({ from: r.from, to: r.to, amount: money(r.minor, currency) }))
+      .sort((x, y) => idx(x.from) - idx(y.from) || idx(x.to) - idx(y.to));
+    return { owing, open };
   }
-  open.sort((x, y) => idx(x.from) - idx(y.from) || idx(x.to) - idx(y.to));
-  return { owing, open };
+  // T-141 r2 review: replay the payments in the order they were marked. A
+  // payment that is a row of the open plan at that moment (what its card
+  // showed, when the tab hasn't moved since) just drops that row, so nobody
+  // else is rerouted. Any other payment (from a card older than the latest
+  // expense) is folded into the base balances, which are settled afresh: the
+  // new plan then routes around it, never asking a payee to refund money he
+  // rightly got.
+  const same = (a: Transfer, b: Transfer): boolean =>
+    a.from === b.from && a.to === b.to && a.amount.amountMinor === b.amount.amountMinor;
+  let folded: Transfer[] = [];
+  let matched: Transfer[] = [];
+  const openFor = (): Transfer[] => {
+    for (;;) {
+      const remaining = settle(applyPayments(balances, folded), options);
+      const stray: Transfer[] = [];
+      for (const m of matched) {
+        const i = remaining.findIndex((t) => same(t, m));
+        if (i >= 0) remaining.splice(i, 1);
+        else stray.push(m);
+      }
+      if (stray.length === 0) return remaining;
+      // A matched row the current plan no longer has: it moves money all the same.
+      folded = [...folded, ...stray];
+      matched = matched.filter((m) => !stray.includes(m));
+    }
+  };
+  for (const p of payments) {
+    if (openFor().some((t) => same(t, p))) matched = [...matched, p];
+    else folded = [...folded, p];
+  }
+  return { owing, open: openFor() };
 }
 
 /**

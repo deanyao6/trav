@@ -667,6 +667,47 @@ describe('combined sentences through the loop (offline, no model)', () => {
     );
   });
 
+  it('T-143: msg_bcn_0163 asks which club and who is in (one question, no hold), so msg_bcn_0164 lands in the reply window', async () => {
+    const h = monday();
+    mark(h.runtime.stores, CLUB_D5.activityId, 'mem_henry', 'out');
+    const ask = await h.say('h_sam', '@trav get us club tickets tonight');
+    expect(ask.note).toBe('tool:propose_booking:clarify');
+    const q = messages(ask);
+    expect(q).toHaveLength(1);
+    expect(q[0]!.text.split('\n')).toEqual([
+      "i can't see a club i can book tonight",
+      'which club did you mean, and is it Dean, Henry, Maya, Jordan, Priya, Sam?',
+    ]);
+    expect(q[0]!.text.match(/\?/g)).toHaveLength(1);
+    expect(lint(q[0]!.text)).toEqual([]);
+    expect(h.tickets.holdCount()).toBe(0);
+    expect(h.pending()).toEqual([]);
+    h.clock.advanceMs(2 * 60_000);
+    const r = await h.say('h_sam', "all 6, henry's back. razzmatazz");
+    expect(r.note).toBe('roster:party');
+    expect(r.toolCalls).toEqual(['search_events']);
+    expect(messages(r)[0]!.text).toContain('monday');
+    expect(statuses(h.runtime.stores, CLUB_D5.activityId)).toEqual(
+      Object.fromEntries(ORDER.map((id) => [id, 'in'])),
+    );
+    expect(h.pending()).toEqual([]);
+    expect(h.tickets.purchaseCount()).toBe(0);
+  });
+
+  it('T-143: in a family group the unnamed club ask lists no adults-only venue and holds nothing', async () => {
+    const h = monday();
+    const stores = h.runtime.stores;
+    const sam = stores.group.members.listByGroup(G).find((m) => m.memberId === 'mem_sam')!;
+    stores.group.members.upsert({ ...sam, birthDate: '2010-05-01', ageBand: 'under18' });
+    const ask = await h.say('h_dean', '@trav get us club tickets tonight');
+    const text = messages(ask)
+      .map((m) => m.text)
+      .join('\n');
+    expect(text).not.toMatch(/razzmatazz|apolo/i);
+    expect(h.tickets.holdCount()).toBe(0);
+    expect(h.pending()).toEqual([]);
+  });
+
   it('T-153: "5 of us tonight, henry and sam are in" with Sam under 18: Sam is not written, the line reaches the chat', async () => {
     // Saturday: Razzmatazz (18+, alcohol) is the plan, everyone seeded in.
     const h = harness();

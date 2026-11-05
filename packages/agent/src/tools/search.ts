@@ -7,7 +7,7 @@ import type { IsoDate, MemberId } from '@trav/core';
 import { formatMoney, localDate, safety, TravError } from '@trav/core';
 import type { FlightsAdapter, LodgingAdapter, TicketsAdapter, EventCategory } from '@trav/adapters';
 import { sanitizeInline } from '../context/groupContext.js';
-import { refundableNow } from '../booking/proposals.js';
+import { adultsOnlyEvent, nightOf, refundableNow, slotWhen } from '../booking/proposals.js';
 import { seatPlainWords } from '../booking/seats.js';
 import type { ToolDefinition } from './registry.js';
 import {
@@ -68,6 +68,10 @@ export interface EventResult {
   readonly name: string;
   readonly venue: string;
   readonly startsAt: string;
+  /** The local night it belongs to (YYYY-MM-DD; a 2am start is the night before), T-143. */
+  readonly night: IsoDate;
+  /** When it starts, as Trav says it (VOICE §3.9): "tonight 12am", "friday mar 13 10am". */
+  readonly when: string;
   readonly category: string;
   readonly minimumAge: number | null;
   /** 18+ or restricted content (nightlife, bar, gambling…): never named in a family group (T-148 r1 #3). */
@@ -95,6 +99,16 @@ export function createSearchEventsTool(tickets: TicketsAdapter): ToolDefinition<
     readonly note?: string;
     /** A minor is on the trip (or it's forced): adults-only events go unnamed (VOICE §8). */
     readonly familyMode?: boolean;
+    /**
+     * The local night now (a 2am search is still last night) and the trip's
+     * first and last day (YYYY-MM-DD), so "saturday" can be read against the
+     * results the way `propose_booking` reads it (T-143).
+     */
+    readonly calendar?: {
+      readonly tonight: IsoDate;
+      readonly tripStart: IsoDate;
+      readonly tripEnd: IsoDate;
+    };
   }
 > {
   return {
@@ -130,10 +144,17 @@ export function createSearchEventsTool(tickets: TicketsAdapter): ToolDefinition<
     async handler(input, ctx) {
       const trip = requireTrip(ctx);
       const today = localDate(ctx.now, trip.timeZone);
+      const dateFrom = input.date ?? (today < trip.startDate ? trip.startDate : today);
+      const dateTo = input.date ?? trip.endDate;
+      const calendar = {
+        tonight: nightOf(ctx.now, trip.timeZone),
+        tripStart: trip.startDate,
+        tripEnd: trip.endDate,
+      };
       const res = await tickets.searchEvents({
         city: trip.city,
-        dateFrom: input.date ?? (today < trip.startDate ? trip.startDate : today),
-        dateTo: input.date ?? trip.endDate,
+        dateFrom,
+        dateTo,
         ...(input.query !== undefined ? { query: input.query } : {}),
         ...(input.quantity !== undefined ? { quantity: input.quantity } : {}),
         ...(input.category !== undefined ? { categories: [input.category] } : {}),
@@ -181,9 +202,11 @@ export function createSearchEventsTool(tickets: TicketsAdapter): ToolDefinition<
           name: sanitizeInline(ev.name, 80),
           venue: sanitizeInline(ev.venue.name, 80),
           startsAt: ev.startsAt,
+          night: nightOf(ev.startsAt, trip.timeZone),
+          when: slotWhen(ev.startsAt, trip.timeZone, ctx.now),
           category: ev.category,
           minimumAge: ev.minimumAge ?? null,
-          adultsOnly: (ev.minimumAge ?? 0) >= 18 || safety.isRestrictedContent(ev.contentFlags),
+          adultsOnly: adultsOnlyEvent(ev),
           from,
           refundableOption: api.some((o) => refundableNow(o, ctx.now)),
           fromTier: cheapest === undefined ? null : sanitizeInline(cheapest.tierName, 40),
@@ -200,7 +223,7 @@ export function createSearchEventsTool(tickets: TicketsAdapter): ToolDefinition<
       const familyMode =
         group !== undefined &&
         safety.isFamilyMode(group, ctx.stores.group.members.listByGroup(ctx.groupId), ctx.now);
-      return familyMode ? { events, familyMode } : { events };
+      return familyMode ? { events, familyMode, calendar } : { events, calendar };
     },
   };
 }

@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 import type { BookingProposal, Member, MemberId } from '@trav/core';
 import { approval, defaultSpendingPolicy, money } from '@trav/core';
 import type { TicketEvent } from '@trav/adapters';
-import { renderProposalText } from './proposals.js';
+import {
+  bestMatchesBy,
+  categoryOnly,
+  closestSlotText,
+  onNight,
+  renderProposalText,
+  slotWhen,
+} from './proposals.js';
 
 const NOW = '2026-03-14T21:40:00+01:00';
 const FIVE: readonly MemberId[] = ['mem_dean', 'mem_sam', 'mem_ava', 'mem_maya', 'mem_leo'];
@@ -119,5 +126,49 @@ describe('renderProposalText: who approves (T-104 round 2, VOICE §4.1)', () => 
     expect(lines.at(-1)).toBe(
       '👍 from Dean to book, or anyone can say "not me" first. price held for 15 min',
     );
+  });
+});
+
+describe('T-143 helpers: unnamed asks and the closest slot', () => {
+  it('categoryOnly: a kind of thing with no venue word', () => {
+    expect(categoryOnly('club tickets')).toBe('club');
+    expect(categoryOnly('techno tickets')).toBe('club');
+    expect(categoryOnly('football tickets')).toBe('match');
+    expect(categoryOnly('night tickets')).toBe('one');
+    expect(categoryOnly('razzmatazz tickets')).toBeUndefined();
+    expect(categoryOnly('park guell tickets')).toBeUndefined();
+    expect(categoryOnly('tickets')).toBeUndefined();
+    expect(categoryOnly(undefined)).toBeUndefined();
+  });
+
+  it('slotWhen: relative within 48 hours, else the date with the weekday spelled out', () => {
+    const tz = 'Europe/Madrid';
+    const now = '2026-03-10T17:05:00+01:00';
+    expect(slotWhen('2026-03-13T10:00:00+01:00', tz, now)).toBe('friday mar 13 10am');
+    expect(slotWhen('2026-03-16T09:30:00+01:00', tz, now)).toBe('monday mar 16 9:30am');
+    expect(slotWhen('2026-03-11T10:00:00+01:00', tz, now)).toBe('tomorrow 10am');
+    expect(slotWhen('2026-03-11T00:00:00+01:00', tz, now)).toBe('tonight 12am');
+  });
+
+  it('closestSlotText: says no charge, the price with refundability, and what to say next', () => {
+    expect(
+      closestSlotText({
+        what: 'park güell',
+        on: onNight('2026-03-13', '2026-03-10'),
+        when: 'monday mar 16 9:30am',
+        each: money(1800, 'EUR'),
+        refundable: false,
+      }),
+    ).toBe(
+      'nothing for park güell on friday that i can book. no charge\nclosest is monday mar 16 9:30am, €18 each · non-refundable. @ me if you want those instead',
+    );
+    expect(onNight('2026-03-10', '2026-03-10')).toBe('tonight');
+    expect(onNight('2026-03-11', '2026-03-10')).toBe('tomorrow');
+  });
+
+  it('bestMatchesBy: distinctive words win; category words never score', () => {
+    const items = ['Park Güell: monumental zone', 'Parc de la Ciutadella park tour'];
+    expect(bestMatchesBy(items, 'park guell tickets', (s) => s)).toEqual([items[0]]);
+    expect(bestMatchesBy(items, 'park tickets', (s) => s)).toEqual(items);
   });
 });

@@ -343,7 +343,10 @@ export function tripLedger(input: TripLedgerInput): TripLedger {
   // guardian) or names someone off the tab moves nothing: skipped, never thrown,
   // so one odd row cannot break every reader (T-141 r2).
   const listed = new Set(order);
-  const paidTransfers = (input.payments ?? [])
+  // Replayed in the order they were marked (`settleAfterPayments`); stored payments carry `markedAt`.
+  const markedAt = (t: Transfer): string => (t as { readonly markedAt?: string }).markedAt ?? '';
+  const paidTransfers = [...(input.payments ?? [])]
+    .sort((a, b) => (markedAt(a) < markedAt(b) ? -1 : markedAt(a) > markedAt(b) ? 1 : 0))
     .map((t) => ({
       from: carrier(t.from, folding),
       to: carrier(t.to, folding),

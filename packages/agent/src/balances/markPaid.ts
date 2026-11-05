@@ -93,10 +93,12 @@ export function markPaid(ctx: ToolContext, input: MarkPaidInput): MarkPaidOutcom
   const live = settleUpFor(ctx, 'final');
   const open = live.kind === 'ok' ? (live.input.transfers ?? []) : [];
 
-  // A payment of theirs recorded since this card went out (from a newer card):
-  // the card is behind them, so a row that no longer matches is not paid again.
+  // A payment for this same row (from → to) recorded since this card went out
+  // (from a newer card): the card is behind them for that row only, so it is
+  // not paid again. Other rows of theirs still count (T-141 r2 review #2).
   const sentMs = parseIso(input.cardSentAt);
-  const paidSince = recorded.some((p) => p.from === me.memberId && parseIso(p.markedAt) >= sentMs);
+  const since = (t: Transfer) =>
+    recorded.filter((p) => p.from === t.from && p.to === t.to && parseIso(p.markedAt) >= sentMs);
   const toMark: Transfer[] = [];
   let refused = 0;
   let tabMoved = false;
@@ -112,7 +114,11 @@ export function markPaid(ctx: ToolContext, input: MarkPaidInput): MarkPaidOutcom
     // The tab moved since this card (a later expense): they paid what the card
     // said, so that is what gets recorded; the balances net it against what is
     // owed now. Unless they have paid since the card went out.
-    if (paidSince) {
+    const paidSince = since(t);
+    // The same transfer already on record (a 👍 on a newer card with nothing
+    // changed): already paid, never "the tab changed" (r2 review #3).
+    if (paidSince.some((p) => p.amount.amountMinor === t.amount.amountMinor)) continue;
+    if (paidSince.length > 0) {
       refused += 1;
       continue;
     }
