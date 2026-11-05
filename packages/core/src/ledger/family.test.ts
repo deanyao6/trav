@@ -891,6 +891,31 @@ describe('tripLedger: payments marked paid (T-141)', () => {
     expect(mentions(viaMinor, LILY)).toBe(false);
   });
 
+  it('a payment folding into a guardian → guardian self-transfer, or naming no one on the tab, is skipped', () => {
+    const expenses = twoExpenses();
+    const base = tripLedger({
+      trip: splitTrip,
+      members: FAMILY,
+      expenses,
+      ctx: FAMILY_CTX,
+      now: NOW,
+    });
+    const got = tripLedger({
+      trip: splitTrip,
+      members: FAMILY,
+      expenses,
+      ctx: FAMILY_CTX,
+      now: NOW,
+      payments: [
+        { from: LILY, to: DAD, amount: usd(500) },
+        { from: 'mem_ghost', to: MOM, amount: usd(500) },
+      ],
+    });
+    expect(got.paid).toEqual([]);
+    expect(got.balances).toEqual(base.balances);
+    expect(got.transfers).toEqual(base.transfers);
+  });
+
   it('a family tab ignores payments; a bad payment throws', () => {
     const expenses = twoExpenses();
     const fam = tripLedger({
@@ -916,7 +941,8 @@ describe('tripLedger: payments marked paid (T-141)', () => {
         });
     expectTravError(bad(usd(0)), 'invalid_argument');
     expectTravError(bad(money(100, 'EUR')), 'currency_mismatch');
-    expectTravError(bad(usd(100), MOM), 'invalid_argument');
+    // A self-payment moves nothing: skipped, not thrown.
+    expect(bad(usd(100), MOM)().paid).toEqual([]);
   });
 });
 

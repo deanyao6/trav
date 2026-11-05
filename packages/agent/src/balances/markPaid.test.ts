@@ -152,17 +152,51 @@ describe('👍 on the final settle card (T-141)', () => {
     expect(payments(h)).toEqual([]);
   });
 
-  it('a card the tab has moved past records nothing and gets the current card', async () => {
+  it('a 👍 on a card the tab has moved past records what that card said, and says the tab changed', async () => {
     const h = harness();
     const { id } = await finalCard(h);
     await h.say('h_dean', '@trav I paid €30 for snacks, split with everyone');
     const turn = await h.react('h_maya', id, '👍');
-    expect(turn.note).toBe('settle:stale');
+    expect(turn.note).toBe('settle:marked_paid');
     expect(messages(turn)).toHaveLength(1);
-    const { card } = settleCard(turn);
+    const { msg, card } = settleCard(turn);
+    const lines = msg.text.split('\n');
+    expect(lines[0]).toBe(
+      "tab changed since that card. ticked off Maya's €20.70, here's what's left",
+    );
+    expect(lines.length).toBeLessThanOrEqual(10);
     expect(card.totalSpent.amountMinor).toBe(8400 + 2340 + 3000);
-    expect(card.transfers.some((t) => t.paid === true)).toBe(false);
-    expect(payments(h)).toEqual([]);
+    // Paid the €20.70 the card showed; the €5 of snacks is what she owes now.
+    expect(payments(h)).toMatchObject([{ from: 'mem_maya', amount: { amountMinor: 2070 } }]);
+    expect(lines).toContain('Maya → Dean €20.70 · paid');
+    expect(card.transfers.filter((t) => t.from === 'mem_maya' && t.paid !== true)).toEqual([
+      { from: 'mem_maya', to: 'mem_dean', amount: { amountMinor: 500, currency: 'EUR' } },
+    ]);
+    expect(netOf(h, 'mem_maya')).toBe(-500);
+    expect(card.balances.reduce((s, b) => s + b.net.amountMinor, 0)).toBe(0);
+    // A second 👍 on that card never pays twice.
+    expect((await h.react('h_maya', id, '👍')).note).toBe('settle:already_paid');
+    expect(payments(h)).toHaveLength(1);
+  });
+
+  it('a card behind a payment they made since records nothing; the current card goes out once', async () => {
+    const h = harness();
+    const { id: oldId } = await finalCard(h);
+    // A newer card, and Maya ticks herself off on it.
+    const { msg: newer } = settleCard(await h.say('h_jordan', '@trav settle now'));
+    expect((await h.react('h_maya', newer.id, '👍')).note).toBe('settle:marked_paid');
+    await h.say('h_dean', '@trav I paid €30 for snacks, split with everyone');
+    const turn = await h.react('h_maya', oldId, '👍');
+    expect(turn.note).toBe('settle:stale');
+    const { msg } = settleCard(turn);
+    expect(msg.text.split('\n')[0]).toBe("tab changed since that card, here's where it stands now");
+    expect(payments(h)).toHaveLength(1);
+    // Every later 👍 on that old card is silent (no repost per tap).
+    expect(await h.react('h_maya', oldId, '👍')).toMatchObject({
+      silent: true,
+      note: 'settle:stale_repeat',
+    });
+    expect(payments(h)).toHaveLength(1);
   });
 
   it('when everyone has paid the card says so and offers no more [Paid]', async () => {
@@ -170,6 +204,9 @@ describe('👍 on the final settle card (T-141)', () => {
     const { id, card } = await finalCard(h);
     const handleOf = (memberId: string): string =>
       BARCELONA.members.find((m) => m.memberId === memberId)!.handle;
+    // Two creditors (Dean and Sam): every debtor ticks off the ORIGINAL card in
+    // turn and each row still matches, because the plan never reroutes (r2 #1).
+    expect(new Set(card.transfers.map((t) => t.to)).size).toBeGreaterThan(1);
     let last: TurnResult | undefined;
     for (const from of [...new Set(card.transfers.map((t) => t.from))]) {
       last = await h.react(handleOf(from), id, '👍');

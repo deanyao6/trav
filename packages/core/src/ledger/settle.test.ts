@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyPayments, incrementalTransfers, settle } from './settle.js';
+import { applyPayments, incrementalTransfers, settle, settleAfterPayments } from './settle.js';
 import {
   DEAN,
   JORDAN,
@@ -84,6 +84,64 @@ describe('settle', () => {
       'currency_mismatch',
     );
     expectTravError(() => settle([balance(DEAN, 100), balance(DEAN, -100)]), 'invalid_argument');
+  });
+});
+
+describe('settleAfterPayments (T-141 r2: a stable plan)', () => {
+  // Two creditors (m1, m5): the review's repro.
+  const NETS = [
+    balance('m0', -290),
+    balance('m1', 873),
+    balance('m2', -442),
+    balance('m3', -568),
+    balance('m4', -753),
+    balance('m5', 1180),
+  ];
+  const key = (t: { from: string; to: string; amount: { amountMinor: number } }) =>
+    `${t.from}>${t.to}:${String(t.amount.amountMinor)}`;
+
+  it("ticking one row never reroutes anyone else's (2 creditors)", () => {
+    const plan = settle(NETS);
+    expect(new Set(plan.map((t) => t.to))).toEqual(new Set(['m1', 'm5']));
+    const before = settleAfterPayments(NETS, []);
+    expect(before.open).toEqual(plan);
+    let paid: typeof plan = [];
+    for (const row of plan) {
+      paid = [...paid, row];
+      const { owing, open } = settleAfterPayments(NETS, paid);
+      // Exactly the plan minus what was paid, same order, nothing rerouted.
+      expect(open.map(key)).toEqual(plan.filter((t) => !paid.includes(t)).map(key));
+      expect([...applyTransfers(owing, open).values()].every((v) => v === 0)).toBe(true);
+    }
+    // The naive re-settle WOULD reroute here (why the plan is taken before payments).
+    const rerouted = plan.filter(
+      (row) =>
+        incrementalTransfers(NETS, [row]).map(key).join() !==
+        settleAfterPayments(NETS, [row]).open.map(key).join(),
+    );
+    expect(rerouted.length).toBeGreaterThan(0);
+  });
+
+  it('a payment matching no row (an older card) is netted into that pair', () => {
+    // Maya owes Dean 3160 now; she paid 2000 off an older card.
+    const { owing, open } = settleAfterPayments(VOICE_FINAL, [
+      { from: MAYA, to: DEAN, amount: eur(2000) },
+    ]);
+    expect(open.find((t) => t.from === MAYA)).toEqual({ from: MAYA, to: DEAN, amount: eur(1160) });
+    expect(open.filter((t) => t.from !== MAYA).map(key)).toEqual(
+      settle(VOICE_FINAL)
+        .filter((t) => t.from !== MAYA)
+        .map(key),
+    );
+    expect([...applyTransfers(owing, open).values()].every((v) => v === 0)).toBe(true);
+  });
+
+  it('an over-payment comes back as a transfer to the payer', () => {
+    const { owing, open } = settleAfterPayments(VOICE_FINAL, [
+      { from: MAYA, to: DEAN, amount: eur(4000) },
+    ]);
+    expect(open).toContainEqual({ from: DEAN, to: MAYA, amount: eur(840) });
+    expect([...applyTransfers(owing, open).values()].every((v) => v === 0)).toBe(true);
   });
 });
 

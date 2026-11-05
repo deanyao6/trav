@@ -134,6 +134,63 @@ export function incrementalTransfers(
 }
 
 /**
+ * Settle-up with payments already marked paid, keeping the plan stable (T-141
+ * r2): the plan is `settle(balances)` over the balances BEFORE any payment, so
+ * while the expenses don't change, ticking one row never reroutes anyone
+ * else's. Plan rows exactly matched by a payment (from, to, amount) drop out.
+ * Payments matching no row (paid from an older card, before the tab moved)
+ * leave a residue: it is settled on its own and netted per member pair into
+ * the remaining rows ("Maya → Dean €25.70" less a €20.70 payment is
+ * "Maya → Dean €5"). `owing` is the balances after every payment, and `open`
+ * clears it exactly (floor 0). Output in member order, debtor then creditor.
+ */
+export function settleAfterPayments(
+  balances: readonly Balance[],
+  payments: readonly Transfer[],
+  options?: { readonly floorMinor?: number },
+): { readonly owing: Balance[]; readonly open: Transfer[] } {
+  const owing = applyPayments(balances, payments);
+  const plan = settle(balances, options);
+  if (payments.length === 0) return { owing, open: plan };
+  const remaining = [...plan];
+  const unmatched: Transfer[] = [];
+  for (const p of payments) {
+    const i = remaining.findIndex(
+      (t) => t.from === p.from && t.to === p.to && t.amount.amountMinor === p.amount.amountMinor,
+    );
+    if (i >= 0) remaining.splice(i, 1);
+    else unmatched.push(p);
+  }
+  if (unmatched.length === 0) return { owing, open: remaining };
+
+  const currency = balances[0]?.net.currency ?? '';
+  const zero = balances.map((b) => ({ memberId: b.memberId, net: money(0, currency) }));
+  const correction = settle(applyPayments(zero, unmatched), options);
+  const index = new Map(balances.map((b, i) => [b.memberId, i] as const));
+  const idx = (id: MemberId): number => index.get(id) ?? Number.MAX_SAFE_INTEGER;
+  // Signed amount per unordered pair: + means lower-index member pays the higher one.
+  const pairs = new Map<string, { a: MemberId; b: MemberId; minor: number }>();
+  for (const t of [...remaining, ...correction]) {
+    const [a, b, sign] = idx(t.from) < idx(t.to) ? [t.from, t.to, 1] : [t.to, t.from, -1];
+    const key = `${a}|${b}`;
+    const row = pairs.get(key) ?? { a, b, minor: 0 };
+    row.minor += sign * t.amount.amountMinor;
+    pairs.set(key, row);
+  }
+  const open: Transfer[] = [];
+  for (const { a, b, minor } of pairs.values()) {
+    if (minor === 0) continue;
+    open.push(
+      minor > 0
+        ? { from: a, to: b, amount: money(minor, currency) }
+        : { from: b, to: a, amount: money(-minor, currency) },
+    );
+  }
+  open.sort((x, y) => idx(x.from) - idx(y.from) || idx(x.to) - idx(y.to));
+  return { owing, open };
+}
+
+/**
  * Balances after transfers already marked paid (T-049, T-141): each paid
  * transfer moves the debtor's balance up and the creditor's down. Same member
  * order as `balances`; still sums to zero. Throws on an unknown member, a

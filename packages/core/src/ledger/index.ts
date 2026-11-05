@@ -21,7 +21,7 @@ export {
   validateExpense,
 } from './splits.js';
 export { computeBalances } from './balances.js';
-export { applyPayments, incrementalTransfers, settle } from './settle.js';
+export { applyPayments, incrementalTransfers, settle, settleAfterPayments } from './settle.js';
 export type { CategoryTotal, MinorFolding, TripLedger, TripLedgerInput } from './family.js';
 export {
   MINOR_WITHOUT_GUARDIAN,

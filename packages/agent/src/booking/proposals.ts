@@ -344,31 +344,116 @@ export function rankOffers(
 
 const QUERY_NOISE = new Set(['tickets', 'ticket', 'tix', 'the', 'for', 'and', 'get', 'with']);
 
-/**
- * Of the events the provider matched, the ones whose name or venue carry the
- * most distinctive query words ("riverside" beats "night"). Category words
- * ("club", "night") don't score. Nothing scores (the provider matched an
- * alias like "barça") ⇒ every event stays.
- */
-export function bestMatches(
-  events: readonly TicketEvent[],
-  query: string | undefined,
-): TicketEvent[] {
-  if (query === undefined) return [...events];
-  const words = [
+/** The words of a query that can name one venue (3+ letters, no noise, no category words). */
+function distinctiveWords(query: string): string[] {
+  return [
     ...new Set(
       foldText(query)
         .split(/[^a-z0-9]+/)
         .filter((w) => w.length >= 3 && !QUERY_NOISE.has(w) && !CATEGORY_WORDS.has(w)),
     ),
   ];
-  if (words.length === 0) return [...events];
-  const score = (e: TicketEvent): number => {
-    const hay = foldText(`${e.name} ${e.venue.name}`);
-    return words.filter((w) => hay.includes(w)).length;
+}
+
+/** What a category word asks "which …" about ("club tickets" ⇒ "club", "football" ⇒ "match"). */
+const CATEGORY_NOUN: Readonly<Record<string, string>> = {
+  club: 'club',
+  clubbing: 'club',
+  techno: 'club',
+  party: 'party',
+  show: 'show',
+  park: 'park',
+  match: 'match',
+  game: 'game',
+  football: 'match',
+  soccer: 'match',
+  futbol: 'match',
+  tour: 'tour',
+  museum: 'museum',
+  concert: 'concert',
+  gig: 'gig',
+  beach: 'beach',
+  boat: 'boat',
+};
+
+/**
+ * A query that names no venue, only a kind of thing ("club tickets", "a
+ * match tonight"): the noun to ask "which …" with ("one" for "night"),
+ * else undefined (T-143).
+ */
+export function categoryOnly(query: string | undefined): string | undefined {
+  if (query === undefined || distinctiveWords(query).length > 0) return undefined;
+  const hit = foldText(query)
+    .split(/[^a-z0-9]+/)
+    .find((w) => CATEGORY_WORDS.has(w));
+  return hit === undefined ? undefined : (CATEGORY_NOUN[hit] ?? 'one');
+}
+
+/**
+ * Of `items`, the ones whose text (`hay`) carries the most distinctive query
+ * words ("riverside" beats "night"). Category words ("club", "night") don't
+ * score. Nothing scores (the provider matched an alias like "barça") ⇒
+ * every item stays.
+ */
+export function bestMatchesBy<T>(
+  items: readonly T[],
+  query: string | undefined,
+  hay: (item: T) => string,
+): T[] {
+  if (query === undefined) return [...items];
+  const words = distinctiveWords(query);
+  if (words.length === 0) return [...items];
+  const score = (e: T): number => {
+    const h = foldText(hay(e));
+    return words.filter((w) => h.includes(w)).length;
   };
-  const best = Math.max(0, ...events.map(score));
-  return best === 0 ? [...events] : events.filter((e) => score(e) === best);
+  const best = Math.max(0, ...items.map(score));
+  return best === 0 ? [...items] : items.filter((e) => score(e) === best);
+}
+
+/** Of the events the provider matched, the best matches by name and venue (`bestMatchesBy`). */
+export function bestMatches(
+  events: readonly TicketEvent[],
+  query: string | undefined,
+): TicketEvent[] {
+  return bestMatchesBy(events, query, (e) => `${e.name} ${e.venue.name}`);
+}
+
+/** An event a family group never sees named or priced (VOICE §8, SAFETY §2.7): 18+ or restricted content. */
+export function adultsOnlyEvent(e: Pick<TicketEvent, 'minimumAge' | 'contentFlags'>): boolean {
+  return (e.minimumAge ?? 0) >= 18 || safety.isRestrictedContent(e.contentFlags);
+}
+
+/**
+ * When a slot is (VOICE §3.9, T-143): `formatTime` relative to now
+ * ("tonight 12am", "tomorrow 10am"); past 48 hours its date with the
+ * weekday spelled out, so "friday" is said ("friday mar 13 10am").
+ */
+export function slotWhen(iso: IsoDateTime, tz: string, now: IsoDateTime): string {
+  const t = formatTime(iso, tz, now);
+  const day = weekdayName(localDate(iso, tz));
+  return t.startsWith(`${day.slice(0, 3)} `) ? `${day}${t.slice(3)}` : t;
+}
+
+/**
+ * VOICE §4.10 B, read-only: nothing `what` `on` the asked night, the closest
+ * slot Trav could book and its price, and what to say next. Nothing is held.
+ */
+export function closestSlotText(input: {
+  readonly what: string;
+  readonly on: string;
+  readonly when: string;
+  readonly each: Money;
+  readonly refundable: boolean;
+}): string {
+  const price = `${formatMoney(input.each)} each · ${input.refundable ? 'refundable' : 'non-refundable'}`;
+  return `nothing for ${input.what} ${input.on} that i can book. no charge\nclosest is ${input.when}, ${price}. @ me if you want those instead`;
+}
+
+/** "on saturday" / "tonight" / "tomorrow" for the night a member asked for. */
+export function onNight(night: IsoDate, tonight: IsoDate): string {
+  const label = nightLabel(night, tonight);
+  return label === 'tonight' || label === 'tomorrow' ? label : `on ${label}`;
 }
 
 /** "tonight", "tomorrow", a weekday within the week ("saturday"), else "sat mar 14" (VOICE §3.9). */
@@ -397,9 +482,7 @@ async function otherNightText(
   tz: string,
   quantity: number,
 ): Promise<string> {
-  const tonight = nightOf(now, tz);
-  const label = nightLabel(night, tonight);
-  const on = label === 'tonight' || label === 'tomorrow' ? label : `on ${label}`;
+  const on = onNight(night, nightOf(now, tz));
   const sorted = [...upcoming].sort(
     (a, b) =>
       Math.abs(daysBetween(night, nightOf(a.startsAt, tz))) -
@@ -413,12 +496,13 @@ async function otherNightText(
     if (!res.ok) continue;
     const best = rankOffers(res.value, quantity, now)[0];
     if (best === undefined) continue;
-    const each = formatMoney(
-      money(best.unitPrice.amountMinor + best.unitFees.amountMinor, best.unitPrice.currency),
-    );
-    const price = `${each} each · ${refundableNow(best, now) ? 'refundable' : 'non-refundable'}`;
-    const when = formatTime(alt.startsAt, tz, now);
-    return `nothing for ${shortEventName(alt.name)} ${on} that i can book. no charge\nclosest is ${when}, ${price}. @ me if you want those instead`;
+    return closestSlotText({
+      what: shortEventName(alt.name),
+      on,
+      when: slotWhen(alt.startsAt, tz, now),
+      each: money(best.unitPrice.amountMinor + best.unitFees.amountMinor, best.unitPrice.currency),
+      refundable: refundableNow(best, now),
+    });
   }
   const what = shortEventName(sorted[0]!.name);
   return `nothing for ${what} ${on} that i can book, and no other night has ${quantity === 1 ? 'a ticket' : `${quantity} tickets`} i can book either. no charge`;

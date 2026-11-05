@@ -48,7 +48,7 @@ import { isMinor } from '../safety/minors.js';
 import type { SplitContext } from './context.js';
 import { assertUniqueMembers } from './context.js';
 import { computeBalances } from './balances.js';
-import { applyPayments, settle } from './settle.js';
+import { settleAfterPayments } from './settle.js';
 import { buildLedger, totalSpent } from './splits.js';
 
 // ---------- minor folding ----------
@@ -339,17 +339,27 @@ export function tripLedger(input: TripLedgerInput): TripLedger {
     };
   }
   // T-141: what members said they paid, minors carried by their guardian.
-  const paidTransfers = (input.payments ?? []).map((t) => ({
-    from: carrier(t.from, folding),
-    to: carrier(t.to, folding),
-    amount: t.amount,
-  }));
-  const owing = paidTransfers.length > 0 ? applyPayments(balances, paidTransfers) : balances;
+  // A payment that folds into a self-transfer (a minor paying their own
+  // guardian) or names someone off the tab moves nothing: skipped, never thrown,
+  // so one odd row cannot break every reader (T-141 r2).
+  const listed = new Set(order);
+  const paidTransfers = (input.payments ?? [])
+    .map((t) => ({
+      from: carrier(t.from, folding),
+      to: carrier(t.to, folding),
+      amount: t.amount,
+    }))
+    .filter((t) => t.from !== t.to && listed.has(t.from) && listed.has(t.to));
   const floorMinor = input.floorMinor;
+  const { owing, open } = settleAfterPayments(
+    balances,
+    paidTransfers,
+    floorMinor === undefined ? undefined : { floorMinor },
+  );
   return {
     mode: 'split',
     balances: owing,
-    transfers: settle(owing, floorMinor === undefined ? undefined : { floorMinor }),
+    transfers: open,
     paid: paidTransfers,
     ...common,
   };

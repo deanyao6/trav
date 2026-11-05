@@ -48,6 +48,8 @@ export interface SettleUpRenderInput {
    * carries the trip total. Off for the scheduled card, which keeps VOICE §4.6.
    */
   readonly showTotal?: boolean;
+  /** One line before the card's own first line (T-141: "tab changed since that card ..."). */
+  readonly lead?: string;
 }
 
 /** Inline items per line (VOICE §3.3: up to 3 inline). */
@@ -167,12 +169,15 @@ export function buildSettleUp(
           (a, b) => rank(a.t.from) - rank(b.t.from) || rank(a.t.to) - rank(b.t.to),
         );
 
-  const lines: string[] = [];
+  const lead = input.lead !== undefined && input.lead.length > 0 ? input.lead : undefined;
+  const lines: string[] = lead !== undefined ? [lead] : [];
+  // The lead line takes one row's place under the 10-line settle cap.
+  const maxRows = MAX_TRANSFER_LINES - (lead !== undefined ? 1 : 0);
   /** Final-mode transfer rows (10-line settle cap: overflow goes to "+N more in the card"). */
   const pushRows = (): void => {
     const n = rows.length;
-    const showAll = n <= MAX_TRANSFER_LINES + 1;
-    const shown = showAll ? rows : rows.slice(0, MAX_TRANSFER_LINES);
+    const showAll = n <= maxRows + 1;
+    const shown = showAll ? rows : rows.slice(0, maxRows);
     for (const r of shown) {
       const done = r.paid ? ' · paid' : '';
       lines.push(

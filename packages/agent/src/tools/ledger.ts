@@ -636,11 +636,18 @@ export function renderSettleUpFor(
   ctx: ToolContext,
   mode: 'running' | 'final',
   rctx: RenderContext,
-  opts: { readonly showTotal?: boolean } = {},
+  opts: { readonly showTotal?: boolean; readonly lead?: string } = {},
 ): OutboundMessage {
   const r = settleUpFor(ctx, mode);
   if (r.kind === 'needs_guardian') return textMessage(rctx, GROUP, [r.question]);
-  return renderSettleUp(opts.showTotal === true ? { ...r.input, showTotal: true } : r.input, rctx);
+  return renderSettleUp(
+    {
+      ...r.input,
+      ...(opts.showTotal === true ? { showTotal: true } : {}),
+      ...(opts.lead !== undefined ? { lead: opts.lead } : {}),
+    },
+    rctx,
+  );
 }
 
 export const getBalancesTool: ToolDefinition<Record<string, never>, BalancesResult> = {

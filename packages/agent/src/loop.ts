@@ -2607,6 +2607,9 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
 
   // ---------- "i've paid" on the final settle card (T-141) ----------
 
+  /** (card message, member) pairs already sent the current card for a stale 👍. */
+  const settleStaleReplied = new Set<string>();
+
   /** A final settle_up card Trav posted in this group's thread. */
   function isFinalSettleCard(r: Resolved, ref: PendingCardRef): boolean {
     return (
@@ -2621,8 +2624,10 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
    * transfer(s) on that card as paid (`balances/markPaid.ts`; their word, no
    * money moves), audit it, and post the card again with the row ticked and
    * what is still owed. A payee, anyone else, a guest or a minor changes
-   * nothing (silent). A second tick is silent. A card the tab has moved past
-   * records nothing and gets the current card.
+   * nothing (silent). A second tick is silent. On a card the tab has moved
+   * past, their rows are still recorded at the card's amounts (the repost
+   * opens "tab changed since that card"), unless they have paid since it went
+   * out: then nothing is recorded and they get the current card once.
    */
   async function markPaidTurn(
     r: Resolved,
@@ -2657,6 +2662,7 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     const outcome = markPaid(ctx, {
       card: ref.card,
       cardMessageId: ref.messageId,
+      cardSentAt: ref.sentAt,
       via,
       messageId,
       ...(onlyTo !== undefined ? { onlyTo } : {}),
@@ -2664,6 +2670,12 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
     if (outcome.kind === 'not_applicable' || outcome.kind === 'not_payer')
       return silent(`settle:${outcome.kind}`);
     if (outcome.kind === 'already_paid') return silent('settle:already_paid');
+    // A card behind them gets the current one at most once per (card, member).
+    const staleKey = `${ref.messageId}|${r.me.memberId}`;
+    if (outcome.kind === 'stale') {
+      if (settleStaleReplied.has(staleKey)) return silent('settle:stale_repeat');
+      settleStaleReplied.add(staleKey);
+    }
     const before = snapshotAudit(r.group.groupId);
     const rctx = {
       groupId: r.group.groupId,
@@ -2672,9 +2684,20 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       now: r.now,
       ids,
     };
-    // Stale: the current card (one group message per turn, VOICE §3.7) shows
-    // what is owed now; their 👍 on it is what ticks them off.
-    const sent = await send(r, [renderSettleUpFor(ctx, 'final', rctx)]);
+    // One group message per turn (VOICE §3.7): a "tab changed" lead goes on
+    // the card's first line (VOICE §4.6).
+    const name = sanitizeInline(r.me.displayName, 40);
+    const amounts =
+      outcome.kind === 'marked' ? outcome.payments.map((p) => formatMoney(p.amount)) : [];
+    const lead =
+      outcome.kind === 'stale'
+        ? "tab changed since that card, here's where it stands now"
+        : outcome.tabMoved
+          ? `tab changed since that card. ticked off ${name}'s ${amounts.join(' and ')}, here's what's left`
+          : undefined;
+    const sent = await send(r, [
+      renderSettleUpFor(ctx, 'final', rctx, lead !== undefined ? { lead } : {}),
+    ]);
     return {
       outbound: sent,
       toolCalls: [],
