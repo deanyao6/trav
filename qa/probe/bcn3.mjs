@@ -1,0 +1,11 @@
+import { api, show, say, clock } from './lib.mjs';
+const G = 'grp_barcelona';
+await api('POST', '/api/reset');
+await say(G, 'h_dean', "@trav i paid €84 for dinner, split with everyone but Henry");
+await say(G, 'h_dean', "@trav get the 5 of us Razzmatazz tickets, Henry's sick");
+await show(G, 'razz');
+for (let i = 0; i < 4; i++) await clock('hour', G);
+await show(G, 'after 4 hours');
+await say(G, 'h_crowley', 'this place is insane');
+await clock('morning', G);
+await show(G, 'morning after with post-midnight chat');

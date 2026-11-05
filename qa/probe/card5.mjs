@@ -1,0 +1,18 @@
+import { api, show, say, tap, clock } from './lib.mjs';
+const G = 'grp_barcelona';
+await api('POST', '/api/reset');
+await show(G);
+await say(G, 'h_dean', 'card import on', 'dm');
+await clock('morning', G);
+await show(G, 'morning');
+const t = (await api('GET', '/api/dms/mem_dean')).json.thread;
+const p = [...t].reverse().find((m) => m.actions?.length);
+const a = p.actions[0];
+await tap('h_dean', p.messageId, a.id, a.value);
+await show(G, 'shared item 1');
+await new Promise((r) => setTimeout(r, 2000));
+await show(G, 'after 2s real time');
+await clock('hour', G);
+await show(G, 'after one sim hour');
+await say(G, 'h_chase', 'morning all');
+await show(G, 'after a chat line');

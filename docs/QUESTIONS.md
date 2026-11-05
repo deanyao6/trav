@@ -71,3 +71,6 @@ If one member's private budget is the only signal, the group gets a budget list 
 
 ## T-193: the €100 auto-buy tab cap (2026-11-05)
 Inside the auto-buy tier, one member's ask can put up to €100 on each other member without them tapping (D-046 §4). That cap is separate from the group's per-person cap (€60 in Barcelona), which still governs the ordinary card flow, so a group that sets "per-person cap €20" in chat can still be auto-charged €100 each on someone else's ask, and the settings view doesn't show the tab cap. Options: keep €100; or use the lower of the two whenever a group has lowered its per-person cap below the default; and/or show the tab cap in settings and let the group change it in chat (logged as follow-up T-194).
+
+## Stale simulator process on 127.0.0.1:5191 (2026-11-05)
+An earlier QA run left a simulator server running (pid 48582, bound to 127.0.0.1:5191). The sandbox won't let the build loop stop it (`kill` is not permitted). Please run `kill 48582` when you're back.
