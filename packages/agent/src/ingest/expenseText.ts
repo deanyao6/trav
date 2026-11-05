@@ -790,9 +790,10 @@ interface ParticipantResult {
 interface PersonRun {
   /**
    * list: a list construction; absent: next to an absence cue; unresolved: a
-   * "him"/"her" in the list that isn't one member; stray: anything else.
+   * "him"/"her" in the list that isn't one member; pronoun: a marker that a
+   * list member came from a resolved "him"/"her"; stray: anything else.
    */
-  readonly kind: 'list' | 'absent' | 'stray' | 'unresolved';
+  readonly kind: 'list' | 'absent' | 'stray' | 'unresolved' | 'pronoun';
   readonly ids: readonly MemberId[];
   /** "with/between/among X": the payer is in too. */
   readonly withPayer: boolean;
@@ -828,11 +829,18 @@ const PRONOUN_IN_LIST_AFTER =
 
 /**
  * Who "him"/"her" at `at` is: the one member named before it ("chase paid
- * €42, split between him and me" ⇒ Chase). Two or more named: undefined,
- * so the split is a question, never a guess.
+ * €42, split between him and me" ⇒ Chase), not counting the names in the
+ * pronoun's own list (`ownRun`: "between arjun and him" is not Arjun). Two
+ * or more candidates: undefined, so the split is a question, never a guess.
  */
-function pronounReferent(scan: Scan, at: number): MemberId | undefined {
-  const ids = uniq(scan.names.filter((h) => h.end <= at).map((h) => h.memberId));
+function pronounReferent(
+  scan: Scan,
+  at: number,
+  ownRun: ReadonlySet<number>,
+): MemberId | undefined {
+  const ids = uniq(
+    scan.names.filter((h) => h.end <= at && !ownRun.has(h.start)).map((h) => h.memberId),
+  );
   return ids.length === 1 ? ids[0] : undefined;
 }
 
@@ -857,15 +865,17 @@ function personRuns(scan: Scan, span: [number, number]): PersonRun[] {
   }
   // "chase paid…, split between him, me and arjun": "him"/"her" in a list is
   // the one member named before it (T-216). Possessive "her" ("her taxi") is
-  // not a person here. Two or more members named before: unresolved, a question.
+  // not a person here. Each pronoun holds a placeholder id while the runs are
+  // built (so it never looks like a repeat of a name) and is resolved per run.
   const pronouns: Tok[] = [];
   let unresolved = false;
+  let viaPronoun = false;
+  let pronounsInLists = 0;
   for (const m of low.slice(span[0], span[1]).matchAll(/\b(him|her)\b/g)) {
     const start = span[0] + m.index;
     const end = start + m[0].length;
     if (!PRONOUN_IN_LIST_AFTER.test(low.slice(end))) continue;
-    const id = pronounReferent(scan, start);
-    pronouns.push({ start, end, id: id ?? '', self: false, word: id === undefined ? '?' : m[1]! });
+    pronouns.push({ start, end, id: `\u0000pronoun@${start}`, self: false, word: m[1]! });
   }
   toks.push(...pronouns);
   toks.sort((a, b) => a.start - b.start);
@@ -894,22 +904,34 @@ function personRuns(scan: Scan, span: [number, number]): PersonRun[] {
     } else groups.push([t]);
   }
   const out: PersonRun[] = [];
-  for (const g of groups) {
-    // a lone "i"/"me" is the speaker talking ("i paid", "on me"), not a list
-    const names = g.filter((t) => !t.self);
-    const selves = g.filter((t) => t.self);
-    if (names.length === 0 && (selves.length === 0 || selves.some((t) => t.word === 'i'))) continue;
-    const start = g[0]!.start;
-    const end = g[g.length - 1]!.end;
+  for (const raw of groups) {
+    const start = raw[0]!.start;
+    const end = raw[raw.length - 1]!.end;
     // "i" right before a payment verb ("piotr and i paid") is a payer, handled elsewhere
     const before = low.slice(0, start);
     const after = low.slice(end);
     // a lone "him" counts only as a list ("split with him"), never "i owe him"
-    if (g.every((t) => pronouns.includes(t)) && !LIST_LEAD.test(before)) continue;
-    if (g.some((t) => t.word === '?')) {
-      unresolved = true;
-      continue;
+    const own = raw.filter((t) => pronouns.includes(t));
+    if (own.length === raw.length && !LIST_LEAD.test(before)) continue;
+    let g = raw;
+    if (own.length > 0) {
+      pronounsInLists += own.length;
+      const ownRun = new Set(raw.filter((t) => !pronouns.includes(t)).map((t) => t.start));
+      const ids = own.map((t) => pronounReferent(scan, t.start, ownRun));
+      if (ids.some((id) => id === undefined)) {
+        unresolved = true;
+        continue;
+      }
+      viaPronoun = true;
+      g = raw.map((t) => {
+        const i = own.indexOf(t);
+        return i < 0 ? t : { ...t, id: ids[i]! };
+      });
     }
+    // a lone "i"/"me" is the speaker talking ("i paid", "on me"), not a list
+    const names = g.filter((t) => !t.self);
+    const selves = g.filter((t) => t.self);
+    if (names.length === 0 && (selves.length === 0 || selves.some((t) => t.word === 'i'))) continue;
     const clauseStart = Math.max(
       ...[',', ';', '.', ':', '('].map((c) => before.lastIndexOf(c)),
       before.lastIndexOf(' but '),
@@ -937,7 +959,11 @@ function personRuns(scan: Scan, span: [number, number]): PersonRun[] {
       out.push({ kind: 'stray', ids: names.map((t) => t.id), withPayer: false });
     }
   }
-  if (unresolved) out.push({ kind: 'unresolved', ids: [], withPayer: false });
+  // "split between him, her and me": two pronouns in the lists are two people
+  // we can't tell apart from one name, so the split is a question.
+  if (unresolved || pronounsInLists > 1) {
+    out.push({ kind: 'unresolved', ids: [], withPayer: false });
+  } else if (viaPronoun) out.push({ kind: 'pronoun', ids: [], withPayer: false });
   return out;
 }
 
@@ -948,36 +974,70 @@ function personRuns(scan: Scan, span: [number, number]): PersonRun[] {
  */
 const EXCEPT_RE =
   /\b(?:(?:everyone|everybody)(?:\s+else)?|all(?: of us)?|the (?:whole )?group|the rest of us)\s+(?:but|except(?: for)?|minus|other than|apart from|besides|excluding|without|bar)\s+(.+?)(?=$|[,.;(]|\s(?:so|since|because|for|split|and then)\s)|\b(?:except(?: for)?|excluding|minus)\s+(.+?)(?=$|[,.;(]|\s(?:so|since|because|for|split)\s)|\(\s*not\s+(.+?)\s*\)/;
-/** What ends one comma clause of an except list. */
-const EXCEPT_STOP = /[,.;(]|\s(?:so|since|because|for|split|and then)\s/;
+/**
+ * What ends one comma clause of an except list: punctuation only. A clause
+ * word ("so", "split", "and then") never shortens a clause into a name
+ * (T-216 r1 #1): the whole clause is names, or the list ends there.
+ */
+const EXCEPT_CLAUSE_END = /[,.;:!?(]/;
+
+interface ExceptList {
+  readonly list: string;
+  /** The list may or may not go on past a comma: ask, never guess who's out. */
+  readonly ambiguous: boolean;
+}
 
 /**
  * The names an except phrase leaves out. The match stops at the first comma,
  * so "except henry, piotr and arjun" would drop only Henry (T-216): past each
- * comma, the next clause joins the list while it is nothing but names
- * ("piotr and arjun", "and me"). "henry, chase paid", "henry, thanks" or
- * "henry, chase too" end it there.
+ * comma, the next clause joins the list when the WHOLE clause (to the next
+ * punctuation) is names ("piotr and arjun", "and me").
+ *  - "henry, thanks", "henry, chase paid": the list ends.
+ *  - "henry, chase too": Chase out as well, or in? Ambiguous.
+ *  - "henry, chase split the tip", "henry, chase and i split the wine": the
+ *    clause opens with a person and goes on (one more name, or a new
+ *    subject?), so it's ambiguous.
+ *  - "henry, chase, so venmo me": a bare name between commas with no "and"
+ *    closing the list, followed by more: ambiguous too (a list, or Chase
+ *    being spoken to?). "henry, piotr and arjun, thanks" is a closed list.
  */
-function exceptList(low: string, m: RegExpExecArray, members: readonly ParseMember[]): string {
+function exceptList(low: string, m: RegExpExecArray, members: readonly ParseMember[]): ExceptList {
   const first = m[1] ?? m[2];
-  if (first === undefined) return m[3] ?? '';
+  if (first === undefined) return { list: m[3] ?? '', ambiguous: false };
   let list = first;
   let at = m.index + m[0].length;
+  let closed = true;
+  const isPerson = (w: string): boolean =>
+    w === 'me' || w === 'i' || w === 'myself' || memberByWord(w, members) !== undefined;
   for (let guard = 0; guard <= members.length && low[at] === ','; guard += 1) {
     const rest = low.slice(at + 1);
-    const stop = rest.search(EXCEPT_STOP);
+    const stop = rest.search(EXCEPT_CLAUSE_END);
     const raw = (stop < 0 ? rest : rest.slice(0, stop)).trim();
     const clause = raw.replace(/^and\s+/, '');
     if (clause.length === 0 || clause === 'and') break;
-    if (/\b(?:too|also|as well)\b/.test(clause)) break;
+    const words = clause.split(/\s+/);
+    // "except luca, bea too": Bea out as well, or in? Ask.
+    if (/\b(?:too|also|as well)\b/.test(clause)) {
+      if (isPerson(words[0]!)) return { list, ambiguous: true };
+      break;
+    }
     // ", and zed": one more list item even when it isn't a member, so the
     // caller asks instead of quietly dropping it
-    const lastItem = raw !== clause && /^[a-z']+$/.test(clause);
-    if (!lastItem && !onlyNames(clause, members)) break;
-    list = `${list}, ${clause}`;
-    at += 1 + (stop < 0 ? rest.length : stop);
+    const lastItem = raw !== clause && words.length === 1;
+    if (lastItem || onlyNames(clause, members)) {
+      list = `${list}, ${clause}`;
+      closed = raw !== clause || /\band\b|&/.test(clause);
+      at += 1 + (stop < 0 ? rest.length : stop);
+      continue;
+    }
+    // "chase paid the tip": its own clause about the payer, the list is done
+    const payerClause = new RegExp(`^(?:just\\s+)?${PAYER_VERB}\\b`).test(words.slice(1).join(' '));
+    if (isPerson(words[0]!) && !payerClause) return { list, ambiguous: true };
+    break;
   }
-  return list;
+  // "henry, chase, so venmo me": an open list followed by another clause
+  const more = low[at] === ',' && low.slice(at + 1).trim().length > 0;
+  return { list, ambiguous: !closed && more };
 }
 
 /** Who is in, from one span of the text (the whole message or one expense's part of it). */
@@ -1007,7 +1067,8 @@ function parseParticipants(
   // "me and everyone else apart from henry" (T-216)
   const except = EXCEPT_RE.exec(low);
   if (except !== null) {
-    const list = exceptList(low, except, ctx.members);
+    const { list, ambiguous } = exceptList(low, except, ctx.members);
+    if (ambiguous) return { spec: { kind: 'vague', phrase: 'names' }, restToPayer };
     const ids: MemberId[] = [];
     for (const w of list.split(/\s*(?:,|\band\b|&|\bor\b)\s*/).filter((x) => x.length > 0)) {
       const word = w.replace(/^(?:the|just)\s+/, '').trim();
@@ -1065,6 +1126,15 @@ function parseParticipants(
       ? [payerId]
       : []),
   ]);
+  // "chase paid €42, split with him": a "him" that is the payer leaves only the
+  // payer in, which can't be what was meant (a split names someone else). Ask.
+  if (
+    runs.some((r) => r.kind === 'pronoun') &&
+    listIds.length > 0 &&
+    listIds.every((id) => id === payerId)
+  ) {
+    return { spec: { kind: 'vague', phrase: 'names' }, restToPayer };
+  }
   const known = new Set([...listIds, ...(payerId !== undefined ? [payerId] : [])]);
   const unexplained = uniq(stray).filter((id) => !known.has(id));
   const absentIds = uniq(absent).filter((id) => !owners.includes(id));

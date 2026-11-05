@@ -30,6 +30,14 @@ function evaluate(text: string, c: ExpenseTextContext): DraftsEvaluation | { kin
   return p.kind === 'drafts' ? evaluateDrafts(p.drafts, c) : p;
 }
 
+/** Trav asks who's in and logs nothing. */
+function expectQuestion(text: string, c: ExpenseTextContext): void {
+  const r = evaluate(text, c);
+  expect(r.kind, `"${text}" => ${JSON.stringify(r)}`).toBe('clarify');
+  const missing = (r as Extract<DraftsEvaluation, { kind: 'clarify' }>).missing;
+  expect(missing.flat()).toContain('participants');
+}
+
 function only(text: string, c: ExpenseTextContext): ParsedExpense {
   const r = evaluate(text, c);
   if (r.kind !== 'ready') throw new Error(`"${text}" => ${JSON.stringify(r)}`);
@@ -139,25 +147,46 @@ describe('T-216: except lists past a comma', () => {
     expect(e.split).toEqual({ method: 'exclude', excluded: [id('Luca')] });
   });
 
-  it('"luca, bea too" is not read as leaving Bea out', () => {
-    const r = evaluate('i paid €40 for the cabs, everyone except luca, bea too', ctx('Maya'));
-    if (r.kind === 'ready') {
-      const e = (r as Extract<DraftsEvaluation, { kind: 'ready' }>).expenses[0]!;
-      expect(e.split).not.toEqual({ method: 'exclude', excluded: [id('Luca'), id('Bea')] });
-    }
+  it('"luca, bea too": Bea out as well or in is a question, never a guess', () => {
+    expectQuestion('i paid €40 for the cabs, everyone except luca, bea too', ctx('Maya'));
+  });
+
+  // r1 #1: a clause after the comma that opens with a person and goes on may be
+  // one more name or a new subject. Read as one list, each of these would
+  // leave the wrong person out (the last one would exclude the payer).
+  for (const text of [
+    'i covered €72 for the paella, everybody but ines, rafa split the dessert',
+    'i covered €72 for the paella, everybody but ines, bea shared the wine with me',
+    'i covered €72 for the paella, everybody but ines, luca and then tomas paid the cab',
+    'i covered €72 for the paella, everybody but ines, rafa, so venmo me',
+    'i covered €72 for the paella, everybody but ines, rafa and i split the dessert',
+  ]) {
+    it(`asks: ${text}`, () => expectQuestion(text, ctx('Maya')));
+  }
+
+  it('a closed list then another clause is the whole list', () => {
+    const e = only(
+      'i covered €72 for the paella, everybody but ines, rafa and bea, cheers',
+      ctx('Maya'),
+    );
+    expect(e.split).toEqual({ method: 'exclude', excluded: [id('Ines'), id('Rafa'), id('Bea')] });
+  });
+
+  it('a payer clause after the comma ends the list', () => {
+    const e = only('€72 for the paella, everybody but ines, tomas paid the paella', ctx('Maya'));
+    expect(e.payer).toBe(id('Tomas'));
+    expect(e.split).toEqual({ method: 'exclude', excluded: [id('Ines')] });
   });
 
   it('an unknown word after the comma in the list is still a question', () => {
-    const r = evaluate('i paid €40 for the cabs, everyone but luca, and zed', ctx('Maya'));
-    expect(r.kind).not.toBe('ready');
+    expectQuestion('i paid €40 for the cabs, everyone but luca, and zed', ctx('Maya'));
   });
 
   it('leaving out everyone is never a split', () => {
-    const r = evaluate(
+    expectQuestion(
       'i paid €40 for the cabs, everyone except maya, tomas, ines, rafa, bea and luca',
       ctx('Maya'),
     );
-    expect(r.kind).not.toBe('ready');
   });
 });
 
@@ -194,8 +223,24 @@ describe('T-216: "him"/"her" in a list', () => {
   }
 
   it('two members named before "him": a question, not a guess', () => {
-    const r = evaluate("tomas paid €30 for luca's ticket, split between him and me", ctx('Maya'));
-    expect(r.kind).not.toBe('ready');
+    expectQuestion("tomas paid €30 for luca's ticket, split between him and me", ctx('Maya'));
+  });
+
+  it('"him" and "her" in one list are two people, not one (r1 #2)', () => {
+    expectQuestion('rafa paid €40 for the boat, split between him, her and me', ctx('Maya'));
+    expectQuestion('rafa paid €40 for the boat, split with her and him', ctx('Maya'));
+  });
+
+  it('a "him" that leaves only the payer in is a question (r1 #3)', () => {
+    expectQuestion('rafa paid €42 for the boat, split with him', ctx('Maya'));
+    expectQuestion('bea covered €42 for the boat, just her', ctx('Maya'));
+  });
+
+  it("names in the pronoun's own list are not its referent (r1 #4)", () => {
+    const a = only('rafa paid €42 for the boat, split between luca and him', ctx('Maya'));
+    expect(shares(a)).toEqual({ [id('Rafa')]: 2100, [id('Luca')]: 2100 });
+    const b = only('rafa paid €42 for the boat, split between me and luca, him too', ctx('Maya'));
+    expect(shares(b)).toEqual({ [id('Maya')]: 1400, [id('Rafa')]: 1400, [id('Luca')]: 1400 });
   });
 
   it('possessive "her" is not a person', () => {
@@ -235,7 +280,6 @@ describe('T-216: "everyone else" with an except phrase', () => {
   }
 
   it('"everyone else" with nobody left out is still a question', () => {
-    const r = evaluate('i paid €50 for the wine, me and everyone else', ctx('Bea'));
-    expect(r.kind).not.toBe('ready');
+    expectQuestion('i paid €50 for the wine, me and everyone else', ctx('Bea'));
   });
 });
