@@ -221,7 +221,7 @@ export function handleRosterMessage(input: RosterTurnInput): RosterTurn | undefi
     return {
       kind: 'roll_call',
       activity,
-      text: also === undefined ? call : [...call.split('\n').slice(0, 3), also].join('\n'),
+      text: also === undefined ? call : withAlso(call, also),
     };
   }
 
@@ -334,6 +334,17 @@ type Row = { readonly memberId: MemberId; readonly status: AttendanceStatus };
  * is on no pending card (go on: write them in, the add-on follows), else the
  * one line that says they already have one.
  */
+/**
+ * The roll call plus the "also tonight" line inside the 4-line cap (VOICE §3.3):
+ * the maybe line gives way first, so "haven't said" (the nudge) always stays
+ * (T-154 r2 review #1).
+ */
+export function withAlso(call: string, also: string): string {
+  let lines = call.split('\n');
+  if (lines.length >= 4) lines = lines.filter((l) => !l.startsWith('maybe:'));
+  return [...lines.slice(0, 3), also].join('\n');
+}
+
 function ticketHeld(input: RosterTurnInput, activity: Activity): RosterTurn | 'none' | 'no' {
   const { group, trip, me } = input;
   const booked = bookedAttendees(group, trip, activity.activityId);

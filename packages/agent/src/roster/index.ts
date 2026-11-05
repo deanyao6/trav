@@ -362,7 +362,8 @@ function meaningfulHint(raw: string | undefined): string | undefined {
     .toLowerCase()
     .split(/\s+/)
     .filter((w) => w.length > 0);
-  return words.every((w) => HINT_STOP_WORDS.has(w)) ? undefined : h;
+  // "the tickets" is no hint either (T-154 r2 review #2): detection and resolution agree.
+  return words.every((w) => HINT_STOP_WORDS.has(w) || /^(?:tickets?|tix)$/.test(w)) ? undefined : h;
 }
 
 /**

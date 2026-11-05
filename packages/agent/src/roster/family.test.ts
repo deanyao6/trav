@@ -21,6 +21,7 @@ import type { TurnResult } from '../loop.js';
 import { repoRoot } from '../model/paths.js';
 import { harness, tempStateDir } from '../runtime.testkit.js';
 import { ADULT_PLAN_LABEL, resolveActivity, rosterLabel } from './index.js';
+import { withAlso } from './turn.js';
 
 interface GroupFixture {
   readonly group: Group;
@@ -303,6 +304,29 @@ describe('two adult-only plans on one night carry their start times (T-154 r1 #1
       "the adults' plan at 10:30pm tonight: 1 in · Mom",
       "haven't said: Dad, Dean",
     ]);
+  });
+
+  // T-154 r2 review #1: the maybe line gives way first, "haven't said" always stays.
+  it('a full roll call keeps "haven\'t said" when the "also tonight" line is added', () => {
+    const call = [
+      "the adults' plan at 9:30pm tonight: 1 in · Dad",
+      'out: Mom',
+      'maybe: Dean (counts as out when i book)',
+      "haven't said: Ava",
+    ].join('\n');
+    expect(withAlso(call, "also tonight: the adults' plan at 10:30pm").split('\n')).toEqual([
+      "the adults' plan at 9:30pm tonight: 1 in · Dad",
+      'out: Mom',
+      "haven't said: Ava",
+      "also tonight: the adults' plan at 10:30pm",
+    ]);
+  });
+
+  // r2 review #2: "who's in for the tickets?" is no hint, so the second plan is mentioned too.
+  it('"who\'s in for the tickets?" answers like "who\'s in tonight?"', async () => {
+    const t = twoPlans();
+    const roll = await t.say('h_dean', "@trav who's in for the tickets?");
+    expect(texts(roll)[0]).toContain("also tonight: the adults' plan at 10:30pm");
   });
 
   it('two at the same time are numbered; one plan alone has no time', async () => {
