@@ -314,6 +314,29 @@ describe('either side undoes their own step (T-166)', () => {
     const card = settleCard(await h.say('h_dean', '@trav settle now')).card;
     expect(card.transfers.some((t) => t.paid === true || t.pending === true)).toBe(false);
   });
+
+  it('r1 #1: a payer can undo their Sent on a row the payee created first', async () => {
+    const h = harness();
+    const { id } = await finalCard(h);
+    // Crowley confirms Henry's €2.70 with no Sent (the row is Crowley's), then undoes it.
+    await h.react('h_crowley', id, '👍');
+    await h.react('h_crowley', id, '👎');
+    expect(payments(h)).toMatchObject([{ status: 'undone', markedBy: 'mem_crowley' }]);
+    // Henry says sent on that row: the same record reopens as his Sent.
+    expect((await h.tap('h_henry', id, 'sent', 'mem_henry:mem_crowley')).note).toBe('settle:sent');
+    expect(payments(h)).toMatchObject([{ status: 'sent' }]);
+    // 👎 takes it back.
+    const undo = await h.react('h_henry', id, '👎');
+    expect(undo.note).toBe('settle:undo');
+    expect(payments(h)).toMatchObject([{ status: 'undone' }]);
+    // And the [Undo] button a later card shows Henry works too.
+    await h.tap('h_henry', id, 'sent', 'mem_henry:mem_crowley');
+    const latest = settleCard(await h.say('h_dean', '@trav settle now')).msg;
+    expect(latest.actions?.find((a) => a.id === 'undo')?.allowedMemberIds).toContain('mem_henry');
+    expect((await h.tap('h_henry', latest.id, 'undo')).note).toBe('settle:undo');
+    expect(payments(h)).toMatchObject([{ status: 'undone' }]);
+    expect(netOf(h, 'mem_henry')).toBe(-390);
+  });
 });
 
 // ------------------------------------------------------------------ pay details
@@ -339,7 +362,7 @@ describe('pay details: DM to the payer only, never a handle in the group (T-166)
     const [head, filled, link] = chase[0]!.text.split('\n');
     expect(head).toMatch(/^your settle: €20\.70 \(≈\$\d+\.\d\d\) to Dean on venmo$/);
     expect(filled).toBe(
-      "Dean, the amount and the note are filled in. tap Sent on the group card once it's gone",
+      "it opens with Dean, the amount and the note filled in. tap Sent on the group card once it's gone",
     );
     const usd = /≈\$(\d+\.\d\d)/.exec(head!)![1]!;
     expect(link).toBe(
@@ -441,6 +464,46 @@ describe('pay details: DM to the payer only, never a handle in the group (T-166)
     expect(h.runtime.stores.private.getPaymentProfile('mem_piotr')?.handles).toEqual({});
     // Not a handle statement at all: falls through to the rest of Trav.
     expect((await h.say('h_piotr', 'venmo is down again lol')).note).not.toMatch(/^payments:/);
+  });
+
+  it('r1 #2: "my venmo is broken" or "my paypal is chase w" is never saved as a handle', async () => {
+    const h = harness();
+    for (const text of [
+      'my venmo is broken, can you use zelle',
+      'my venmo is frozen',
+      'my venmo is acting up',
+      'my paypal is chase w',
+    ]) {
+      await h.dm('h_chase', text);
+      expect(h.runtime.stores.private.getPaymentProfile('mem_chase')?.handles, text).toEqual({
+        venmo: 'chase-w',
+        cashapp: 'chasew',
+      });
+    }
+  });
+
+  it('r1 #3, #5: a negated app is not added, and one app said in passing keeps the favourite', async () => {
+    const h = harness();
+    setProfile(h, {
+      memberId: 'mem_piotr',
+      apps: ['paypal', 'cash'],
+      favourite: 'paypal',
+      handles: { paypal: 'piotrk' },
+      askedAt: h.clock.now(),
+      answeredAt: h.clock.now(),
+    });
+    await h.dm('h_piotr', 'i use zelle, never venmo');
+    await h.dm('h_piotr', 'i use venmo for dinner');
+    const p = h.runtime.stores.private.getPaymentProfile('mem_piotr');
+    expect(p?.apps).toEqual(['paypal', 'cash', 'zelle', 'venmo']);
+    expect(p?.favourite).toBe('paypal');
+    // A sole app answering the ask, or with no favourite yet, is the favourite.
+    wipeProfile(h, 'mem_arjun');
+    await h.dm('h_arjun', 'i have no venmo, zelle');
+    expect(h.runtime.stores.private.getPaymentProfile('mem_arjun')).toMatchObject({
+      apps: ['zelle'],
+      favourite: 'zelle',
+    });
   });
 });
 

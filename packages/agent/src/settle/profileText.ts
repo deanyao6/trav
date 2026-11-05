@@ -37,6 +37,8 @@ export interface HandleStatement {
   readonly rail: HandleRail;
   /** Normalized (`payments.normalizeHandle`); absent when what followed isn't a valid handle. */
   readonly handle?: string;
+  /** No handle, and maybe not a try at all ("my venmo is down"): hint gently. */
+  readonly soft?: true;
 }
 
 /** Words between "my venmo" and the handle itself. */
@@ -64,21 +66,55 @@ export function parseHandleStatements(text: string): HandleStatement[] {
     const rest = (inline ? after.slice(1) : after.replace(HANDLE_FILLER, '')).trim();
     if (rest.length === 0) continue;
     // Zelle: an email, or a phone number that may contain spaces.
-    const candidate =
+    const zelleContact =
       rail === 'zelle'
-        ? (/^[^\s,;]+@[^\s,;]+/u.exec(rest)?.[0] ??
-          /^\+?[\d(][\d\s().-]{8,}\d/u.exec(rest)?.[0] ??
-          rest.split(/\s+/u)[0]!)
-        : rest.split(/[\s,;]+/u)[0]!;
-    const handle = payments.normalizeHandle(rail, candidate);
+        ? (/^[^\s,;]+@[^\s,;]+/u.exec(rest)?.[0] ?? /^\+?[\d(][\d\s().-]{8,}\d/u.exec(rest)?.[0])
+        : undefined;
+    const candidate =
+      zelleContact ?? (rail === 'zelle' ? rest.split(/\s+/u)[0]! : rest.split(/[\s,;]+/u)[0]!);
+    const tail = rest.slice(candidate.length);
+    // The candidate must end the statement: "my paypal is chase w" or "my
+    // venmo is acting up" is not a handle (T-166 r1 #2). A clause break or a
+    // thanks may follow. A zelle email or phone number can't be a word of a
+    // sentence, so words may follow it.
+    const ends = zelleContact !== undefined || HANDLE_TAIL.test(tail);
+    const sigil = hasSigil(rail, candidate, inline);
+    // Without a sigil or a colon, a plain word ("broken", "frozen") is not a
+    // handle: it must look like one (a digit, "-" or "_"), so a typo'd
+    // sentence never becomes a one-tap link to a stranger's account.
+    const shaped = sigil || colon || rail === 'zelle' || /[\d_-]/u.test(candidate);
+    const handle = ends && shaped ? payments.normalizeHandle(rail, candidate) : undefined;
     if (handle !== undefined) {
       found.set(rail, { rail, handle });
-    } else if (/^[@$+(]|\d|@/u.test(candidate) || colon || handleWord) {
-      // Looked like a handle and isn't one ("my venmo is @x"): say so. "my venmo is down" isn't a try.
+    } else if (ends ? sigil || colon || handleWord || /\d|@/u.test(candidate) : sigil || colon) {
+      // A try that isn't a handle ("my venmo is @x", "venmo: chase w"): say so.
       found.set(rail, { rail });
+    } else if (ends && tail.trim().length === 0) {
+      // One plain word to end the message: "my venmo is chasew" or "my venmo
+      // is down". Never saved; the reply is an "if that was your handle" hint
+      // that reads fine either way. "my venmo is down, use zelle" says nothing.
+      found.set(rail, { rail, soft: true });
     }
   }
   return [...found.values()];
+}
+
+/** What may follow a handle: nothing, a clause break, "and ...", or a thanks. */
+const HANDLE_TAIL =
+  /^\s*(?:$|[,;.!?\n)]|(?:and|thanks|thx|ty|pls|please|lol|cheers)\b|[\p{Extended_Pictographic}])/iu;
+
+/** The candidate carries its rail's sigil: venmo `@` or link, cash app `$` or link, paypal.me/. */
+function hasSigil(rail: HandleRail, candidate: string, inline: boolean): boolean {
+  switch (rail) {
+    case 'venmo':
+      return /^@|venmo\.com\//iu.test(candidate);
+    case 'cashapp':
+      return /^\$|cash\.app\//iu.test(candidate);
+    case 'paypal':
+      return inline || /paypal\.me\//iu.test(candidate);
+    case 'zelle':
+      return false;
+  }
 }
 
 const FAVOURITE =
@@ -150,13 +186,51 @@ const FILLER = new Set([
   'lol',
 ]);
 
+const NEGATOR =
+  /\b(?:no|not|never|nor|without|don['’]?t|do\s+not|haven['’]?t|can['’]?t|isn['’]?t|aren['’]?t|doesn['’]?t)\b/iu;
+const NEGATOR_FILLER = ['no', 'not', 'never', 'nor', 'without', 'don', 'dont', 't', 'do'];
+for (const w of NEGATOR_FILLER) FILLER.add(w);
+
+/**
+ * Rails said NOT to be used (T-166 r1 #3): a mention with a negator between it
+ * and the start of its clause or the previous rail ("i have no venmo",
+ * "zelle, never venmo", "venmo not paypal"), and the rails listed right after
+ * one with "or" / "nor" ("i don't have venmo or zelle"). A comma ends the
+ * negation: "i have no venmo, zelle" keeps zelle.
+ */
+function negatedRails(text: string): Set<PaymentRail> {
+  const out = new Set<PaymentRail>();
+  const all = mentions(text);
+  let prevEnd = 0;
+  let prevNegated: boolean = false;
+  for (const m of all) {
+    const gap = text.slice(prevEnd, m.index);
+    const parts = gap.split(/[,;.!?\n]|\bbut\b/iu);
+    const inClause = parts.at(-1) ?? '';
+    const carried: boolean =
+      parts.length === 1 && prevNegated && /^\s*(?:or|nor|\/)?\s*$/iu.test(gap);
+    const neg: boolean = NEGATOR.test(inClause) || carried;
+    if (neg) out.add(m.rail);
+    prevNegated = neg;
+    prevEnd = m.end;
+  }
+  return out;
+}
+
 /** Non-rail, non-filler words an explicit "i use ..." statement may carry and still be about apps. */
 const MAX_EXTRA_WORDS = 2;
 
 export interface AppsAnswer {
   /** In the order said, no repeats. */
   readonly apps: readonly PaymentRail[];
+  /** Named with a "fave / prefer / mostly" word in its own clause. */
   readonly favourite?: PaymentRail;
+  /**
+   * Exactly one app named, with no favourite word. It becomes the favourite
+   * only when it answers Trav's ask or the member has none yet
+   * (`applyProfileWords`), so "i use venmo for dinner" never replaces one.
+   */
+  readonly onlyApp?: PaymentRail;
   /** Said as a statement about their apps ("i use", "my fave"), not just a bare list. */
   readonly explicit: boolean;
   /** Nothing but rail names and filler: safe to take as the answer to Trav's one ask. */
@@ -171,20 +245,27 @@ export interface AppsAnswer {
 export function parseAppsAnswer(text: string): AppsAnswer | undefined {
   const all = mentions(text);
   if (all.length === 0) return undefined;
+  const negated = negatedRails(text);
   const apps: PaymentRail[] = [];
-  for (const m of all) if (!apps.includes(m.rail)) apps.push(m.rail);
+  for (const m of all) if (!apps.includes(m.rail) && !negated.has(m.rail)) apps.push(m.rail);
+  if (apps.length === 0) return undefined;
   let favourite: PaymentRail | undefined;
   // Clauses: split on punctuation and "but" so "mostly venmo but zelle works" keeps venmo.
   const clauses = text.split(/[,;.!?\n]+|\bbut\b/iu);
   for (const clause of clauses) {
     if (!FAVOURITE.test(clause)) continue;
-    const inClause = [...new Set(mentions(clause).map((m) => m.rail))];
+    const inClause = [
+      ...new Set(
+        mentions(clause)
+          .map((m) => m.rail)
+          .filter((r) => apps.includes(r)),
+      ),
+    ];
     if (inClause.length === 1) {
       favourite = inClause[0];
       break;
     }
   }
-  if (favourite === undefined && apps.length === 1) favourite = apps[0];
   let rest = text.toLowerCase();
   for (const { re } of RAIL_WORDS) rest = rest.replace(re, ' ');
   const words = rest
@@ -194,6 +275,8 @@ export function parseAppsAnswer(text: string): AppsAnswer | undefined {
   return {
     apps,
     ...(favourite !== undefined ? { favourite } : {}),
+    // One app named: the caller decides whether it becomes the favourite (r1 #5).
+    ...(apps.length === 1 ? { onlyApp: apps[0]! } : {}),
     // "i use venmo, zelle if i have to" yes; "i have cash for the taxi tonight" no.
     explicit: EXPLICIT.test(text) && words.length <= MAX_EXTRA_WORDS,
     bare: words.length === 0,

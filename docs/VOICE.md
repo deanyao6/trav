@@ -359,13 +359,13 @@ Card: `expense_confirm` with `status: "pending"`, `source: "card_transaction" | 
 > **Chase (dm):** my venmo is @chase-w
 > **trav (dm):** saved your venmo (@chase-w). only someone paying you gets it, in their dm
 
-A handle said in the group is not stored: "send me that in a dm, handles stay between you and me". A bad one: "that doesn't look like a venmo handle. try "my venmo is @your-name"".
+A handle said in the group is not stored: "send me that in a dm, handles stay between you and me". A bad one: "that doesn't look like a venmo handle. try "my venmo is @your-name"". One plain word with no @ or $ ("my venmo is chasew", or "my venmo is down") is never saved, because a typo there would send people's money to a stranger: "if that was your venmo handle, send it like "my venmo is @your-name"". Naming one app in passing ("i use venmo for dinner") adds it but never replaces the favourite, and an app said with no/not/never ("i have no venmo, zelle") is left out.
 
 **Example E (pay details, DM to the payer only):** sent with the final card, one per transfer, again only if the rail, amount or handle changes. A link is always the bare last line (§3.8).
 
 > **trav (dm → Chase):**
 > your settle: €372.48 (≈$406.08) to Dean on venmo
-> Dean, the amount and the note are filled in. tap Sent on the group card once it's gone
+> it opens with Dean, the amount and the note filled in. tap Sent on the group card once it's gone
 > venmo://paycharge?txn=pay&recipients=dean-trav&amount=406.08&note=Barcelona%20spring%20break%20settle-up
 
 > **trav (dm → Henry):**

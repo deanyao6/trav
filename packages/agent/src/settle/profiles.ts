@@ -131,6 +131,8 @@ export interface ProfileChange {
   readonly savedHandles: readonly HandleRail[];
   /** Rails named with something that isn't a handle ("my venmo is chase w"). */
   readonly badHandles: readonly HandleRail[];
+  /** Rails named with one plain word that may not be a try at all ("my venmo is down"). */
+  readonly softHandles: readonly HandleRail[];
   /** The apps answer was taken. */
   readonly tookApps: boolean;
 }
@@ -156,13 +158,19 @@ export function applyProfileWords(input: {
   const takeApps =
     input.apps !== undefined && (input.apps.explicit || (awaiting && input.apps.bare));
   const saved = input.handles.filter((h) => h.handle !== undefined);
-  const bad = input.handles.filter((h) => h.handle === undefined).map((h) => h.rail);
-  if (!takeApps && saved.length === 0 && bad.length === 0) return undefined;
+  const bad = input.handles
+    .filter((h) => h.handle === undefined && h.soft !== true)
+    .map((h) => h.rail);
+  const soft = input.handles
+    .filter((h) => h.handle === undefined && h.soft === true)
+    .map((h) => h.rail);
+  if (!takeApps && saved.length === 0 && bad.length === 0 && soft.length === 0) return undefined;
   if (!takeApps && saved.length === 0) {
     return {
       profile: before ?? { memberId, apps: [], handles: {}, updatedAt: now },
       savedHandles: [],
       badHandles: bad,
+      softHandles: soft,
       tookApps: false,
     };
   }
@@ -176,7 +184,15 @@ export function applyProfileWords(input: {
     handles[h.rail] = h.handle!;
     add(h.rail);
   }
-  const favourite = (takeApps ? input.apps!.favourite : undefined) ?? before?.favourite;
+  // A single app named in passing ("i use venmo for dinner") never replaces a
+  // favourite: it becomes one only when it answers the ask, or there is none yet.
+  const only = takeApps ? input.apps!.onlyApp : undefined;
+  const soleAsFavourite =
+    only !== undefined && ((awaiting && input.apps!.bare) || before?.favourite === undefined)
+      ? only
+      : undefined;
+  const favourite =
+    (takeApps ? input.apps!.favourite : undefined) ?? soleAsFavourite ?? before?.favourite;
   const profile: PaymentProfile = {
     memberId,
     apps,
@@ -207,7 +223,13 @@ export function applyProfileWords(input: {
       handleRails: saved.map((h) => h.rail),
     },
   });
-  return { profile, savedHandles: saved.map((h) => h.rail), badHandles: bad, tookApps: takeApps };
+  return {
+    profile,
+    savedHandles: saved.map((h) => h.rail),
+    badHandles: bad,
+    softHandles: soft,
+    tookApps: takeApps,
+  };
 }
 
 const EXAMPLE: Readonly<Record<HandleRail, string>> = {
@@ -242,6 +264,9 @@ export function profileReplyLines(change: ProfileChange): string[] {
   }
   for (const r of change.badHandles) {
     lines.push(`that doesn't look like a ${RAIL_LABEL[r]} handle. try ${EXAMPLE[r]}`);
+  }
+  for (const r of change.softHandles) {
+    lines.push(`if that was your ${RAIL_LABEL[r]} handle, send it like ${EXAMPLE[r]}`);
   }
   // The rail they'd most likely be paid on still has no handle: one nudge.
   const first = railsOf(profile).find((r) => payments.railNeedsHandle(r));

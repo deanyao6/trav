@@ -27,9 +27,41 @@ describe('parseHandleStatements', () => {
   it('a bad try is flagged, chat about an app is not a try', () => {
     expect(parseHandleStatements('my venmo is @x')).toEqual([{ rail: 'venmo' }]);
     expect(parseHandleStatements('venmo is down again')).toEqual([]);
-    expect(parseHandleStatements('my venmo is down')).toEqual([]);
+    expect(parseHandleStatements('my venmo is down')).toEqual([{ rail: 'venmo', soft: true }]);
     expect(parseHandleStatements('i paid cash for the taxi')).toEqual([]);
     expect(parseHandleStatements('apple cash works')).toEqual([]);
+  });
+
+  it('r1 #2: a plain word, or one followed by more words, is never a handle', () => {
+    expect(parseHandleStatements('my venmo is broken, can you use zelle')).toEqual([]);
+    expect(parseHandleStatements('my venmo is acting up')).toEqual([]);
+    expect(parseHandleStatements('my paypal is chase w')).toEqual([]);
+    expect(parseHandleStatements('my venmo is chasew so')).toEqual([]);
+    // Alone at the end it reads as a try: refused with a hint, never saved.
+    for (const t of ['my venmo is frozen', 'my venmo is chasew', 'my paypal is chasew']) {
+      expect(
+        parseHandleStatements(t).every((s) => s.handle === undefined),
+        t,
+      ).toBe(true);
+    }
+    // An explicit try followed by words is refused too.
+    expect(parseHandleStatements('venmo: chase w')).toEqual([{ rail: 'venmo' }]);
+    expect(parseHandleStatements('my venmo is @chase w')).toEqual([{ rail: 'venmo' }]);
+    // Handle-shaped, a sigil or a colon still works, and a clause or thanks may follow.
+    expect(parseHandleStatements('my venmo is chase-w')).toEqual([
+      { rail: 'venmo', handle: 'chase-w' },
+    ]);
+    expect(parseHandleStatements('my venmo is @chasew, thanks!')).toEqual([
+      { rail: 'venmo', handle: 'chasew' },
+    ]);
+    expect(parseHandleStatements('my paypal is chase22 thanks')).toEqual([
+      { rail: 'paypal', handle: 'chase22' },
+    ]);
+    // A zelle email or phone can't be a sentence word: words may follow it.
+    expect(parseHandleStatements('my zelle is 617-555-0142 if that helps')).toEqual([
+      { rail: 'zelle', handle: '+16175550142' },
+    ]);
+    expect(parseHandleStatements('my zelle is broken, use venmo')).toEqual([]);
   });
 });
 
@@ -48,10 +80,35 @@ describe('parseAppsAnswer', () => {
     });
     expect(parseAppsAnswer('apple cash')).toEqual({
       apps: ['apple_cash'],
-      favourite: 'apple_cash',
+      onlyApp: 'apple_cash',
       explicit: false,
       bare: true,
     });
+  });
+
+  it('r1 #3: a negated app is dropped, in its own clause only', () => {
+    expect(parseAppsAnswer('i have no venmo, zelle')?.apps).toEqual(['zelle']);
+    expect(parseAppsAnswer('i use zelle, never venmo')?.apps).toEqual(['zelle']);
+    expect(parseAppsAnswer('i use venmo not paypal')?.apps).toEqual(['venmo']);
+    expect(parseAppsAnswer("i don't have venmo or zelle, just cash app")?.apps).toEqual([
+      'cashapp',
+    ]);
+    expect(parseAppsAnswer('i don’t use paypal')).toBeUndefined();
+    expect(parseAppsAnswer('no venmo, zelle')).toMatchObject({ apps: ['zelle'], bare: true });
+    expect(parseAppsAnswer("i use venmo not paypal, venmo's my fave")).toMatchObject({
+      apps: ['venmo'],
+      favourite: 'venmo',
+      explicit: true,
+    });
+  });
+
+  it('r1 #5: one app with no favourite word is `onlyApp`, never `favourite`', () => {
+    expect(parseAppsAnswer('i use venmo for dinner')).toMatchObject({
+      apps: ['venmo'],
+      onlyApp: 'venmo',
+    });
+    expect(parseAppsAnswer('i use venmo for dinner')?.favourite).toBeUndefined();
+    expect(parseAppsAnswer('mostly venmo')?.favourite).toBe('venmo');
   });
 
   it('"cash app" and "apple cash" are never read as cash', () => {

@@ -264,9 +264,10 @@ export function settleAction(ctx: ToolContext, input: SettleActionInput): Settle
     const confirmed = onPairs.filter(
       (p) => p.to === me!.memberId && isSettlementCleared(p) && p.receivedAt !== undefined,
     );
-    const sent = onPairs.filter(
-      (p) => p.from === me!.memberId && isSettlementPending(p) && p.markedBy === me!.memberId,
-    );
+    // Any pending row of mine is my Sent, even on a row the payee created
+    // first (Got it, then undone, then my Sent reopened it): `markedBy` is who
+    // created the row, not who made the current step (T-166 r1 #1).
+    const sent = onPairs.filter((p) => p.from === me!.memberId && isSettlementPending(p));
     const stepAt = (p: SettlementPayment): number =>
       parseIso(
         (p.to === me!.memberId && isSettlementCleared(p) ? p.receivedAt : p.sentAt) ?? p.markedAt,

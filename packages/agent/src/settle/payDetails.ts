@@ -171,8 +171,8 @@ export function payerDmLines(d: PayDetail, payeeName: string): string[] | undefi
           d.send === undefined
             ? `${RAIL_LABEL[rail]} is in ${railCurrency(rail, d.transfer.amount.currency)} and i don't have today's rate, so type the amount. ${SENT_HINT}`
             : rail === 'venmo'
-              ? `${payee}, the amount and the note are filled in. ${SENT_HINT}`
-              : `${payee} and the amount are filled in. ${SENT_HINT}`;
+              ? `it opens with ${payee}, the amount and the note filled in. ${SENT_HINT}`
+              : `it opens with ${payee} and the amount filled in. ${SENT_HINT}`;
         return [head, filled, d.link];
       }
       if (rail === 'zelle' && c.handle !== undefined) {

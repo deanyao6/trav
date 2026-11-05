@@ -289,15 +289,15 @@ _tue mar 17 · 10:30am · day 6_
       zelle has no links, so copy Dean's zelle into your bank app: dean@example.com
       tap Sent on the group card once it's gone
 - 🔒 dm → Chase · **trav**: your settle: €372.48 (≈$406.08) to Dean on venmo
-      Dean, the amount and the note are filled in. tap Sent on the group card once it's gone
+      it opens with Dean, the amount and the note filled in. tap Sent on the group card once it's gone
       venmo://paycharge?txn=pay&recipients=dean-trav&amount=406.08&note=Barcelona%20spring%20break%20settle-up
 - 🔒 dm → Piotr · **trav**: your settle: €237.13 to Dean. you two don't have a payment app in common
       Dean takes venmo @dean-trav · zelle dean@example.com. tap Sent on the group card once it's gone
 - 🔒 dm → Arjun · **trav**: your settle: €344.53 (≈$375.61) to Dean on venmo
-      Dean, the amount and the note are filled in. tap Sent on the group card once it's gone
+      it opens with Dean, the amount and the note filled in. tap Sent on the group card once it's gone
       venmo://paycharge?txn=pay&recipients=dean-trav&amount=375.61&note=Barcelona%20spring%20break%20settle-up
 - 🔒 dm → Crowley · **trav**: your settle: €325.73 (≈$355.11) to Dean on venmo
-      Dean, the amount and the note are filled in. tap Sent on the group card once it's gone
+      it opens with Dean, the amount and the note filled in. tap Sent on the group card once it's gone
       venmo://paycharge?txn=pay&recipients=dean-trav&amount=355.11&note=Barcelona%20spring%20break%20settle-up
 - _Chase taps [Sent]_
 - **trav**: Dean, tap Got it or 👍 once it lands
