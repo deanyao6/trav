@@ -62,3 +62,6 @@ These are decisions. Build to them; tasks T-164..T-166 are at the top of the bac
 
 ## T-165: does a chat-logged expense need a grey notice too? (2026-11-05)
 In T-165, the grey "Chase added Uber €18.60 · 4 ways" line appears only for expenses that have no group card yet (shared email and card items). Chat text, receipt photos and bookings already post a "logged:" or receipt card in the group, so that card counts as the announcement, per VOICE §2 ("never a second message to say the first one is done"). If you want the grey line on every expense regardless, it's a small change: remove the skip in `packages/agent/src/notices/expenseNotices.ts` and update the tests that count group messages.
+
+## New git worktrees can't be created under the sandbox (2026-11-05)
+`git worktree add .cache/wt-*` fails because the sandbox denies writes to `.claude/agents/*` inside the new checkout. The one existing worktree (`.cache/wt-t165`, created in an earlier session) is being reused for every parallel builder. If you want more parallelism, consider allowing `.cache/wt-*/.claude/agents` in the sandbox's write list. That's your call; the build loop won't touch the settings.

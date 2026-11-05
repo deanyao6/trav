@@ -30,8 +30,10 @@ export interface RegexViolation {
  * (`\(?<x>`), character classes (`[(?<x>]`, nested ones under the `v` flag)
  * and lookbehinds (`(?<=`, `(?<!`) are not groups.
  */
-export function namedGroups(source: string): string[] {
+export function namedGroups(source: string, flags = ''): string[] {
   const names: string[] = [];
+  // Only the `v` flag nests classes; otherwise a `[` inside a class is literal.
+  const nests = flags.includes('v');
   let classDepth = 0;
   for (let i = 0; i < source.length; i++) {
     const c = source[i];
@@ -40,7 +42,7 @@ export function namedGroups(source: string): string[] {
       continue;
     }
     if (c === '[') {
-      classDepth++;
+      if (classDepth === 0 || nests) classDepth++;
       continue;
     }
     if (c === ']' && classDepth > 0) {
@@ -57,10 +59,10 @@ export function namedGroups(source: string): string[] {
 }
 
 /** Names that appear more than once in the pattern, each listed once. */
-export function duplicateGroupNames(source: string): string[] {
+export function duplicateGroupNames(source: string, flags = ''): string[] {
   const seen = new Set<string>();
   const dup = new Set<string>();
-  for (const n of namedGroups(source)) (seen.has(n) ? dup : seen).add(n);
+  for (const n of namedGroups(source, flags)) (seen.has(n) ? dup : seen).add(n);
   return [...dup];
 }
 
@@ -80,6 +82,11 @@ export interface RegExpRecorder {
   readonly built: string[];
   /** Puts the original constructor back. */
   restore(): void;
+}
+
+function patternFlags(pattern: unknown, flags: unknown): string {
+  if (flags !== undefined) return String(flags);
+  return pattern instanceof RegExp ? pattern.flags : '';
 }
 
 function patternSource(pattern: unknown): string {
@@ -104,7 +111,7 @@ export function recordRegExps(): RegExpRecorder {
   const check = (args: readonly unknown[], build: () => RegExp): RegExp => {
     const source = patternSource(args[0]);
     built.push(source);
-    const duplicates = duplicateGroupNames(source);
+    const duplicates = duplicateGroupNames(source, patternFlags(args[0], args[1]));
     try {
       const re = build();
       if (duplicates.length > 0) hits.push({ source, duplicates, site: callSite() });
@@ -164,8 +171,8 @@ export function regexLiteralViolations(files: readonly SourceFile[]): RegexViola
       true,
       scriptKind(file.path),
     );
-    const report = (node: ts.Node, source: string): void => {
-      const dups = duplicateGroupNames(source);
+    const report = (node: ts.Node, source: string, flags: string): void => {
+      const dups = duplicateGroupNames(source, flags);
       if (dups.length === 0) return;
       const { line } = sf.getLineAndCharacterOfPosition(node.getStart(sf));
       out.push({
@@ -177,14 +184,18 @@ export function regexLiteralViolations(files: readonly SourceFile[]): RegexViola
     const visit = (node: ts.Node): void => {
       if (node.kind === ts.SyntaxKind.RegularExpressionLiteral) {
         const text = node.getText(sf);
-        report(node, text.slice(1, text.lastIndexOf('/')));
+        const end = text.lastIndexOf('/');
+        report(node, text.slice(1, end), text.slice(end + 1));
       } else if (
         (ts.isNewExpression(node) || ts.isCallExpression(node)) &&
-        ts.isIdentifier(node.expression) &&
-        node.expression.text === 'RegExp'
+        ((ts.isIdentifier(node.expression) && node.expression.text === 'RegExp') ||
+          (ts.isPropertyAccessExpression(node.expression) &&
+            node.expression.name.text === 'RegExp'))
       ) {
         const p = constantPattern(node.arguments?.[0]);
-        if (p !== undefined) report(node, p);
+        const f = node.arguments?.[1];
+        const flags = f !== undefined && ts.isStringLiteral(f) ? f.text : '';
+        if (p !== undefined) report(node, p, flags);
       }
       ts.forEachChild(node, visit);
     };

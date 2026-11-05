@@ -64,6 +64,13 @@ describe('namedGroups', () => {
     expect(namedGroups(String.raw`\\(?<a>x)`)).toEqual(['a']);
   });
 
+  it('a `[` inside a class is literal unless the `v` flag nests classes', () => {
+    expect(duplicateGroupNames('[[]' + planted('a'))).toEqual(['a']);
+    expect(duplicateGroupNames('[^[]' + planted('a'), 'u')).toEqual(['a']);
+    expect(namedGroups('[[a]](?<b>x)', 'v')).toEqual(['b']);
+    expect(namedGroups('[[a](?<b>x)]', 'v')).toEqual([]);
+  });
+
   it('accepts unicode and $/_ group names', () => {
     expect(namedGroups('(?<$x_1>a)(?<über>b)')).toEqual(['$x_1', 'über']);
   });
@@ -158,6 +165,10 @@ describe('static guard: regex literals and constant RegExp patterns in source', 
       },
       { path: 'x/raw.mjs', content: `const r = RegExp(String.raw\`${planted('c')}\`, 'i');` },
       {
+        path: 'x/global.ts',
+        content: `const r = new globalThis.RegExp(${JSON.stringify(planted('d'))});`,
+      },
+      {
         path: 'x/fine.tsx',
         content: `const r = new RegExp(\`(?<a>\${x})|(?<b>y)\`); <div>/</div>;`,
       },
@@ -167,6 +178,7 @@ describe('static guard: regex literals and constant RegExp patterns in source', 
       ['x/lit.ts', 2],
       ['x/str.ts', 1],
       ['x/raw.mjs', 1],
+      ['x/global.ts', 1],
     ]);
     expect(v[0]!.message).toContain('"a"');
   });
