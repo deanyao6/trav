@@ -15,6 +15,7 @@ import type {
   ModelMessage,
 } from '../client.js';
 import { deriveScriptKey, lastUserText } from './scripts.js';
+import { travAskResponders } from './asks.js';
 
 const ZERO_USAGE = { inputTokens: 0, outputTokens: 0 } as const;
 
@@ -362,6 +363,8 @@ export function defaultFallbacks(): readonly FallbackResponder[] {
     mentionRuleResponder,
     looksSharedHeuristicResponder,
     createRoastGuardResponder(),
+    // T-081/T-092: ticket asks, "cheaper", cancel, stays, remember, honest can't-do lines.
+    ...travAskResponders(),
     toolResultAckResponder,
     bookingIntentResponder,
   ];

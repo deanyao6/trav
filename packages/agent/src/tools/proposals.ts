@@ -25,6 +25,8 @@ export interface PendingProposalSummary {
   readonly attendees: readonly { readonly memberId: MemberId; readonly name: string }[];
   readonly requestedBy: string;
   readonly refundable: boolean;
+  /** Local night of the event (YYYY-MM-DD), '' when it has none. */
+  readonly eventDate: string;
   readonly expiresAt: string | null;
   readonly requiredApprovers: readonly string[];
 }
@@ -45,6 +47,7 @@ export function summarizeProposal(
     attendees: p.attendees.map((id) => ({ memberId: id, name: name(id) })),
     requestedBy: name(p.requestedBy),
     refundable: p.refundable,
+    eventDate: p.eventDate,
     expiresAt,
     requiredApprovers: requiredApprovers.map(name),
   };

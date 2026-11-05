@@ -111,16 +111,26 @@ describe.each<Kind>(['seeded', 'bare'])('demo clicked in order (real runtime, %s
     expect(proposal, 'Trav proposed the 5 tickets').toBeDefined();
     // The Razzmatazz booking adds nothing to Henry's tab (no ticket, no prompt).
     expect(bcn(s3).dms['mem_henry']!.length).toBe(henryBefore);
-    expect(messages(bcn(s3).dms['mem_henry']!).some((m) => m.card?.type === 'ticket')).toBe(false);
+    // (He does hold a Barça ticket from earlier in the script: T-081 books that match.)
+    expect(
+      messages(bcn(s3).dms['mem_henry']!).some(
+        (m) => m.card?.type === 'ticket' && /razzmatazz/i.test(m.card.event.name),
+      ),
+    ).toBe(false);
     // Dean's 👍 books (T-009/T-030), the receipt lands in the group, one ticket card per
     // attendee in their DM tab, the late taps change nothing.
     expect(proposal!.cardState?.label).toBe('Approved by Dean');
     const receipt = thread.find((m) => m.seq > proposal!.seq && m.card?.type === 'receipt');
     expect(receipt?.text).toMatch(/^booked ✅ razzmatazz, 5 tickets, €90/);
-    expect(thread.filter((m) => m.card?.type === 'receipt')).toHaveLength(1);
+    // One Razzmatazz receipt (the Barça one from earlier in the script is the other, T-081).
+    expect(
+      thread.filter((m) => m.card?.type === 'receipt' && /razzmatazz/i.test(m.text)),
+    ).toHaveLength(1);
     for (const id of ['mem_dean', 'mem_maya', 'mem_jordan', 'mem_priya', 'mem_sam']) {
       expect(
-        messages(bcn(s3).dms[id]!).filter((m) => m.card?.type === 'ticket'),
+        messages(bcn(s3).dms[id]!).filter(
+          (m) => m.card?.type === 'ticket' && /razzmatazz/i.test(m.card.event.name),
+        ),
         id,
       ).toHaveLength(1);
     }

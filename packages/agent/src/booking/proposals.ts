@@ -40,8 +40,10 @@ import type {
   ApprovalGrant,
 } from '@trav/core';
 import {
+  addDays,
   addMinutes,
   allocateEqual,
+  daysBetween,
   approval,
   formatClockTime,
   formatIso,
@@ -57,6 +59,8 @@ import {
 } from '@trav/core';
 import type { TicketEvent, TicketHold, TicketOffer, TicketsAdapter } from '@trav/adapters';
 import { sanitizeInline } from '../context/groupContext.js';
+import { carrierOf, payersFor, type PayerRule } from './payers.js';
+import { CATEGORY_WORDS, foldText, resolveNight, weekdayName } from './request.js';
 
 export interface ProposalDeps {
   readonly stores: Stores;
@@ -78,10 +82,21 @@ export interface ProposeInput {
   /** Named out ("Henry's sick"), by id or by display name. */
   readonly excludedMemberIds?: readonly MemberId[];
   readonly excludedNames?: readonly string[];
+  /** Exactly who is going, by display name ("for me" ⇒ the sender's name); resolved like `excludedNames`. */
+  readonly attendeeNames?: readonly string[];
   readonly quantity?: number;
   readonly activityId?: string;
   /** Night to book (local trip date); default: tonight, else the next one. */
   readonly date?: IsoDate;
+  /**
+   * The night as the member said it, when `date` isn't given: `tonight`,
+   * `tomorrow`, a weekday (`friday`), or `MM-DD` (T-081, `booking/request.ts`).
+   * A named night is binding: nothing that night ⇒ say so and name the
+   * closest one, never quietly book another night.
+   */
+  readonly day?: string;
+  /** Words the offer's tier name must contain ("lateral", "vip"); no such tier ⇒ say so. */
+  readonly tier?: readonly string[];
   readonly requestText?: string;
   /**
    * `sync` (default): the named attendees ARE the activity roster, everyone
@@ -295,7 +310,21 @@ function offerTotal(offer: TicketOffer, quantity: number): Money {
   );
 }
 
-function rankOffers(offers: readonly TicketOffer[], quantity: number): TicketOffer[] {
+/**
+ * Refundable as of `now`: a refund window that has already closed is not a
+ * refund (SAFETY C5). "refundable until last night 6pm" is non-refundable.
+ */
+export function refundableNow(offer: Pick<TicketOffer, 'refundPolicy'>, now: IsoDateTime): boolean {
+  const p = offer.refundPolicy;
+  if (!p.refundable) return false;
+  return p.refundableUntil === undefined || parseIso(p.refundableUntil) > parseIso(now);
+}
+
+export function rankOffers(
+  offers: readonly TicketOffer[],
+  quantity: number,
+  now: IsoDateTime,
+): TicketOffer[] {
   return offers
     .filter(
       (o) =>
@@ -305,22 +334,144 @@ function rankOffers(offers: readonly TicketOffer[], quantity: number): TicketOff
         o.unitPrice.amountMinor + o.unitFees.amountMinor > 0,
     )
     .sort((a, b) => {
-      if (a.refundPolicy.refundable !== b.refundPolicy.refundable) {
-        return a.refundPolicy.refundable ? -1 : 1;
-      }
+      const ra = refundableNow(a, now);
+      const rb = refundableNow(b, now);
+      if (ra !== rb) return ra ? -1 : 1;
       return offerTotal(a, quantity).amountMinor - offerTotal(b, quantity).amountMinor;
     });
 }
 
-function matchesQuery(event: TicketEvent, query: string | undefined): boolean {
-  if (query === undefined) return true;
-  const q = query
-    .toLowerCase()
-    .replace(/\btickets?\b/g, '')
-    .trim();
-  if (q.length === 0) return true;
-  const hay = `${event.name} ${event.venue.name}`.toLowerCase();
-  return q.split(/\s+/).some((w) => w.length > 2 && hay.includes(w));
+const QUERY_NOISE = new Set(['tickets', 'ticket', 'tix', 'the', 'for', 'and', 'get', 'with']);
+
+/**
+ * Of the events the provider matched, the ones whose name or venue carry the
+ * most distinctive query words ("riverside" beats "night"). Category words
+ * ("club", "night") don't score. Nothing scores (the provider matched an
+ * alias like "barça") ⇒ every event stays.
+ */
+export function bestMatches(
+  events: readonly TicketEvent[],
+  query: string | undefined,
+): TicketEvent[] {
+  if (query === undefined) return [...events];
+  const words = [
+    ...new Set(
+      foldText(query)
+        .split(/[^a-z0-9]+/)
+        .filter((w) => w.length >= 3 && !QUERY_NOISE.has(w) && !CATEGORY_WORDS.has(w)),
+    ),
+  ];
+  if (words.length === 0) return [...events];
+  const score = (e: TicketEvent): number => {
+    const hay = foldText(`${e.name} ${e.venue.name}`);
+    return words.filter((w) => hay.includes(w)).length;
+  };
+  const best = Math.max(0, ...events.map(score));
+  return best === 0 ? [...events] : events.filter((e) => score(e) === best);
+}
+
+/** "tonight", "tomorrow", a weekday within the week ("saturday"), else "sat mar 14" (VOICE §3.9). */
+export function nightLabel(night: IsoDate, tonight: IsoDate): string {
+  if (night === tonight) return 'tonight';
+  if (night === addDays(tonight, 1)) return 'tomorrow';
+  const ahead = daysBetween(tonight, night);
+  if (ahead > 1 && ahead < 7) return weekdayName(night);
+  const [, m, d] = night.split('-').map(Number) as [number, number, number];
+  const mon = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'][
+    m - 1
+  ];
+  return `${weekdayName(night).slice(0, 3)} ${mon ?? ''} ${String(d)}`;
+}
+
+/** "€26 each · refundable", from the best bookable offer for one ticket; undefined when none. */
+async function priceLine(
+  tickets: TicketsAdapter,
+  event: TicketEvent,
+  now: IsoDateTime,
+): Promise<string | undefined> {
+  const res = await tickets.getOffers(event.eventId, 1);
+  if (!res.ok) return undefined;
+  const best = rankOffers(res.value, 1, now)[0];
+  if (best === undefined) {
+    return res.value.some((o) => o.purchaseMode === 'redirect_only')
+      ? 'sold on its own site'
+      : undefined;
+  }
+  const each = formatMoney(
+    money(best.unitPrice.amountMinor + best.unitFees.amountMinor, best.unitPrice.currency),
+  );
+  return `${each} each · ${refundableNow(best, now) ? 'refundable' : 'non-refundable'}`;
+}
+
+/**
+ * VOICE §4.10 B for a night with nothing on: says so, names the closest night
+ * the same thing is on, with its price, and what happens next. No hold.
+ */
+async function otherNightText(
+  tickets: TicketsAdapter,
+  upcoming: readonly TicketEvent[],
+  night: IsoDate,
+  now: IsoDateTime,
+  tz: string,
+): Promise<string> {
+  const tonight = nightOf(now, tz);
+  const label = nightLabel(night, tonight);
+  const on = label === 'tonight' || label === 'tomorrow' ? label : `on ${label}`;
+  const alt = [...upcoming].sort(
+    (a, b) =>
+      Math.abs(daysBetween(night, nightOf(a.startsAt, tz))) -
+        Math.abs(daysBetween(night, nightOf(b.startsAt, tz))) ||
+      parseIso(a.startsAt) - parseIso(b.startsAt),
+  )[0]!;
+  const what = shortEventName(alt.name);
+  const price = await priceLine(tickets, alt, now);
+  const when = formatTime(alt.startsAt, tz, now);
+  return `nothing for ${what} ${on} that i can book. no charge\nclosest is ${when}${price === undefined ? '' : `, ${price}`}. @ me if you want those instead`;
+}
+
+/** A bare https URL safe to post on its own line (VOICE §3.8); anything else ⇒ undefined. */
+function safeCheckoutUrl(url: string | undefined): string | undefined {
+  if (url === undefined || url.length > 200) return undefined;
+  return /^https:\/\/[a-z0-9.-]+(?:\/[\w\-.~/?&=%]*)?$/i.test(url) ? url : undefined;
+}
+
+/**
+ * An offer Trav can't buy (`redirect_only`): says so, the price and refund
+ * terms, and the venue's checkout link on its own last line (VOICE §3.8).
+ * Nothing is held or charged.
+ */
+function redirectText(event: TicketEvent, offer: TicketOffer, now: IsoDateTime): string {
+  const each = formatMoney(
+    money(offer.unitPrice.amountMinor + offer.unitFees.amountMinor, offer.unitPrice.currency),
+  );
+  const lines = [
+    `${shortEventName(event.name)} only sells on its own site, so i can't buy it for you`,
+    `${each} each · ${refundableNow(offer, now) ? 'refundable' : 'non-refundable'}`,
+  ];
+  const url = safeCheckoutUrl(offer.checkoutUrl);
+  if (url !== undefined) lines.push(url);
+  return lines.join('\n');
+}
+
+/**
+ * Each payer's share (integer minor units, Σ = total): an equal split over
+ * the attendees, then each share moved to its carrier (`payersFor`): a
+ * minor's to their guardian, everything to one adult on a family tab.
+ */
+export function payerShares(
+  attendees: readonly MemberId[],
+  totalMinor: number,
+  currency: Money['currency'],
+  rule: PayerRule,
+): { memberId: MemberId; shareMinor: number }[] {
+  const shares = allocateEqual(money(totalMinor, currency), attendees.length);
+  const carriers = payersFor(attendees, rule);
+  const byCarrier = new Map<MemberId, number>(carriers.map((id) => [id, 0]));
+  attendees.forEach((id, i) => {
+    const to = carrierOf(id, carriers, rule);
+    byCarrier.set(to, (byCarrier.get(to) ?? 0) + shares[i]!.amountMinor);
+  });
+  return carriers.map((memberId) => ({ memberId, shareMinor: byCarrier.get(memberId) ?? 0 }));
 }
 
 export function createProposalService(deps: ProposalDeps): ProposalService {
@@ -373,16 +524,37 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
         text: "ticket site's not responding. no charge went through\n@ me again in a few",
       };
     }
-    const upcoming = searched.value.filter(
-      (e) => parseIso(e.startsAt) > parseIso(now) && matchesQuery(e, input.query),
+    // The provider already matched `query` against names, venues and its own
+    // aliases ("razz", "barça"); a second name-only filter here would drop
+    // what its keywords found.
+    // Then the events that match the most distinctive query words win, before
+    // any same-night preference: "riverside club night" is the club, not the
+    // fado night that happens to be tonight.
+    const upcoming = bestMatches(
+      searched.value
+        .filter((e) => parseIso(e.startsAt) > parseIso(now))
+        .sort((a, b) => parseIso(a.startsAt) - parseIso(b.startsAt)),
+      input.query,
     );
     let candidates = upcoming;
+    const tonight = nightOf(now, tz);
+    const namedNight =
+      input.date ?? (input.day !== undefined ? resolveNight(input.day, tonight, trip) : undefined);
     if (input.eventId !== undefined) {
       candidates = searched.value.filter((e) => e.eventId === input.eventId);
     } else {
-      const wanted = input.date ?? nightOf(now, tz);
+      const wanted = namedNight ?? tonight;
       const sameNight = upcoming.filter((e) => nightOf(e.startsAt, tz) === wanted);
       if (sameNight.length > 0) candidates = sameNight;
+      else if (namedNight !== undefined && upcoming.length > 0) {
+        // The member named a night and there is nothing then (T-081): say so
+        // and name the closest one. No hold, no proposal for a night nobody asked for.
+        return {
+          kind: 'unavailable',
+          reason: 'not_found',
+          text: await otherNightText(tickets, upcoming, namedNight, now, tz),
+        };
+      }
     }
     candidates = [...candidates].sort((a, b) => parseIso(a.startsAt) - parseIso(b.startsAt));
     const event = candidates[0];
@@ -395,6 +567,24 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
         text: `nothing for ${what} on sale for the trip dates. tell me another night or another place`,
       };
     }
+    // A generic ask ("club tickets") that fits two venues that night: ask, never pick one.
+    if (input.eventId === undefined && input.query !== undefined && input.day !== undefined) {
+      const venues = [
+        ...new Set(
+          candidates
+            .filter((e) => nightOf(e.startsAt, tz) === nightOf(event.startsAt, tz))
+            .map((e) => sanitizeInline(e.venue.name, 40)),
+        ),
+      ];
+      if (venues.length > 1) {
+        const list = `${venues.slice(0, -1).join(', ')} or ${venues[venues.length - 1]!}`;
+        return {
+          kind: 'clarify',
+          question: `which one, ${list}? ${venues.length === 2 ? 'both have' : 'they all have'} tickets ${nightLabel(nightOf(event.startsAt, tz), tonight)}`,
+          problems: ['ambiguous_venue'],
+        };
+      }
+    }
 
     // ---- 2. who is in ----
     const activity = findActivity(group, trip, event, input.activityId);
@@ -405,7 +595,8 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
     // neither re-buy for them nor write their roster rows.
     const booked =
       activity === null ? new Set<MemberId>() : bookedAttendees(group, trip, activity.activityId);
-    const addOn = input.rosterMode === 'add_on' || (input.rosterMode === undefined && booked.size > 0);
+    const addOn =
+      input.rosterMode === 'add_on' || (input.rosterMode === undefined && booked.size > 0);
     const base = (
       rosterRows.length > 0
         ? inOrder(
@@ -437,9 +628,21 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
       }
     }
 
+    const named: MemberId[] = [...(input.attendeeMemberIds ?? [])];
+    for (const raw of input.attendeeNames ?? []) {
+      const hits = active.filter((m) => m.displayName.toLowerCase() === raw.trim().toLowerCase());
+      if (hits.length !== 1) {
+        return {
+          kind: 'clarify',
+          question: `who's in? i've got ${names(base, byId)}. 👍 if that's right, or tell me who to swap`,
+          problems: [`unknown_name:${sanitizeInline(raw, 40)}`],
+        };
+      }
+      named.push(hits[0]!.memberId);
+    }
     let attendees: MemberId[];
-    if (input.attendeeMemberIds !== undefined && input.attendeeMemberIds.length > 0) {
-      const unknown = input.attendeeMemberIds.filter((id) => !order.includes(id));
+    if (named.length > 0) {
+      const unknown = named.filter((id) => !order.includes(id));
       if (unknown.length > 0) {
         return {
           kind: 'clarify',
@@ -451,7 +654,7 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
       }
       // The named subset wins, but a member marked out for the activity stays out (SAFETY §2.5).
       attendees = inOrder(
-        input.attendeeMemberIds.filter((id) => !excluded.has(id) && !markedOut.has(id)),
+        named.filter((id) => !excluded.has(id) && !markedOut.has(id)),
         order,
       );
     } else {
@@ -497,17 +700,31 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
         text: soldOutText(event, searched.value, tz, quantity, now),
       };
     }
-    const ranked = rankOffers(offersRes.value, quantity);
-    const offer =
-      input.offerId === undefined ? ranked[0] : ranked.find((o) => o.offerId === input.offerId);
-    if (offer === undefined) {
-      const redirectOnly = offersRes.value.some((o) => o.purchaseMode === 'redirect_only');
+    const ranked = rankOffers(offersRes.value, quantity, now);
+    // A seat tier the member asked for ("sideline", "vip") narrows the offers; none ⇒ say so.
+    const tierWords = (input.tier ?? []).map((w) => foldText(w)).filter((w) => w.length > 0);
+    const tierAsked = input.offerId === undefined && tierWords.length > 0;
+    const tiered = tierAsked
+      ? ranked.filter((o) => tierWords.some((w) => foldText(o.tierName).includes(w)))
+      : ranked;
+    if (tierAsked && tiered.length === 0 && ranked.length > 0) {
       return {
         kind: 'unavailable',
-        reason: redirectOnly ? 'redirect_only' : 'sold_out',
-        text: redirectOnly
-          ? `${shortEventName(event.name)} only sells on its own site. i can post the link, but i can't buy it for you`
-          : soldOutText(event, searched.value, tz, quantity, now),
+        reason: 'not_found',
+        text: `no ${sanitizeInline(tierWords.join(' '), 40)} tickets for ${shortEventName(event.name)} ${whenText(event.startsAt, tz, now)} that i can book. no charge\n@ me without that and i'll price the regular ones`,
+      };
+    }
+    const offer =
+      input.offerId === undefined ? tiered[0] : ranked.find((o) => o.offerId === input.offerId);
+    if (offer === undefined) {
+      const redirect = offersRes.value.find((o) => o.purchaseMode === 'redirect_only');
+      return {
+        kind: 'unavailable',
+        reason: redirect !== undefined ? 'redirect_only' : 'sold_out',
+        text:
+          redirect !== undefined
+            ? redirectText(event, redirect, now)
+            : soldOutText(event, searched.value, tz, quantity, now),
       };
     }
 
@@ -570,7 +787,17 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
     };
 
     // ---- 5. the proposal ----
-    const shares = allocateEqual(money(totalMinor, offer.unitPrice.currency), quantity);
+    // Minors are never charged (VOICE §8): their share is carried by their
+    // guardian, and a family-tab trip puts the whole thing on one adult.
+    const payerRule: PayerRule = {
+      members,
+      now,
+      familyTab: trip.familyTab === true,
+      requestedBy: ctx.requestedBy,
+    };
+    const payers = payerShares(attendees, totalMinor, offer.unitPrice.currency, payerRule);
+    // An expired refund window is no refund (SAFETY C5 fires on it).
+    const refundable = refundableNow(offer, now);
     const proposal: BookingProposal = {
       proposalId: ids.next('prop'),
       groupId: ctx.groupId,
@@ -586,11 +813,11 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
       quotedAt: now,
       quoteRef: hold.holdId,
       holdExpiresAt: hold.expiresAt,
-      payers: attendees.map((memberId, i) => ({ memberId, shareMinor: shares[i]!.amountMinor })),
+      payers,
       attendees,
       paidBy: { kind: 'member_card', memberId: ctx.requestedBy },
-      refundable: offer.refundPolicy.refundable,
-      ...(offer.refundPolicy.refundableUntil !== undefined
+      refundable,
+      ...(refundable && offer.refundPolicy.refundableUntil !== undefined
         ? { refundDeadline: offer.refundPolicy.refundableUntil }
         : {}),
       eventDate: nightOf(event.startsAt, tz),
@@ -762,6 +989,8 @@ export function createProposalService(deps: ProposalDeps): ProposalService {
       ruleId,
       capPerPersonMinor: grp.spendingPolicy.perPersonAutoCapMinor,
       ...(addOn ? { alreadyBooked: booked.size } : {}),
+      ...(tierAsked ? { tierName: offer.tierName } : {}),
+      ...(trip.familyTab === true ? { familyTab: true } : {}),
     });
     const card = buildCard({
       cardId: ids.next('card'),
@@ -1084,6 +1313,10 @@ interface RenderInput {
   readonly capPerPersonMinor: number;
   /** Add-on for a late joiner: how many members already hold tickets for this activity. */
   readonly alreadyBooked?: number;
+  /** The seat tier, when the member asked for one ("Tribuna lateral"). */
+  readonly tierName?: string;
+  /** Family-tab trip: one pot, no splitting (VOICE §8). */
+  readonly familyTab?: boolean;
 }
 
 function minutesUntil(iso: IsoDateTime, now: IsoDateTime): number {
@@ -1107,7 +1340,7 @@ export function renderProposalText(input: RenderInput): string {
   lines.push(
     booked > 0
       ? `${shortEventName(event.name)} ${whenText(event.startsAt, tz, now)}, ${n} more ${n === 1 ? 'ticket' : 'tickets'} (${booked} already booked, this one's separate)`
-      : `${shortEventName(event.name)} ${whenText(event.startsAt, tz, now)}, ${count}`,
+      : `${shortEventName(event.name)} ${whenText(event.startsAt, tz, now)}, ${count}${input.tierName === undefined ? '' : ` · ${sanitizeInline(input.tierName, 40)}`}`,
   );
   const who = names(p.attendees, byId);
   lines.push(excluded.length > 0 ? `${who} (not ${names(excluded, byId)})` : who);
@@ -1121,7 +1354,23 @@ export function renderProposalText(input: RenderInput): string {
   );
   const payerName =
     p.paidBy.kind === 'member_card' ? names([p.paidBy.memberId], byId) : 'each card';
-  if (n > 1) lines.push(`charged to ${payerName}'s card, split ${n} ways on the tab`);
+  const payerIds = p.payers.map((s) => s.memberId);
+  const carried = p.attendees.filter((id) => !payerIds.includes(id));
+  if (n > 1 && carried.length > 0 && payerIds.length === 1) {
+    // Family tab, or one adult carrying a minor: one person's share, nobody else's.
+    lines.push(
+      `charged to ${payerName}'s card, ${input.familyTab === true ? 'on the family tab' : `all on ${names(payerIds, byId)}`}`,
+    );
+  } else if (n > 1 && carried.length > 0) {
+    lines.push(
+      `charged to ${payerName}'s card, split ${payerIds.length} ways on the tab (${carried
+        .map((id) => {
+          const g = byId.get(id)?.guardianMemberId;
+          return `${names([id], byId)} under ${g === undefined ? 'a guardian' : names([g], byId)}`;
+        })
+        .join(', ')})`,
+    );
+  } else if (n > 1) lines.push(`charged to ${payerName}'s card, split ${n} ways on the tab`);
   else if (p.paidBy.kind === 'member_card' && p.paidBy.memberId === p.attendees[0]) {
     lines.push(`charged to ${payerName}'s card`);
   } else lines.push(`charged to ${payerName}'s card, on ${who}'s tab`);

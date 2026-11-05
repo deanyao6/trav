@@ -23,6 +23,7 @@ import type {
 } from '@trav/core';
 import { addDays, formatTime, parseIso } from '@trav/core';
 import { nightOf } from '../booking/proposals.js';
+import { payersFor, type PayerRule } from '../booking/payers.js';
 import { sanitizeInline } from '../context/groupContext.js';
 import { stripInvisible } from '../untrusted.js';
 
@@ -90,7 +91,7 @@ export function unanswered(roster: Roster, members: readonly Member[]): MemberId
 export interface BookingParty {
   /** Who the tickets are for. */
   readonly attendees: readonly MemberId[];
-  /** Who is charged. Always the same list as `attendees` (SAFETY §2.5). */
+  /** Who is charged: the attendees, with a minor's share on their guardian (`booking/payers.ts`). */
   readonly payers: readonly MemberId[];
   readonly quantity: number;
 }
@@ -101,10 +102,14 @@ export interface BookingParty {
  * for the activity) are left out too: a proposal after the booking is an
  * add-on for the others.
  */
-export function bookingParty(roster: Roster, alreadyBooked: Iterable<MemberId> = []): BookingParty {
+export function bookingParty(
+  roster: Roster,
+  alreadyBooked: Iterable<MemberId> = [],
+  payerRule?: PayerRule,
+): BookingParty {
   const booked = new Set(alreadyBooked);
   const attendees = roster.inMemberIds.filter((id) => !booked.has(id));
-  return { attendees, payers: [...attendees], quantity: attendees.length };
+  return { attendees, payers: payersFor(attendees, payerRule), quantity: attendees.length };
 }
 
 function sameSet(a: readonly string[], b: readonly string[]): boolean {
@@ -118,8 +123,9 @@ export function rosterDiverged(
   roster: Roster,
   proposal: BookingProposal,
   alreadyBooked: Iterable<MemberId> = [],
+  payerRule?: PayerRule,
 ): boolean {
-  const party = bookingParty(roster, alreadyBooked);
+  const party = bookingParty(roster, alreadyBooked, payerRule);
   return (
     !sameSet(party.attendees, proposal.attendees) ||
     !sameSet(

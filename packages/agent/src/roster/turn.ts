@@ -89,6 +89,18 @@ export function handleRosterMessage(input: RosterTurnInput): RosterTurn | undefi
     hint,
     when,
   );
+  if (
+    input.expectInCount !== undefined &&
+    activity === undefined &&
+    roll === undefined &&
+    hint === undefined &&
+    when !== undefined
+  ) {
+    // "it's the 5 of us tonight, henry's out" with nothing planned tonight:
+    // the member stated tonight's headcount, so say there is nothing to count
+    // them against. Nothing is written, never another night's roster.
+    return { kind: 'no_activity', text: `nothing on the plan for ${when} yet` };
+  }
   if (input.expectInCount !== undefined && (roll !== undefined || activity === undefined)) {
     return undefined;
   }

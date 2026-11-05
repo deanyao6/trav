@@ -92,6 +92,7 @@ import type {
 import { mockQrDataUrl } from '@trav/adapters';
 import { sanitizeInline } from '../context/groupContext.js';
 import { bookingParty, rosterOf } from '../roster/index.js';
+import { payerRuleFor } from './payers.js';
 import { bookedAttendees } from './proposals.js';
 
 export interface ProviderRegistry {
@@ -366,7 +367,11 @@ export function createBookingExecutor(deps: BookingExecutorDeps): BookingExecuto
       };
     }
     const roster = rosterOf(group.trips, activity.activityId, members, now);
-    const party = bookingParty(roster, bookedAttendees(group, trip, activity.activityId));
+    const party = bookingParty(
+      roster,
+      bookedAttendees(group, trip, activity.activityId),
+      payerRuleFor(proposal, trip, members, now),
+    );
     const check = approval.checkProposalConsistency(
       proposal,
       trip,

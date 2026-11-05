@@ -270,7 +270,13 @@ const MARKDOWN_RULES: readonly { readonly re: RegExp; readonly what: string }[] 
 function sentenceStarts(blanked: string): string[] {
   const starts: string[] = [];
   for (const line of blanked.split('\n')) {
-    for (const sentence of line.split(/(?<=[.?!])\s+/)) starts.push(sentence);
+    // An abbreviation in an address ("R. Prof. Fernando da Fonseca", "Av. Infante")
+    // ends no sentence.
+    for (const sentence of line.split(
+      /(?<=[.?!])(?<!(?:^|[\s·(])(?:[A-Z]|Av|Prof|Dr|St|Sr|Sra|Mr|Mrs|Ms|Ste|Rd|Ave)\.)\s+/u,
+    )) {
+      starts.push(sentence);
+    }
   }
   return starts;
 }

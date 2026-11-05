@@ -106,6 +106,7 @@ import {
   rosterOf,
   setAttendance,
 } from '../roster/index.js';
+import { payerRuleFor } from '../booking/payers.js';
 import {
   followSupersededBy,
   type ApprovalEvent,
@@ -351,7 +352,8 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
     if (activity === null) return undefined;
     const roster = rosterOf(group.trips, activity.activityId, members, now);
     const booked = bookedAttendees(group, trip, activity.activityId);
-    const party = bookingParty(roster, booked);
+    const rule = payerRuleFor(proposal, trip, members, now);
+    const party = bookingParty(roster, booked, rule);
     const check = approval.checkProposalConsistency(
       proposal,
       trip,
@@ -368,7 +370,7 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
           : 'payers_changed';
       return { cause, attendees: party.attendees, problems: check.problems };
     }
-    if (rosterDiverged(roster, proposal, booked)) {
+    if (rosterDiverged(roster, proposal, booked, rule)) {
       return { cause: 'payers_changed', attendees: party.attendees, problems: [] };
     }
     return undefined;
@@ -1083,7 +1085,9 @@ export function createApprovalHandler(deps: ApprovalHandlerDeps): ApprovalHandle
       .filter((p) => p.activityId === activity.activityId)
       .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
     const stale = pending.find(
-      (p) => !inFlight.has(p.proposalId) && rosterDiverged(roster, p, booked),
+      (p) =>
+        !inFlight.has(p.proposalId) &&
+        rosterDiverged(roster, p, booked, payerRuleFor(p, trip, members, now)),
     );
     if (stale !== undefined) {
       const ctx = load(stale.proposalId, now);

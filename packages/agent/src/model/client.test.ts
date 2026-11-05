@@ -211,7 +211,7 @@ describe('offline client', () => {
     expect(res.toolCalls[0]?.name).toBe('propose_booking');
     expect(res.toolCalls[0]?.input).toMatchObject({
       quantity: 5,
-      query: 'razzmatazz',
+      query: 'razzmatazz tickets',
       excludedNames: ['Henry'],
     });
     expect(existsSync(join(state, 'offline-misses.jsonl'))).toBe(false);

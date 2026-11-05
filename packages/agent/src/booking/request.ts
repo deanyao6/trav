@@ -1,0 +1,541 @@
+/**
+ * Booking-request parsing (T-081): the deterministic reading of a ticket ask
+ * the offline model uses ("@trav get the 5 of us Razzmatazz tickets, Henry's
+ * sick", "barça vs sevilla sunday mar 15, 6 tickets together, sideline",
+ * "park güell friday 10am for 6"). Pure: no clock, no stores.
+ *
+ * What it reads, and nothing else:
+ *  - the venue, from the ticket inventory's own names and `keywords` (aliases
+ *    like "razz", "barça"), folded so "güell" = "guell". A term two venues
+ *    share ("club", "gaudi") is generic: it only counts next to "tickets".
+ *  - who: a headcount ("for 6", "6 tickets", "the 5 of us", "all 6"), everyone
+ *    ("all of us", "get us"), the sender ("for me"), and who is out, through
+ *    `parseRosterUpdate` per clause ("Henry's sick" ⇒ Henry) or "everyone but
+ *    Henry". The reason is matched only to recognize the clause and is never
+ *    part of the result, so it can't be repeated back.
+ *  - the night ("tonight", "tomorrow", a weekday, "mar 15") as a canonical
+ *    word the proposal service resolves against the trip clock.
+ *  - a seat tier ("sideline", "vip mezzanine"), as words the offer's tier name
+ *    must contain.
+ * It never decides price, availability or approval: that is the proposal
+ * service and `ApprovalPolicy`.
+ */
+import type { IsoDate } from '@trav/core';
+import { addDays } from '@trav/core';
+import { parseRosterUpdate } from '../roster/index.js';
+
+/** The slice of a ticket inventory the parser reads (structurally `TicketInventory`). */
+export interface InventoryLike {
+  readonly events: readonly {
+    readonly event: {
+      readonly name: string;
+      readonly venue: { readonly name: string; readonly city?: string };
+    };
+    readonly keywords: readonly string[];
+    readonly offers: readonly { readonly offer: { readonly tierName: string } }[];
+  }[];
+}
+
+export interface VenueEntry {
+  /** Folded venue name, the grouping key. */
+  readonly key: string;
+  /** Folded search terms: venue name, event names, keywords. */
+  readonly terms: readonly string[];
+  /** Folded words from this venue's tier names ("vip", "mezzanine", "lateral"). */
+  readonly tierWords: readonly string[];
+}
+
+export interface VenueIndex {
+  readonly venues: readonly VenueEntry[];
+  /** Terms that alone don't name one venue (shared by two or more, or a category word). */
+  readonly generic: ReadonlySet<string>;
+}
+
+/** Lowercase, accents dropped ("Barça" ⇒ "barca", "Güell" ⇒ "guell"), curly quotes straightened. */
+export function foldText(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[‘’]/g, "'").toLowerCase();
+}
+
+/** Category words that never name one venue on their own (also skipped when the service scores a query). */
+export const CATEGORY_WORDS: ReadonlySet<string> = new Set([
+  'club',
+  'clubbing',
+  'party',
+  'techno',
+  'show',
+  'park',
+  'match',
+  'game',
+  'football',
+  'soccer',
+  'futbol',
+  'tour',
+  'museum',
+  'concert',
+  'gig',
+  'beach',
+  'boat',
+  'night',
+  'evening',
+  'session',
+]);
+
+/** Words from venue and event names that never identify a venue ("fado night with dinner" ⇒ only "fado"). */
+const NAME_NOISE = new Set([
+  ...CATEGORY_WORDS,
+  'dinner',
+  'lunch',
+  'brunch',
+  'breakfast',
+  'food',
+  'drinks',
+  'with',
+  'timed',
+  'entry',
+  'the',
+  'and',
+  'morning',
+  'afternoon',
+  'tonight',
+  'today',
+  'fictional',
+  'sunday',
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'closing',
+]);
+
+/** Tier-name words that say nothing about which seats ("General admission", "10:00 slot"). */
+const TIER_NOISE = new Set([
+  'general',
+  'admission',
+  'entry',
+  'slot',
+  'ticket',
+  'tickets',
+  'line',
+  'zone',
+  'show',
+  'and',
+  'the',
+  'with',
+]);
+
+/** Seat words members use that tier names spell differently. */
+const TIER_ALIASES: readonly { readonly re: RegExp; readonly words: readonly string[] }[] = [
+  { re: /\bside ?lines?\b|\bsideline seats?\b/, words: ['lateral', 'tribuna', 'sideline'] },
+  { re: /\bbehind the goal\b|\bgoal end\b/, words: ['gol', 'goal'] },
+  { re: /\bvip\b/, words: ['vip'] },
+  { re: /\bfast[- ]?(?:line|track)\b|\bskip the line\b/, words: ['fast'] },
+  { re: /\btowers?\b/, words: ['towers'] },
+];
+
+function eventHead(name: string): string {
+  return (name.split(/[:·|]/)[0] ?? name).trim();
+}
+
+/** "Cais Club (fictional)" ⇒ "cais club". */
+function nameTerm(name: string): string {
+  return foldText(name)
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function nameWords(term: string): string[] {
+  return term
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length >= 4 && !/\d/.test(w) && !NAME_NOISE.has(w));
+}
+
+/** Builds the venue index from ticket inventories (every bundled city; the service searches the trip's own). */
+export function venueIndexFrom(inventories: readonly InventoryLike[]): VenueIndex {
+  const byKey = new Map<string, { terms: Set<string>; tierWords: Set<string> }>();
+  // A city is never a venue ("fc barcelona vs sevilla" must not claim every "barcelona").
+  const cities = new Set<string>();
+  for (const inv of inventories) {
+    for (const e of inv.events) {
+      if (e.event.venue.city !== undefined) cities.add(nameTerm(e.event.venue.city));
+    }
+  }
+  for (const inv of inventories) {
+    for (const e of inv.events) {
+      const key = nameTerm(e.event.venue.name);
+      const entry = byKey.get(key) ?? { terms: new Set<string>(), tierWords: new Set<string>() };
+      const head = nameTerm(eventHead(e.event.name));
+      entry.terms.add(key);
+      entry.terms.add(head);
+      // Single distinctive words, so "tile workshop" finds "azulejo tile-painting workshop".
+      for (const w of [...nameWords(key), ...nameWords(head)]) {
+        if (!cities.has(w)) entry.terms.add(w);
+      }
+      for (const k of e.keywords) entry.terms.add(foldText(k).trim());
+      for (const o of e.offers) {
+        for (const w of foldText(o.offer.tierName).split(/[^a-z0-9]+/)) {
+          if (w.length >= 3 && !TIER_NOISE.has(w) && !/^\d+$/.test(w)) entry.tierWords.add(w);
+        }
+      }
+      byKey.set(key, entry);
+    }
+  }
+  const count = new Map<string, number>();
+  for (const { terms } of byKey.values()) {
+    for (const t of terms) count.set(t, (count.get(t) ?? 0) + 1);
+  }
+  const generic = new Set<string>();
+  for (const [t, n] of count) if (n > 1 || CATEGORY_WORDS.has(t)) generic.add(t);
+  const venues: VenueEntry[] = [...byKey].map(([key, v]) => ({
+    key,
+    terms: [...v.terms].filter((t) => t.length >= 3),
+    tierWords: [...v.tierWords],
+  }));
+  return { venues, generic };
+}
+
+// ---------- numbers, days ----------
+
+const NUMBER_WORDS: Readonly<Record<string, number>> = {
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+};
+const NUM = String.raw`(\d{1,2}|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)`;
+
+function toCount(s: string | undefined): number | undefined {
+  if (s === undefined) return undefined;
+  const n = /^\d+$/.test(s) ? Number(s) : NUMBER_WORDS[s];
+  return n !== undefined && n >= 1 && n <= 50 ? n : undefined;
+}
+
+export const WEEKDAYS = [
+  'sunday',
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+] as const;
+export type Weekday = (typeof WEEKDAYS)[number];
+
+const WEEKDAY_RE =
+  /\b(sun(?:day)?|mon(?:day)?|tue(?:s|sday)?|wed(?:nesday)?|thu(?:r|rs|rsday)?|fri(?:day)?|sat(?:urday)?)\b/;
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const MONTH = String.raw`(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?`;
+
+/**
+ * The night a request names, canonical: `tonight`, `tomorrow`, a weekday
+ * (`friday`), or `MM-DD` for a calendar date ("mar 15", "15 march"). A date
+ * wins over a weekday ("sunday mar 15" ⇒ `03-15`).
+ */
+export function parseDayWord(folded: string): string | undefined {
+  const md =
+    new RegExp(String.raw`\b${MONTH}\s+(\d{1,2})(?:st|nd|rd|th)?\b`).exec(folded) ?? undefined;
+  const dm =
+    md === undefined
+      ? (new RegExp(String.raw`\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?${MONTH}`).exec(folded) ??
+        undefined)
+      : undefined;
+  const month = md?.[1] ?? dm?.[2];
+  const day = md?.[2] ?? dm?.[1];
+  if (month !== undefined && day !== undefined) {
+    const m = MONTHS.indexOf(month.slice(0, 3)) + 1;
+    const d = Number(day);
+    if (m >= 1 && d >= 1 && d <= 31)
+      return `${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
+  const wd = WEEKDAY_RE.exec(folded)?.[1];
+  if (wd !== undefined) {
+    const full = WEEKDAYS.find((w) => w.startsWith(wd.slice(0, 3)));
+    if (full !== undefined) return full;
+  }
+  if (/\b(?:tonight|tonite|tn|today|this evening)\b/.test(folded)) return 'tonight';
+  if (/\b(?:tomorrow|tmrw|tmr)\b/.test(folded)) return 'tomorrow';
+  return undefined;
+}
+
+function weekdayOf(date: IsoDate): Weekday {
+  const [y, m, d] = date.split('-').map(Number) as [number, number, number];
+  return WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]!;
+}
+
+/** Weekday name of a calendar date ("2026-03-13" ⇒ "friday"). */
+export function weekdayName(date: IsoDate): Weekday {
+  return weekdayOf(date);
+}
+
+/**
+ * Resolves a `parseDayWord` result to a calendar night. `tonight` is the
+ * current night; a weekday is the first such night from `base` (tonight, or
+ * the trip's first night when the trip hasn't started); `MM-DD` takes the
+ * trip's year. Unknown words ⇒ undefined (the caller treats it as unsaid).
+ */
+export function resolveNight(
+  day: string,
+  tonight: IsoDate,
+  trip?: { readonly startDate: IsoDate; readonly endDate: IsoDate },
+): IsoDate | undefined {
+  const w = day.trim().toLowerCase();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(w)) return w;
+  if (w === 'tonight' || w === 'today') return tonight;
+  if (w === 'tomorrow') return addDays(tonight, 1);
+  const wd = WEEKDAYS.find((x) => x === w);
+  if (wd !== undefined) {
+    const base = trip !== undefined && trip.startDate > tonight ? trip.startDate : tonight;
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(base, i);
+      if (weekdayOf(d) === wd) return d;
+    }
+    return undefined;
+  }
+  const md = /^(\d{2})-(\d{2})$/.exec(w);
+  if (md !== null) {
+    const startYear = (trip?.startDate ?? tonight).slice(0, 4);
+    const endYear = (trip?.endDate ?? tonight).slice(0, 4);
+    const first = `${startYear}-${md[1]}-${md[2]}`;
+    if (trip !== undefined && first < trip.startDate && endYear !== startYear) {
+      return `${endYear}-${md[1]}-${md[2]}`;
+    }
+    return first;
+  }
+  return undefined;
+}
+
+// ---------- the request ----------
+
+export interface BookingRequest {
+  readonly kind: 'ticket';
+  /** What the ticket search matches: the venue terms the member used, plus "tickets". */
+  readonly query: string;
+  /** Headcount the member stated ("for 6", "the 5 of us"); absent ⇒ everyone who's in. */
+  readonly quantity?: number;
+  /** Display names said to be out ("Henry's sick" ⇒ Henry). Never the reason. */
+  readonly excludedNames: readonly string[];
+  /** Exactly who is going, when the member said ("for me"). */
+  readonly attendeeNames?: readonly string[];
+  /** `parseDayWord` result. */
+  readonly day?: string;
+  /** Words the offer's tier name must contain ("lateral", "vip"). */
+  readonly tier?: readonly string[];
+  readonly requestText: string;
+}
+
+const BOOK_VERB = /\b(?:get|grab|book|buy|reserve|snag|score|order|lock in|sort)\b/;
+const TICKET_WORD = /\b(?:tickets?|tix|passes|entry|entries|spots)\b/;
+/** Logging, not booking: an amount, or something already paid for. */
+const EXPENSE_CUE =
+  /[€$£]\s?\d|\b\d+(?:[.,]\d+)?\s?(?:eur|euros?|usd|dollars|bucks)\b|\b(?:paid|bought|spent|covered|put it on|on the tab|log|logged|owe)\b/;
+const BUDGET_RE =
+  /\b(?:under|below|max|less than|up to|at most|no more than)\s*[€$£]?\s?\d+(?:[.,]\d+)?\s?(?:eur|euros?|usd|dollars)?(?:\s*(?:each|a head|per person|pp|total))?/;
+const APPROVAL_CLAIM =
+  /\b(?:approv\w*|ok'?d|okay(?:ed|ing)?|sign(?:ed|ing)? off|on (?:his|her|their) behalf|said (?:it'?s )?(?:fine|ok|yes)|vouch\w*)\b|\bthe \S+(?: \S+)? ones\b/;
+const CANCEL_CUE = /\b(?:cancel|drop|nvm|never ?mind|don'?t book|scrap|forget)\b/;
+const TIME_RE = /\b\d{1,2}(?::\d{2})?\s?(?:am|pm)\b|\bat \d{1,2}(?::\d{2})?\b/g;
+const NOT_NAME = new Set([
+  // Pronouns ("everyone but Henry, he's sick" names Henry once, not "He").
+  'he',
+  'she',
+  'they',
+  'we',
+  'i',
+  'us',
+  'me',
+  'you',
+  'him',
+  'her',
+  'them',
+  'the',
+  'a',
+  'an',
+  'that',
+  'this',
+  'it',
+  'tickets',
+  'ticket',
+  'tix',
+  'everyone',
+  'all',
+  'one',
+]);
+
+function termRe(term: string): RegExp {
+  const esc = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+  return new RegExp(`(?:^|[^a-z0-9])${esc}(?:$|[^a-z0-9])`);
+}
+
+/** "Dean: @trav get …" ⇒ { sender: "Dean", text: "get …" } (the loop prefixes the display name). */
+export function splitSender(raw: string): { readonly sender?: string; readonly text: string } {
+  const m = /^([^:\n]{1,40}):\s([\s\S]*)$/.exec(raw);
+  const sender = m?.[1]?.trim();
+  const text = (m === null ? raw : m[2]!)
+    .replace(/(^|[^\w@])@trav(?![\w-])\s*[,:]?/gi, '$1')
+    .replace(/^\s*(?:(?:hey|hi|yo|ok|okay)\s+)?trav\s*[,:]\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return sender === undefined || sender.length === 0 ? { text } : { sender, text };
+}
+
+function headcount(t: string): number | undefined {
+  const patterns = [
+    new RegExp(String.raw`\b(?:the|all)\s+${NUM}\s+of\s+us\b`),
+    new RegExp(String.raw`\b${NUM}\s+of\s+us\b`),
+    new RegExp(String.raw`\ball\s+${NUM}\b`),
+    new RegExp(String.raw`\b${NUM}\s+(?:tickets?|tix|passes|spots|people|ppl|of them)\b`),
+    new RegExp(
+      String.raw`\bfor\s+(?:the\s+)?${NUM}\b(?!\s*(?:nights?|days?|hours?|h\b|euros?|eur\b))`,
+    ),
+  ];
+  for (const re of patterns) {
+    const n = toCount(re.exec(t)?.[1]);
+    if (n !== undefined) return n;
+  }
+  return undefined;
+}
+
+function exclusions(original: string, folded: string, sender: string | undefined): string[] {
+  const out: string[] = [];
+  const add = (name: string | undefined): void => {
+    const n = name?.trim();
+    if (n === undefined || n.length < 2 || NOT_NAME.has(n.toLowerCase())) return;
+    if (!out.some((x) => x.toLowerCase() === n.toLowerCase())) out.push(n);
+  };
+  for (const clause of original.split(/[,.;!?]|\s+-\s+|\band\b(?=\s+\S+(?:'s|\s+is)\s)/i)) {
+    const c = clause.trim();
+    if (c.length === 0) continue;
+    const u = parseRosterUpdate(c);
+    if (u === undefined || u.status !== 'out') continue;
+    add(u.who === 'me' ? sender : u.who);
+  }
+  // A capitalized name mid-sentence ("…Razzmatazz tickets Henry's sick", a
+  // line break the chat flattened): only the name is kept, never the reason.
+  for (const m of original.matchAll(
+    /\b([A-Z][a-z'-]{1,29})(?:'s|’s| is)\s+(?:sick|ill|out|not coming|not going|staying in|staying home)\b/g,
+  )) {
+    if (!/^(?:It|That|He|She|There|What|Who|This|Everyone|Everybody)$/.test(m[1]!)) add(m[1]);
+  }
+  const NAME = String.raw`([a-z][a-z'-]{1,29})`;
+  for (const m of folded.matchAll(
+    new RegExp(
+      String.raw`\b(?:but|except|minus|without)\s+${NAME}(?:\s+(?:and|or|&)\s+${NAME})?`,
+      'g',
+    ),
+  )) {
+    add(m[1]);
+    add(m[2]);
+  }
+  for (const m of folded.matchAll(
+    new RegExp(String.raw`(?:^|[,;]\s*)not\s+${NAME}\s*(?=[,;.!?]|$)`, 'g'),
+  )) {
+    add(m[1]);
+  }
+  // Names keep the member's own capitalization when they typed one.
+  return out.map((n) => {
+    const hit = new RegExp(`\\b(${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})\\b`, 'i').exec(
+      original,
+    );
+    const typed = hit?.[1] ?? n;
+    return typed.charAt(0).toUpperCase() + typed.slice(1);
+  });
+}
+
+function tierWords(folded: string, venue: VenueEntry | undefined): string[] {
+  // "sideline not behind the goal": a seat the member ruled out is not a wish.
+  const wanted = folded.replace(/\b(?:not|no)\s+(?:the\s+)?[^,.;!?]*/g, ' ');
+  const words = new Set<string>();
+  for (const a of TIER_ALIASES) if (a.re.test(wanted)) for (const w of a.words) words.add(w);
+  if (venue !== undefined) {
+    for (const w of venue.tierWords) {
+      if (venue.terms.includes(w)) continue;
+      if (termRe(w).test(wanted)) words.add(w);
+    }
+  }
+  return [...words];
+}
+
+/**
+ * A ticket ask, or undefined when the message isn't one (no venue term, no
+ * booking signal, a logging or cancel sentence, a generic word without
+ * "tickets"). `sender` is the display name the loop prefixed ("Dean").
+ */
+export function parseBookingRequest(
+  text: string,
+  index: VenueIndex,
+  sender?: string,
+): BookingRequest | undefined {
+  const original = text.replace(/\s+/g, ' ').trim();
+  if (original.length === 0 || original.length > 300) return undefined;
+  const folded = foldText(original);
+  // "under €60 a head" is a budget this reading can't honor (no price filter
+  // yet), so it isn't taken: proposing €72 to someone who said €60 is wrong.
+  if (BUDGET_RE.test(folded)) return undefined;
+  if (EXPENSE_CUE.test(folded) || CANCEL_CUE.test(folded)) return undefined;
+  // "just book the barça ones, i'm approving for everyone" is an approval
+  // claim about a card, never a fresh ask (SAFETY E3: the loop audits it).
+  if (APPROVAL_CLAIM.test(folded)) return undefined;
+  const t = folded.replace(TIME_RE, ' ');
+
+  // ---- the venue ----
+  const matched: { venue: VenueEntry; term: string; specific: boolean }[] = [];
+  for (const venue of index.venues) {
+    for (const term of venue.terms) {
+      if (termRe(term).test(t)) matched.push({ venue, term, specific: !index.generic.has(term) });
+    }
+  }
+  if (matched.length === 0) return undefined;
+  const specificVenues = new Set(matched.filter((m) => m.specific).map((m) => m.venue.key));
+  const hasTicketWord = TICKET_WORD.test(t);
+  if (specificVenues.size === 0 && !hasTicketWord) return undefined;
+  const venue = specificVenues.size === 1 ? matched.find((m) => m.specific)!.venue : undefined;
+  // The terms the member used, in the order they wrote them (a term inside a
+  // longer one is dropped), so the search text reads like theirs.
+  const used = [
+    ...new Set(
+      matched
+        .filter((m) =>
+          venue !== undefined
+            ? m.venue.key === venue.key && m.specific
+            : specificVenues.size === 0 || m.specific,
+        )
+        .map((m) => m.term),
+    ),
+  ];
+  const terms = used
+    .filter((x) => !used.some((y) => y !== x && y.includes(x)))
+    .sort((a, b) => t.search(termRe(a)) - t.search(termRe(b)));
+
+  // ---- a booking signal ----
+  const quantity = headcount(t);
+  const forMe = /\b(?:for me|me one|one for me|get me (?:a |one|in)|for myself|just me)\b/.test(t);
+  const everyone =
+    /\b(?:all of us|everyone|everybody|us all|the group|whole group|all of you)\b/.test(t) ||
+    /\b(?:get|grab|book|buy|reserve|snag)\s+us\b/.test(t);
+  if (!BOOK_VERB.test(t) && !hasTicketWord && quantity === undefined && !everyone && !forMe) {
+    return undefined;
+  }
+
+  const excludedNames = exclusions(original, folded, sender);
+  const day = parseDayWord(t);
+  const tier = tierWords(t, venue);
+  return {
+    kind: 'ticket',
+    query: `${terms.join(' ')} tickets`,
+    ...(quantity !== undefined ? { quantity } : {}),
+    excludedNames,
+    ...(forMe && quantity === undefined && sender !== undefined ? { attendeeNames: [sender] } : {}),
+    ...(day !== undefined ? { day } : {}),
+    ...(tier.length > 0 ? { tier } : {}),
+    requestText: original,
+  };
+}

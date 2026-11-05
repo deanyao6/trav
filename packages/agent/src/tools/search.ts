@@ -7,6 +7,7 @@ import type { IsoDate, MemberId } from '@trav/core';
 import { formatMoney, localDate, TravError } from '@trav/core';
 import type { FlightsAdapter, LodgingAdapter, TicketsAdapter, EventCategory } from '@trav/adapters';
 import { sanitizeInline } from '../context/groupContext.js';
+import { refundableNow } from '../booking/proposals.js';
 import type { ToolDefinition } from './registry.js';
 import {
   activeMembers,
@@ -57,6 +58,9 @@ export interface EventResult {
     readonly text: string;
   } | null;
   readonly refundableOption: boolean;
+  /** Tier name and refundability (as of now) of the cheapest bookable offer. */
+  readonly fromTier: string | null;
+  readonly fromRefundable: boolean | null;
   readonly bookable: boolean;
 }
 
@@ -137,7 +141,9 @@ export function createSearchEventsTool(
           category: ev.category,
           minimumAge: ev.minimumAge ?? null,
           from,
-          refundableOption: api.some((o) => o.refundPolicy.refundable),
+          refundableOption: api.some((o) => refundableNow(o, ctx.now)),
+          fromTier: cheapest === undefined ? null : sanitizeInline(cheapest.tierName, 40),
+          fromRefundable: cheapest === undefined ? null : refundableNow(cheapest, ctx.now),
           bookable: api.length > 0,
         });
       }

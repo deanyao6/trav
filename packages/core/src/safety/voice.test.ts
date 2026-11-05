@@ -145,6 +145,18 @@ describe('lintVoice rules', () => {
       ),
     ).toEqual(['uppercase_start']);
     expect(lintVoice('Dean paid', { kind: 'reply', properNouns: ['Dean'] }).ok).toBe(true);
+    // An address abbreviation ends no sentence (T-081: Lisbon ticket DMs).
+    expect(
+      lintVoice('starts 6pm · R. Prof. Fernando da Fonseca, Lisboa', {
+        kind: 'reply',
+        properNouns: ['Dean'],
+      }).ok,
+    ).toBe(true);
+    expect(
+      lintVoice('booked it. Zorro paid', { kind: 'reply', properNouns: ['Dean'] }).violations.map(
+        (v) => v.rule,
+      ),
+    ).toEqual(['uppercase_start']);
     expect(
       lintVoice("Sagrada Família's at 3pm", { kind: 'reply', properNouns: ['Sagrada Família'] }).ok,
     ).toBe(true);

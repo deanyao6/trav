@@ -39,8 +39,20 @@ export function parseProposeInput(raw: unknown): ProposeInput {
   if (quantity !== undefined) out.quantity = quantity;
   const activityId = optString(r, 'activityId', 80);
   if (activityId !== undefined) out.activityId = activityId;
+  const attendeeNames = optStringArray(r, 'attendeeNames');
+  if (attendeeNames !== undefined) out.attendeeNames = attendeeNames;
   const date = optString(r, 'date', 10);
-  if (date !== undefined) out.date = date;
+  if (date !== undefined) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) bad('date must be YYYY-MM-DD');
+    out.date = date;
+  }
+  const day = optString(r, 'day', 20);
+  if (day !== undefined) out.day = day;
+  const tier = optStringArray(r, 'tier');
+  if (tier !== undefined) {
+    if (tier.length > 6 || tier.some((w) => w.length > 30)) bad('tier is a few short words');
+    out.tier = tier;
+  }
   const requestText = optString(r, 'requestText', 500);
   if (requestText !== undefined) out.requestText = requestText;
   return out;
@@ -67,11 +79,27 @@ export function createProposeBookingTool(
         attendeeMemberIds: { type: 'array', items: { type: 'string' } },
         excludedMemberIds: { type: 'array', items: { type: 'string' } },
         excludedNames: { type: 'array', items: { type: 'string' } },
+        attendeeNames: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'exactly who is going, by display name',
+        },
         quantity: { type: 'integer', minimum: 1 },
         activityId: { type: 'string' },
         date: {
           type: 'string',
           description: 'local date YYYY-MM-DD of the night; default tonight',
+        },
+        day: {
+          type: 'string',
+          description:
+            'the night as said, when you have no date: tonight, tomorrow, a weekday, or MM-DD. nothing that night means no proposal',
+        },
+        tier: {
+          type: 'array',
+          items: { type: 'string' },
+          description:
+            'seat tier words the offer must match, e.g. ["lateral"] for sideline, ["vip"]',
         },
         requestText: { type: 'string' },
       },

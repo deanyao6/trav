@@ -516,9 +516,61 @@ const ATTENDANCE_FOLLOW_UP =
  */
 export function rosterTexts(text: string): string[] {
   const out = [text];
+  const lead = headcountLead(text);
+  if (lead !== undefined) {
+    out.push(lead.clause);
+    return out;
+  }
   const split = attendanceClause(text);
   if (split !== undefined && split.clause !== text.trim()) out.push(split.clause);
   return out;
+}
+
+const LEAD_COUNTS: Readonly<Record<string, number>> = {
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+};
+/** "it's the 5 of us tonight", "we're 5 tonight", "just the 5 of us": a headcount for tonight and nothing else. */
+const HEADCOUNT_LEAD =
+  /^(?:(?:so|ok|okay)\s+)?(?:(?:it'?s|its|we'?re|we are|it'?ll be|gonna be)\s+)?(?:just\s+)?(?:the\s+)?(\d{1,2}|two|three|four|five|six|seven|eight|nine|ten)(?:\s+of\s+us)?(?:\s+(?:tonight|tonite|tn))?$/i;
+
+/**
+ * "@trav it's the 5 of us tonight, henry's out": a headcount for tonight, then
+ * one attendance clause. The clause is offered to the roster handler with the
+ * headcount as `expectInCount`, so it is written only when the change makes
+ * exactly that many in; a disagreement sends the whole message to the model.
+ * The reason in the clause is dropped by `parseRosterUpdate`.
+ */
+function headcountLead(text: string): { count: number; clause: string } | undefined {
+  const t = stripInvisible(text)
+    .replace(AT_TRAV_TOKEN, '$1')
+    .replace(/\s+/g, ' ')
+    .replace(TRAV_VOCATIVE_PREFIX, '')
+    .trim();
+  const m = /^(.*?)(?:[,;]+|\s+-\s+)\s*(.*?)[\s!.?]*$/u.exec(t);
+  if (m === null) return undefined;
+  const head = m[1]!.trim();
+  const lead = HEADCOUNT_LEAD.exec(head);
+  const bare = m[2]!.replace(ATTENDANCE_FILLER, '').trim();
+  if (lead === null || bare.length === 0 || /[,;]/.test(bare)) return undefined;
+  const raw = lead[1]!.toLowerCase();
+  const count = /^\d+$/.test(raw) ? Number(raw) : LEAD_COUNTS[raw];
+  if (count === undefined || count < 1) return undefined;
+  // The night the lead named binds the clause: "tonight" never means the next
+  // thing on the plan (an empty Friday must not mark Henry out of Saturday).
+  const tonight = /\b(?:tonight|tonite|tn)$/i.test(head);
+  const clause =
+    tonight && !/\b(?:tonight|tonite|tn|today|tomorrow|tmrw)\b/i.test(bare)
+      ? `${bare} tonight`
+      : bare;
+  return { count, clause };
 }
 
 /**
@@ -526,9 +578,12 @@ export function rosterTexts(text: string): string[] {
  * 6), or undefined when the message has no such tail. The loop offers the
  * attendance clause to the roster handler only when N matches the in-count
  * the change would produce; otherwise the whole message goes to the model,
- * which can ask (T-066).
+ * which can ask (T-066). A leading headcount counts the same way ("it's the
+ * 5 of us tonight, henry's out" ⇒ 5).
  */
 export function rosterFollowUpCount(text: string): number | undefined {
+  const lead = headcountLead(text);
+  if (lead !== undefined) return lead.count;
   const tail = attendanceClause(text)?.tail ?? '';
   const n = /\bmake it (?:for )?(\d{1,2})\b/i.exec(tail);
   return n === null ? undefined : Number(n[1]);
@@ -1944,8 +1999,7 @@ export function createTravAgent(deps: AgentDeps): TravAgent {
       boundRef?.card.type === 'receipt' ||
       askedRef?.proposalId !== undefined ||
       pendingFor(r).some((p) => parseIso(r.now) - parseIso(p.requestedAt) <= REPLY_WINDOW_MS);
-    const balanceAsk =
-      canRequest(r.identity) && !aboutBooking ? parseBalanceAsk(text) : undefined;
+    const balanceAsk = canRequest(r.identity) && !aboutBooking ? parseBalanceAsk(text) : undefined;
     if (balanceAsk !== undefined && r.trip === null) {
       const sent = await send(r, [message(r, NO_TRIP_BALANCE_TEXT)]);
       return withResumed({

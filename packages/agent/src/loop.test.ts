@@ -1976,4 +1976,53 @@ describe('T-066: agent loop hardening (T-007-b round-3 review)', () => {
       'sam is going now',
     ]);
   });
+
+  it('a leading headcount for tonight plus one attendance clause (T-092, msg_bcn_0100)', () => {
+    // The lead's "tonight" stays on the clause, so it never means another night.
+    expect(rosterTexts("@trav it's the 5 of us tonight, henry's out")).toEqual([
+      "@trav it's the 5 of us tonight, henry's out",
+      "henry's out tonight",
+    ]);
+    expect(rosterTexts("@trav it's 5 of us, henry's out")).toEqual([
+      "@trav it's 5 of us, henry's out",
+      "henry's out",
+    ]);
+    expect(rosterFollowUpCount("@trav it's the 5 of us tonight, henry's out")).toBe(5);
+    expect(rosterFollowUpCount("@trav we're five tonight, maya's out")).toBe(5);
+    // Another night, or a second request in the tail: not this form.
+    expect(rosterFollowUpCount("@trav it's the 5 of us tomorrow, henry's out")).toBeUndefined();
+    expect(rosterTexts("@trav it's 5 of us, henry's out, book razz")).toHaveLength(1);
+  });
+
+  it('"it\'s the 5 of us tonight, henry\'s out" marks Henry out only when that makes 5 in; a mismatch goes to the model', async () => {
+    const h = harness();
+    const henry = (): string | undefined =>
+      h.runtime.stores.group.trips
+        .listAttendance(BARCELONA.razzmatazzActivityId)
+        .find((a) => a.memberId === 'mem_henry')?.status;
+    const wrong = await h.say('h_dean', "@trav it's the 4 of us tonight, henry's out");
+    expect(wrong.note).not.toMatch(/^roster:/);
+    expect(h.model.completions.length).toBeGreaterThan(0);
+    expect(henry()).not.toBe('out');
+    const ok = await h.say('h_sam', "@trav it's the 5 of us tonight, henry's out");
+    expect(ok.note).toBe('roster:changed');
+    expect(henry()).toBe('out');
+    // Trav's line names the count, never the reason.
+    expect(firstMessage(ok).text).not.toMatch(/sick|ill/i);
+  });
+
+  it('nothing planned tonight: says so, and never marks Henry out of a later night', async () => {
+    const h = harness();
+    h.clock.advanceMs(24 * 60 * 60 * 1000); // the night after Razzmatazz: nothing on the plan
+    const turn = await h.say('h_sam', "@trav it's the 5 of us tonight, henry's out");
+    expect(turn.note).toBe('roster:no_activity');
+    expect(firstMessage(turn).text).toBe('nothing on the plan for tonight yet');
+    expect(h.model.completions).toHaveLength(0);
+    for (const a of h.runtime.stores.group.trips.listActivities(T)) {
+      const row = h.runtime.stores.group.trips
+        .listAttendance(a.activityId)
+        .find((x) => x.memberId === 'mem_henry');
+      expect(row?.status, a.activityId).not.toBe('out');
+    }
+  });
 });

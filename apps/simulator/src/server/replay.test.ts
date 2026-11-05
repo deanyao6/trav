@@ -57,9 +57,9 @@ describe('parseScript', () => {
   });
 
   it('rejects a line that is not JSON or lacks id/ts/kind, naming the line', () => {
-    expect(() => parseScript('{"id":"a","ts":"2026-03-14T21:40:00+01:00","kind":"message"}\nnope')).toThrow(
-      /line 2/,
-    );
+    expect(() =>
+      parseScript('{"id":"a","ts":"2026-03-14T21:40:00+01:00","kind":"message"}\nnope'),
+    ).toThrow(/line 2/);
     expect(() => parseScript('{"id":"a","kind":"message"}')).toThrow(TravError);
     expect(parseScript('\n\n')).toEqual([]);
   });
@@ -76,20 +76,29 @@ describe('describeLine', () => {
     ...over,
   });
   it('labels each kind for the replay button', () => {
-    expect(describeLine(line({ text: "@trav get the 5 of us Razzmatazz tickets, Henry's sick" }), BARCELONA)).toBe(
-      'Dean: @trav get the 5 of us Razzmatazz tickets…',
-    );
-    expect(describeLine(line({ lane: 'direct', senderId: 'h_priya', text: 'photos on' }), BARCELONA)).toBe(
-      'Priya (dm): photos on',
-    );
-    expect(describeLine(line({ kind: 'reaction', reaction: '👍', cardRef: 'razz_proposal' }), BARCELONA)).toBe(
-      'Dean 👍 on razz_proposal',
-    );
     expect(
-      describeLine(line({ kind: 'clock', senderId: null, advanceTo: '2026-03-15T10:00:00+01:00' }), BARCELONA),
+      describeLine(
+        line({ text: "@trav get the 5 of us Razzmatazz tickets, Henry's sick" }),
+        BARCELONA,
+      ),
+    ).toBe('Dean: @trav get the 5 of us Razzmatazz tickets…');
+    expect(
+      describeLine(line({ lane: 'direct', senderId: 'h_priya', text: 'photos on' }), BARCELONA),
+    ).toBe('Priya (dm): photos on');
+    expect(
+      describeLine(line({ kind: 'reaction', reaction: '👍', cardRef: 'razz_proposal' }), BARCELONA),
+    ).toBe('Dean 👍 on razz_proposal');
+    expect(
+      describeLine(
+        line({ kind: 'clock', senderId: null, advanceTo: '2026-03-15T10:00:00+01:00' }),
+        BARCELONA,
+      ),
     ).toBe('clock → sun mar 15 · 10am · day 4');
     expect(
-      describeLine(line({ kind: 'system', senderId: null, event: 'card_sync', memberId: 'mem_sam' }), BARCELONA),
+      describeLine(
+        line({ kind: 'system', senderId: null, event: 'card_sync', memberId: 'mem_sam' }),
+        BARCELONA,
+      ),
     ).toBe('card_sync for Sam');
   });
 });
@@ -154,15 +163,26 @@ describe('findTargetCard', () => {
   };
   it('picks the newest card of the type the cardRef names; taps need the action on it', () => {
     const entries = [proposal(1), proposal(2), settle];
-    expect(findTargetCard(entries, { kind: 'reaction', cardRef: 'razz_proposal' })?.messageId).toBe('m2');
-    expect(findTargetCard(entries, { kind: 'reaction', cardRef: 'final_settle' })?.messageId).toBe('m3');
+    expect(findTargetCard(entries, { kind: 'reaction', cardRef: 'razz_proposal' })?.messageId).toBe(
+      'm2',
+    );
+    expect(findTargetCard(entries, { kind: 'reaction', cardRef: 'final_settle' })?.messageId).toBe(
+      'm3',
+    );
     expect(
-      findTargetCard(entries, { kind: 'button_tap', cardRef: 'razz_proposal', actionId: 'approve' })?.messageId,
+      findTargetCard(entries, { kind: 'button_tap', cardRef: 'razz_proposal', actionId: 'approve' })
+        ?.messageId,
     ).toBe('m2');
     expect(
-      findTargetCard(entries, { kind: 'button_tap', cardRef: 'razz_proposal', actionId: 'confirm' }),
+      findTargetCard(entries, {
+        kind: 'button_tap',
+        cardRef: 'razz_proposal',
+        actionId: 'confirm',
+      }),
     ).toBeUndefined();
-    expect(findTargetCard(entries, { kind: 'reaction', cardRef: 'sam_uber_prompt' })).toBeUndefined();
+    expect(
+      findTargetCard(entries, { kind: 'reaction', cardRef: 'sam_uber_prompt' }),
+    ).toBeUndefined();
     expect(findTargetCard([], { kind: 'reaction', cardRef: 'razz_proposal' })).toBeUndefined();
   });
 });
@@ -219,7 +239,9 @@ describe('withReplay (real runtime, opened on the seeded chat)', () => {
     for (const id of ['mem_sam', 'mem_dean', 'mem_priya', 'mem_maya']) {
       expect(messages(g.dms[id]!).some((m) => m.card?.type === 'expense_confirm')).toBe(true);
     }
-    expect(messages(g.dms['mem_jordan']!).some((m) => m.card?.type === 'expense_confirm')).toBe(false);
+    expect(messages(g.dms['mem_jordan']!).some((m) => m.card?.type === 'expense_confirm')).toBe(
+      false,
+    );
     // Nothing left to run.
     expect(await b.replay.step()).toMatchObject({ cursor: 199 });
   });
@@ -228,7 +250,9 @@ describe('withReplay (real runtime, opened on the seeded chat)', () => {
     const b = withReplay(await demoBackend(), SCRIPT);
     const until = SCRIPT.findIndex((l) => l.id === 'msg_bcn_0020');
     for (let i = 0; i <= until; i++) await b.replay.step();
-    expect(b.replay.view().last).toBe('skipped msg_bcn_0020: no flights_proposal on screen to react to');
+    expect(b.replay.view().last).toBe(
+      'skipped msg_bcn_0020: no flights_proposal on screen to react to',
+    );
     expect(b.replay.view().cursor).toBe(until + 1);
   });
 
@@ -267,6 +291,11 @@ describe('withReplay (agent backend, real offline runtime)', () => {
     expect(messages(g.thread).some((m) => m.card?.type === 'booking_proposal')).toBe(true);
     expect(JSON.stringify(g.thread)).not.toContain('vegetarian');
     // Henry never gets a Razzmatazz ticket.
-    expect(messages(g.dms['mem_henry']!).some((m) => m.card?.type === 'ticket')).toBe(false);
+    const henryTickets = messages(g.dms['mem_henry']!).flatMap((m) =>
+      m.card?.type === 'ticket' ? [m.card.event.name] : [],
+    );
+    expect(henryTickets.some((n) => /razzmatazz/i.test(n))).toBe(false);
+    // T-081: the Barça ask (msg_bcn_0040) is proposed, every payer 👍s, and Henry gets his own ticket.
+    expect(henryTickets).toEqual(['FC Barcelona vs Sevilla FC']);
   });
 });
