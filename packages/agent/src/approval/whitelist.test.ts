@@ -10,6 +10,10 @@ import { isReaction } from '@trav/core';
 import { harness, RAZZMATAZZ_ASK, type Harness } from '../runtime.testkit.js';
 import type { TurnResult } from '../loop.js';
 import {
+  APPROVE_REPLIES,
+  APPROVE_TEXT_ALIASES,
+  DECLINE_TEXT_ALIASES,
+  NOT_ME_TEXT_ALIASES,
   approvalCounts,
   approvalReplyIntent,
   nearMissKind,
@@ -141,18 +145,40 @@ describe('approvalCounts', () => {
 
 describe('nearMissKind: a question back, never a swallowed request', () => {
   it.each([
-    ["i don't approve", 'generic'],
+    ["i don't approve", 'decline'],
     ['yes but not for me', 'not_me'],
     ['approve for him', 'generic'],
-    ["i don't approve for the group", 'generic'],
+    ["i don't approve for the group", 'decline'],
     ['oh yeah sure', 'generic'],
-    ['yes for henry too', 'generic'],
     ['sure lol', 'generic'],
-    ['do it for me and henry', 'generic'],
-    ['yes but without me', 'not_me'],
     ['@trav ok', 'generic'],
+    // T-182 r1 #5: a no gets the decline hint, never the approve hint.
+    ["@trav no don't book it", 'decline'],
+    ["@trav don't do it", 'decline'],
+    ['never book it', 'decline'],
   ] as const)('%j ⇒ %s', (text, kind) => {
     expect(nearMissKind(text, NAMES)).toBe(kind);
+  });
+
+  // T-182 r1 #1: a party edit is never a near miss; it goes on through the loop.
+  it.each([
+    '@trav book me too',
+    '@trav book it for me too',
+    '@trav book it without chase',
+    '@trav do it for me and chase only',
+    '@trav book it for henry too',
+    'yes for henry too',
+    'do it for me and henry',
+    'yes but without me',
+    'book it for him too',
+    'book it except me',
+    'only me',
+  ])('party edit %j is not a near miss', (text) => {
+    expect(nearMissKind(text, NAMES)).toBeUndefined();
+  });
+
+  it('a decline near miss is answered with the decline hint', () => {
+    expect(nearMissReply('decline')).toBe('not booked. reply "no" to drop it, or "yes" to book it');
   });
 
   it.each([
@@ -240,8 +266,9 @@ describe('T-182 in the loop: no approval, no purchase', () => {
     const { h, cardMessageId } = await proposed();
     const t1 = await h.say('h_dean', "i don't approve", { replyToMessageId: cardMessageId });
     expect(t1.note).toBe('approval:not_whitelisted');
+    // T-182 r1 #5: a no gets the decline hint.
     expect(messages(t1).map((m) => m.text)).toEqual([
-      'not booked. 👍 the card or reply "yes" to book it',
+      'not booked. reply "no" to drop it, or "yes" to book it',
     ]);
     const t2 = await h.say('h_dean', 'yes but not for me', { replyToMessageId: cardMessageId });
     expect(messages(t2).map((m) => m.text)).toEqual([
@@ -253,6 +280,60 @@ describe('T-182 in the loop: no approval, no purchase', () => {
       'not_whitelisted',
     ]);
     noApproval(h, 'near misses');
+  });
+
+  it.each([
+    '@trav book me too',
+    '@trav book it for me too',
+    '@trav book it without chase',
+    '@trav do it for me and chase only',
+    '@trav book it for henry too',
+  ])(
+    'T-182 r1 #1: party edit %j is never swallowed by a near-miss answer, and never approves',
+    async (text) => {
+      const { h, cardMessageId } = await proposed();
+      const card = h.pending()[0]!;
+      const turn = await h.say('h_dean', text);
+      expect(turn.note, text).not.toBe('approval:not_whitelisted');
+      for (const m of messages(turn)) expect(m.text, text).not.toMatch(/^not booked\./);
+      expect(
+        h
+          .audit()
+          .filter((e) => e.type === 'approval.invalid_attempt')
+          .map((e) => (e.payload as Record<string, unknown>)['cause']),
+        text,
+      ).not.toContain('not_whitelisted');
+      expect(h.auditTypes(), text).not.toContain('approval.granted');
+      expect(h.tickets.purchaseCount(), text).toBe(0);
+      // The old card still can't be bought by this message; a 👍 is its own act.
+      expect(h.runtime.stores.group.bookings.getProposal(card.proposalId)?.status).not.toBe(
+        'completed',
+      );
+      void cardMessageId;
+    },
+  );
+
+  it('T-182 r1 #5: "no don\'t book it" / "don\'t do it" on the card get the decline hint', async () => {
+    for (const text of ["@trav no don't book it", "@trav don't do it"]) {
+      const { h, cardMessageId } = await proposed();
+      const turn = await h.say('h_dean', text, { replyToMessageId: cardMessageId });
+      expect(
+        messages(turn).map((m) => m.text),
+        text,
+      ).toEqual(['not booked. reply "no" to drop it, or "yes" to book it']);
+      noApproval(h, text);
+    }
+  });
+
+  it('T-182 r1 #7: every card built from the whitelist carries exactly its text aliases', async () => {
+    const h = harness();
+    const turn = await h.say('h_dean', RAZZMATAZZ_ASK);
+    const actions = messages(turn)[0]?.actions ?? [];
+    expect(actions.length).toBeGreaterThan(0);
+    expect(actions.find((a) => a.id === 'approve')?.textAliases).toEqual(APPROVE_TEXT_ALIASES);
+    expect(actions.find((a) => a.id === 'decline')?.textAliases).toEqual(DECLINE_TEXT_ALIASES);
+    expect(actions.find((a) => a.id === 'not_me')?.textAliases).toEqual(NOT_ME_TEXT_ALIASES);
+    expect(APPROVE_TEXT_ALIASES).toEqual(APPROVE_REPLIES.filter((r) => r !== '👍'));
   });
 
   it('"approve for him" keeps the T-132 claim audit (claimed_for_other), never an approval', async () => {

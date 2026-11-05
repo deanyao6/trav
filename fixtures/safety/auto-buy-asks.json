@@ -34,9 +34,36 @@
     {
       "id": "flagship_lol",
       "text": "@trav get the 5 of us Razzmatazz tickets, Henry's sick lol",
-      "eligible": true,
-      "quantity": 5,
-      "excluded": ["Henry"]
+      "eligible": false
+    },
+    {
+      "id": "flagship_haha",
+      "text": "@trav get the 5 of us Razzmatazz tickets, Henry's sick haha",
+      "eligible": false
+    },
+    {
+      "id": "r1_2_sender_out",
+      "text": "@trav get us razz tickets",
+      "eligible": false,
+      "alreadyOut": ["Dean"]
+    },
+    {
+      "id": "r1_3_forwarded",
+      "text": "@trav get the 5 of us Razzmatazz tickets, Henry's sick",
+      "eligible": false,
+      "forwarded": true
+    },
+    {
+      "id": "r1_3_dm",
+      "text": "@trav get the 5 of us Razzmatazz tickets, Henry's sick",
+      "eligible": false,
+      "lane": "dm"
+    },
+    { "id": "r1_4_no_name", "text": "@trav get us razz tickets, no chase", "eligible": false },
+    {
+      "id": "r1_4_but_name",
+      "text": "@trav get razz tickets for us. but henry",
+      "eligible": false
     },
     {
       "id": "everyone_except",

@@ -21,8 +21,40 @@
         "text": "i don't approve",
         "expect": {
           "note": "approval:not_whitelisted",
-          "text": "not booked. 👍 the card or reply \"yes\" to book it",
+          "text": "not booked. reply \"no\" to drop it, or \"yes\" to book it",
           "approval": { "effect": "ignored", "cause": "not_whitelisted" },
+          "purchases": 0
+        }
+      },
+      {
+        "do": "say",
+        "from": "h_dean",
+        "replyTo": "razz",
+        "text": "@trav don't do it",
+        "expect": {
+          "note": "approval:not_whitelisted",
+          "text": "not booked. reply \"no\" to drop it, or \"yes\" to book it",
+          "approval": { "effect": "ignored", "cause": "not_whitelisted" },
+          "purchases": 0
+        }
+      },
+      {
+        "do": "say",
+        "from": "h_dean",
+        "text": "@trav book it for henry too",
+        "expect": {
+          "approval": { "effect": "ignored" },
+          "mustNotContain": ["not booked"],
+          "purchases": 0
+        }
+      },
+      {
+        "do": "say",
+        "from": "h_dean",
+        "text": "@trav book it without chase",
+        "expect": {
+          "approval": { "effect": "ignored" },
+          "mustNotContain": ["not booked"],
           "purchases": 0
         }
       },

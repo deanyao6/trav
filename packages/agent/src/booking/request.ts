@@ -515,7 +515,7 @@ const CANCEL_CUE = /\b(?:cancel|drop|nvm|never ?mind|don'?t book|scrap|forget)\b
  * removed (`withoutNameNegations`) before this is tested.
  */
 const NEGATION_CUE =
-  /\b(?:don'?t|dont|do not|doesn'?t|no need|not (?:yet|now|getting|buying|booking|gonna|going to)|hold off|wait on|no (?:tickets|tix)|never|can'?t|cant|cannot|can not|couldn'?t|won'?t|wont|wouldn'?t|didn'?t|isn'?t|aren'?t|wasn'?t|weren'?t|shouldn'?t|haven'?t|hasn'?t|no way)\b/;
+  /\b(?:don'?t|dont|do not|doesn'?t|no need|not (?:yet|now|getting|buying|booking|gonna|going to)|hold off|wait on|no (?:tickets|tix)|never|can'?t|cant|cannot|can not|couldn'?t|won'?t|wont|wouldn'?t|didn'?t|isn'?t|aren'?t|wasn'?t|weren'?t|shouldn'?t|haven'?t|hasn'?t|no way|nobody|no ?one|none of (?:us|you|them|the group))\b/;
 /** "never been (here)": about the venue, not the booking (T-148 #3). A whole clause only. */
 const NEVER_BEEN = /(?:^|[,.;!?]\s*)never been(?:\s+(?:here|there|before))?\s*(?=[,.;!?]|$)/g;
 /**
@@ -2420,6 +2420,11 @@ function unaccountedMember(
   return false;
 }
 
+/** A pronoun said to be out ("he can't make it", "she's sick", "he isn't coming"). */
+const PRONOUN_OUT = new RegExp(
+  String.raw`\b(?:he|she|they)(?:'s|'re|\s+is|\s+are)?\s+(?:can'?t|cannot|won'?t|isn'?t|aren'?t|not|doesn'?t|don'?t)\b|\b(?:he|she)(?:'s|\s+is)\s+(?:(?:feeling|a bit|so|really|still|very)\s+)*${OUT_REASON}\b`,
+);
+
 /** First-person soft asks (T-173, T-158 r2 #2): "i need…", "i could use…", "hook me up with…". */
 const FIRST_PERSON_SOFT =
   /\b(?:i\s+(?:really\s+|just\s+|also\s+|still\s+|kinda\s+)?(?:need|could use|want|wanna|would like)|i'?d like|(?:pick|sort|line|set|hook) me\b)/;
@@ -2583,6 +2588,12 @@ export function parseBookingRequest(
     if (!excludedNames.some((x) => foldText(x) === foldText(n))) excludedNames.push(n);
   }
   if (connectiveUnread(t, excludedNames, sender, ctx.skip)) return undefined;
+  // T-182 r1 #6: "…, he can't make it" with nobody named out: "he" is someone
+  // the reader can't place, so no ask (never the whole group with him in).
+  // A named list ("for chase and crowley, he is sick") already says who's going.
+  if (attendees === undefined && excludedNames.length === 0 && PRONOUN_OUT.test(t)) {
+    return undefined;
+  }
   if (
     attendees !== undefined &&
     (onlyTheOut(attendees, excludedNames) || minorityOfGroup(t, list !== undefined, attendees, ctx))

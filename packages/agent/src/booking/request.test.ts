@@ -103,7 +103,8 @@ describe('parseBookingRequest: the Barcelona asks', () => {
     expect(parse("get razz tickets for everyone but Henry, he's sick")?.excludedNames).toEqual([
       'Henry',
     ]);
-    expect(parse("get razz tickets for 5, she's out")?.excludedNames).toEqual([]);
+    // T-182 r1 #6: and a pronoun out with nobody named out is no ask at all.
+    expect(parse("get razz tickets for 5, she's out")).toBeUndefined();
   });
 });
 
@@ -375,7 +376,8 @@ describe('T-158: the flagship ask in other words', () => {
   });
 
   it('a pronoun, a venue word or a reason is never the excluded name', () => {
-    expect(parse('get razz tickets for 5 of us, he is feeling rough')?.excludedNames).toEqual([]);
+    // T-182 r1 #6: "he" out with nobody named out is no ask (never all of them, him in).
+    expect(parse('get razz tickets for 5 of us, he is feeling rough')).toBeUndefined();
     expect(parse('get razz tickets for all of us, it is sold out')?.excludedNames ?? []).toEqual(
       [],
     );

@@ -764,6 +764,8 @@ Trav never spends without an approval event that passes `ApprovalPolicy`. The po
 - **Exact means exact (T-182, D-042).** Case, trailing punctuation and a warm emoji (🙏 🎉 🙌 🔥 💯 😊 ✅) don't matter; anything else does. "i don't approve", "yes but not for me", "approve for him", "i approve for me and henry", "everyone's in, book it", "oh yeah sure", "yes 😂", a quoted or forwarded "yes" are not approvals. Said to Trav (on the card, in the reply window, or with @trav), one question back, never a purchase:
   - `not booked. 👍 the card or reply "yes" to book it`
   - `not booked. reply "not me" to drop out, or "yes" to book it` (it sounds like they want out)
+  - `not booked. reply "no" to drop it, or "yes" to book it` (a no: "i don't approve", "don't do it")
+  - A change to who's going ("book me too", "book it for henry too", "without chase", "only me") is never answered with these lines: it goes on to the roster and proposal flows.
   - `not booked. everyone approves for themselves: 👍 the card or reply "yes"` (an approval said for others)
 
 - The approval must come from a member in `policy.requiresApprovalFrom`. A 👍 from anyone else is **ignored silently** (no "you can't approve this" message; the proposal just stays pending). Exception: if the only 👍s are from non-approvers after 5 minutes, Trav posts once: "need a 👍 from @Dean on this one".

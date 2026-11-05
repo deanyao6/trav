@@ -21,6 +21,11 @@ import type {
   TimeZone,
 } from '@trav/core';
 import { TravError, formatClockTime, formatTime, localDate, parseIso } from '@trav/core';
+import {
+  APPROVE_TEXT_ALIASES,
+  DECLINE_TEXT_ALIASES,
+  NOT_ME_TEXT_ALIASES,
+} from '../approval/whitelist.js';
 
 /** What every renderer needs besides its own data. */
 export interface RenderContext {
@@ -123,9 +128,9 @@ export function headlineName(name: string): string {
 
 /** Text aliases per action (VOICE §3.6 / §6.2). Kept in sync with the keyword matcher's defaults. */
 const TEXT_ALIASES: Readonly<Record<ActionId, readonly string[]>> = {
-  approve: ['yes', 'yep', 'go', 'book it', 'do it'],
-  decline: ['no', 'nah', 'cancel', 'drop it'],
-  not_me: ['not me', "i'm out", 'without me'],
+  approve: APPROVE_TEXT_ALIASES,
+  decline: DECLINE_TEXT_ALIASES,
+  not_me: NOT_ME_TEXT_ALIASES,
   confirm: ['yes', 'yep', 'share it'],
   keep_private: ['no', 'nah', 'keep private', 'keep it private'],
   undo: ['undo'],

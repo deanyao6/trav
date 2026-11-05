@@ -15,6 +15,7 @@ const input = (text: string, extra: Partial<AutoBuyInput> = {}): AutoBuyInput =>
   index: INDEX,
   sender: 'Dean',
   roster: BCN,
+  lane: 'group',
   ...extra,
 });
 const verdict = (text: string, extra: Partial<AutoBuyInput> = {}) =>
@@ -32,7 +33,6 @@ describe('the flagship is eligible', () => {
     `${FLAGSHIP}. thanks trav 🙏`,
     `${FLAGSHIP}!`,
     `${FLAGSHIP}, thank you`,
-    `${FLAGSHIP} lol`,
     `${FLAGSHIP} when you get a sec`,
     `${FLAGSHIP}, pls`,
     `@trav pls get the 5 of us Razzmatazz tickets, Henry's sick`,
@@ -264,5 +264,78 @@ describe('the grammar is positive, not a blocklist', () => {
       quantity: 2,
     });
     expect(eligible('@trav get 3 razzmatazz tickets for me and chase')).toBe(false);
+  });
+});
+
+describe('T-182 r1 review repros', () => {
+  it('#2: "us" / "the N of us" from a sender who is already out is never the others without them', () => {
+    expect(verdict('@trav get us razz tickets', { alreadyOut: ['Dean'] })).toEqual({
+      eligible: false,
+      reason: 'party',
+    });
+    expect(verdict('@trav get the 5 of us razz tickets', { alreadyOut: ['Dean'] })).toEqual({
+      eligible: false,
+      reason: 'party',
+    });
+    expect(
+      verdict('@trav get razz tickets for everyone except henry', { alreadyOut: ['Dean'] }),
+    ).toEqual({ eligible: false, reason: 'party' });
+    // Someone else out is still fine.
+    expect(verdict('@trav get us razz tickets', { alreadyOut: ['Henry'] })).toMatchObject({
+      eligible: true,
+      quantity: 5,
+    });
+  });
+
+  it('#3: a forwarded ask, a quote-reply, or a DM never auto-buys', () => {
+    expect(verdict(FLAGSHIP, { forwarded: true })).toEqual({ eligible: false, reason: 'quoted' });
+    expect(verdict(FLAGSHIP, { quotesMessage: true })).toEqual({
+      eligible: false,
+      reason: 'quoted',
+    });
+    expect(verdict(FLAGSHIP, { lane: 'dm' })).toEqual({ eligible: false, reason: 'lane' });
+    expect(verdict('@trav get us razz tickets', { lane: 'dm' })).toEqual({
+      eligible: false,
+      reason: 'lane',
+    });
+  });
+
+  it('#4: a bare "no NAME" or sentence-initial "but NAME" is not an exclusion', () => {
+    expect(eligible('@trav get us razz tickets, no chase')).toBe(false);
+    expect(eligible('@trav get razz tickets for us. but henry')).toBe(false);
+    expect(eligible('@trav get razz tickets for us, but henry')).toBe(false);
+    // The unambiguous forms still read.
+    expect(verdict('@trav get razz tickets for us, not henry')).toMatchObject({
+      eligible: true,
+      excluded: ['Henry'],
+    });
+    expect(verdict('@trav get razz tickets for us, but not henry')).toMatchObject({
+      eligible: true,
+      excluded: ['Henry'],
+    });
+    expect(verdict('@trav get razz tickets for everyone but henry')).toMatchObject({
+      eligible: true,
+      excluded: ['Henry'],
+    });
+  });
+
+  it('Orchestrator: "lol" and "haha" are not tails (sarcasm markers), so those asks get the card', () => {
+    for (const tail of [' lol', ' haha', ', lol', '. haha 🙏', ' thanks lol']) {
+      expect(eligible(`${FLAGSHIP}${tail}`), tail).toBe(false);
+    }
+    // The kept tails still pass.
+    for (const tail of [', thanks', ' pls', ' 🙏', ' when you get a sec']) {
+      expect(eligible(`${FLAGSHIP}${tail}`), tail).toBe(true);
+    }
+  });
+
+  it('#6: the reader-level repros are never eligible', () => {
+    for (const text of [
+      '@trav get razz tickets for everyone, nobody wants to go',
+      '@trav get razz tickets for everyone, none of us want to',
+      "@trav get razz tickets for everyone, he can't make it",
+    ]) {
+      expect(eligible(text), text).toBe(false);
+    }
   });
 });

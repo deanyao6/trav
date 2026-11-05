@@ -651,6 +651,10 @@ interface AutoBuyFixture {
     readonly eligible: boolean;
     readonly quantity?: number;
     readonly excluded?: readonly string[];
+    /** Context (T-182 r1 #2, #3): the roster state, the lane, a forwarded message. */
+    readonly alreadyOut?: readonly string[];
+    readonly lane?: 'group' | 'dm';
+    readonly forwarded?: boolean;
   }[];
 }
 
@@ -671,7 +675,15 @@ export function probeAutoBuy(): { cases: AutoBuyCase[] } {
   const fx = loadFixture<AutoBuyFixture>('safety/auto-buy-asks.json');
   const index = venueIndexFrom(loadAllTicketInventories());
   const cases = fx.cases.map((c): AutoBuyCase => {
-    const v = autoBuyVerdict({ text: c.text, index, sender: fx.sender, roster: fx.roster });
+    const v = autoBuyVerdict({
+      text: c.text,
+      index,
+      sender: fx.sender,
+      roster: fx.roster,
+      lane: c.lane ?? 'group',
+      ...(c.alreadyOut !== undefined ? { alreadyOut: c.alreadyOut } : {}),
+      ...(c.forwarded !== undefined ? { forwarded: c.forwarded } : {}),
+    });
     return {
       id: c.id,
       text: c.text,

@@ -25,9 +25,14 @@
  *   OUT     := [since|because|cause|cuz|as] NAME ('s|is) OUTSTATE [tonight|today]
  *            | NAME (can't|cannot) (come|make it|go|join) [tonight]
  *            | NAME (isn't|is not|'s not|won't) (coming|make it|joining) [tonight]
- *   TAIL    := thanks | thank you [trav] | thx | ty | pls | please | lol | haha
+ *   TAIL    := thanks | thank you [trav] | thx | ty | pls | please
  *            | cheers | asap | when you get a (sec|second|chance|minute) | when you can
  *            | a whitelisted emoji (🙏 🎉 🔥 🙌 👍 ✅ …)
+ *   ("lol" and "haha" are not tails: they mark sarcasm, so those asks get
+ *   the card. Orchestrator, T-182 r1.)
+ *   EXCEPT as its own clause is "except"/"not"/"but not"/"minus"/… NAMES,
+ *   never a bare "no NAME" or "but NAME" (T-182 r1 #4). Only the group lane,
+ *   never forwarded or quote-replying (r1 #3).
  *
  * Then the party must resolve cleanly against the roster: every name a
  * member, nobody both in and out, a stated count equal to the people it
@@ -52,12 +57,22 @@ export interface AutoBuyInput {
   readonly roster: readonly string[];
   /** Members already out tonight (the group's roster state), if any. */
   readonly alreadyOut?: readonly string[];
+  /**
+   * Where it was said (T-182 r1 #3). Only the group thread can auto-buy: in a
+   * DM "us" can't mean the whole group, so a DM ask always gets the card.
+   */
+  readonly lane: 'group' | 'dm';
+  /** The channel marked the message forwarded: someone's old words, never an ask. */
+  readonly forwarded?: boolean;
+  /** The message quote-replies another message: it may be answering that, not asking. */
+  readonly quotesMessage?: boolean;
 }
 
 export type AutoBuyRejection =
   | 'empty'
   | 'too_long'
   | 'not_addressed'
+  | 'lane'
   | 'sender_not_member'
   | 'question'
   | 'quoted'
@@ -133,8 +148,6 @@ const TAILS: readonly (readonly string[])[] = [
   ['pls'],
   ['please'],
   ['plz'],
-  ['lol'],
-  ['haha'],
   ['cheers'],
   ['asap'],
   ['when', 'you', 'get', 'a', 'sec'],
@@ -596,14 +609,21 @@ class Parser {
   }
 
   /** ", except henry" / ", not henry" as its own clause. */
+  /**
+   * ", except henry" / ", not henry" / ", but not henry" as its own clause.
+   * Not a bare "no henry" ("no chase" can be a reply to someone) or a bare
+   * "but henry" ("…for us. but henry" may add him): T-182 r1 #4.
+   */
   exceptClause(): string[] | undefined {
     const save = this.i;
-    if (this.take('not') || this.take('no')) {
+    if (this.take('not')) {
       const ns = this.names();
       if (ns !== undefined) return ns;
       this.i = save;
       return undefined;
     }
+    const w = this.word();
+    if (w === 'no' || (w === 'but' && this.word(1) !== 'not')) return undefined;
     return this.except();
   }
 
@@ -629,6 +649,8 @@ function addressed(s: string): string | undefined {
  */
 export function autoBuyVerdict(input: AutoBuyInput): AutoBuyVerdict {
   const no = (reason: AutoBuyRejection): AutoBuyVerdict => ({ eligible: false, reason });
+  if (input.forwarded === true || input.quotesMessage === true) return no('quoted');
+  if (input.lane !== 'group') return no('lane');
   const raw = stripInvisible(input.text)
     .replace(/[ \t]+/g, ' ')
     .trim();
@@ -700,6 +722,9 @@ export function autoBuyVerdict(input: AutoBuyInput): AutoBuyVerdict {
   const party = ask.party;
   let attendees: string[];
   if (party === undefined || party.kind === 'group' || party.kind === 'count') {
+    // T-182 r1 #2: "us" / "the N of us" from someone who's out tonight says
+    // two things at once; never quietly the others without them.
+    if (already.has(senderKey)) return no('party');
     attendees = everyone.filter((k) => !excludedKeys.includes(k));
   } else {
     attendees = [...new Set(party.names)];

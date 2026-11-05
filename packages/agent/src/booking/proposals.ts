@@ -68,6 +68,11 @@ import type {
   TicketOffer,
   TicketsAdapter,
 } from '@trav/adapters';
+import {
+  APPROVE_TEXT_ALIASES,
+  DECLINE_TEXT_ALIASES,
+  NOT_ME_TEXT_ALIASES,
+} from '../approval/whitelist.js';
 import { sanitizeInline } from '../context/groupContext.js';
 import { keptOffFor } from '../roster/index.js';
 import { proposeFlights, type FlightPlanStore } from './flights.js';
@@ -235,20 +240,20 @@ export const PROPOSAL_ACTIONS: readonly Action[] = [
     label: 'Approve',
     style: 'primary',
     tapback: '👍',
-    textAliases: ['yes', 'yep', 'go', 'book it', 'do it'],
+    textAliases: APPROVE_TEXT_ALIASES,
   },
   {
     id: 'not_me',
     label: 'Not me',
     style: 'secondary',
-    textAliases: ['not me', "i'm out", 'im out', 'without me'],
+    textAliases: NOT_ME_TEXT_ALIASES,
   },
   {
     id: 'decline',
     label: 'Decline',
     style: 'destructive',
     tapback: '👎',
-    textAliases: ['no', 'nah', 'cancel', 'drop it'],
+    textAliases: DECLINE_TEXT_ALIASES,
   },
 ];
 
