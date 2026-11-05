@@ -77,7 +77,7 @@ RUN=$(ls logs/session-*.log 2>/dev/null | sed -E 's/.*session-([0-9]+)\.log/\1/'
 RUN=${RUN:-0}
 while [ "$(date +%s)" -lt "$END" ]; do
   RUN=$((RUN + 1))
-  P0=$(grep -cE '^- \[ \] T-[0-9a-z-]+ \| P0' tasks/BACKLOG.md 2>/dev/null || echo "?")
+  P0=$(grep -cE '^- \[ \] T-[0-9a-z-]+ \| P0' tasks/BACKLOG.md 2>/dev/null); P0=${P0:-?}
   echo "=== Session $RUN — $(date) — open P0 tasks: $P0 ===" | tee -a logs/overnight.log
   START=$(date +%s)
   LOGF="logs/session-$RUN.log"
